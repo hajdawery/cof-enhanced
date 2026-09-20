@@ -95,25 +95,32 @@ the final result. Test these separately:
 - a stock GoldSrc/Cry of Fear save; and
 - a GUI Load Game route, distinct from `+load` or a console command.
 
-The current project has only a bounded self-generated Xash save/load smoke
-result. Stock-save compatibility and GUI transition success remain unverified.
+The current project has a bounded self-generated Xash save/load smoke result
+and a separate command-equivalent stock-save restore probe. Stock-save
+compatibility through the GUI and GUI transition success remain unverified.
 
 A later isolated trace first showed a post-sign-on `cofload1` reaching the
 original `hl.dll` `ClientCommand` callback, the DLL emitting `load cofsave1`,
 and the engine entering `SV_LoadGame` before rejecting `save/cofsave1.sav` as
 missing. The pinned loader calls `FS_FileExists( pPath, true )` at
 `engine/server/sv_save.c:2141-2145`; the `true` flag selects a game-directory
-lookup. The preserved fixture was at the runtime-root `SAVE` directory, so it
-was invisible to that lookup. This was a fixture-placement issue, not evidence
-of filename-casing behavior or an engine save bug.
+lookup. Both the preserved original installation and the read-only stock
+baseline store that save under the runtime-root `SAVE` directory, while
+`cryoffear/SAVE` is absent. The stock layout is therefore invisible to the
+engine's CoF load path. This is a deployment save-location compatibility
+requirement, not a filename-casing issue or evidence of a generic loader bug.
 
 After an exact-hash copy was placed at `cryoffear/SAVE/cofsave1.sav`, the same
 trace recorded `load accepted: map=c_forest3`, `Loading game from
 save/cofsave1.sav`, and a subsequent `Spawn Server: c_forest3`. This proves the
 dispatch, game-directory search, save acceptance, and map restoration stages
-for that isolated stock-save fixture. It still does not prove the GUI click
-route, camera/input handoff, a playable first-person frame, or visual parity;
-the temporary copy and generated sidecars were removed after the run.
+for that isolated stock-save fixture. A deployment must map or copy the stock
+runtime-root `SAVE` files into the engine's game-directory save path before
+using this route. A command-equivalent post-load capture showed hands, weapon,
+HUD, and `c_forest3`, so that route can leave the menu view; the frame had
+severe white/orange rendering corruption. It still does not prove the GUI
+click route, camera/input handoff, playable gameplay, or visual parity; the
+temporary copy and generated sidecars were removed after the run.
 
 ## ABI adapters should be persistent, narrow, and opt-in
 
