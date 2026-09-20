@@ -1,0 +1,2 @@
+# Merge this line into the overlay cryoffear/gameinfo.txt.
+icon "cofmodern/branding/coffix"

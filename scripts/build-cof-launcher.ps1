@@ -10,6 +10,8 @@ $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $SourceRoot = [IO.Path]::GetFullPath($SourceRoot)
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 $source = Join-Path $SourceRoot 'launcher\cof_launch.cpp'
+$resource = Join-Path $SourceRoot 'launcher\cof_launch.rc'
+$icon = Join-Path $projectRoot 'assets\branding\coffix.ico'
 
 $projectPrefix = $projectRoot.TrimEnd('\') + '\'
 if (-not $SourceRoot.StartsWith($projectPrefix, [StringComparison]::OrdinalIgnoreCase) -and
@@ -43,13 +45,23 @@ if (-not (Test-Path -LiteralPath $vcvars)) {
 if (-not (Test-Path -LiteralPath $source)) {
     throw "Launcher source not found: $source"
 }
+if (-not (Test-Path -LiteralPath $resource)) {
+    throw "Launcher resource not found: $resource"
+}
+if (-not (Test-Path -LiteralPath $icon)) {
+    throw "Branding icon not found: $icon"
+}
 
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 $obj = Join-Path $OutputDirectory 'cof_launch.obj'
+$res = Join-Path $OutputDirectory 'cof_launch.res'
 $exe = Join-Path $OutputDirectory 'CoFLaunchApp.exe'
 $sourceArg = $source.Replace('"', '""')
+$resourceArg = $resource.Replace('"', '""')
+$iconDirArg = (Split-Path -Parent $icon).Replace('"', '""')
+$resArg = $res.Replace('"', '""')
 $exeArg = $exe.Replace('"', '""')
-$command = "call `"$vcvars`" x86 && cl /nologo /W4 /EHsc /O2 /MT /DWIN32_LEAN_AND_MEAN `"$sourceArg`" /link user32.lib /SUBSYSTEM:CONSOLE /OUT:`"$exeArg`" /PDB:`"$($exe -replace '\.exe$','.pdb')`""
+$command = "call `"$vcvars`" x86 && rc /nologo /i `"$iconDirArg`" /fo `"$resArg`" `"$resourceArg`" && cl /nologo /W4 /EHsc /O2 /MT /DWIN32_LEAN_AND_MEAN `"$sourceArg`" `"$resArg`" /link user32.lib /SUBSYSTEM:CONSOLE /OUT:`"$exeArg`" /PDB:`"$($exe -replace '\.exe$','.pdb')`""
 Push-Location $OutputDirectory
 try {
     & cmd.exe /d /s /c $command
