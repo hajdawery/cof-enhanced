@@ -98,6 +98,16 @@ the final result. Test these separately:
 The current project has only a bounded self-generated Xash save/load smoke
 result. Stock-save compatibility and GUI transition success remain unverified.
 
+A later isolated trace narrowed one stock-load attempt further: a post-sign-on
+`cofload1` reached the original `hl.dll` `ClientCommand` callback, the DLL
+emitted `load cofsave1`, and the engine entered `SV_LoadGame` before rejecting
+`save/cofsave1.sav` as missing. This proves command dispatch through the game
+DLL, but not that the fixture was in the engine's active search path, and not
+that restore or camera/input handoff worked. The fixture location versus the
+engine search path remains an open test condition. Do not turn this into a
+Windows filename-casing conclusion; the next check should log the resolved
+game directory and exact search path.
+
 ## ABI adapters should be persistent, narrow, and opt-in
 
 The first proven CoF mismatch is a four-byte PMove table shift after `physinfo`.
