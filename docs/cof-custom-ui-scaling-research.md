@@ -234,15 +234,23 @@ closed issue alone.
 ### Console font fallback boundary
 
 The pinned engine has a separate console font path that can affect the same
-orange-looking pixels. `Con_LoadConsoleFont` (`engine/client/console.c:548-602`)
-tries the modern variable-width `fonts.wad`/`fonts/fontN` resources and then
-`gfx/conchars.fnt`; only after those fail does it load `gfx/conchars` through
-`Con_LoadFixedWidthFont`, which assumes the Quake 16x16 fixed grid. Setting
-`con_oldfont 1` bypasses the modern search and directly selects the legacy
-variable-width `gfx/conchars.fnt`. CoF's `gfx.wad` contains an oldstyle
-variable-width CONCHARS font, so this is a concrete asset-format boundary,
-not a generic resolution-scale setting. The default `con_color` is `240 180
-24` (`engine/client/console.c:33`), matching the orange tone in the captures.
+orange-looking pixels. In the pinned baseline,
+`Con_LoadConsoleFont` (`engine/client/console.c:548-602`) tries the modern
+variable-width `fonts.wad`/`fonts/fontN` resources, then falls back directly
+to `gfx/conchars` through `Con_LoadFixedWidthFont`, which assumes the Quake
+16x16 fixed grid. The baseline does **not** try `gfx/conchars.fnt` in its
+default branch. Setting `con_oldfont 1` bypasses the modern search and
+directly selects the legacy variable-width `gfx/conchars.fnt`. CoF's `gfx.wad`
+contains an oldstyle variable-width CONCHARS font, so this is a concrete
+asset-format boundary, not a generic resolution-scale setting. The default
+`con_color` is `240 180 24` (`engine/client/console.c:33`), matching the
+orange tone in the captures.
+
+Terra's pending compatibility candidate adds a `gfx/conchars.fnt` attempt to
+the default branch; that is a new unvalidated behavior and must be kept
+separate from the pinned baseline. A runtime `con_oldfont 1` capture is already
+readable (see the [menu-transition investigation](menu-transition-investigation.md));
+the matched default-branch comparison remains pending.
 
 Console notify/version drawing occurs after client/VGUI drawing in the current
 diagnostic route. That makes the fallback and color worth testing as a
