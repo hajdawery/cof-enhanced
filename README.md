@@ -33,4 +33,30 @@ pwsh -File .\scripts\apply-cof-edict-stride-profile.ps1 -SourceRoot .\xash3d-fwg
 
 The source tree must be inside this repository because the scripts scope patch application to the project workspace. Each helper checks concrete source markers after applying and reverse-checks the patch; a successful process exit alone is not evidence that the source changed. They refuse duplicate application and leave generated build output in ignored source/build directories.
 
+The optional CoF save-menu checkpoint has a separate ordered application. Apply
+the existing menu-load trace prerequisite and root-save compatibility first,
+then the pause list/comment plumbing, server menu backend, client tape-command
+hook, and finally the nested MainUI files:
+
+```powershell
+pwsh -File .\scripts\apply-cof-menu-load-trace.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+pwsh -File .\scripts\apply-cof-save-root-compat.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+pwsh -File .\scripts\apply-cof-pause-save-plumbing.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+pwsh -File .\scripts\apply-cof-menu-save-backend.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+pwsh -File .\scripts\apply-cof-tape-save-command.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+pwsh -File .\scripts\apply-cof-mainui-menu-save.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+```
+
+The menu backend and nested MainUI integration are both required for a GUI
+save action. `cof_save_root_compat` remains an explicit runtime enablement;
+`cof_pause_menu_saves` defaults to `0` and is the user's separate menu-save
+choice. The implementation shares the original five slots and keeps the tape
+save path separate. See [root-save compatibility](docs/cof-save-root-compat.md),
+[pause plumbing](docs/cof-pause-save-plumbing.md),
+[menu backend](docs/cof-menu-save-backend.md),
+[tape command](docs/cof-tape-save-command.md), and
+[MainUI integration](docs/cof-mainui-menu-save.md) for scope and validation
+limits. These checkpoints are source/apply experiments; runtime menu-save
+success and visual parity are not implied.
+
 The upstream Windows build requires the recursive dependencies and an SDL2 Visual Studio development package for a client build. The isolated client build attempt used the official SDL2 `2.30.9-VC` package (SHA-256 `8C91D91E5BCB997D062EC2B553C53832EBF95654D4AA35E8C02A954D4CE752AE`). Visual Studio 2022 BuildTools with Win32 tools and Windows SDK 10.0.26100 are installed on the research host. A dedicated x86 compile of the patched source completed locally; this repository does not provide a dependency lockfile or reproducible build script, and that artifact is not committed.

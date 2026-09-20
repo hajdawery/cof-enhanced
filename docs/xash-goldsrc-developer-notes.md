@@ -27,6 +27,17 @@ the header, embedded directory payload, map, and game-DLL restore callbacks
 pointer offsets, and entity stride can therefore fail after a file has been
 found and opened.
 
+## Native save writers can hide filesystem failures
+
+**Verified in the pinned source:** the native save path issues many
+`FS_Write`/`FS_Close` calls without consistently checking their return values;
+`DirectoryCopy` also relied on the generic `FS_FileCopy` result. A save can
+therefore reach its success return while a short write or close failure has
+not been surfaced. The menu-save checkpoint adds scoped tracking and a
+checked copy loop only around its optional transaction; it is not a general
+engine-wide I/O fix. Any broader save reliability work needs its own error
+propagation design and recovery policy.
+
 ## ABI adapters must preserve the native engine view
 
 The tested CoF binaries exposed a four-byte PMove table shift after `physinfo`,

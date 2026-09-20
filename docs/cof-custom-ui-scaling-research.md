@@ -294,6 +294,23 @@ stock root `SAVE` layout and to write, thumbnail, and reload an Xash save. That
 is command-equivalent save evidence. It does not establish GUI slot selection,
 camera state, or a clean rendered first-person frame.
 
+## Tape-save command compatibility boundary
+
+The original CoF tape-recorder path has a client-side command interception
+layer that must remain separate from optional menu-save plumbing. Static
+inspection of the original client and `hw.dll` shows the client delays a
+`savehack` call around `0x1007279B..0x100727AA` and the engine intercepts that
+command locally through handlers at `0x1D21AF5`/`0x1D21BCC`, tokenization at
+`0x1D44D36`, a force flag at `0x23C9F1C`, and the save handler at `0x1D829D5`.
+These addresses are binary-specific evidence, not a portable API contract;
+the original `hl` binary has no matching string reference.
+
+The current Xash checkpoint has no equivalent hook. Tape-recorder saves have
+therefore not been runtime-validated in this environment, and this finding is
+not evidence that they fail. Any future optional menu-save implementation
+must preserve the original tape path and its five-slot semantics independently
+of the menu-save toggle.
+
 ## Diagnostic results and interpretation
 
 The repository contains two off-by-default diagnostics that isolate callback
@@ -355,6 +372,31 @@ Acceptance requires the intended visual state to change, the expected command
 or handler side effect to occur, and the resulting screen/map/input state to
 match the test case. Footsteps, a map log, or a frame that merely looks
 nonblank is insufficient.
+
+## Future menu styling backlog
+
+After the save and transition paths are stable, treat the optional menu's
+appearance as a separate MainUI design pass. Record the chosen typeface and
+fallback coverage, text and accent colors, background/panel treatment, button
+states, focus/hover feedback, and save-preview framing. Check localization
+length and glyph coverage before tuning fixed coordinates. Keep this backlog
+separate from the CoF client inventory, phone, quick-slot, and HUD scaling
+work; those surfaces have different owners and input contracts.
+
+The styling pass should preserve the existing five-slot behavior and the
+default-disabled menu-save setting. Validate at 1920x1080, 2560x1440, and
+3840x2160 with the same logical-coordinate and cursor measurements listed
+above. This is a design and acceptance checklist only; no replacement theme,
+font, color, or layout has been implemented or visually approved here.
+
+## Geometry audit caution
+
+One static model check does not establish the cause of missing geometry:
+`byggnader.mdl` reports zero header bounds while an idle sequence carries a
+large sequence bounding box. The current studio path merges sequence bounds
+and transformed corners before culling, so an origin-only frustum explanation
+would be speculative. Keep entity draw, PVS, and culling traces as separate
+pending diagnostics and do not turn this observation into a UI-scaling fix.
 
 ## Finding record schema
 

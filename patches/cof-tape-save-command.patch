@@ -1,0 +1,33 @@
+diff --git a/engine/client/dll_int/cl_game.c b/engine/client/dll_int/cl_game.c
+--- a/engine/client/dll_int/cl_game.c
++++ b/engine/client/dll_int/cl_game.c
+@@ -1793,6 +1793,28 @@ static int GAME_EXPORT pfnServerCmd( const char *szCmdString )
+ {
+ 	if( COM_StringEmptyOrNULL( szCmdString ))
+ 		return 0;
++
++	// CoF's original engine handles the client's tape-save request locally.
++	if( Cvar_VariableInteger( "cof_save_root_compat" ) && GI &&
++		!Q_stricmp( GI->gamefolder, "cryoffear" ) && SV_Active() &&
++		CL_Active() && cl.maxclients == 1 && !cls.demoplayback &&
++		!Q_strncmp( szCmdString, "savehack cofsave", 16 ))
++	{
++		const char *slot = szCmdString + 16;
++		if( *slot >= '1' && *slot <= '5' )
++		{
++			const char *tail = slot + 1;
++			while( *tail == ' ' || *tail == '\t' || *tail == '\r' || *tail == '\n' )
++				tail++;
++			if( !*tail )
++			{
++				char command[32];
++				Q_snprintf( command, sizeof( command ), "save cofsave%c\n", *slot );
++				Cbuf_AddText( command );
++				return 1;
++			}
++		}
++	}
+ 
+ 	// just like the client typed "cmd xxxxx" at the console
+ 	MSG_BeginClientCmd( &cls.netchan.message, clc_stringcmd );
+

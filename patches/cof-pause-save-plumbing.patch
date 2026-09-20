@@ -1,0 +1,33 @@
+diff --git a/engine/client/dll_int/cl_gameui.c b/engine/client/dll_int/cl_gameui.c
+--- a/engine/client/dll_int/cl_gameui.c
++++ b/engine/client/dll_int/cl_gameui.c
+@@ -976,10 +976,15 @@
+ char **GAME_EXPORT CL_GetFilesList( const char *pattern, int *numFiles, int gamedironly )
+ {
+ 	static search_t	*t = NULL;
++	const qboolean cof_root_save_list = Cvar_VariableInteger( "cof_save_root_compat" ) && GI &&
++		!Q_stricmp( GI->gamefolder, "cryoffear" ) && pattern &&
++		!Q_stricmp( pattern, "save/*.sav" );
+ 
+ 	if( t ) Mem_Free( t ); // release prev search
+ 
+-	t = FS_Search( pattern, true, gamedironly );
++	/* CoF root-save compatibility: remap only the exact GameUI save list. */
++	t = cof_root_save_list ? FS_Search( "SAVE/*.sav", true, false ) :
++		FS_Search( pattern, true, gamedironly );
+ 	if( !t )
+ 	{
+ 		if( numFiles ) *numFiles = 0;
+diff --git a/engine/server/sv_save.c b/engine/server/sv_save.c
+--- a/engine/server/sv_save.c
++++ b/engine/server/sv_save.c
+@@ -2453,7 +2453,8 @@
+ 	string	mapName, description;
+ 	file_t	*f;
+ 
+-	if(( f = FS_Open( savename, "rb", true )) == NULL )
++	/* Route comments through the existing CoF root-save read adapter. */
++	if(( f = SV_SaveFSOpen( savename, "rb", true )) == NULL )
+ 	{
+ 		// just not exist - clear comment
+ 		comment[0] = '\0';

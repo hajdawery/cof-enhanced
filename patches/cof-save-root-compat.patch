@@ -2,7 +2,7 @@ diff --git a/engine/server/sv_save.c b/engine/server/sv_save.c
 index 16d7922..1f9ba6c 100644
 --- a/engine/server/sv_save.c
 +++ b/engine/server/sv_save.c
-@@ -36,6 +36,142 @@ half-life implementation of saverestore system
+@@ -36,6 +36,143 @@ half-life implementation of saverestore system
  #define SAVE_HEAPSIZE		0x400000				// reserve 4Mb for now
  #define SAVE_HASHSTRINGS		0xFFF				// 4095 unique strings
  
@@ -13,6 +13,7 @@ index 16d7922..1f9ba6c 100644
 + * remain unchanged.  Reads use the static root search path (SAVE/...), while
 + * writes/deletes/renames use ../SAVE/... relative to the active game path.
 + */
++
 +static qboolean SV_CoFRootSaveCompat( void )
 +{
 +	return Cvar_VariableInteger( "cof_save_root_compat" ) && GI &&

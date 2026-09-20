@@ -1,0 +1,256 @@
+diff --git a/engine/server/sv_save.c b/engine/server/sv_save.c
+index 73917e6..087a6da 100644
+--- a/engine/server/sv_save.c
++++ b/engine/server/sv_save.c
+@@ -43,6 +43,8 @@ half-life implementation of saverestore system
+  * remain unchanged.  Reads use the static root search path (SAVE/...), while
+  * writes/deletes/renames use ../SAVE/... relative to the active game path.
+  */
++static qboolean cofMenuSaveTracking;
++static qboolean cofMenuSaveIOFailed;
+ 
+ static qboolean SV_CoFRootSaveCompat( void )
+ {
+@@ -94,6 +96,7 @@ static file_t *SV_SaveFSOpen( const char *path, const char *mode, qboolean gamed
+ 	if( write && translated )
+ 		FS_AllowDirectPaths( true );
+ 	file = FS_Open( name, mode, write ? gamedironly : (name != path ? false : gamedironly) );
++	if( cofMenuSaveTracking && write && !file ) cofMenuSaveIOFailed = true;
+ 	if( write && translated )
+ 		FS_AllowDirectPaths( false );
+ 	return file;
+@@ -159,6 +162,48 @@ qboolean SV_CoFSaveDelete( const char *path )
+ 	return SV_SaveFSDelete( path );
+ }
+ 
++/* Native save writers do not consistently propagate I/O errors. Track every
++ * write/copy/close during the optional menu transaction before discarding its
++ * recovery copy, including intermediate HL files written by SaveGameState. */
++static fs_offset_t SV_SaveFSWrite( file_t *file, const void *data, size_t size )
++{
++	fs_offset_t written = g_fsapi.Write( file, data, size );
++	if( cofMenuSaveTracking && written != (fs_offset_t)size ) cofMenuSaveIOFailed = true;
++	return written;
++}
++
++static int SV_SaveFSClose( file_t *file )
++{
++	int result = g_fsapi.Close( file );
++	if( cofMenuSaveTracking && result != 0 ) cofMenuSaveIOFailed = true;
++	return result;
++}
++
++static qboolean SV_SaveFSFileCopy( file_t *output, file_t *input, int size )
++{
++	char buffer[8192];
++	if( !cofMenuSaveTracking )
++		return output && input && size >= 0 && g_fsapi.FileCopy( output, input, size );
++	if( !output || !input || size < 0 )
++	{
++		cofMenuSaveIOFailed = true;
++		return false;
++	}
++	/* The filesystem's generic FileCopy also ignores short writes. */
++	while( size > 0 )
++	{
++		int chunk = Q_min( size, (int)sizeof( buffer ));
++		fs_offset_t count = g_fsapi.Read( input, buffer, chunk );
++		if( count <= 0 || count > chunk || g_fsapi.Write( output, buffer, count ) != count )
++		{
++			cofMenuSaveIOFailed = true;
++			return false;
++		}
++		size -= (int)count;
++	}
++	return true;
++}
++
+ /* Keep the save implementation's existing calls scoped to this adapter. */
+ #undef FS_Open
+ #undef FS_FileExists
+@@ -172,6 +217,12 @@ qboolean SV_CoFSaveDelete( const char *path )
+ #define FS_Search     SV_SaveFSSearch
+ #define FS_Delete     SV_SaveFSDelete
+ #define FS_Rename     SV_SaveFSRename
++#undef FS_Write
++#undef FS_Close
++#undef FS_FileCopy
++#define FS_Write      SV_SaveFSWrite
++#define FS_Close      SV_SaveFSClose
++#define FS_FileCopy   SV_SaveFSFileCopy
+ 
+ // savedata headers
+ typedef struct
+@@ -786,6 +837,7 @@ static void DirectoryCopy( const char *pPath, file_t *pFile )
+ 		file_t	*pCopy = FS_Open( t->filenames[i], "rb", true );
+ 		if( !pCopy )
+ 		{
++			if( cofMenuSaveTracking ) cofMenuSaveIOFailed = true;
+ 			Con_Printf( S_ERROR "could not read save component %s\n", t->filenames[i] );
+ 			continue;
+ 		}
+@@ -2391,6 +2443,112 @@ qboolean SV_SaveGame( const char *pName )
+ 	return SaveGameSlot( savename, comment );
+ }
+ 
++/* Menu saves share CoF's five slots, but never enter the tape-use path. */
++qboolean SV_CoFMenuSave( int slot )
++{
++	char name[32], save[MAX_QPATH], saveBackup[MAX_QPATH];
++	char label[MAX_QPATH], labelTemp[MAX_QPATH], labelBackup[MAX_QPATH];
++	char comment[80], title[65], stamp[64], text[160];
++	qboolean hadSave, hadLabel, saved = false, labelMoved = false;
++	file_t *file;
++	time_t now;
++	struct tm *local;
++	fs_offset_t written;
++	int length, closeResult;
++
++	if( !SV_CoFRootSaveCompat() || !Cvar_VariableInteger( "cof_pause_menu_saves" ) || slot < 1 || slot > 5 )
++	{
++		Con_Printf( "Cry of Fear menu saving is disabled or the slot is invalid.\n" );
++		return false;
++	}
++	/* The original client does not always register game_menu in Xash. */
++	if( !Q_stricmp( sv.name, "c_game_menu1" ) || Cvar_VariableInteger( "game_menu" ))
++	{
++		Con_Printf( "Can't save the Cry of Fear menu map.\n" );
++		return false;
++	}
++	if( !IsValidSave() )
++		return false;
++
++	Q_snprintf( name, sizeof( name ), "cofsave%d", slot );
++	Q_snprintf( save, sizeof( save ), "save/%s.sav", name );
++	Q_snprintf( saveBackup, sizeof( saveBackup ), "%s.coffix-backup", save );
++	Q_snprintf( label, sizeof( label ), "SAVE/saveinfo%d.cof", slot );
++	Q_snprintf( labelTemp, sizeof( labelTemp ), "%s.coffix-temp", label );
++	Q_snprintf( labelBackup, sizeof( labelBackup ), "%s.coffix-backup", label );
++	/* Raw filesystem calls intentionally keep metadata in cryoffear/SAVE. */
++	if( SV_SaveFSFileExists( saveBackup, true ) || g_fsapi.FileExists( labelTemp, true ) ||
++		g_fsapi.FileExists( labelBackup, true ))
++	{
++		Con_Printf( S_ERROR "slot %d has a pending recovery file; resolve it before saving again.\n", slot );
++		return false;
++	}
++
++	SaveBuildComment( comment, sizeof( comment ));
++	Q_strncpy( title, comment, sizeof( title ));
++	for( int i = 0; title[i]; i++ )
++		if( (unsigned char)title[i] < 32 ) title[i] = ' ';
++	length = Q_strlen( title );
++	while( length && title[length - 1] == ' ' ) title[--length] = '\0';
++	if( !title[0] ) Q_strncpy( title, sv.name, sizeof( title ));
++	now = time( NULL );
++	local = localtime( &now );
++	if( !local || !strftime( stamp, sizeof( stamp ), "%a %b %d %H:%M:%S %Y", local ))
++		return false;
++	Q_snprintf( text, sizeof( text ), "%s - %s", title, stamp );
++	length = Q_strlen( text );
++	file = g_fsapi.Open( labelTemp, "wb", true );
++	if( !file )
++	{
++		Con_Printf( S_ERROR "could not prepare save label %s\n", labelTemp );
++		return false;
++	}
++	written = g_fsapi.Write( file, text, length );
++	closeResult = g_fsapi.Close( file );
++	if( written != length || closeResult != 0 )
++	{
++		g_fsapi.Delete( labelTemp );
++		Con_Printf( S_ERROR "could not write save label %s\n", labelTemp );
++		return false;
++	}
++
++	hadSave = SV_SaveFSFileExists( save, true );
++	hadLabel = g_fsapi.FileExists( label, true );
++	if( hadSave && !SV_SaveFSRename( save, saveBackup ))
++	{
++		g_fsapi.Delete( labelTemp );
++		Con_Printf( S_ERROR "could not preserve existing save %s\n", save );
++		return false;
++	}
++	cofMenuSaveIOFailed = false;
++	cofMenuSaveTracking = true;
++	saved = SV_SaveGame( name );
++	cofMenuSaveTracking = false;
++	if( !saved || cofMenuSaveIOFailed ) goto rollback;
++	if( hadLabel )
++	{
++		if( !g_fsapi.Rename( label, labelBackup )) goto rollback;
++		labelMoved = true;
++	}
++	if( !g_fsapi.Rename( labelTemp, label )) goto rollback;
++	if( hadSave && !SV_SaveFSDelete( saveBackup ))
++		Con_Printf( S_WARN "saved, but retained recovery file %s\n", saveBackup );
++	if( labelMoved && !g_fsapi.Delete( labelBackup ))
++		Con_Printf( S_WARN "saved, but retained recovery file %s\n", labelBackup );
++	Con_Printf( "CoF menu save committed to slot %d.\n", slot );
++	return true;
++
++rollback:
++	g_fsapi.Delete( labelTemp );
++	if( labelMoved && !g_fsapi.Rename( labelBackup, label ))
++		Con_Printf( S_ERROR "restore save label manually from %s\n", labelBackup );
++	if( saved || SV_SaveFSFileExists( save, true )) SV_SaveFSDelete( save );
++	if( hadSave && !SV_SaveFSRename( saveBackup, save ))
++		Con_Printf( S_ERROR "restore save manually from %s\n", saveBackup );
++	Con_Printf( S_ERROR "CoF menu save failed; existing slot recovery was attempted.\n" );
++	return false;
++}
++
+ static int SV_CompareFileTime( int ft1, int ft2 )
+ {
+ 	if( ft1 < ft2 )
+diff --git a/engine/server/sv_cmds.c b/engine/server/sv_cmds.c
+index 9a0e1af..cde0fa4 100644
+--- a/engine/server/sv_cmds.c
++++ b/engine/server/sv_cmds.c
+@@ -422,6 +422,18 @@ SV_Save_f
+ 
+ ==============
+ */
++static void SV_CoFMenuSave_f( void )
++{
++	const char *slot = Cmd_Argv( 1 );
++	if( Cmd_Argc() != 2 || slot[0] < '1' || slot[0] > '5' || slot[1] )
++	{
++		Con_Printf( S_USAGE "cof_menu_save <1..5>\n" );
++		return;
++	}
++	if( SV_CoFMenuSave( slot[0] - '0' ) && CL_Active() )
++		CL_HudMessage( "GAMESAVED" );
++}
++
+ static void SV_Save_f( void )
+ {
+ 	qboolean ret = false;
+@@ -1057,6 +1069,8 @@ void SV_InitOperatorCommands( void )
+ 	if( host.type == HOST_NORMAL )
+ 	{
+ 		Cmd_AddCommand( "save", SV_Save_f, "save the game to a file" );
++		Cvar_Get( "cof_pause_menu_saves", "0", FCVAR_ARCHIVE, "allow optional Cry of Fear pause-menu saves" );
++		Cmd_AddCommand( "cof_menu_save", SV_CoFMenuSave_f, "save to one of the five Cry of Fear slots when enabled" );
+ 		Cmd_AddCommand( "savequick", SV_QuickSave_f, "save the game to the quicksave" );
+ 		Cmd_AddCommand( "autosave", SV_AutoSave_f, "save the game to 'autosave' file" );
+ 	}
+@@ -1096,6 +1110,7 @@ void SV_KillOperatorCommands( void )
+ 	if( host.type == HOST_NORMAL )
+ 	{
+ 		Cmd_RemoveCommand( "save" );
++		Cmd_RemoveCommand( "cof_menu_save" );
+ 		Cmd_RemoveCommand( "savequick" );
+ 		Cmd_RemoveCommand( "autosave" );
+ 	}
+diff --git a/engine/server/server.h b/engine/server/server.h
+index 1651af5..f5d5bdf 100644
+--- a/engine/server/server.h
++++ b/engine/server/server.h
+@@ -676,6 +676,7 @@ void SV_SetLogAddress_f( void );
+ // sv_save.c
+ //
+ qboolean SV_SaveGame( const char *pName );
++qboolean SV_CoFMenuSave( int slot );
+ qboolean SV_LoadGame( const char *pName );
+ qboolean SV_CoFSaveDelete( const char *pName );
+ int SV_LoadGameState( char const *level );
