@@ -12,6 +12,8 @@ The corrected client checkpoint initialized the renderer, menu, and VGUI, loaded
 
 The repo intentionally contains no game files, Steam DLLs, runtime archives, dumps, or built binaries. Build output belongs in the ignored source/build directories.
 
+For reusable engine/game development lessons from this investigation, see the [Xash/GoldSrc developer notes](docs/xash-goldsrc-developer-notes.md).
+
 ## Applying the patch
 
 Use a clean checkout or extracted archive of the pinned FWGS revision and run:
