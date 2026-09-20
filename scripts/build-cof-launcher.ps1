@@ -61,7 +61,7 @@ $resourceArg = $resource.Replace('"', '""')
 $iconDirArg = (Split-Path -Parent $icon).Replace('"', '""')
 $resArg = $res.Replace('"', '""')
 $exeArg = $exe.Replace('"', '""')
-$command = "call `"$vcvars`" x86 && rc /nologo /i `"$iconDirArg`" /fo `"$resArg`" `"$resourceArg`" && cl /nologo /W4 /EHsc /O2 /MT /DWIN32_LEAN_AND_MEAN `"$sourceArg`" `"$resArg`" /link user32.lib /SUBSYSTEM:CONSOLE /OUT:`"$exeArg`" /PDB:`"$($exe -replace '\.exe$','.pdb')`""
+$command = "call `"$vcvars`" x86 && rc /nologo /i `"$iconDirArg`" /fo `"$resArg`" `"$resourceArg`" && cl /nologo /W4 /EHsc /O2 /MT /DWIN32_LEAN_AND_MEAN `"$sourceArg`" `"$resArg`" /link user32.lib /LARGEADDRESSAWARE /SUBSYSTEM:CONSOLE /OUT:`"$exeArg`" /PDB:`"$($exe -replace '\.exe$','.pdb')`""
 Push-Location $OutputDirectory
 try {
     & cmd.exe /d /s /c $command

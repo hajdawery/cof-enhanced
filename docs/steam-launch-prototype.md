@@ -12,7 +12,7 @@ Build the x86 launcher with the pinned local VS2022 toolchain:
 .\scripts\build-cof-launcher.ps1
 ```
 
-The script discovers the Visual Studio installation with `vswhere` or `VSINSTALLDIR`; pass `-VcVarsPath` when neither is available. The output is `build-launcher\\CoFLaunchApp.exe` (SHA256 `7B3FD518F10A780EDA6932934AF619C1241FDB852B362943F4737DF20DC086A9`). Existing binary ignore rules exclude the output.
+The script discovers the Visual Studio installation with `vswhere` or `VSINSTALLDIR`; pass `-VcVarsPath` when neither is available. The historical Steam-tested output was `build-launcher\\CoFLaunchApp.exe` (SHA256 `7B3FD518F10A780EDA6932934AF619C1241FDB852B362943F4737DF20DC086A9`). The current script additionally embeds the project icon and enables `/LARGEADDRESSAWARE`, so a fresh output has a different hash; existing binary ignore rules exclude all build output.
 
 ## Isolated proof package
 

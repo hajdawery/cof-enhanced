@@ -1,4 +1,4 @@
-# Stage1 campaign and save/load checkpoint
+# Stage1 campaign and save/load console smoke checkpoint
 
 The test used the matched isolated runtime
 `stage1/launch-proof/client-runtime-corrected` and engine SHA256
@@ -29,3 +29,17 @@ and black letterbox bands. It is available outside the repository at
 `stage1/launch-proof/luna_stage1-snapshot.png`. This verifies basic rendered
 output only; it does not establish vanilla visual parity, human control, or
 Steam launch behavior.
+
+## Validation limits
+
+Both map transitions and the save/load check above were console-driven smoke
+tests. The save was created by this Xash runtime, so they do not prove that
+the original GoldSrc/Cry of Fear save format loads, or that the main-menu
+`New Game` and `Load Game` controls complete their GUI transitions.
+
+The current user report is kept as an open regression: selecting `Load Game`
+from the main menu, choosing the first existing save from the real Steam
+installation, and activating it can leave the menu view visible while
+footstep audio plays. This report is not yet a reproduced root-cause finding.
+The prior console logs and save hash remain valid evidence for their narrower
+smoke-test scope.

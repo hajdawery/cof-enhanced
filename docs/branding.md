@@ -25,5 +25,9 @@ untouched.
 
 The local branding launcher build was verified with resource ID 101 and has
 SHA-256 `0C5ADD93EB4D3ADB3360FFB635E90C83791F38311272E2D9FFB75245601E00E`.
-That build is separate from the Steam-tested launcher hash recorded in the
-launch reports; the branding change has not been deployed to the Steam install.
+The current build script also enables `/LARGEADDRESSAWARE`; its separately
+verified local output has SHA-256
+`6FD58B8B83E7C6EC5B9016F5726F4F711E7896CCAEDE24926F742762E0380191`, PE
+characteristics `0x122`, and resource ID 101. These local builds are separate
+from the Steam-tested launcher hash recorded in the launch reports; no
+branding or LAA launcher build has been deployed to the Steam install.
