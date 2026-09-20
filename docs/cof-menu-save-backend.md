@@ -14,6 +14,22 @@ failed label write, save write, copy, close, or rename attempts rollback and
 leaves recovery files when automatic cleanup cannot safely complete. The
 normal tape-save path and its separate client command hook are unchanged.
 
+Each pause-save label is deliberately `Pause Save (<active map name>) -
+<timestamp>`, for example `Pause Save (c_forest3) - Thu May 16 16:46:02
+2013`. It uses `sv.name` and does not inspect tape-recorder entities, so it
+cannot imply that the player used a tape recorder or reuse a stale checkpoint
+title. The final ` - <timestamp>` delimiter remains intact for MainUI's label
+reader.
+
+Runtime QA on 2026-09-20 used the frozen engine
+`E7C1AB450835E6DCB4E7A6EEFF8C8126B62D02456C4CEC5AF2EEAD31415CBB80` and
+MainUI `1CF46E49A3BE317D9A718435FDA1AC01FB4795E38DE5CA977B2AB514E7A6271B`.
+With an enabled empty slot 3, it wrote the exact label
+`Pause Save (c_forest3) - Sun Sep 20 21:02:25 2026`, reloaded
+`c_forest3.HL1`, and left stock tape metadata in slots 1 and 2 unchanged.
+The retained evidence is `stage1/pause-map-label-qa-20260920/RESULTS.md`;
+this is a focused save/reload check, not a broad UI or renderer claim.
+
 The I/O wrappers are scoped to the optional menu transaction. They track open,
 short-write, close, read/copy, and copy-input failures, including intermediate
 HL files copied by `SaveGameState`. The generic engine filesystem behavior is

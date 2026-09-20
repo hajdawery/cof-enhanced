@@ -1,8 +1,8 @@
 diff --git a/3rdparty/mainui/menus/LoadGame.cpp b/3rdparty/mainui/menus/LoadGame.cpp
-index 51ed816..ed9054e 100644
+index 51ed816..03595e1 100644
 --- a/3rdparty/mainui/menus/LoadGame.cpp
 +++ b/3rdparty/mainui/menus/LoadGame.cpp
-@@ -36,6 +36,22 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+@@ -36,6 +36,35 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  
  #define MAX_CELLSTRING CS_SIZE
  
@@ -22,10 +22,23 @@ index 51ed816..ed9054e 100644
 +	return UI_IsCoFRootSaveGame() && EngFuncs::GetCvarFloat( "cof_pause_menu_saves" ) != 0.0f;
 +}
 +
++static bool UI_IsCoFSaveTimestamp( const char *text )
++{
++	char weekday[4], month[4];
++	int day, hour, minute, second, year;
++	char extra;
++
++	if( !text || sscanf( text, "%3s %3s %d %d:%d:%d %d %c", weekday, month,
++		&day, &hour, &minute, &second, &year, &extra ) != 7 )
++		return false;
++	return day >= 1 && day <= 31 && hour >= 0 && hour < 24 &&
++		minute >= 0 && minute < 60 && second >= 0 && second < 60 && year >= 1970;
++}
++
  class CMenuLoadGame;
  
  struct save_t
-@@ -153,6 +169,7 @@ private:
+@@ -153,6 +182,7 @@ private:
  
  	void LoadGame();
  	void SaveGame();
@@ -33,7 +46,7 @@ index 51ed816..ed9054e 100644
  	void UpdateGame();
  	void DeleteGame();
  
-@@ -167,8 +184,9 @@ private:
+@@ -167,8 +197,9 @@ private:
  	bool m_fSaveMode;
  	char		hintText[MAX_HINT_TEXT];
  
@@ -44,7 +57,16 @@ index 51ed816..ed9054e 100644
  	CMenuSavesListModel savesListModel;
  
  	friend class CMenuSavesListModel;
-@@ -196,6 +214,52 @@ void CMenuSavesListModel::Update( void )
+@@ -178,6 +209,8 @@ void CMenuSavePreview::Draw()
+ {
+ 	if( saveshot.IsValid( ))
+ 		UI_DrawPic( m_scPos, m_scSize, uiColorWhite, saveshot );
++	else if( UI_IsCoFRootSaveGame() )
++		UI_DrawString( font, m_scPos, m_scSize, L( "No preview" ), colorBase, m_scChSize, QM_CENTER, ETF_SHADOW );
+ 	else
+ 		UI_DrawPic( m_scPos, m_scSize, uiColorWhite, fallback, QM_DRAWADDITIVE );
+ 
+@@ -196,6 +229,63 @@ void CMenuSavesListModel::Update( void )
  	int numFiles;
  
  	RemoveAll();
@@ -77,6 +99,15 @@ index 51ed816..ed9054e 100644
 +				const size_t copy = Q_min( (size_t)length, sizeof( save.comment ) - 1 );
 +				memcpy( save.comment, info, copy );
 +				save.comment[copy] = '\0';
++				char *stamp = NULL;
++				for( char *candidate = strstr( save.comment, " - " ); candidate;
++					candidate = strstr( candidate + 3, " - " ))
++					stamp = candidate;
++				if( stamp && UI_IsCoFSaveTimestamp( stamp + 3 ))
++				{
++					*stamp = '\0';
++					Q_strncpy( save.elapsed_time, stamp + 3, sizeof( save.elapsed_time ));
++				}
 +			}
 +			if( info )
 +				EngFuncs::COM_FreeFile( info );
@@ -84,6 +115,8 @@ index 51ed816..ed9054e 100644
 +			{
 +				Q_strncpy( save.comment, comment, sizeof( save.comment ));
 +			}
++			if( !occupied && !save.comment[0] )
++				Q_strncpy( save.comment, L( "Empty" ), sizeof( save.comment ));
 +
 +			AddToTail( save );
 +		}
@@ -97,7 +130,7 @@ index 51ed816..ed9054e 100644
  	filenames = EngFuncs::GetFilesList( "save/*.sav", &numFiles, true );
  
  	// sort the saves in reverse order (oldest past at the end)
-@@ -319,6 +383,9 @@ void CMenuSavesListModel::Update( void )
+@@ -319,6 +409,9 @@ void CMenuSavesListModel::Update( void )
  
  void CMenuSavesListModel::OnDeleteEntry( int line )
  {
@@ -107,7 +140,20 @@ index 51ed816..ed9054e 100644
  	parent->msgBox.Show();
  }
  
-@@ -363,6 +430,11 @@ void CMenuLoadGame::_Init( void )
+@@ -354,6 +447,12 @@ void CMenuLoadGame::_Init( void )
+ 	savesList.SetupColumn( 0, L( "GameUI_Time" ), 0.30f );
+ 	savesList.SetupColumn( 1, L( "GameUI_Game" ), 0.55f );
+ 	savesList.SetupColumn( 2, L( "GameUI_ElapsedTime" ), 0.15f );
++	if( UI_IsCoFRootSaveGame() )
++	{
++		savesList.SetupColumn( 0, L( "Slot" ), 0.20f );
++		savesList.SetupColumn( 1, L( "Save" ), 0.55f );
++		savesList.SetupColumn( 2, L( "Date" ), 0.25f );
++	}
+ 
+ 	savesList.SetModel( &savesListModel );
+ 	savesList.SetCharSize( QM_SMALLFONT );
+@@ -363,6 +462,11 @@ void CMenuLoadGame::_Init( void )
  	msgBox.onPositive = VoidCb( &CMenuLoadGame::DeleteGame );
  	msgBox.Link( this );
  
@@ -119,7 +165,7 @@ index 51ed816..ed9054e 100644
  	levelShot.SetRect( LEVELSHOT_X, LEVELSHOT_Y, LEVELSHOT_W, LEVELSHOT_H );
  
  	AddItem( banner );
-@@ -393,19 +465,58 @@ void CMenuLoadGame::SaveGame()
+@@ -393,19 +497,63 @@ void CMenuLoadGame::SaveGame()
  	if( !savesListModel.IsValidIndex( savesList.GetCurrentIndex( )))
  		return;
  
@@ -134,7 +180,8 @@ index 51ed816..ed9054e 100644
 +
 +		if( !UI_CoFMenuSavesEnabled() )
 +			return;
-+
+ 
+-	snprintf( cmd, sizeof( cmd ), "save \"%s\"\n", name );
 +		snprintf( savePath, sizeof( savePath ), "SAVE/%s.sav", name );
 +		if( EngFuncs::FileExists( savePath, false ) )
 +		{
@@ -150,8 +197,7 @@ index 51ed816..ed9054e 100644
 +{
 +	if( !savesListModel.IsValidIndex( savesList.GetCurrentIndex( )))
 +		return;
- 
--	snprintf( cmd, sizeof( cmd ), "save \"%s\"\n", name );
++
 +	char cmd[128];
 +	const char *name = savesListModel[savesList.GetCurrentIndex( )].name;
 +
@@ -162,7 +208,12 @@ index 51ed816..ed9054e 100644
 +		snprintf( cmd, sizeof( cmd ), "cof_menu_save %s\n", name + strlen( "cofsave" ));
 +	}
 +	else
++	{
++		char previewPath[128];
++		snprintf( previewPath, sizeof( previewPath ), "save/%s.bmp", name );
++		EngFuncs::PIC_Free( previewPath );
 +		snprintf( cmd, sizeof( cmd ), "save \"%s\"\n", name );
++	}
  	EngFuncs::ClientCmd( false, cmd );
  	UI_CloseMenu();
  }
@@ -182,7 +233,7 @@ index 51ed816..ed9054e 100644
  	// first item is for creating new saves
  	if(( IsSaveMode() && savesList.GetCurrentIndex() == 0 ) || !savesListModel.IsValidIndex( savesList.GetCurrentIndex( )))
  	{
-@@ -421,6 +532,9 @@ void CMenuLoadGame::UpdateGame()
+@@ -421,6 +569,9 @@ void CMenuLoadGame::UpdateGame()
  
  void CMenuLoadGame::DeleteGame()
  {
@@ -192,7 +243,7 @@ index 51ed816..ed9054e 100644
  	if( !savesListModel.IsValidIndex( savesList.GetCurrentIndex( )))
  		return;
  
-@@ -439,6 +553,16 @@ void CMenuLoadGame::DeleteGame()
+@@ -439,6 +590,16 @@ void CMenuLoadGame::DeleteGame()
  void CMenuLoadGame::SetSaveMode( bool saveMode )
  {
  	m_fSaveMode = saveMode;
@@ -209,7 +260,7 @@ index 51ed816..ed9054e 100644
  	if( saveMode )
  	{
  		banner.SetPicture( ART_BANNER_SAVE );
-@@ -465,6 +589,7 @@ UI_LoadGame_Precache
+@@ -465,6 +626,7 @@ UI_LoadGame_Precache
  void UI_LoadSaveGame_Precache( void )
  {
  	menu_loadgame = new CMenuLoadGame();
@@ -217,7 +268,7 @@ index 51ed816..ed9054e 100644
  	EngFuncs::PIC_Load( ART_BANNER_SAVE );
  	EngFuncs::PIC_Load( ART_BANNER_LOAD );
  }
-@@ -501,6 +626,8 @@ void UI_LoadGame_Menu( void )
+@@ -501,6 +663,8 @@ void UI_LoadGame_Menu( void )
  
  void UI_SaveGame_Menu( void )
  {
@@ -227,7 +278,7 @@ index 51ed816..ed9054e 100644
  }
  ADD_MENU4( menu_loadgame, UI_LoadSaveGame_Precache, UI_LoadGame_Menu, UI_LoadSaveGame_Shutdown );
 diff --git a/3rdparty/mainui/menus/SaveLoad.cpp b/3rdparty/mainui/menus/SaveLoad.cpp
-index 3f277f1..f940f7d 100644
+index 3f277f1..4d34392 100644
 --- a/3rdparty/mainui/menus/SaveLoad.cpp
 +++ b/3rdparty/mainui/menus/SaveLoad.cpp
 @@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -238,19 +289,21 @@ index 3f277f1..f940f7d 100644
  
  #define ART_BANNER		"gfx/shell/head_saveload"
  
-@@ -31,8 +32,11 @@ public:
+@@ -31,8 +32,13 @@ public:
  	CMenuSaveLoad() : CMenuFramework( "CMenuSaveLoad" ) { }
  private:
  	void _Init();
 +	void CofMenuSavesChanged();
++	void UpdateCofMenuSavesLabel();
  
  	CMenuAction	hintMessage;
 +	CMenuPicButton *saveGame;
 +	CMenuCheckBox cofMenuSaves;
++	char		cofMenuSavesLabel[CS_SIZE];
  	char		hintText[MAX_HINT_TEXT];
  };
  
-@@ -43,10 +47,19 @@ UI_SaveLoad_Init
+@@ -43,10 +49,19 @@ UI_SaveLoad_Init
  */
  void CMenuSaveLoad::_Init( void )
  {
@@ -274,7 +327,7 @@ index 3f277f1..f940f7d 100644
  
  	banner.SetPicture( ART_BANNER );
  
-@@ -58,9 +71,26 @@ void CMenuSaveLoad::_Init( void )
+@@ -58,9 +73,35 @@ void CMenuSaveLoad::_Init( void )
  
  	AddItem( banner );
  	AddButton( L( "GameUI_LoadGame" ), L( "GameUI_LoadGameHelp" ), PC_LOAD_GAME, UI_LoadGame_Menu, QMF_NOTIFY );
@@ -282,8 +335,9 @@ index 3f277f1..f940f7d 100644
 +	saveGame = AddButton( L( "GameUI_SaveGame" ), L( "GameUI_SaveGameHelp" ), PC_SAVE_GAME, UI_SaveGame_Menu, QMF_NOTIFY );
 +	if( cof )
 +	{
-+		cofMenuSaves.szName = "Enable pause-menu saves";
 +		cofMenuSaves.LinkCvar( "cof_pause_menu_saves" );
++		cofMenuSaves.UpdateEditable();
++		UpdateCofMenuSavesLabel();
 +		cofMenuSaves.onChanged = VoidCb( &CMenuSaveLoad::CofMenuSavesChanged );
 +		cofMenuSaves.SetCoord( 72, 380 );
 +		saveGame->SetVisibility( cofMenuSaves.bChecked );
@@ -298,7 +352,15 @@ index 3f277f1..f940f7d 100644
 +	// This is an opt-in feature, so make the change durable as soon as it is
 +	// selected and immediately expose or hide the Save Game button.
 +	cofMenuSaves.WriteCvar();
++	UpdateCofMenuSavesLabel();
 +	saveGame->SetVisibility( cofMenuSaves.bChecked );
++}
++
++void CMenuSaveLoad::UpdateCofMenuSavesLabel()
++{
++	snprintf( cofMenuSavesLabel, sizeof( cofMenuSavesLabel ), "%s %s",
++		cofMenuSaves.bChecked ? "[ON ]" : "[OFF]", L( "Enable pause-menu saves" ));
++	cofMenuSaves.szName = cofMenuSavesLabel;
 +}
 +
  ADD_MENU( menu_saveload, CMenuSaveLoad, UI_SaveLoad_Menu );

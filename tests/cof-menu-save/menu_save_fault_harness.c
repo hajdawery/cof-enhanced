@@ -22,6 +22,7 @@ static int successMarkers, saveRenameCalls, inCopy, finalWrites;
 static int haveSave, haveSaveBackup, haveLabel, haveLabelTemp, haveLabelBackup;
 /* Content identity tokens travel with fake rename/delete operations. */
 static unsigned saveBytes, saveBackupBytes, labelBytes, labelTempBytes, labelBackupBytes;
+static char lastLabelText[160];
 static file_t labelFile = { 1 }, finalFile = { 2 }, inputFile = { 3 };
 static qboolean cofMenuSaveTracking, cofMenuSaveIOFailed;
 struct { const char *name; } gameInfo = { "cryoffear" }, *GI = &gameInfo;
@@ -49,7 +50,7 @@ static file_t *RawOpen(const char *p, const char *m, qboolean g) {
 static fs_offset_t RawWrite(file_t *f, const void *p, size_t n) {
 	(void)p;
 	if (f->kind == 1 && (fault & F_LABEL_WRITE)) { labelTempBytes=0xBAD1; return n ? (fs_offset_t)n - 1 : 0; }
-	if (f->kind == 1) labelTempBytes=0x4E45574C;
+	if (f->kind == 1) { labelTempBytes=0x4E45574C; Q_strncpy(lastLabelText, (const char *)p, sizeof(lastLabelText)); }
 	if (f->kind == 2 && (((inCopy || finalWrites > 0) && (fault & F_COPY_WRITE)) || (!(inCopy || finalWrites > 0) && (fault & F_FINAL_WRITE)))) { saveBytes=0xBAD5; return n ? (fs_offset_t)n - 1 : 0; }
 	if (f->kind == 2) { saveBytes=0x4E455753; finalWrites++; }
 	return (fs_offset_t)n;
@@ -122,11 +123,11 @@ static int failures, tests;
 #define S_WARN ""
 #include "actual_extracted.inc"
 
-static void reset(fault_t f) { fault=f; rootCompat=menuEnabled=validSave=1; gameMenu=0; Q_strncpy(sv.name,"c1a0",sizeof(sv.name)); successMarkers=saveRenameCalls=inCopy=finalWrites=0; haveSave=haveLabel=1; haveSaveBackup=haveLabelTemp=haveLabelBackup=0; saveBytes=0x4F4C4453; labelBytes=0x4F4C444C; saveBackupBytes=labelTempBytes=labelBackupBytes=0; cofMenuSaveTracking=cofMenuSaveIOFailed=0; }
+static void reset(fault_t f) { fault=f; rootCompat=menuEnabled=validSave=1; gameMenu=0; Q_strncpy(sv.name,"c1a0",sizeof(sv.name)); lastLabelText[0]=0; successMarkers=saveRenameCalls=inCopy=finalWrites=0; haveSave=haveLabel=1; haveSaveBackup=haveLabelTemp=haveLabelBackup=0; saveBytes=0x4F4C4453; labelBytes=0x4F4C444C; saveBackupBytes=labelTempBytes=labelBackupBytes=0; cofMenuSaveTracking=cofMenuSaveIOFailed=0; }
 static void expect(int ok, const char *name) { tests++; if(!ok) { failures++; printf("FAIL %s\n",name); } }
 static void run_fault(fault_t f, const char *name, int rollbackRename) { reset(f); expect(!Actual_SV_CoFMenuSave(1),name); expect(successMarkers==0,"no success marker"); expect(!haveLabelTemp && !labelTempBytes,"no temp label"); if(rollbackRename) { expect(haveSaveBackup && !haveSave && saveBackupBytes==0x4F4C4453,"old save bytes retained as recovery backup"); } else { expect(haveSave && !haveSaveBackup && saveBytes==0x4F4C4453,"old save bytes restored"); } expect(haveLabel && !haveLabelBackup && labelBytes==0x4F4C444C,"old label bytes restored"); }
 int main(void) {
-	for(int s=1;s<=5;s++) { reset(F_NONE); expect(Actual_SV_CoFMenuSave(s),"five slot success"); expect(haveSave && haveLabel && saveBytes==0x4E455753 && labelBytes==0x4E45574C && !haveSaveBackup && !haveLabelBackup,"success committed new bytes cleanly"); }
+	for(int s=1;s<=5;s++) { reset(F_NONE); expect(Actual_SV_CoFMenuSave(s),"five slot success"); expect(haveSave && haveLabel && saveBytes==0x4E455753 && labelBytes==0x4E45574C && !haveSaveBackup && !haveLabelBackup,"success committed new bytes cleanly"); expect(strstr(lastLabelText,"Pause Save (c1a0) - ") != NULL,"pause label uses active map name"); }
 	reset(F_NONE); menuEnabled=0; expect(!Actual_SV_CoFMenuSave(1) && saveBytes==0x4F4C4453 && labelBytes==0x4F4C444C,"disabled no mutation"); reset(F_NONE); expect(!Actual_SV_CoFMenuSave(0) && saveBytes==0x4F4C4453 && labelBytes==0x4F4C444C,"invalid no mutation"); reset(F_NONE); gameMenu=1; expect(!Actual_SV_CoFMenuSave(1) && saveBytes==0x4F4C4453 && labelBytes==0x4F4C444C,"menu cvar no mutation"); reset(F_NONE); Q_strncpy(sv.name,"C_GAME_MENU1",sizeof(sv.name)); expect(!Actual_SV_CoFMenuSave(1) && saveBytes==0x4F4C4453 && labelBytes==0x4F4C444C,"menu map name no mutation"); reset(F_NONE); validSave=0; expect(!Actual_SV_CoFMenuSave(1) && saveBytes==0x4F4C4453 && labelBytes==0x4F4C444C,"invalid save state no mutation");
 	run_fault(F_LABEL_OPEN,"metadata open",0); run_fault(F_LABEL_WRITE,"metadata write",0); run_fault(F_LABEL_CLOSE,"metadata close",0); run_fault(F_SAVE_RENAME,"old save backup rename",0); run_fault(F_TRACK_OPEN,"tracked final SAV open",0); run_fault(F_FINAL_WRITE,"final SAV short write",0); run_fault(F_FINAL_CLOSE,"final SAV close",0); run_fault(F_COPY_READ,"HL FileCopy read",0); run_fault(F_COPY_WRITE,"HL FileCopy short write",0); run_fault(F_LABEL_BACKUP_RENAME,"metadata backup rename",0); run_fault(F_LABEL_COMMIT_RENAME,"metadata commit rename",0); run_fault((fault_t)(F_LABEL_COMMIT_RENAME | F_ROLLBACK_SAVE_RENAME),"rollback rename retains backup",1);
 	printf("%d assertions, %d failures\n",tests,failures); return failures ? 1 : 0;

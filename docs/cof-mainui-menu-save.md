@@ -14,8 +14,20 @@ server-side `cof_menu_save <1..5>` command. Existing slots show a separate
 overwrite confirmation. Delete remains unavailable for these shared slots;
 the original tape-recorder save path remains the owner of the same five slots.
 The backend must already be applied, and root-save compatibility must be
-enabled at runtime. This source checkpoint does not claim a completed GUI
-runtime test, visual parity, or phone/pause behavior.
+enabled at runtime. A later direct-GUI check covered a native tape save/load in
+slot 3 and an enabled pause-menu save/load in slot 4. Those are focused
+user-observed routes in the K-only test deployment; they do not validate every
+slot, preview, renderer state, phone flow, or pause-menu surface. The current
+source build still needs a focused GUI check of its toggle marker, `Slot` /
+`Save` / `Date` columns, and `No preview` fallback.
+
+The CoF toggle keeps the native checkbox interaction and cvar link, while
+also drawing an explicit `ON` or `OFF` text marker so its state remains
+visible when the deployment lacks the optional `gfx/shell/cb_*` checkbox
+textures. CoF save rows use `Slot`, `Save`, and `Date` headings matching their
+slot label, save label, and timestamp fields. A missing CoF screenshot shows
+neutral `No preview` text; the existing fallback preview remains unchanged for
+non-CoF save menus. Existing localization strings are otherwise unchanged.
 
 Apply from the outer FWGS source checkout with:
 

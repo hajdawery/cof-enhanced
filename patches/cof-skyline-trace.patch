@@ -1,0 +1,72 @@
+diff --git a/ref/gl/gl_local.h b/ref/gl/gl_local.h
+--- a/ref/gl/gl_local.h
++++ b/ref/gl/gl_local.h
+@@ -724,4 +724,5 @@ extern convar_t gl_fog;
+ extern convar_t cof_gl_trace;
++extern convar_t cof_skyline_trace;
+ extern convar_t cof_skip_client_normal_triangles;
+ extern convar_t	gl_litwater_force;
+ 
+diff --git a/ref/gl/gl_opengl.c b/ref/gl/gl_opengl.c
+--- a/ref/gl/gl_opengl.c
++++ b/ref/gl/gl_opengl.c
+@@ -25,3 +25,4 @@ CVAR_DEFINE_AUTO( gl_fog, "1", FCVAR_GLCONFIG, "allow for rendering fog using built-in OpenGL fog implementation" );
+ CVAR_DEFINE_AUTO( cof_gl_trace, "0", FCVAR_GLCONFIG, "label GL errors at Cry of Fear draw-stage boundaries (diagnostic)" );
++CVAR_DEFINE_AUTO( cof_skyline_trace, "0", FCVAR_GLCONFIG, "trace Cry of Fear menu skyline studio culling (diagnostic)" );
+ CVAR_DEFINE_AUTO( cof_skip_client_normal_triangles, "0", FCVAR_GLCONFIG, "skip client normal-triangle callback (diagnostic)" );
+ CVAR_DEFINE_AUTO( gl_litwater_force, "0", FCVAR_GLCONFIG, "force enable lightmapped water, even if support not declared in the map" );
+@@ -1180,5 +1180,6 @@ static void GL_InitCommands( void )
+ 	gEngfuncs.Cvar_RegisterVariable( &gl_fog );
+ 	gEngfuncs.Cvar_RegisterVariable( &cof_gl_trace );
++	gEngfuncs.Cvar_RegisterVariable( &cof_skyline_trace );
+ 	gEngfuncs.Cvar_RegisterVariable( &cof_skip_client_normal_triangles );
+ 	gEngfuncs.Cvar_RegisterVariable( &gl_litwater_force );
+ 
+diff --git a/ref/gl/gl_studio.c b/ref/gl/gl_studio.c
+--- a/ref/gl/gl_studio.c
++++ b/ref/gl/gl_studio.c
+@@ -33,6 +33,7 @@ typedef struct
+ 
+ // never gonna change, just shut up const warning
+ CVAR_DEFINE_AUTO( r_shadows, "0", 0, "draw ugly shadows" );
++static int cof_skyline_trace_count;
+ 
+ static const vec3_t hullcolor[8] =
+ {
+@@ -252,8 +253,20 @@ static qboolean R_StudioComputeBBox( vec3_t bbox[8] )
+ 		if( bbox ) VectorCopy( p2, bbox[i] );
+ 	}
+ 
+-	if( !bbox && R_CullModel( e, studio_mins, studio_maxs ))
+-		return false; // model culled
++	if( !bbox )
++	{
++		const qboolean skyline = cof_skyline_trace.value && cof_skyline_trace_count < 32 && RI.currentmodel &&
++			!Q_stricmp( RI.currentmodel->name, "models/Props/Blandat/byggnader.mdl" );
++		const qboolean culled = R_CullModel( e, studio_mins, studio_maxs );
++		if( skyline )
++		{
++			cof_skyline_trace_count++;
++			gEngfuncs.Con_Reportf( "[cof-skyline] ent=%d seq=%d effects=%d org=(%.1f %.1f %.1f) bounds=(%.1f %.1f %.1f)-(%.1f %.1f %.1f) cull=%d\n",
++				e->index, e->curstate.sequence, e->curstate.effects, e->origin[0], e->origin[1], e->origin[2],
++				studio_mins[0], studio_mins[1], studio_mins[2], studio_maxs[0], studio_maxs[1], studio_maxs[2], culled );
++		}
++		if( culled ) return false; // model culled
++	}
+ 	return true; // visible
+ }
+ 
+@@ -3205,6 +3218,13 @@ R_StudioDrawModelInternal
+ */
+ static void R_StudioDrawModelInternal( cl_entity_t *e, int flags )
+ {
++	if( cof_skyline_trace.value && cof_skyline_trace_count < 32 && e && e->model &&
++		!Q_stricmp( e->model->name, "models/Props/Blandat/byggnader.mdl" ))
++	{
++		cof_skyline_trace_count++;
++		gEngfuncs.Con_Reportf( "[cof-skyline] entry ent=%d seq=%d effects=%d org=(%.1f %.1f %.1f)\n",
++			e->index, e->curstate.sequence, e->curstate.effects, e->origin[0], e->origin[1], e->origin[2] );
++	}
+ 	if( !FBitSet( RI.rvp.flags, RF_DRAW_WORLD ))
+ 	{
+ 		if( e->player )

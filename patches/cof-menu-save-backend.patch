@@ -89,7 +89,7 @@ index 73917e6..087a6da 100644
  			Con_Printf( S_ERROR "could not read save component %s\n", t->filenames[i] );
  			continue;
  		}
-@@ -2391,6 +2443,112 @@ qboolean SV_SaveGame( const char *pName )
+@@ -2391,6 +2443,106 @@ qboolean SV_SaveGame( const char *pName )
  	return SaveGameSlot( savename, comment );
  }
  
@@ -98,7 +98,7 @@ index 73917e6..087a6da 100644
 +{
 +	char name[32], save[MAX_QPATH], saveBackup[MAX_QPATH];
 +	char label[MAX_QPATH], labelTemp[MAX_QPATH], labelBackup[MAX_QPATH];
-+	char comment[80], title[65], stamp[64], text[160];
++	char title[96], stamp[64], text[160];
 +	qboolean hadSave, hadLabel, saved = false, labelMoved = false;
 +	file_t *file;
 +	time_t now;
@@ -134,13 +134,7 @@ index 73917e6..087a6da 100644
 +		return false;
 +	}
 +
-+	SaveBuildComment( comment, sizeof( comment ));
-+	Q_strncpy( title, comment, sizeof( title ));
-+	for( int i = 0; title[i]; i++ )
-+		if( (unsigned char)title[i] < 32 ) title[i] = ' ';
-+	length = Q_strlen( title );
-+	while( length && title[length - 1] == ' ' ) title[--length] = '\0';
-+	if( !title[0] ) Q_strncpy( title, sv.name, sizeof( title ));
++	Q_snprintf( title, sizeof( title ), "Pause Save (%.64s)", sv.name );
 +	now = time( NULL );
 +	local = localtime( &now );
 +	if( !local || !strftime( stamp, sizeof( stamp ), "%a %b %d %H:%M:%S %Y", local ))

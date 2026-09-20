@@ -428,11 +428,13 @@ resource commands rather than mouse-click evidence.
 * In the follow-up user check, the in-game inventory opened and at least item
   equipping worked. The phone UI was not confirmed. Pause opened the Xash
   pause menu; that menu does not expose Cry of Fear's tape-recorder saves,
-  which remain an in-world interaction. Optional menu saving is a requested
-  product feature, not an implemented change; when implemented it is disabled
-  by default and user-enabled. It must preserve the existing five-slot limit,
-  use those same five slots as the tape-recorder saves, and require overwrite
-  confirmation. Preserve the stock tape-only behavior by default.
+  which remain an in-world interaction. A later direct-GUI check of the
+  current MainUI build successfully saved and loaded a native tape save in
+  slot 3 and an enabled pause-menu save in slot 4. This covers those exact
+  routes in the K-only test deployment; it is not a broad proof for every
+  slot, preview, renderer state, or phone flow. The optional menu path remains
+  disabled by default, shares the existing five slots, and requires overwrite
+  confirmation; stock tape-only behavior remains the default.
 
 * A second visible 1080p interactive run covered the same user-facing route;
   the retained evidence is
@@ -492,9 +494,9 @@ The next acceptance gates are:
    keypad/light/holster flow separately.
 3. Verify a map transition and a fresh New Game path beyond the existing
    difficulty-map evidence.
-4. If optional menu saving is implemented, keep it disabled by default,
-   reuse the same five slots as tape-recorder saves, require overwrite
-   confirmation, and test user-enabled save, thumbnail, reload, and rollback
+4. Keep optional menu saving disabled by default, reuse the same five slots as
+   tape-recorder saves, require overwrite confirmation, and extend the focused
+   slot-3/slot-4 check to the remaining slots, thumbnail, reload, and rollback
    paths while retaining tape-recorder saves as the default behavior.
 5. Resolve or characterize the remaining renderer warnings and visual
    corruption before claiming parity.
