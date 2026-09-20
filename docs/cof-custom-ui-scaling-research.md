@@ -231,6 +231,26 @@ client, VGUI, and resource hashes, then test visible pixels and click results
 separately. Do not upgrade the local FreeVGUI checkout or infer a fix from the
 closed issue alone.
 
+### Console font fallback boundary
+
+The pinned engine has a separate console font path that can affect the same
+orange-looking pixels. `Con_LoadConsoleFont` (`engine/client/console.c:548-602`)
+tries the modern variable-width `fonts.wad`/`fonts/fontN` resources and then
+`gfx/conchars.fnt`; only after those fail does it load `gfx/conchars` through
+`Con_LoadFixedWidthFont`, which assumes the Quake 16x16 fixed grid. Setting
+`con_oldfont 1` bypasses the modern search and directly selects the legacy
+variable-width `gfx/conchars.fnt`. CoF's `gfx.wad` contains an oldstyle
+variable-width CONCHARS font, so this is a concrete asset-format boundary,
+not a generic resolution-scale setting. The default `con_color` is `240 180
+24` (`engine/client/console.c:33`), matching the orange tone in the captures.
+
+Console notify/version drawing occurs after client/VGUI drawing in the current
+diagnostic route. That makes the fallback and color worth testing as a
+possible orange-glyph source, but it does not identify every orange pixel or
+explain invisible clickable controls. The pending runtime comparison is the
+same matched scene with `con_oldfont 0` and `1`, recording the loaded font,
+`con_color`, and screenshot delta before proposing any scaling change.
+
 ## Menu transition side effects
 
 The full slot click handler has more work than the server save command. Static
