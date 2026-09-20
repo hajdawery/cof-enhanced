@@ -98,15 +98,22 @@ the final result. Test these separately:
 The current project has only a bounded self-generated Xash save/load smoke
 result. Stock-save compatibility and GUI transition success remain unverified.
 
-A later isolated trace narrowed one stock-load attempt further: a post-sign-on
-`cofload1` reached the original `hl.dll` `ClientCommand` callback, the DLL
-emitted `load cofsave1`, and the engine entered `SV_LoadGame` before rejecting
-`save/cofsave1.sav` as missing. This proves command dispatch through the game
-DLL, but not that the fixture was in the engine's active search path, and not
-that restore or camera/input handoff worked. The fixture location versus the
-engine search path remains an open test condition. Do not turn this into a
-Windows filename-casing conclusion; the next check should log the resolved
-game directory and exact search path.
+A later isolated trace first showed a post-sign-on `cofload1` reaching the
+original `hl.dll` `ClientCommand` callback, the DLL emitting `load cofsave1`,
+and the engine entering `SV_LoadGame` before rejecting `save/cofsave1.sav` as
+missing. The pinned loader calls `FS_FileExists( pPath, true )` at
+`engine/server/sv_save.c:2141-2145`; the `true` flag selects a game-directory
+lookup. The preserved fixture was at the runtime-root `SAVE` directory, so it
+was invisible to that lookup. This was a fixture-placement issue, not evidence
+of filename-casing behavior or an engine save bug.
+
+After an exact-hash copy was placed at `cryoffear/SAVE/cofsave1.sav`, the same
+trace recorded `load accepted: map=c_forest3`, `Loading game from
+save/cofsave1.sav`, and a subsequent `Spawn Server: c_forest3`. This proves the
+dispatch, game-directory search, save acceptance, and map restoration stages
+for that isolated stock-save fixture. It still does not prove the GUI click
+route, camera/input handoff, a playable first-person frame, or visual parity;
+the temporary copy and generated sidecars were removed after the run.
 
 ## ABI adapters should be persistent, narrow, and opt-in
 
