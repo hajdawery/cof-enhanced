@@ -49,6 +49,19 @@ storage for the translated view, and remain behind an explicit opt-in profile.
 Changing the default engine layout globally turns one compatibility fix into a
 process-wide ABI regression.
 
+## Engine/client surface records can be intentionally mutated
+
+The original client exposes a mutable surface-array handoff: `numsurfaces` is
+at `model + 0xB0`, the array pointer at `model + 0xB4`, and each record is
+`array + i * 0x5C`; the client tests record `flags + 0x8` for
+`SURF_DRAWSKY (0x04)` and negates the polygon `numverts` field at `poly + 8`.
+A matched builder saw sky counts `4, 6, 6, 4`, then the same pointer negative
+before the first normal callback; the intervening client mutation is not yet
+attributed to a specific callback. The reusable lesson is that a negative
+count is not automatically engine memory corruption or proof of the skyline
+cause. Detailed evidence is in `stage1/gl-world-poly-qa-20260920/` and
+`docs/cof-skyline-trace.md`.
+
 ## Generated headers select the real target
 
 The client build exposed a C preprocessor trap: `#ifdef XASH_DEDICATED` treats
