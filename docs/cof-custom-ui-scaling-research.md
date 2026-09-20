@@ -187,17 +187,22 @@ different, useful comparison case: in Cry of Fear's Custom Campaign,
 Save/Load, phone-call, and computer-cafe menus, text fields and controls were
 invisible but still clickable. The report identifies Xash3D-FWGS commit
 `5674d93`, the `freevgui` branch, patch 1.55, Windows 10 x86-64, and a custom
-renderer. The fetched issue page is marked **Closed**, but exposes no closing
-comment, linked pull request, development branch, or fixing commit. Closure
-therefore does not prove that a particular fix is present in this project.
+renderer. Its timeline records the resolution: the reporter first called
+`1aec8e75aca6309dcee6ec2de26d13fb94af62b1` fixed on Aug 30, then reported
+`fe83bdfcb2cdadfe2d9e1c881538ac3f45730e80` as no longer thin but still not
+identical, and finally wrote that it was fixed by
+`182bf5ec436b66769fb453ce670b9e0a822b1b58` on Sep 2 before closing the issue.
+The closing comment is
+[issue comment 5505763141](https://github.com/FWGS/xash3d-fwgs/issues/2734#issuecomment-5505763141).
 
 The [FreeVGUI commit history](https://github.com/FWGS/freevgui/commits/master)
-shows several changes after the report that are relevant candidates, but none
-is linked to #2734 in the issue page: `4553ae2` adds a Win32 GDI font
-rasterizer, `fe83bdf` makes the stub font draw a diagnostic box,
-`182bf5e` fixes TextEntry color handling, and `f592f2f` passes the paint
-translation to the Xash engine. These commit subjects are provenance clues,
-not proof of the issue's root cause or resolution.
+shows the relevant sequence: `1aec8e75` adds a Win32 GDI font rasterizer,
+`fe83bdf` makes the stub font draw a diagnostic box, and `182bf5e` fixes
+TextEntry color handling in `controls/text.cpp`; the reporter explicitly names
+the latter as the final fix. `f592f2f` later passes paint translation to the
+Xash engine, but it is not the issue's recorded closing fix. The issue comments
+also say the GDI implementation was based on `mainui_cpp` and that the
+remaining concern was matching the original font color/appearance.
 
 The local provenance is mixed and must remain explicit while comparing builds:
 
@@ -205,7 +210,7 @@ The local provenance is mixed and must remain explicit while comparing builds:
 | --- | --- | --- |
 | FWGS source checkout | `4857b389e6ba32ddaa68582aedcbc950c138f46a` | Engine source used by the local build checkpoints. |
 | FreeVGUI source gitlink | `f592f2f5aa3fc07745722133f580755442627064` | Revision recorded by the pinned FWGS source tree. |
-| FreeVGUI checkout used locally | `73bfb4659f3d9eb28b79e5b26baea8c6b888d5eb` | Actual submodule checkout in the local client-build checkpoint; it differs from the gitlink. |
+| FreeVGUI checkout used locally | `73bfb4659f3d9eb28b79e5b26baea8c6b888d5eb` | Actual submodule checkout in the local client-build checkpoint; it differs from the gitlink and is dated Sep 15, after the recorded fix. The shallow checkout does not contain the `182bf5e` object, so ancestry is not independently provable here. |
 | Deployed Steam-test `vgui.dll` | `B839D47942F0AF487F12D433D3EBEC862878C5C436E3254900EB7BE6D9775A74` | Hash recorded in the temporary root-colocated launch report. No manifest currently maps this binary to a FreeVGUI revision. |
 
 The issue's invisible-but-clickable controls must be kept separate from the
