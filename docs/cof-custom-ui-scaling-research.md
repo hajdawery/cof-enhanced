@@ -208,8 +208,9 @@ The final commit's one-line diff changes `drawSetColor( Scheme::SC_BLACK )`
 to `drawSetTextColor( Scheme::SC_BLACK )` in `TextEntry::paintBackground()`.
 The local checkout contains the corrected `drawSetTextColor` call in
 `3rdparty/freevgui/controls/text.cpp`, so its source matches the recorded fix
-by content. Its shallow Git history does not contain the `182bf5e` object,
-which is why the ancestry distinction above remains.
+by content. GitHub compare confirms the local checkout is a descendant of the
+fix (14 commits ahead, 0 behind); the shallow local clone simply lacks the
+intermediate object database needed to prove that relationship offline.
 
 The local provenance is mixed and must remain explicit while comparing builds:
 
@@ -217,7 +218,7 @@ The local provenance is mixed and must remain explicit while comparing builds:
 | --- | --- | --- |
 | FWGS source checkout | `4857b389e6ba32ddaa68582aedcbc950c138f46a` | Engine source used by the local build checkpoints. |
 | FreeVGUI source gitlink | `f592f2f5aa3fc07745722133f580755442627064` | Revision recorded by the pinned FWGS source tree. |
-| FreeVGUI checkout used locally | `73bfb4659f3d9eb28b79e5b26baea8c6b888d5eb` | Actual submodule checkout in the local client-build checkpoint; it differs from the gitlink and is dated Sep 15, after the recorded fix. The shallow checkout does not contain the `182bf5e` object, so ancestry is not independently provable here. |
+| FreeVGUI checkout used locally | `73bfb4659f3d9eb28b79e5b26baea8c6b888d5eb` | Actual submodule checkout in the local client-build checkpoint; it differs from the gitlink and is dated Sep 15, after the recorded fix. GitHub compare reports it 14 commits ahead of `182bf5e` and 0 behind, so the local source includes the fix. |
 | Deployed Steam-test `vgui.dll` | `B839D47942F0AF487F12D433D3EBEC862878C5C436E3254900EB7BE6D9775A74` | Hash recorded in the temporary root-colocated launch report. No manifest currently maps this binary to a FreeVGUI revision. |
 
 The issue's invisible-but-clickable controls must be kept separate from the
