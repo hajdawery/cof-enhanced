@@ -78,3 +78,8 @@ Acceptance requires the selected menu state to change, the expected command
 to execute, and the resulting screen or map state to appear. Footstep audio
 alone is not a transition result. A nonblank frame or matching menu envelope
 does not establish visual parity.
+
+The interaction gates and the original game UI references are listed in the
+[custom UI regression checklist](custom-ui-regression-checklist.md). Every
+runtime interaction in that checklist is pending until reproduced on the
+matched fixed runtime.
