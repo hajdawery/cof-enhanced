@@ -1,0 +1,16 @@
+diff --git "a/engine/client/console.c" "b/engine/client/console.c"
+--- "a/engine/client/console.c"
++++ "b/engine/client/console.c"
+@@ -584,6 +584,12 @@ static void Con_LoadConsoleFont( int fontNumber, cl_font_t *font )
+ 			Q_snprintf( path, sizeof( path ), "fonts/font%i", fontNumber );
+ 			success = Con_LoadVariableWidthFont( path, font, scale, &con_fontrender, TF_FONT|TF_NEAREST );
+ 		}
++
++		if( !success )
++		{
++			// Some mods provide a variable-width console font in gfx.wad.
++			success = Con_LoadVariableWidthFont( "gfx/conchars.fnt", font, scale, &con_fontrender, TF_FONT|TF_NEAREST );
++		}
+ 	}
+ 
+ 	if( !success )

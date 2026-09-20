@@ -281,6 +281,14 @@ The save-selector appearance in the HUD-suppressed diagnostic frame may be a
 harness artifact and must not be used as proof that the real click handler
 left the panel visible.
 
+Additional disassembly notes around `0x100316F7` map `0x100AAAD0` to the
+client panel/controller update and show `0x1007FC10(0)` forwarding to object
+`0x10080780` while resetting client-local transition fields. These addresses
+remain binary-specific and are not symbolic API names, but they reinforce the
+boundary: console `cofload1` exercises the server command only. A GUI-click
+test in the K-only fixture is required to validate the panel, cursor, focus,
+and transition side effects.
+
 The opt-in root-save compatibility path was separately shown to load the
 stock root `SAVE` layout and to write, thumbnail, and reload an Xash save. That
 is command-equivalent save evidence. It does not establish GUI slot selection,
