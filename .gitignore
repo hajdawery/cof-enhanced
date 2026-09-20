@@ -1,0 +1,16 @@
+# Project-only files and downloaded/build material
+/upstream-fwgs/
+/pristine*/
+/xash3d-fwgs-*/
+/fwgs-*.zip
+/sdl2-*.zip
+/prereq/
+/build-*/
+/common/build.h
+/3rdparty/*/*/.git/
+/3rdparty/*/*/
+*.dll
+*.exe
+*.pdb
+*.lib
+*.obj

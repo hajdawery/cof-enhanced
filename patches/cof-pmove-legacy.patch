@@ -1,0 +1,104 @@
+--- a/engine/server/sv_pmove.c
++++ b/engine/server/sv_pmove.c
+@@ -19,10 +19,56 @@ GNU General Public License for more details.
+ #include "pm_local.h"
+ #include "event_flags.h"
+ #include "studio.h"
++#include <stddef.h>
+ 
+ static qboolean has_update = false;
+ static void SV_GetTrueOrigin( sv_client_t *cl, int edictnum, vec3_t origin );
+ 
++/*
++ * Experimental compatibility path for the Steam Cry of Fear server DLL.
++ *
++ * The shipped DLL's PM_Init accesses physinfo and the common callback table
++ * four bytes later than the current playermove_t layout.  Keep this opt-in and
++ * translate only at the DLL boundary; the engine continues using its native
++ * playermove_t.  The missing historical field is not identified, so this is a
++ * diagnostic adapter and is not a general ABI guarantee.
++ */
++#define COF_PMOVE_LEGACY_SHIFT 4
++typedef union cof_pmove_legacy_storage_s
++{
++	playermove_t align;
++	byte bytes[sizeof( playermove_t ) + COF_PMOVE_LEGACY_SHIFT];
++} cof_pmove_legacy_storage_t;
++
++static qboolean cof_pmove_legacy_enabled;
++static cof_pmove_legacy_storage_t cof_pmove_legacy_storage;
++
++static playermove_t *SV_CoF_LegacyPMove( void )
++{
++	return (playermove_t *)cof_pmove_legacy_storage.bytes;
++}
++
++static void SV_CoF_CopyToLegacyPMove( void )
++{
++	const size_t tail = offsetof( playermove_t, physinfo );
++	playermove_t *legacy = SV_CoF_LegacyPMove();
++
++	memcpy( legacy, svgame.pmove, tail );
++	memset( (byte *)legacy + tail, 0, COF_PMOVE_LEGACY_SHIFT );
++	memcpy( (byte *)legacy + tail + COF_PMOVE_LEGACY_SHIFT,
++		(byte *)svgame.pmove + tail, sizeof( playermove_t ) - tail );
++}
++
++static void SV_CoF_CopyFromLegacyPMove( void )
++{
++	const size_t tail = offsetof( playermove_t, physinfo );
++	playermove_t *legacy = SV_CoF_LegacyPMove();
++
++	memcpy( svgame.pmove, legacy, tail );
++	memcpy( (byte *)svgame.pmove + tail,
++		(byte *)legacy + tail + COF_PMOVE_LEGACY_SHIFT, sizeof( playermove_t ) - tail );
++}
++
+ void SV_ClipPMoveToEntity( physent_t *pe, const vec3_t start, vec3_t mins, vec3_t maxs, const vec3_t end, pmtrace_t *tr )
+ {
+ 	Assert( tr != NULL );
+@@ -438,6 +484,9 @@ SV_InitClientMove
+ void SV_InitClientMove( void )
+ {
+ 	Pmove_Init ();
++	cof_pmove_legacy_enabled = (Sys_CheckParm( "-cof-pmove-legacy" ) != 0);
++	if( cof_pmove_legacy_enabled )
++		Con_Reportf( S_WARN "experimental CoF legacy playermove adapter enabled\n" );
+ 
+ 	svgame.pmove->server = true;
+ 	svgame.pmove->movevars = &svgame.movevars;
+@@ -488,7 +537,15 @@ void SV_InitClientMove( void )
+ 	svgame.pmove->PM_TraceSurface = pfnTraceSurface;
+ 
+ 	// initalize pmove
+-	svgame.dllFuncs.pfnPM_Init( svgame.pmove );
++	if( cof_pmove_legacy_enabled )
++	{
++		SV_CoF_CopyToLegacyPMove();
++		svgame.dllFuncs.pfnPM_Init( SV_CoF_LegacyPMove() );
++	}
++	else
++	{
++		svgame.dllFuncs.pfnPM_Init( svgame.pmove );
++	}
+ }
+ 
+ static void PM_CheckMovingGround( edict_t *ent, float frametime )
+@@ -953,7 +1010,16 @@ void SV_RunCmd( sv_client_t *cl, usercmd_t *ucmd, int random_seed )
+ 	SV_SetupPMove( svgame.pmove, cl, ucmd, cl->physinfo );
+ 
+ 	// motor!
+-	svgame.dllFuncs.pfnPM_Move( svgame.pmove, true );
++	if( cof_pmove_legacy_enabled )
++	{
++		SV_CoF_CopyToLegacyPMove();
++		svgame.dllFuncs.pfnPM_Move( SV_CoF_LegacyPMove(), true );
++		SV_CoF_CopyFromLegacyPMove();
++	}
++	else
++	{
++		svgame.dllFuncs.pfnPM_Move( svgame.pmove, true );
++	}
+ 
+ 	// copy results back to client
+ 	SV_FinishPMove( svgame.pmove, cl );
