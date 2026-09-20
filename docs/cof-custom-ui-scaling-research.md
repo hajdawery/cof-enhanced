@@ -180,6 +180,44 @@ missing `impact` VGUI bitmap. This is a **verified source contract**; the
 current captures do not yet identify whether their orange glyphs use this
 bridge or the separate VGUI bitmap scheme.
 
+## Upstream FreeVGUI issue and local provenance
+
+[FWGS issue #2734](https://github.com/FWGS/xash3d-fwgs/issues/2734) reports a
+different, useful comparison case: in Cry of Fear's Custom Campaign,
+Save/Load, phone-call, and computer-cafe menus, text fields and controls were
+invisible but still clickable. The report identifies Xash3D-FWGS commit
+`5674d93`, the `freevgui` branch, patch 1.55, Windows 10 x86-64, and a custom
+renderer. The fetched issue page is marked **Closed**, but exposes no closing
+comment, linked pull request, development branch, or fixing commit. Closure
+therefore does not prove that a particular fix is present in this project.
+
+The [FreeVGUI commit history](https://github.com/FWGS/freevgui/commits/master)
+shows several changes after the report that are relevant candidates, but none
+is linked to #2734 in the issue page: `4553ae2` adds a Win32 GDI font
+rasterizer, `fe83bdf` makes the stub font draw a diagnostic box,
+`182bf5e` fixes TextEntry color handling, and `f592f2f` passes the paint
+translation to the Xash engine. These commit subjects are provenance clues,
+not proof of the issue's root cause or resolution.
+
+The local provenance is mixed and must remain explicit while comparing builds:
+
+| Item | Revision or hash | Meaning |
+| --- | --- | --- |
+| FWGS source checkout | `4857b389e6ba32ddaa68582aedcbc950c138f46a` | Engine source used by the local build checkpoints. |
+| FreeVGUI source gitlink | `f592f2f5aa3fc07745722133f580755442627064` | Revision recorded by the pinned FWGS source tree. |
+| FreeVGUI checkout used locally | `73bfb4659f3d9eb28b79e5b26baea8c6b888d5eb` | Actual submodule checkout in the local client-build checkpoint; it differs from the gitlink. |
+| Deployed Steam-test `vgui.dll` | `B839D47942F0AF487F12D433D3EBEC862878C5C436E3254900EB7BE6D9775A74` | Hash recorded in the temporary root-colocated launch report. No manifest currently maps this binary to a FreeVGUI revision. |
+
+The issue's invisible-but-clickable controls must be kept separate from the
+current orange glyph corruption. The latter remained after the diagnostic
+`HUD_Redraw` bypass, and the VGUI-paint-only bypass also did not remove it;
+neither observation identifies the glyph source. The client export bridge can
+route VGUI2 character calls through the shared credits font, while bitmap VGUI
+schemes use a separate path. A future comparison should use matched engine,
+client, VGUI, and resource hashes, then test visible pixels and click results
+separately. Do not upgrade the local FreeVGUI checkout or infer a fix from the
+closed issue alone.
+
 ## Menu transition side effects
 
 The full slot click handler has more work than the server save command. Static
