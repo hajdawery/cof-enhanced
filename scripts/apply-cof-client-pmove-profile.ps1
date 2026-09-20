@@ -8,19 +8,25 @@ if (!(Test-Path -LiteralPath $SourceRoot -PathType Container)) {
     throw "SourceRoot must be an existing directory: $SourceRoot"
 }
 $source = [IO.Path]::GetFullPath((Resolve-Path -LiteralPath $SourceRoot).Path)
-$target = Join-Path $source 'engine\server\sv_pmove.c'
-$patch = Join-Path $root 'patches\cof-pmove-legacy.patch'
+$target = Join-Path $source 'engine\client\dll_int\cl_pmove.c'
+$serverTarget = Join-Path $source 'engine\server\sv_pmove.c'
+$patch = Join-Path $root 'patches\cof-client-pmove-legacy.patch'
 
-if (!(Test-Path $target)) { throw "Not an FWGS source tree: $target" }
-if (!(Test-Path $patch)) { throw "Missing patch: $patch" }
+if (!(Test-Path -LiteralPath $target)) { throw "Not an FWGS source tree: $target" }
+if (!(Test-Path -LiteralPath $serverTarget)) { throw "Not an FWGS source tree: $serverTarget" }
+if (!(Test-Path -LiteralPath $patch)) { throw "Missing patch: $patch" }
 $rootPrefix = $root.TrimEnd('\') + '\'
 if (-not $source.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
     throw "SourceRoot must be inside this project workspace: $root"
 }
 $relativeSource = $source.Substring($rootPrefix.Length).Replace('\','/')
+$serverText = Get-Content -Raw $serverTarget
 $text = Get-Content -Raw $target
-if ($text.Contains('COF_PMOVE_LEGACY_SHIFT')) {
-    throw 'The adapter is already present; use a clean pinned source tree or remove the existing adapter before applying the patch.'
+if (-not $serverText.Contains('COF_PMOVE_LEGACY_SHIFT')) {
+    throw 'The client PMove profile requires the server PMove adapter first; apply that adapter to a clean pinned source tree.'
+}
+if ($text.Contains('COF_CLIENT_PMOVE_LEGACY_SHIFT')) {
+    throw 'The client PMove profile is already present; use a clean pinned source tree before applying the patch.'
 }
 
 Push-Location $root
@@ -33,16 +39,17 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'git apply failed.' }
 
     $appliedText = Get-Content -Raw $target
-    if (-not $appliedText.Contains('COF_PMOVE_LEGACY_SHIFT') -or
-        -not $appliedText.Contains('SV_CoF_LegacyPMove')) {
-        throw 'Patch command completed without the expected PMove adapter markers.'
+    if (-not $appliedText.Contains('COF_CLIENT_PMOVE_LEGACY_SHIFT') -or
+        -not $appliedText.Contains('CL_CoF_LegacyPMove') -or
+        -not $appliedText.Contains('cof_client_pmove_legacy_enabled')) {
+        throw 'Patch command completed without the expected client PMove adapter markers.'
     }
 
     & git apply --ignore-whitespace --reverse --check --directory=$relativeSource -- $patch
     if ($LASTEXITCODE -ne 0) {
-        throw 'Applied PMove patch cannot be reverse-checked; refusing an unverified source tree.'
+        throw 'Applied client PMove patch cannot be reverse-checked; refusing an unverified source tree.'
     }
 } finally {
     Pop-Location
 }
-Write-Host "Applied experimental CoF PMove adapter to $target"
+Write-Host "Applied experimental CoF client PMove adapter to $target"

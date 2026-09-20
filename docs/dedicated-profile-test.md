@@ -32,6 +32,14 @@ loading that pointer. This establishes a new callback-stage diagnostic
 blocker; it does not by itself establish whether the private-data access is a
 second ABI mismatch or a game-specific assumption.
 
+The profile PDB reports `sizeof(entvars_s) = 0x2A8` and
+`sizeof(edict_s) = 0x328`; `pvPrivateData` is at `edict + 0x7C` and `v` at
+`edict + 0x80`. The original `hl.dll` disassembly advances its
+`pfnServerActivate` entity pointer by `0x32C` after the same `+0x7C` check,
+while the profile engine's generated assembly uses `0x328` for its own edict
+array indexing. This is a verified four-byte stride discrepancy; no stride
+workaround is included in this checkpoint.
+
 The capture helper stops at a first-chance exception. Therefore this run is
 not proof of an unhandled crash or playable map. No client, renderer, menu,
 or gameplay claim follows from it.
