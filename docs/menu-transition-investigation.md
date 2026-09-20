@@ -404,6 +404,35 @@ resource commands rather than mouse-click evidence.
   This supports an automatic engine font fallback fix; it does not establish
   selector, gameplay, or Steam compatibility.
 
+* The approved interactive K-runtime helper then launched the normal visible
+  menu with launcher
+  `C6DFC178774CC88398C017A2E377613DED966C9637BC59C8AEA800538186A17A`,
+  fallback engine
+  `680DCD7FCBB5F31DCCA568DFB92ADE465B75A0814D23BB5AB487E09FF2318F1B`,
+  and renderer
+  `F3B1D4B9F3C2237C50447D956EE43070B22BF578C9E15CD0ED67D30B30E6F172`.
+  The user clicked Load Game and the first displayed slot. The log records
+  `c_game_menu1`, then `Loading game from save/cofsave1.sav`,
+  `Spawn Server: c_forest3`, and loading `c_forest3.HL1`, followed by client
+  sign-on. The user reported that gameplay appeared and controls worked; this
+  is direct GUI interaction evidence, without a visual-parity claim. The
+  retained log is
+  `stage1/menu-transition-evidence-20260920/interactive-selector-20260920-192635/interactive-selector-20260920-192635.log`
+  (SHA256
+  `FC221E03A83C76ED9155769E55D3D263415C1C8A22FF02CCC9FBD119CE06903A`).
+  The run logged 3,180 `GL_INVALID_VALUE` lines, 36 unknown-command warnings,
+  540 warning lines, and the existing `is_donator` delta-field error. The
+  isolated launcher and engine were restored after exit; the recovery backup
+  and mutable game state remain preserved.
+
+* In the follow-up user check, the in-game inventory opened and at least item
+  equipping worked. The phone UI was not confirmed. Pause opened the Xash
+  pause menu; that menu does not expose Cry of Fear's tape-recorder saves,
+  which remain an in-world interaction. Optional menu saving is a requested
+  product feature, not an implemented change; when implemented it is disabled
+  by default and user-enabled. Preserve the stock tape-only behavior by
+  default.
+
 ## GUI handler boundary
 
 The retained command-equivalent captures do not reproduce the complete slot
@@ -419,8 +448,9 @@ The console and delayed-command probes exercise the server-forwarded save
 route, but do not reproduce those panel, cursor, and focus operations. The
 save-selector appearance in the HUD-suppressed diagnostic frame is therefore
 not evidence that the full GUI handler failed; it may be a property of the
-diagnostic harness. A real click or a faithful replay of the complete handler
-remains untested.
+diagnostic harness. The later interactive run confirms the user-visible
+main-menu-to-stock-save route, but it did not instrument each internal panel,
+cursor, focus, or transition field separately.
 
 The isolated `SAVE/cofsave1.sav`, `SAVE/cofsave2.sav`, `SAVE/quick.sav`, and
 `cryoffear/SAVE/saveinfo1.cof`/`saveinfo2.cof` were hashed before testing and
@@ -439,15 +469,24 @@ forwarded load/map commands, and the isolated launcher smoke test read the
 cvar back as `1` before accepting the stock root save. The console overlay
 glyph corruption is fixed by the tested variable-width fallback with the
 default `con_oldfont 0`; a separate severe white/renderer corruption remains,
-along with repeated `GL_INVALID_VALUE` diagnostics, so full rendering and
-gameplay remain unvalidated. The reported GUI sequence remains
-open:
-main menu → Load Game → selected stock slot → playable map/view. The current
-runs prove the stock save route and command-equivalent launcher path only; they
-do not prove that a stock GoldSrc save loads through the complete CoF selector
-click handler. They also do not
-prove camera mode, panel visibility, input focus, or a clean first-person frame
-after an actual slot selection. Footstep audio and map logs are insufficient as
-a pass criterion. The next controlled test needs a working UI interaction
-bridge or a faithful replay of the complete slot handler, followed by a
-full-frame capture and map/camera/UI-state evidence.
+along with repeated `GL_INVALID_VALUE` diagnostics, so visual parity and broad
+gameplay remain unvalidated. One actual GUI route is now user-confirmed:
+main menu → Load Game → selected stock slot → playable map/view, with controls
+working in that session. The current evidence does not prove every stock save,
+camera mode, clean first-person rendering, or the full inventory/phone/pause
+surface. Footstep audio and map logs are insufficient as a broad pass
+criterion.
+
+The next acceptance gates are:
+
+1. Repeat the stock-save route after death/reload and verify the resulting
+   camera, HUD, input focus, and frame quality.
+2. Exercise inventory use, drop, combine, and equip paths; verify the phone
+   keypad/light/holster flow separately.
+3. Verify a map transition and a fresh New Game path beyond the existing
+   difficulty-map evidence.
+4. If optional menu saving is implemented, keep it disabled by default and
+   test its user-enabled save, thumbnail, reload, and rollback paths while
+   retaining tape-recorder saves as the default behavior.
+5. Resolve or characterize the remaining renderer warnings and visual
+   corruption before claiming parity.
