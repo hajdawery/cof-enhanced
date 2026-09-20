@@ -93,8 +93,7 @@ int wmain( int argc, wchar_t **argv )
 		return 1;
 	}
 
-	std::vector<std::string> arguments;
-	arguments.push_back( "CoFLaunchApp.exe" );
+	std::vector<std::string> forwardedArguments;
 	for( int i = 1; i < argc; ++i )
 	{
 		const std::wstring current = argv[i];
@@ -108,12 +107,20 @@ int wmain( int argc, wchar_t **argv )
 		}
 		if( IsSwitch( current, L"-cof-pmove-legacy" ))
 			continue;
-		arguments.push_back( Narrow( current ));
+		forwardedArguments.push_back( Narrow( current ));
 	}
 
+	std::vector<std::string> arguments;
+	arguments.push_back( "CoFLaunchApp.exe" );
 	arguments.push_back( "-game" );
 	arguments.push_back( "cryoffear" );
 	arguments.push_back( "-cof-pmove-legacy" );
+	// Root SAVE compatibility is required before forwarded +load/+map commands.
+	// A caller may deliberately override it later with another +set command.
+	arguments.push_back( "+set" );
+	arguments.push_back( "cof_save_root_compat" );
+	arguments.push_back( "1" );
+	arguments.insert( arguments.end(), forwardedArguments.begin(), forwardedArguments.end( ));
 	std::vector<char *> argumentPointers;
 	for( std::vector<std::string>::iterator it = arguments.begin(); it != arguments.end(); ++it )
 		argumentPointers.push_back( &(*it)[0] );

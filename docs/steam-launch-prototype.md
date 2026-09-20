@@ -4,7 +4,7 @@ This is a reviewable launcher proof for the Stage 1 compatibility build. It does
 
 ## Launcher contract
 
-`launcher/cof_launch.cpp` resolves the directory containing `CoFLaunchApp.exe`, sets `XASH3D_BASEDIR` and the process current directory to that directory, loads the colocated `xash.dll`, and invokes its exported `Host_Main(int, char**, const char*, int, pfnChangeGame)`. Caller supplied `-game` and `-cof-pmove-legacy` arguments are removed; the launcher appends `-game cryoffear -cof-pmove-legacy` and preserves other arguments. This uses FWGS's supported root and game selection interfaces and avoids developer checkout paths. The colocated root remains the engine's DLL search directory, so ordinary Windows DLL resolution applies to all files in that root.
+`launcher/cof_launch.cpp` resolves the directory containing `CoFLaunchApp.exe`, sets `XASH3D_BASEDIR` and the process current directory to that directory, loads the colocated `xash.dll`, and invokes its exported `Host_Main(int, char**, const char*, int, pfnChangeGame)`. Caller supplied `-game` and `-cof-pmove-legacy` arguments are removed; the launcher appends `-game cryoffear -cof-pmove-legacy +set cof_save_root_compat 1` before preserving other arguments. A caller's later `+set cof_save_root_compat 0` or `1` remains an explicit override. This uses FWGS's supported root and game selection interfaces and avoids developer checkout paths. The colocated root remains the engine's DLL search directory, so ordinary Windows DLL resolution applies to all files in that root.
 
 Build the x86 launcher with the pinned local VS2022 toolchain:
 
@@ -13,6 +13,14 @@ Build the x86 launcher with the pinned local VS2022 toolchain:
 ```
 
 The script discovers the Visual Studio installation with `vswhere` or `VSINSTALLDIR`; pass `-VcVarsPath` when neither is available. The historical Steam-tested output was `build-launcher\\CoFLaunchApp.exe` (SHA256 `7B3FD518F10A780EDA6932934AF619C1241FDB852B362943F4737DF20DC086A9`). The current script additionally embeds the project icon and enables `/LARGEADDRESSAWARE`, so a fresh output has a different hash; existing binary ignore rules exclude all build output.
+
+The current source checkpoint was built locally as
+`build-launcher-save-compat\\CoFLaunchApp.exe`, SHA-256
+`C6DFC178774CC88398C017A2E377613DED966C9637BC59C8AEA800538186A17A`.
+The PE header reports the large-address-aware flag and the executable has a
+resource section produced from icon resource ID 101. This build is a source
+and resource verification artifact; it has not been deployed to Steam or used
+for the historical runtime proof below.
 
 ## Isolated proof package
 
