@@ -498,3 +498,14 @@ The next acceptance gates are:
    paths while retaining tape-recorder saves as the default behavior.
 5. Resolve or characterize the remaining renderer warnings and visual
    corruption before claiming parity.
+
+## Renderer acceptance record
+
+The user observed that the main-menu map is visibly missing some geometry in
+the current renderer. This is a separate visual acceptance defect from the
+successful stock-save load, working controls, and inventory-equipping checks;
+no causal link to the recorded `GL_INVALID_VALUE` lines has been established.
+The renderer is not fully tested. Water or water-shader differences are
+explicitly deferred and are not a current priority. When renderer work
+resumes, restore the missing main-menu geometry first, then revisit water
+behavior after the save-menu interaction path remains stable.
