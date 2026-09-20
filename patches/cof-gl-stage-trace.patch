@@ -10,11 +10,12 @@ index f1ac6eb..962fef1 100644
  const char *GL_ErrorString( int err ) RETURNS_NONNULL;
  
  //
-@@ -723,6 +724,7 @@ extern convar_t	gl_msaa;
+@@ -723,6 +724,8 @@ extern convar_t	gl_msaa;
  extern convar_t	gl_stencilbits;
  extern convar_t	gl_overbright;
  extern convar_t gl_fog;
 +extern convar_t cof_gl_trace;
++extern convar_t cof_skip_client_normal_triangles;
  extern convar_t	gl_litwater_force;
  
  extern convar_t	r_lighting_ambient;
@@ -22,11 +23,12 @@ diff --git "a/ref/gl/gl_opengl.c" "b/ref/gl/gl_opengl.c"
 index 95e5bea..6d0e741 100644
 --- "a/ref/gl/gl_opengl.c"
 +++ "b/ref/gl/gl_opengl.c"
-@@ -22,6 +22,7 @@ CVAR_DEFINE_AUTO( gl_msaa, "1", FCVAR_GLCONFIG, "enable or disable multisample a
+@@ -22,6 +22,8 @@ CVAR_DEFINE_AUTO( gl_msaa, "1", FCVAR_GLCONFIG, "enable or disable multisample a
  CVAR_DEFINE_AUTO( gl_stencilbits, "8", FCVAR_GLCONFIG|FCVAR_READ_ONLY, "pixelformat stencil bits (0 - auto)" );
  CVAR_DEFINE_AUTO( gl_overbright, "1", FCVAR_GLCONFIG, "overbrights" );
  CVAR_DEFINE_AUTO( gl_fog, "1", FCVAR_GLCONFIG, "allow for rendering fog using built-in OpenGL fog implementation" );
 +CVAR_DEFINE_AUTO( cof_gl_trace, "0", FCVAR_GLCONFIG, "label GL errors at Cry of Fear draw-stage boundaries (diagnostic)" );
++CVAR_DEFINE_AUTO( cof_skip_client_normal_triangles, "0", FCVAR_GLCONFIG, "skip client normal-triangle callback (diagnostic)" );
  CVAR_DEFINE_AUTO( gl_litwater_force, "0", FCVAR_GLCONFIG, "force enable lightmapped water, even if support not declared in the map" );
  CVAR_DEFINE_AUTO( r_lighting_ambient, "0.3", FCVAR_GLCONFIG, "map ambient lighting scale" );
  CVAR_DEFINE_AUTO( r_detailtextures, "1", FCVAR_GLCONFIG, "enable detail textures support" );
@@ -50,11 +52,12 @@ index 95e5bea..6d0e741 100644
  void GL_SetupAttributes( int safegl )
  {
  	int context_flags = 0; // REFTODO!!!!!
-@@ -1175,6 +1177,7 @@ static void GL_InitCommands( void )
+@@ -1175,6 +1177,8 @@ static void GL_InitCommands( void )
  	gEngfuncs.Cvar_RegisterVariable( &gl_round_down );
  	gEngfuncs.Cvar_RegisterVariable( &gl_overbright );
  	gEngfuncs.Cvar_RegisterVariable( &gl_fog );
 +	gEngfuncs.Cvar_RegisterVariable( &cof_gl_trace );
++	gEngfuncs.Cvar_RegisterVariable( &cof_skip_client_normal_triangles );
  	gEngfuncs.Cvar_RegisterVariable( &gl_litwater_force );
  
  	gEngfuncs.Cvar_RegisterVariable( &gl_polyoffset );
@@ -104,7 +107,8 @@ index 5358cd8..613f621 100644
 -	GL_CheckForErrors();
 +	COF_GL_STAGE_CHECK( "after_solid_efx" );
  
- 	if( FBitSet( RI.rvp.flags, RF_DRAW_WORLD ))
+-	if( FBitSet( RI.rvp.flags, RF_DRAW_WORLD ))
++	if( FBitSet( RI.rvp.flags, RF_DRAW_WORLD ) && !cof_skip_client_normal_triangles.value )
  		gEngfuncs.pfnDrawNormalTriangles();
  
 -	GL_CheckForErrors();
@@ -180,3 +184,74 @@ index bfddac7..2f1c0fe 100644
  	pglShadeModel( GL_FLAT );
  	pglDepthMask( GL_TRUE );
  }
+diff --git "a/ref/gl/gl_triapi.c" "b/ref/gl/gl_triapi.c"
+index 1b9748c..e3c71aa 100644
+--- "a/ref/gl/gl_triapi.c"
++++ "b/ref/gl/gl_triapi.c"
+@@ -17,6 +17,9 @@ GNU General Public License for more details.
+ #include "gl_local.h"
+ #include "const.h"
+ 
++#define COF_TRIAPI_STAGE_CHECK( name ) \
++	do { if( cof_gl_trace.value ) GL_CheckForErrorsNamed_( name, __FILE__, __LINE__ ); } while( 0 )
++
+ static struct
+ {
+ 	int		renderMode;		// override kRenderMode from TriAPI
+@@ -69,6 +72,8 @@ void TriRenderMode( int mode )
+ 		pglDepthMask( GL_FALSE );
+ 		break;
+ 	}
++
++	COF_TRIAPI_STAGE_CHECK( "triapi_render_mode" );
+ }
+ 
+ /*
+@@ -122,6 +127,7 @@ draw triangle sequence
+ void TriEnd( void )
+ {
+ 	pglEnd( );
++	COF_TRIAPI_STAGE_CHECK( "triapi_end" );
+ }
+ 
+ /*
+@@ -252,6 +258,7 @@ int TriSpriteTexture( model_t *pSpriteModel, int frame )
+ 		gl_texturenum = tr.defaultTexture;
+ 
+ 	GL_Bind( XASH_TEXTURE0, gl_texturenum );
++	COF_TRIAPI_STAGE_CHECK( "triapi_sprite_texture" );
+ 
+ 	return 1;
+ }
+@@ -305,6 +312,7 @@ void TriFog( float flFogColor[3], float flStart, float flEnd, int bOn )
+ 	pglFogf( GL_FOG_START, RI.fogStart );
+ 	pglFogf( GL_FOG_END, RI.fogEnd );
+ 	pglHint( GL_FOG_HINT, GL_NICEST );
++	COF_TRIAPI_STAGE_CHECK( "triapi_fog" );
+ }
+ 
+ /*
+@@ -317,6 +325,7 @@ very strange export
+ void TriGetMatrix( const int pname, float *matrix )
+ {
+ 	pglGetFloatv( pname, matrix );
++	COF_TRIAPI_STAGE_CHECK( "triapi_get_matrix" );
+ }
+ 
+ /*
+@@ -352,6 +361,7 @@ void TriCullFace( TRICULLSTYLE mode )
+ 	}
+ 
+ 	GL_Cull( glMode );
++	COF_TRIAPI_STAGE_CHECK( "triapi_cull_face" );
+ }
+ 
+ /*
+@@ -366,5 +376,7 @@ void TriBrightness( float brightness )
+ 	float b = ds.triRGBA[2] * ds.triRGBA[3] * brightness;
+ 
+ 	_TriColor4f( r, g, b, 1.0f );
++	COF_TRIAPI_STAGE_CHECK( "triapi_brightness" );
+ }
+ 
++#undef COF_TRIAPI_STAGE_CHECK

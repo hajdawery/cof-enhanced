@@ -81,8 +81,7 @@ resource commands rather than mouse-click evidence.
   reaching a first-person scene, not a GUI-transition, gameplay, or visual
   parity pass.
   Retained ignored evidence files are under
-  `stage1/menu-transition-evidence-20260920/` (absolute directory
-  `K:\\LLM\\COF_Fix\\stage1\\menu-transition-evidence-20260920`):
+  `stage1/menu-transition-evidence-20260920/`:
   `baseline-c_loadgame_shot0000.png` (SHA256
   `A09C108CA3914D926996BECEFB168FFD9CCA1EE10EC11CB3FDEC8563C5615F65`),
   `baseline-c_forest3_shot0000.png` (SHA256
@@ -93,6 +92,40 @@ resource commands rather than mouse-click evidence.
   present in the normal engine and is not caused by the trace patch. The
   baseline frame visibly lists slot 1 `Forest Field - Thu May 16 16:46:02
   2024` and slot 2 `Train - Thu May 16 16:48:23 2024`.
+* The first `GL_INVALID_VALUE` appears immediately after c_forest3 lightmap
+  setup, at `gl_rmain.c:830`, the error check after solid entity rendering.
+  A first targeted `+r_drawentities 0` run was rejected as cheat-protected.
+  A bounded follow-up set `+sv_cheats 1`, then read back
+  `"r_drawentities" is "0" ("1")` before loading the saved map. World/entity
+  geometry was suppressed while the first-person weapon and HUD remained;
+  the severe white bloom and garbled orange text persisted. This rules out
+  the world/entity pass as the sole cause of the corruption, but does not
+  identify the first invalid GL operation. Its retained frame is
+  `stage1/menu-transition-evidence-20260920/svcheats-r_drawentities0-c_forest3.png`
+  (SHA256
+  `C061139215FD9AFA5F03ED5A595F43BA8E3E787F3F21CE505DF9FD549C0CCD00`),
+  with log `transition-render-svcheats-entities0.log` in the same directory
+  (SHA256
+  `306F2BB28C982109C1D464499803EC0AF46BD8CC7FDD2240CC4662A55F4DCDB9`).
+  A follow-up with the registered `r_drawbeams 0` cvar also read back
+  `"r_drawbeams" is "0" ("1")` after the saved-map load, but retained the
+  same first error location and severe frame corruption. Its log is
+  `stage1/menu-transition-evidence-20260920/transition-render-svcheats-rdrawbeams0.log`
+  (SHA256
+  `858E5F86B9F69735ED741569EC7BB75A3E2406A18B22D5FF273A27A068A970CE`),
+  and its frame is
+  `stage1/menu-transition-evidence-20260920/svcheats-r_drawentities0-r_drawbeams0-c_forest3.png`
+  (SHA256
+  `B5F69E421C6E11129AE19D863F01FF136F46DDDD9A1570FAD764AC6FF9781073`).
+* The matched GL-stage diagnostic modules were also tested, with engine
+  `73B83DA28AE169A320742C090FE8CE480332B139D32CE5472D4D2424BBAF45C8` and
+  renderer
+  `2D0CDB362F4908CE31C4B333019874D1D58BE9EEF19CF577CB89B96CD927F23E`.
+  `cof_gl_trace` remained an unknown command at startup and after sign-on,
+  so no stage labels were emitted. Read-only source inspection found the
+  diagnostic cvar defined in `ref/gl/gl_opengl.c` but absent from
+  `GL_InitCommands()` registration; this build therefore cannot identify the
+  pending-error stage. The run was cleaned and the normal renderer restored.
 * The `c_loadgame` BSP (SHA256
   `9255A38BCF6A6DC00AD6E9C04B84698923D6B60DD49152CCC3CCA1D1B29066BC`)
   contains a `cof_loadgame` entity and an `info_player_start`. The
@@ -100,6 +133,68 @@ resource commands rather than mouse-click evidence.
   and ambient menu audio. These map/entity facts explain why audio and menu
   camera state can persist visually while a map command is being processed,
   but they do not by themselves identify a bug.
+
+* A corrected matched GL-stage diagnostic was run after registering
+  `cof_gl_trace` in the renderer. The engine SHA256 was
+  `977008A7E49C05B17EFA2750CC633674E8CF8D150E012A0022B8E3FA34A06AD1`
+  and the renderer SHA256 was
+  `253B24DC91F2CAEE4E88E45A28447C17455E7EA6D6413F19167F377CAC92DD99`.
+  The run read back `cof_gl_trace 1`, `gl_check_errors 1`,
+  `r_drawentities 0`, and `r_drawbeams 0`; the delayed stock-save route
+  reached `c_forest3` and connected the second client. It emitted 5,791
+  stage-labeled `GL_INVALID_VALUE` errors, all at
+  `after_client_normal_triangles`; there were 7 earlier unlabeled errors,
+  for 5,798 total. This localizes the first labeled pending error to the
+  client normal-triangle stage, without identifying the individual GL call.
+  The retained frame is
+  `stage1/menu-transition-evidence-20260920/gltrace-corrected-rdrawbeams0-c_forest3.png`
+  (SHA256
+  `0C69674A8DCF9EFDD42E77E59564F106BFD289CF447ED3CCF810DBA5D595852`),
+  with log
+  `stage1/menu-transition-evidence-20260920/transition-render-gltrace-corrected-rdrawbeams0.log`
+  (SHA256
+  `C241072692C1416642A5BF4CDF3AFC5879408CB9F64B8BDB05047B256EE10415`).
+  The corrected modules and temporary fixture were removed after capture;
+  the normal engine/renderer and save/config manifest were restored.
+
+* The corrected root-save compatibility artifact was then tested independently
+  with no `cryoffear/SAVE` fixture. The build output had changed during the
+  session; the actual engine loaded for these save tests was SHA256
+  `7BA9DD02B20CF5FE5A9006A124BC1E9215DE86D52C646EF04EE7F0471CCAF182`.
+  With `cof_save_root_compat 1`, the preserved root `SAVE/cofsave1.sav`
+  loaded to `c_forest3` and extracted its `.HL1/.HL2/.HL3` sidecars into the
+  root `SAVE` directory. A disposable `luna_rootcompat_probe_20260920` save
+  wrote both `SAVE/luna_rootcompat_probe_20260920.sav` (SHA256
+  `C0D85DB996205F63652772E387F56C03F05E238580EBA16213899FB2F02A82EF`)
+  and its thumbnail `.bmp` (SHA256
+  `F22AA144D904A9664F5C57B440EAD47984D78A487043792E61975466E9773121`).
+  A separate run loaded that disposable save and again reached `c_forest3`
+  and `c_forest3.HL1`. The write and reload logs are retained in
+  `stage1/menu-transition-evidence-20260920/` with SHA256 values
+  `BBCB8772FBDE520BCFFAB2D696D7A76C64CFB8E6A46639284E65F35CF889F316`
+  and `48327DF721E293F37A3FCE61CFE63AFB35221795BABCEF55C83482FE566D6C0B`.
+  The disposable files and sidecars were removed, the normal engine was
+  restored to SHA256 `65ACDEA266B66E7FFA44B15281B97C9938C63069E81411D84F9A5C6C00E79FAE`,
+  and the baseline save/config manifest remained unchanged. This validates
+  root save read, write, thumbnail, and reload behavior under the opt-in cvar;
+  it remains command-equivalent evidence rather than a GUI Load Game proof.
+
+* The save result was repeated from a frozen bundle to close deployment
+  provenance. Both runs measured engine SHA256
+  `7BA9DD02B20CF5FE5A9006A124BC1E9215DE86D52C646EF04EE7F0471CCAF182`
+  immediately before launch. The unique
+  `luna_rootcompat_frozen_20260920` write created a root `SAVE` save (SHA256
+  `35BFF51E6243EBE05A262747A2BC995813CD2657DCA1161AD1BE173D6FA4E498`)
+  and thumbnail (SHA256
+  `61BFA4FC2C75CFD10497F3AFF5B3AA095F9639EC56C4F5AE2CBADFC25D62A6C9`).
+  A second run with the same measured engine hash loaded that save and reached
+  `c_forest3` and `c_forest3.HL1`. The write and reload logs are retained as
+  `savecompat-write-luna_rootcompat_frozen_20260920.log` (SHA256
+  `D9909278C7EE20B64E71559519E3D518E1CB5C0484511478532DACB7EA9AC2B1`)
+  and `savecompat-reload-luna_rootcompat_frozen_20260920.log` (SHA256
+  `BF04344B4A8A98FD6D7695E0C5360B7B6D00FD01DBE9A67EFB826548A48561DD`).
+  The probe files and sidecars were removed and the normal runtime plus the
+  baseline save/config manifest were restored afterward.
 
 The isolated `SAVE/cofsave1.sav`, `SAVE/cofsave2.sav`, `SAVE/quick.sav`, and
 `cryoffear/SAVE/saveinfo1.cof`/`saveinfo2.cof` were hashed before testing and

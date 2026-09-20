@@ -12,7 +12,8 @@ $targets = @(
     'ref\gl\gl_local.h',
     'ref\gl\gl_opengl.c',
     'ref\gl\gl_rmain.c',
-    'ref\gl\gl_beams.c'
+    'ref\gl\gl_beams.c',
+    'ref\gl\gl_triapi.c'
 )
 $patch = Join-Path $root 'patches\cof-gl-stage-trace.patch'
 

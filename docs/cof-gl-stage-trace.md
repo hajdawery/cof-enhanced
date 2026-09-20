@@ -24,16 +24,16 @@ compatibility work) is:
 
 ```text
 build-cof-savecompat\engine\xash.dll
-SHA-256: 977008A7E49C05B17EFA2750CC633674E8CF8D150E012A0022B8E3FA34A06AD1
-PDB SHA-256: 502E22ED0893421427BF67CCDECAAADDD9E1E4D42AF7CD6735BA01489D5EAEC7
+SHA-256: 7BA9DD02B20CF5FE5A9006A124BC1E9215DE86D52C646EF04EE7F0471CCAF182
+PDB SHA-256: CC5A24A42863F60F820AA644A87DAE60061E1457C5B44A0564D88AAD18538BB8
 ```
 
 The rebuilt renderer module from the same output is:
 
 ```text
 build-cof-savecompat\ref\gl\ref_gl.dll
-SHA-256: 253B24DC91F2CAEE4E88E45A28447C17455E7EA6D6413F19167F377CAC92DD99
-PDB SHA-256: C7909837DC04BE13D5709509746AF62AF2008A064DFA894B0B0BA7417D95A3AC
+SHA-256: 8F24567D129BA1199D8AFD4805DA8030E52C548382BD53A99927C0633ADBFDB6
+PDB SHA-256: 20575ED86AE5D3CC82003252CC76D54D9B2086E1C6F00F0153B0BFF2B9EBC176
 ```
 
 `cof_gl_trace` is registered during renderer initialization. For a diagnostic
@@ -50,6 +50,20 @@ boundary that still reports an error among:
 The beam renderer adds three more boundaries: `beams_before_server`,
 `beams_after_server`, and `beams_after_temp`. These bracket the server beam
 entity loop and active temporary beam loop used by `CL_DrawEFX`.
+
+The trace also checks safe TriAPI boundaries used by the original client DLL:
+`triapi_render_mode`, `triapi_end`, `triapi_sprite_texture`, `triapi_fog`,
+`triapi_get_matrix`, `triapi_cull_face`, and `triapi_brightness`. It never
+calls `glGetError` between `TriBegin` and `TriEnd`, where OpenGL forbids it.
+An error labeled `triapi_end` belongs to the completed client TriAPI batch;
+if only `after_client_normal_triangles` remains, the client used direct OpenGL
+or another uninstrumented API in that callback.
+
+`cof_skip_client_normal_triangles` is a separate default-off diagnostic. It
+skips only the original client DLL's normal-triangle callback; it is not a
+compatibility fix and must not be enabled for ordinary play. It distinguishes
+the callback's own pixels from later HUD drawing before any state workaround is
+considered.
 
 The trace consumes one `glGetError` result at each existing boundary. A label
 narrows the renderer/client stage that left the error pending; it does not

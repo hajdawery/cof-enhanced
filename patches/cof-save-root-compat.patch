@@ -209,7 +209,7 @@ index 6ddb3b7..34a6e5b 100644
 +		{
 +			if( !CL_IsSafeCoFSaveShotName( Cmd_Argv( 1 )))
 +			{
-+				Con_Printf( S_ERROR "Invalid Cry of Fear saveshot name: %s\\n", Cmd_Argv( 1 ));
++				Con_Printf( S_ERROR "Invalid Cry of Fear saveshot name: %s\n", Cmd_Argv( 1 ));
 +				return;
 +			}
 +
@@ -255,7 +255,7 @@ index 45c527b..f183631 100644
 +		{
 +			if( !SCR_IsSafeCoFRootSaveShotPath( cls.shotname ))
 +			{
-+				Con_Printf( S_ERROR "Refusing unsafe Cry of Fear saveshot path: %s\\n", cls.shotname );
++				Con_Printf( S_ERROR "Refusing unsafe Cry of Fear saveshot path: %s\n", cls.shotname );
 +				break;
 +			}
 +
