@@ -5,6 +5,7 @@
 /fwgs-*.zip
 /sdl2-*.zip
 /prereq/
+/runtime-entvars-profile/
 /build-*/
 /common/build.h
 /3rdparty/*/*/.git/

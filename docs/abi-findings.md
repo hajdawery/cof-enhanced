@@ -16,6 +16,19 @@ second fault.
 
 ## Verified entvars shift
 
+The corrected PE-aware descriptor parse now corroborates the boundary: the
+first named shift follows `light_level` (`sequence` is `0x12C` in the original
+table versus `0x128` in current Xash), and later records include `health` at
+`0x164` versus `0x160` and `iuser1` at `0x248` versus `0x244`. See the
+[concise descriptor analysis](entvars-layout-analysis.md) and the
+[project parser](../scripts/parse-entvars-descriptors.ps1). The table proves a
+four-byte shifted range; it does not identify the omitted engine-only member.
+
+The `pfnPvAllocEntPrivateData` trace below is retained as evidence from the
+earlier PMove-only adapter binary. It is not a result of the opt-in entvars
+profile; the corrected profile run is recorded in
+[dedicated-profile-test.md](dedicated-profile-test.md).
+
 The adapter run's second dump records `0xC0000005` at
 `pfnPvAllocEntPrivateData` (`sv_game.c:2932`) with a write to `0x7C`. The
 faulting bytes are `89 46 7C` and `ESI=0`. At the fault's stack, the callback
