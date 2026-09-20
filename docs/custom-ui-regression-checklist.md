@@ -5,6 +5,9 @@ around the pinned FWGS engine. It is a test plan, not a claim that the listed
 behaviors currently work. Every gate below is **pending** unless an evidence
 source is explicitly marked otherwise.
 
+For coordinate-space ownership, renderer callbacks, and display scaling
+boundaries behind these gates, see the [custom UI scaling research note](cof-custom-ui-scaling-research.md).
+
 ## Evidence boundaries
 
 The following references are verified from the ignored test runtime and
