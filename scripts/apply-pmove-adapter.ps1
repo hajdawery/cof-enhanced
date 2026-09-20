@@ -1,6 +1,5 @@
 param(
-    [Parameter(Mandatory=$true)] [string] $SourceRoot,
-    [switch] $Force
+    [Parameter(Mandatory=$true)] [string] $SourceRoot
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,8 +19,8 @@ if ($relativeSource -eq '.' -or $relativeSource.StartsWith('..' + [IO.Path]::Dir
 }
 $relativeSource = $relativeSource.Replace('\','/')
 $text = Get-Content -Raw $target
-if ($text.Contains('COF_PMOVE_LEGACY_SHIFT') -and !$Force) {
-    throw 'The adapter is already present. Use -Force only after reviewing the existing change.'
+if ($text.Contains('COF_PMOVE_LEGACY_SHIFT')) {
+    throw 'The adapter is already present; use a clean pinned source tree or remove the existing adapter before applying the patch.'
 }
 
 Push-Location $root

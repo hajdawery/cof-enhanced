@@ -13,9 +13,9 @@ The repo intentionally contains no game files, Steam DLLs, runtime archives, dum
 Use a clean checkout or extracted archive of the pinned FWGS revision and run:
 
 ```powershell
-pwsh -File .\scripts\apply-pmove-adapter.ps1 -SourceRoot C:\work\xash3d-fwgs
+pwsh -File .\scripts\apply-pmove-adapter.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
 ```
 
-The script verifies `engine/server/sv_pmove.c` and applies the one-file patch. It refuses a source tree whose file already contains the adapter unless `-Force` is supplied.
+The source tree must be inside this repository because the script scopes patch application to the project workspace. The script verifies `engine/server/sv_pmove.c` and applies the one-file patch. It refuses a source tree whose file already contains the adapter; rerun it with a clean pinned source tree instead of attempting a duplicate patch.
 
-The upstream Windows build requires the recursive dependencies and an SDL2 Visual Studio development package for a client build. The reproducible prerequisite used for the client attempt is the official SDL2 `2.30.9-VC` package (SHA-256 `8C91D91E5BCB997D062EC2B553C53832EBF95654D4AA35E8C02A954D4CE752AE`). Visual Studio 2022 BuildTools with Win32 tools and Windows SDK 10.0.26100 are installed on the research host. A dedicated x86 compile of the patched source completed locally; that artifact is not committed.
+The upstream Windows build requires the recursive dependencies and an SDL2 Visual Studio development package for a client build. The isolated client build attempt used the official SDL2 `2.30.9-VC` package (SHA-256 `8C91D91E5BCB997D062EC2B553C53832EBF95654D4AA35E8C02A954D4CE752AE`). Visual Studio 2022 BuildTools with Win32 tools and Windows SDK 10.0.26100 are installed on the research host. A dedicated x86 compile of the patched source completed locally; this repository does not provide a dependency lockfile or reproducible build script, and that artifact is not committed.
