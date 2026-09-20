@@ -18,9 +18,10 @@ The current source checkpoint was built locally as
 `build-launcher-save-compat\\CoFLaunchApp.exe`, SHA-256
 `C6DFC178774CC88398C017A2E377613DED966C9637BC59C8AEA800538186A17A`.
 The PE header reports the large-address-aware flag and the executable has a
-resource section produced from icon resource ID 101. This build is a source
-and resource verification artifact; it has not been deployed to Steam or used
-for the historical runtime proof below.
+resource section produced from icon resource ID 101. It was subsequently used
+in one isolated K-only root-save smoke test with engine SHA-256
+`7BA9DD02B20CF5FE5A9006A124BC1E9215DE86D52C646EF04EE7F0471CCAF182`.
+It was not deployed to Steam.
 
 ## Isolated proof package
 
@@ -54,6 +55,25 @@ Two process-local second-chance wrapper runs were made from the isolated root. T
 - `Spawn Server: c_game_menu1` and successful map load.
 
 The process was then stopped by its recorded launcher PID. No launcher or engine process remains, and no `crash-capture-secondchance.dmp` was created. The log contains repeated `GL_INVALID_VALUE` diagnostics from the existing renderer path and an `is_donator` delta-field warning; these did not terminate the process and are retained as runtime limitations. This proof covers launcher, root selection, module loading, and menu background startup. It does not claim `c_intro` gameplay, Steam Play, or release readiness.
+
+## Root-save compatibility smoke check
+
+The current launcher was then run in the isolated K-only fixture with caller
+`-game`, `-cof-pmove-legacy`, and `+set cof_save_root_compat` omitted. The
+launcher injected `-game cryoffear -cof-pmove-legacy +set cof_save_root_compat
+1`; the map-load configuration read back `cof_save_root_compat 1`, accepted
+the preserved root `SAVE/cofsave1.sav`, and reached `c_forest3` while loading
+its `.HL1` sidecar. The retained log is
+`stage1/menu-transition-evidence-20260920/direct-cforest3-launcher-c6-savecompat-20260920.log`
+(SHA-256
+`3D330EE5022492E73AA5354507E7297AB50ABB9CC8C60E82E8ADD992DDAEB0E6`), and
+the captured frame is
+`stage1/menu-transition-evidence-20260920/launcher-c6-savecompat-c_forest3_shot0000.png`
+(SHA-256
+`C903F7206055146C63FE3232F8A4C7A1C6258CE52DF2CE0AB077A9949385A5CA`).
+This validates launcher argument injection and root-save compatibility in the
+isolated runtime. It is command-equivalent smoke evidence, without GUI-click
+or Steam Play validation.
 
 ## Rollback
 
