@@ -430,8 +430,15 @@ resource commands rather than mouse-click evidence.
   pause menu; that menu does not expose Cry of Fear's tape-recorder saves,
   which remain an in-world interaction. Optional menu saving is a requested
   product feature, not an implemented change; when implemented it is disabled
-  by default and user-enabled. Preserve the stock tape-only behavior by
-  default.
+  by default and user-enabled. It must preserve the existing five-slot limit,
+  use those same five slots as the tape-recorder saves, and require overwrite
+  confirmation. Preserve the stock tape-only behavior by default.
+
+* A second visible 1080p interactive run covered the same user-facing route;
+  the retained evidence is
+  `stage1/menu-transition-evidence-20260920/interactive-selector-20260920-193023/interactive-selector-20260920-193023.log`
+  (2,057,216 bytes). No screenshot was captured in that run. All backups were
+  retained, original binaries were restored, and no process remained afterward.
 
 ## GUI handler boundary
 
@@ -485,8 +492,9 @@ The next acceptance gates are:
    keypad/light/holster flow separately.
 3. Verify a map transition and a fresh New Game path beyond the existing
    difficulty-map evidence.
-4. If optional menu saving is implemented, keep it disabled by default and
-   test its user-enabled save, thumbnail, reload, and rollback paths while
-   retaining tape-recorder saves as the default behavior.
+4. If optional menu saving is implemented, keep it disabled by default,
+   reuse the same five slots as tape-recorder saves, require overwrite
+   confirmation, and test user-enabled save, thumbnail, reload, and rollback
+   paths while retaining tape-recorder saves as the default behavior.
 5. Resolve or characterize the remaining renderer warnings and visual
    corruption before claiming parity.
