@@ -204,6 +204,13 @@ Xash engine, but it is not the issue's recorded closing fix. The issue comments
 also say the GDI implementation was based on `mainui_cpp` and that the
 remaining concern was matching the original font color/appearance.
 
+The final commit's one-line diff changes `drawSetColor( Scheme::SC_BLACK )`
+to `drawSetTextColor( Scheme::SC_BLACK )` in `TextEntry::paintBackground()`.
+The local checkout contains the corrected `drawSetTextColor` call in
+`3rdparty/freevgui/controls/text.cpp`, so its source matches the recorded fix
+by content. Its shallow Git history does not contain the `182bf5e` object,
+which is why the ancestry distinction above remains.
+
 The local provenance is mixed and must remain explicit while comparing builds:
 
 | Item | Revision or hash | Meaning |
