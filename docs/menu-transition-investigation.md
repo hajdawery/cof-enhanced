@@ -126,6 +126,26 @@ resource commands rather than mouse-click evidence.
   diagnostic cvar defined in `ref/gl/gl_opengl.c` but absent from
   `GL_InitCommands()` registration; this build therefore cannot identify the
   pending-error stage. The run was cleaned and the normal renderer restored.
+* The current branded launcher artifact was then checked in the isolated
+  runtime with caller `-game`, `-cof-pmove-legacy`, and
+  `+set cof_save_root_compat` omitted. The deployed launcher hash was
+  `C6DFC178774CC88398C017A2E377613DED966C9637BC59C8AEA800538186A17A` and
+  the root-compatible engine hash was
+  `7BA9DD02B20CF5FE5A9006A124BC1E9215DE86D52C646EF04EE7F0471CCAF182`.
+  The launcher log's `Program args` line showed that it injected
+  `-game cryoffear -cof-pmove-legacy +set cof_save_root_compat 1`; the map
+  load cfg read back `cof_save_root_compat 1`, and the original root save was
+  accepted, followed by `Spawn Server: c_forest3` and loading its `.HL1`
+  sidecar. The retained log is
+  `stage1/menu-transition-evidence-20260920/direct-cforest3-launcher-c6-savecompat-20260920.log`
+  (SHA256
+  `3D330EE5022492E73AA5354507E7297AB50ABB9CC8C60E82E8ADD992DDAEB0E6`),
+  with frame
+  `stage1/menu-transition-evidence-20260920/launcher-c6-savecompat-c_forest3_shot0000.png`
+  (SHA256
+  `C903F7206055146C63FE3232F8A4C7A1C6258CE52DF2CE0AB077A9949385A5CA`).
+  This validates launcher argument injection and root-save compatibility in
+  the isolated runtime; it is not Steam or GUI-click evidence.
 * The `c_loadgame` BSP (SHA256
   `9255A38BCF6A6DC00AD6E9C04B84698923D6B60DD49152CCC3CCA1D1B29066BC`)
   contains a `cof_loadgame` entity and an `info_player_start`. The
@@ -196,6 +216,212 @@ resource commands rather than mouse-click evidence.
   The probe files and sidecars were removed and the normal runtime plus the
   baseline save/config manifest were restored afterward.
 
+* A frozen renderer diagnostic then enabled
+  `cof_skip_client_normal_triangles 1`, which bypasses only the original
+  `HUD_DrawNormalTriangles` callback. The deployed hashes were measured before
+  launch: engine `7BA9DD02B20CF5FE5A9006A124BC1E9215DE86D52C646EF04EE7F0471CCAF182`
+  and renderer
+  `8F24567D129BA1199D8AFD4805DA8030E52C548382BD53A99927C0633ADBFDB6`.
+  Readbacks confirmed `cof_gl_trace 1`,
+  `cof_skip_client_normal_triangles 1`, `gl_check_errors 1`,
+  `r_drawentities 0`, and `r_drawbeams 0`. The load reached `c_forest3`;
+  the trace produced 7 initial `GL_INVALID_VALUE` errors and no stage labels,
+  compared with thousands of repeated `after_client_normal_triangles`
+  errors when the callback ran. The retained frame
+  `stage1/menu-transition-evidence-20260920/bypass-c_forest3_shot0000.png`
+  (SHA256
+  `9A516A6EEA38DEB3EFE32069B77BBC8F7E51FFFAED4DAF811B1AC87EF47F9618`)
+  still shows the white radial field and orange HUD glyph corruption. Thus
+  bypassing the callback removes the repeated GL error source but does not
+  repair the visible output; this remains a diagnostic result, not a gameplay
+  fix. The associated log is
+  `stage1/menu-transition-evidence-20260920/gltrace-skip-normal-triangles-frozen-20260920.log`
+  (SHA256
+  `2FC1F94CECDB539B8A19725E69746424F60934D63CF09A7319A4F2A5C82DE1D5`).
+  An earlier preliminary run used the different 4D18 TriAPI renderer and is
+  excluded from evidence.
+
+* A separate frozen engine diagnostic enabled
+  `cof_skip_client_hud_redraw 1` while retaining
+  `cof_skip_client_normal_triangles 1`, `r_drawentities 0`, and
+  `r_drawbeams 0`. The deployed hashes were measured before launch: engine
+  `EB4E168AC8B1C8F1A0095357E2B6388FB6ED65FFBAF7FBA7D1593B9ABDFE5BA1` and
+  renderer
+  `8F24567D129BA1199D8AFD4805DA8030E52C548382BD53A99927C0633ADBFDB6`.
+  Readbacks confirmed all diagnostic cvars were enabled and the load reached
+  `c_forest3`; the trace had only the 7 initial `GL_INVALID_VALUE` errors.
+  The retained frame
+  `stage1/menu-transition-evidence-20260920/bypass-hud-c_forest3_shot0000.png`
+  (SHA256
+  `965D8468B68B0F99DADCCCE13FDFBBDE4A8DA96E20D3EC8581B4683F629F8F1A`)
+  no longer has the prior white radial field and shows the save selector and
+  scene, while the orange glyph corruption remains. This assigns the white
+  radial output to the `HUD_Redraw` path in this diagnostic configuration;
+  orange glyphs still have another source. The log is
+  `stage1/menu-transition-evidence-20260920/gltrace-skip-hud-redraw-frozen-20260920.log`
+  (SHA256
+  `FFB3189EFBD9677060839E0E18D82258240E05953CCD2F0C02C4D07A3D044533`).
+  The test was cleaned and the normal runtime plus baseline manifest were
+  restored.
+
+* A direct playable-map control bypassed the `c_loadgame` selector entirely:
+  frozen engine `7BA9DD02B20CF5FE5A9006A124BC1E9215DE86D52C646EF04EE7F0471CCAF182`
+  started `c_forest3`, then issued local `load cofsave1` with the normal F3B
+  renderer and no diagnostic bypasses. The log
+  `stage1/menu-transition-evidence-20260920/direct-cforest3-rootload-baseline-20260920.log`
+  (SHA256
+  `DC451C74BB905887F297E97D30F31067DE0DF9274A02934DB814D8CC12400A07`)
+  recorded the save load and 5,890 `GL_INVALID_VALUE` errors. Its frame
+  `direct-cforest3-rootload-baseline-c_forest3.png` (SHA256
+  `948B2CEE44BD290B695CE7D13799D8DDE8C59ADD70AE45160064AC7CC642F865`)
+  shows the dark forest scene, flashlight/hand, localized white flashlight
+  glow, and orange glyphs. The same symptoms therefore occur outside the
+  selector-map lifecycle.
+
+* Setting only the original client `gl_screenblur` cvar from 1 to 0 on the
+  same direct route did not materially change the frame: the dark scene,
+  localized glow, and orange glyphs remained. `gl_posteffects` stayed at 1.
+  The log is
+  `stage1/menu-transition-evidence-20260920/direct-cforest3-screenblur0-20260920.log`
+  (SHA256
+  `345D9B5868F763576CC8BF504E81FB68C3B2F3BE05B4F0B40FBFF5D83EF73695`);
+  its post-load frame `screenblur0-c_forest3_shot0001.png` has SHA256
+  `24E62EA56F9483DC09C761FCCC73DC9BEB36DE991CE4F676340ACC32E321B35C`.
+  Both tests were cleaned and the baseline runtime/save manifest restored.
+
+* A direct control with `-dev 0` kept the same map/save route and normal
+  callbacks. Readbacks showed `developer 0`, `r_speeds 0`, `cl_showpos 0`,
+  and `r_showtree 0`; `cl_showents` is not registered in this client. The
+  frame still contained the orange glyphs and localized flashlight glow, so
+  developer level and the checked engine debug overlays do not explain them.
+  The log is
+  `stage1/menu-transition-evidence-20260920/direct-cforest3-dev0-baseline-20260920.log`
+  (SHA256
+  `94F33C80C24B5C19BF4BCBC18023D357E8AE5D1B29F79D344CCF41B12EB58DF8`),
+  and the frame is `dev0-c_forest3_shot0001.png` (SHA256
+  `E27BCCA6D2855FE7FD3858FDE32E5A4A48CB19B858D3DD6BD151270FA736C47`).
+
+* A frozen GL texture-cache trace on the same direct route measured engine
+  `EB4E168AC8B1C8F1A0095357E2B6388FB6ED65FFBAF7FBA7D1593B9ABDFE5BA1` and
+  renderer
+  `F4676812800DB086F1A9D43F4D869776DFB9E004096A7C066B3B8EA032642946`
+  before launch. With `cof_gl_trace 1`, both callback bypasses 0, and
+  `r_drawentities`/`r_drawbeams` 1, the log recorded 5,942
+  `GL_INVALID_VALUE` errors but zero texture-unit cache mismatches and zero
+  texture-binding cache mismatches. The first labeled error remained at
+  `after_solid_entities`; the retained frame still shows the dark scene,
+  flashlight glow, and orange glyphs. The log is
+  `stage1/menu-transition-evidence-20260920/direct-cforest3-texture-cache-trace-20260920.log`
+  (SHA256
+  `2C2A1F07163D176390B702C7AFDE79CE20469AE4A5ED52D11C971B07C642C700`),
+  and the frame is `cache-c_forest3_shot0001.png` (SHA256
+  `FB187FAAF9FB85FD8E2A6F76721356F7B2BBE77D54B4C5231843C52925507271`).
+  The cache mismatch hypothesis is not supported by this run.
+
+* A VGUI-only diagnostic on 2026-09-20 measured frozen engine
+  `F08506BFB6530214F0555007E30A6D4D9ECD231A18BD5559D589CF82E0AB1440`
+  and renderer
+  `F4676812800DB086F1A9D43F4D869776DFB9E004096A7C066B3B8EA032642946`
+  before launch. The direct `c_forest3` route reached the map with
+  `cof_skip_vgui_paint 1`, while `cof_skip_client_hud_redraw 0`,
+  `cof_skip_client_normal_triangles 0`, `r_drawentities 1`, and
+  `r_drawbeams 1` were read back. The trace recorded 6,178
+  `GL_INVALID_VALUE` errors. The retained frame
+  `stage1/menu-transition-evidence-20260920/vgui-c_forest3_shot0001.png`
+  (SHA256
+  `D996E29E8901A56A84D3957FE8848C9D52E2CC86B0577D2D8F7195576F987B43`)
+  still shows the localized flashlight glow and orange glyphs, similar to
+  the normal direct control. Skipping the engine `VGui_Paint()` support
+  callback therefore does not explain those visuals. The log is
+  `stage1/menu-transition-evidence-20260920/direct-cforest3-vgui-paint-bypass-20260920.log`
+  (SHA256
+  `244B2E123FF3DABB29AE10BA1C7116FC35334591EF76EDAC2785233B443C9DCE`).
+  This was diagnostic only; the runtime and baseline manifest were restored
+  after capture.
+
+* A normal-callback control set the engine `con_notifytime` cvar to 0 on the
+  initial `c_forest3` frame. The readback confirmed `con_notifytime 0` (from
+  the default 3); after the delayed capture, the upper orange notification
+  glyphs disappeared while the lower orange glyphs remained. The retained
+  frame is
+  `stage1/menu-transition-evidence-20260920/notifytime0-c_forest3_shot0000.png`
+  (SHA256
+  `434DEC067F6BA3D4AB53E99FABA1CE12246330E1CCA394917A1CBBEC654044FC`),
+  with log
+  `stage1/menu-transition-evidence-20260920/direct-cforest3-con-notifytime0-20260920.log`
+  (SHA256
+  `DA54058D277FB93B3DA18391A2F2A1922A6E4A36D64C3253D57C58A2C54A4E79`).
+  This is consistent with the upper band being `Con_DrawNotify` output.
+
+* A follow-up normal-callback control set `scr_drawversion 0` as well as
+  `con_notifytime 0`, with readbacks confirming both values. The delayed
+  initial `c_forest3` frame no longer contained either orange glyph band;
+  the ordinary status bars and flashlight/hand remained. Its frame is
+  `stage1/menu-transition-evidence-20260920/scr-drawversion0-c_forest3_shot0000.png`
+  (SHA256
+  `45D3BBF74C837EF37A79132528127BAEC959BAAEB7A1EB9BAEB269308B017AE5`),
+  with log
+  `stage1/menu-transition-evidence-20260920/direct-cforest3-scr-drawversion0-20260920.log`
+  (SHA256
+  `A075AD3C49354E91F76C528BB4BC0534EB83291791E11B740BE1A344BD922A93`).
+  Together these controls attribute the orange bands to engine console
+  overlays, rather than the client VGUI, normal-triangle, or transparent-
+  triangle callbacks. Both temporary runs were cleaned and the baseline
+  runtime/save manifest was restored.
+
+* A follow-up font-loader diagnostic restored the normal overlay cvars and
+  set `con_oldfont 1`; the post-change readback confirmed `con_oldfont 1`
+  after two rendered frames. The initial `c_forest3` frame rendered the
+  notification text and bottom-right Xash3D version as readable orange text,
+  unlike the garbled fixed-grid glyphs in the baseline. The retained frame is
+  `stage1/menu-transition-evidence-20260920/con-oldfont1-c_forest3_shot0000.png`
+  (SHA256
+  `561F601C7A7DC56ECE8D2E915206775D75C1A174D87FE80E809E43E46206BB06`),
+  with log
+  `stage1/menu-transition-evidence-20260920/direct-cforest3-con-oldfont1-20260920.log`
+  (SHA256
+  `B8E20F4301DDFED31C50BE55280FF22D79BC679272F03E5BADD2F7C70416CC5C`).
+  This is a diagnostic indication that the CoF variable-width `conchars.fnt`
+  path may need explicit loader selection; it is not yet a default change or
+  full UI parity proof.
+
+* Terra's frozen console variable-font fallback engine was then tested with
+  the original default `con_oldfont 0`, `con_notifytime 3`, and
+  `scr_drawversion 1`. The deployed engine hash was
+  `680DCD7FCBB5F31DCCA568DFB92ADE465B75A0814D23BB5AB487E09FF2318F1B`;
+  the normal renderer remained `F3B1D4B9F3C2237C50447D956EE43070B22BF578C9E15CD0ED67D30B30E6F172`.
+  After two rendered frames, the cvar readbacks confirmed those defaults,
+  and the initial `c_forest3` frame showed the notification text and
+  bottom-right Xash3D version as legible orange text without changing the
+  original game assets. The retained frame is
+  `stage1/menu-transition-evidence-20260920/console-variable-font-fallback-c_forest3_shot0000.png`
+  (SHA256
+  `CA541FA797CD60B61666F73AEC5D420F2AB2D7AABCD28B6139A4FE4E79129D94`),
+  with log
+  `stage1/menu-transition-evidence-20260920/direct-cforest3-console-variable-font-fallback-20260920.log`
+  (SHA256
+  `9E83FCCC892C815806976A148298D0C7CB85955C296C29CB290A9E7A4D334200`).
+  This supports an automatic engine font fallback fix; it does not establish
+  selector, gameplay, or Steam compatibility.
+
+## GUI handler boundary
+
+The retained command-equivalent captures do not reproduce the complete slot
+click handler. Static disassembly of the original client slot-1 path at
+`VA 0x100316F7` shows that the handler first hides the panel through vtable
+slot `+24` with argument `0`, calls the UI cursor/update helper at
+`VA 0x100AAAD0`, sends the server command `unfreeze 1024`, checks
+`game_menu`, calls `VA 0x1007FC10(0)`, frees `saveinfo`, and only then sends
+the server-forwarded `cofload1` command. The exact symbolic names of the two
+internal calls are unresolved here.
+
+The console and delayed-command probes exercise the server-forwarded save
+route, but do not reproduce those panel, cursor, and focus operations. The
+save-selector appearance in the HUD-suppressed diagnostic frame is therefore
+not evidence that the full GUI handler failed; it may be a property of the
+diagnostic harness. A real click or a faithful replay of the complete handler
+remains untested.
+
 The isolated `SAVE/cofsave1.sav`, `SAVE/cofsave2.sav`, `SAVE/quick.sav`, and
 `cryoffear/SAVE/saveinfo1.cof`/`saveinfo2.cof` were hashed before testing and
 were unchanged afterward. No game process remains.
@@ -204,17 +430,24 @@ were unchanged afterward. No game process remains.
 
 The engine-side command path is proven for entering the load-selector map, and
 New Game reaches its difficulty map. The delayed server-forwarded command,
-original DLL callback, and save-loader route are now proven. With the save
-placed in the engine's game-directory save path, the preserved stock save was
-accepted and restored `c_forest3`; a deployment rule is still required to map
-the stock root `SAVE` files into that path. The command-equivalent post-load
-frame reached hands, weapon, HUD, and `c_forest3`, but its severe
-white/orange corruption leaves rendering and gameplay unvalidated. The
-reported GUI sequence remains open:
+original DLL callback, and save-loader route are now proven. With the opt-in
+root-save compatibility path enabled, the preserved stock root `SAVE` layout
+was accepted directly and restored `c_forest3`; no extra fixture copy or
+deployment mapping was required for that tested route. The opt-in remains
+required for this layout. The branded launcher now injects that opt-in before
+forwarded load/map commands, and the isolated launcher smoke test read the
+cvar back as `1` before accepting the stock root save. The console overlay
+glyph corruption is fixed by the tested variable-width fallback with the
+default `con_oldfont 0`; a separate severe white/renderer corruption remains,
+along with repeated `GL_INVALID_VALUE` diagnostics, so full rendering and
+gameplay remain unvalidated. The reported GUI sequence remains
+open:
 main menu → Load Game → selected stock slot → playable map/view. The current
-runs do not prove that a stock GoldSrc save loads through the CoF selector, nor
-do they prove camera mode, menu visibility, input focus, or a clean first-person
-frame after selecting a slot. Footstep audio and map logs are insufficient as a
-pass criterion. The next controlled test needs a working UI interaction bridge
-or an equivalent post-signon dispatch of the exact `cofload N` command, followed
-by a full-frame capture and map/camera/UI-state evidence.
+runs prove the stock save route and command-equivalent launcher path only; they
+do not prove that a stock GoldSrc save loads through the complete CoF selector
+click handler. They also do not
+prove camera mode, panel visibility, input focus, or a clean first-person frame
+after an actual slot selection. Footstep audio and map logs are insufficient as
+a pass criterion. The next controlled test needs a working UI interaction
+bridge or a faithful replay of the complete slot handler, followed by a
+full-frame capture and map/camera/UI-state evidence.
