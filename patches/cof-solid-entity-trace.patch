@@ -1,0 +1,73 @@
+diff --git a/ref/gl/gl_local.h b/ref/gl/gl_local.h
+index c5eb2fa..d84b995 100644
+--- a/ref/gl/gl_local.h
++++ b/ref/gl/gl_local.h
+@@ -725,6 +725,7 @@ extern convar_t	gl_stencilbits;
+ extern convar_t	gl_overbright;
+ extern convar_t gl_fog;
+ extern convar_t cof_gl_trace;
++extern convar_t cof_solid_entity_trace;
+ extern convar_t cof_skip_client_normal_triangles;
+ extern convar_t	gl_litwater_force;
+ 
+diff --git a/ref/gl/gl_opengl.c b/ref/gl/gl_opengl.c
+index 6850200..0dcdd48 100644
+--- a/ref/gl/gl_opengl.c
++++ b/ref/gl/gl_opengl.c
+@@ -23,6 +23,7 @@ CVAR_DEFINE_AUTO( gl_stencilbits, "8", FCVAR_GLCONFIG|FCVAR_READ_ONLY, "pixelfor
+ CVAR_DEFINE_AUTO( gl_overbright, "1", FCVAR_GLCONFIG, "overbrights" );
+ CVAR_DEFINE_AUTO( gl_fog, "1", FCVAR_GLCONFIG, "allow for rendering fog using built-in OpenGL fog implementation" );
+ CVAR_DEFINE_AUTO( cof_gl_trace, "0", FCVAR_GLCONFIG, "label GL errors at Cry of Fear draw-stage boundaries (diagnostic)" );
++CVAR_DEFINE_AUTO( cof_solid_entity_trace, "0", FCVAR_GLCONFIG, "trace GL errors around individual solid entities (diagnostic)" );
+ CVAR_DEFINE_AUTO( cof_skip_client_normal_triangles, "0", FCVAR_GLCONFIG, "skip client normal-triangle callback (diagnostic)" );
+ CVAR_DEFINE_AUTO( gl_litwater_force, "0", FCVAR_GLCONFIG, "force enable lightmapped water, even if support not declared in the map" );
+ CVAR_DEFINE_AUTO( r_lighting_ambient, "0.3", FCVAR_GLCONFIG, "map ambient lighting scale" );
+@@ -1179,6 +1180,7 @@ static void GL_InitCommands( void )
+ 	gEngfuncs.Cvar_RegisterVariable( &gl_overbright );
+ 	gEngfuncs.Cvar_RegisterVariable( &gl_fog );
+ 	gEngfuncs.Cvar_RegisterVariable( &cof_gl_trace );
++	gEngfuncs.Cvar_RegisterVariable( &cof_solid_entity_trace );
+ 	gEngfuncs.Cvar_RegisterVariable( &cof_skip_client_normal_triangles );
+ 	gEngfuncs.Cvar_RegisterVariable( &gl_litwater_force );
+ 
+diff --git a/ref/gl/gl_rmain.c b/ref/gl/gl_rmain.c
+index cdf9d0b..a91d29a 100644
+--- a/ref/gl/gl_rmain.c
++++ b/ref/gl/gl_rmain.c
+@@ -796,6 +796,7 @@ R_DrawEntitiesOnList
+ */
+ static void R_DrawEntitiesOnList( void )
+ {
++	static int cof_solid_entity_trace_count;
+ 	tr.blend = 1.0f;
+ 	#define COF_GL_STAGE_CHECK( name ) \
+ 		do { if( cof_gl_trace.value ) GL_CheckForErrorsNamed_( name, __FILE__, __LINE__ ); else GL_CheckForErrors(); } while( 0 )
+@@ -813,7 +814,13 @@ static void R_DrawEntitiesOnList( void )
+ 
+ 		Assert( RI.currententity != NULL );
+ 		Assert( RI.currentmodel != NULL );
+-
++		if( cof_solid_entity_trace.value )
++		{
++			int error = pglGetError();
++			if( error != GL_NO_ERROR && cof_solid_entity_trace_count++ < 32 )
++				gEngfuncs.Con_Reportf( "[cof-solid-gl] before ent=%d model=%s type=%d studio=%s error=%s\n", RI.currententity->index,
++					RI.currentmodel->name, RI.currentmodel->type, RI.currentmodel->type == mod_studio ? ( r_studio_builtin_renderer.value ? "builtin" : "client" ) : "n/a", GL_ErrorString( error ));
++		}
+ 		switch( RI.currentmodel->type )
+ 		{
+ 		case mod_brush:
+@@ -828,6 +835,13 @@ static void R_DrawEntitiesOnList( void )
+ 		default:
+ 			break;
+ 		}
++		if( cof_solid_entity_trace.value )
++		{
++			int error = pglGetError();
++			if( error != GL_NO_ERROR && cof_solid_entity_trace_count++ < 32 )
++				gEngfuncs.Con_Reportf( "[cof-solid-gl] after ent=%d model=%s type=%d studio=%s error=%s\n", RI.currententity->index,
++					RI.currentmodel->name, RI.currentmodel->type, RI.currentmodel->type == mod_studio ? ( r_studio_builtin_renderer.value ? "builtin" : "client" ) : "n/a", GL_ErrorString( error ));
++		}
+ 	}
+ 
+ 	COF_GL_STAGE_CHECK( "after_solid_entities" );

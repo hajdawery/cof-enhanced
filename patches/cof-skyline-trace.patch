@@ -1,39 +1,55 @@
 diff --git a/ref/gl/gl_local.h b/ref/gl/gl_local.h
+index a69dacc..2733eca 100644
 --- a/ref/gl/gl_local.h
 +++ b/ref/gl/gl_local.h
-@@ -724,4 +724,5 @@ extern convar_t gl_fog;
+@@ -726,6 +726,7 @@ extern convar_t	gl_overbright;
+ extern convar_t gl_fog;
  extern convar_t cof_gl_trace;
+ extern convar_t cof_solid_entity_trace;
 +extern convar_t cof_skyline_trace;
+ extern convar_t cof_skip_client_transparent_triangles;
  extern convar_t cof_skip_client_normal_triangles;
  extern convar_t	gl_litwater_force;
- 
 diff --git a/ref/gl/gl_opengl.c b/ref/gl/gl_opengl.c
+index cec9ad4..cb5aaf9 100644
 --- a/ref/gl/gl_opengl.c
 +++ b/ref/gl/gl_opengl.c
-@@ -25,3 +25,4 @@ CVAR_DEFINE_AUTO( gl_fog, "1", FCVAR_GLCONFIG, "allow for rendering fog using built-in OpenGL fog implementation" );
+@@ -24,6 +24,7 @@ CVAR_DEFINE_AUTO( gl_overbright, "1", FCVAR_GLCONFIG, "overbrights" );
+ CVAR_DEFINE_AUTO( gl_fog, "1", FCVAR_GLCONFIG, "allow for rendering fog using built-in OpenGL fog implementation" );
  CVAR_DEFINE_AUTO( cof_gl_trace, "0", FCVAR_GLCONFIG, "label GL errors at Cry of Fear draw-stage boundaries (diagnostic)" );
+ CVAR_DEFINE_AUTO( cof_solid_entity_trace, "0", FCVAR_GLCONFIG, "trace GL errors around individual solid entities (diagnostic)" );
 +CVAR_DEFINE_AUTO( cof_skyline_trace, "0", FCVAR_GLCONFIG, "trace Cry of Fear menu skyline studio culling (diagnostic)" );
+ CVAR_DEFINE_AUTO( cof_skip_client_transparent_triangles, "0", FCVAR_GLCONFIG, "skip client transparent-triangle callback (diagnostic)" );
  CVAR_DEFINE_AUTO( cof_skip_client_normal_triangles, "0", FCVAR_GLCONFIG, "skip client normal-triangle callback (diagnostic)" );
  CVAR_DEFINE_AUTO( gl_litwater_force, "0", FCVAR_GLCONFIG, "force enable lightmapped water, even if support not declared in the map" );
-@@ -1180,5 +1180,6 @@ static void GL_InitCommands( void )
+@@ -1182,6 +1183,7 @@ static void GL_InitCommands( void )
  	gEngfuncs.Cvar_RegisterVariable( &gl_fog );
  	gEngfuncs.Cvar_RegisterVariable( &cof_gl_trace );
+ 	gEngfuncs.Cvar_RegisterVariable( &cof_solid_entity_trace );
 +	gEngfuncs.Cvar_RegisterVariable( &cof_skyline_trace );
+ 	gEngfuncs.Cvar_RegisterVariable( &cof_skip_client_transparent_triangles );
  	gEngfuncs.Cvar_RegisterVariable( &cof_skip_client_normal_triangles );
  	gEngfuncs.Cvar_RegisterVariable( &gl_litwater_force );
- 
 diff --git a/ref/gl/gl_studio.c b/ref/gl/gl_studio.c
+index bdaf2e4..11174e4 100644
 --- a/ref/gl/gl_studio.c
 +++ b/ref/gl/gl_studio.c
-@@ -33,6 +33,7 @@ typedef struct
+@@ -33,6 +33,14 @@ typedef struct
  
  // never gonna change, just shut up const warning
  CVAR_DEFINE_AUTO( r_shadows, "0", 0, "draw ugly shadows" );
 +static int cof_skyline_trace_count;
++/* Desktop compatibility-GL queries used only by the optional diagnostic. */
++#ifndef GL_CURRENT_COLOR
++#define GL_CURRENT_COLOR 0x0B00
++#endif
++#ifndef GL_COLOR_WRITEMASK
++#define GL_COLOR_WRITEMASK 0x0C23
++#endif
  
  static const vec3_t hullcolor[8] =
  {
-@@ -252,8 +253,20 @@ static qboolean R_StudioComputeBBox( vec3_t bbox[8] )
+@@ -252,8 +260,26 @@ static qboolean R_StudioComputeBBox( vec3_t bbox[8] )
  		if( bbox ) VectorCopy( p2, bbox[i] );
  	}
  
@@ -41,14 +57,20 @@ diff --git a/ref/gl/gl_studio.c b/ref/gl/gl_studio.c
 -		return false; // model culled
 +	if( !bbox )
 +	{
-+		const qboolean skyline = cof_skyline_trace.value && cof_skyline_trace_count < 32 && RI.currentmodel &&
++		const qboolean skyline = cof_skyline_trace.value && cof_skyline_trace_count < 48 && RI.currentmodel &&
 +			!Q_stricmp( RI.currentmodel->name, "models/Props/Blandat/byggnader.mdl" );
 +		const qboolean culled = R_CullModel( e, studio_mins, studio_maxs );
 +		if( skyline )
 +		{
 +			cof_skyline_trace_count++;
-+			gEngfuncs.Con_Reportf( "[cof-skyline] ent=%d seq=%d effects=%d org=(%.1f %.1f %.1f) bounds=(%.1f %.1f %.1f)-(%.1f %.1f %.1f) cull=%d\n",
-+				e->index, e->curstate.sequence, e->curstate.effects, e->origin[0], e->origin[1], e->origin[2],
++			gEngfuncs.Con_Reportf( "[cof-skyline] bboxmatrix ent=%d seq=%d effects=%d eang=(%.1f %.1f %.1f) cang=(%.1f %.1f %.1f) scale=%.3f model=(%.1f %.1f %.1f)-(%.1f %.1f %.1f) seq=(%.1f %.1f %.1f)-(%.1f %.1f %.1f) matrix=((%.3f %.3f %.3f %.1f)(%.3f %.3f %.3f %.1f)(%.3f %.3f %.3f %.1f)) bounds=(%.1f %.1f %.1f)-(%.1f %.1f %.1f) cull=%d\n",
++				e->index, e->curstate.sequence, e->curstate.effects, e->angles[0], e->angles[1], e->angles[2],
++				e->curstate.angles[0], e->curstate.angles[1], e->curstate.angles[2], e->curstate.scale,
++				RI.currentmodel->mins[0], RI.currentmodel->mins[1], RI.currentmodel->mins[2], RI.currentmodel->maxs[0], RI.currentmodel->maxs[1], RI.currentmodel->maxs[2],
++				pseqdesc->bbmin[0], pseqdesc->bbmin[1], pseqdesc->bbmin[2], pseqdesc->bbmax[0], pseqdesc->bbmax[1], pseqdesc->bbmax[2],
++				g_studio.rotationmatrix[0][0], g_studio.rotationmatrix[0][1], g_studio.rotationmatrix[0][2], g_studio.rotationmatrix[0][3],
++				g_studio.rotationmatrix[1][0], g_studio.rotationmatrix[1][1], g_studio.rotationmatrix[1][2], g_studio.rotationmatrix[1][3],
++				g_studio.rotationmatrix[2][0], g_studio.rotationmatrix[2][1], g_studio.rotationmatrix[2][2], g_studio.rotationmatrix[2][3],
 +				studio_mins[0], studio_mins[1], studio_mins[2], studio_maxs[0], studio_maxs[1], studio_maxs[2], culled );
 +		}
 +		if( culled ) return false; // model culled
@@ -56,11 +78,34 @@ diff --git a/ref/gl/gl_studio.c b/ref/gl/gl_studio.c
  	return true; // visible
  }
  
-@@ -3205,6 +3218,13 @@ R_StudioDrawModelInternal
+@@ -3143,6 +3169,22 @@ static int R_StudioDrawModel( int flags )
+ 	R_StudioSetHeader((studiohdr_t *)gEngfuncs.Mod_Extradata( mod_studio, RI.currentmodel ));
+ 
+ 	R_StudioSetUpTransform( RI.currententity );
++	if( cof_skyline_trace.value && cof_skyline_trace_count < 48 && RI.currentmodel && m_pStudioHeader && m_pStudioHeader->numseq > 0 &&
++		!Q_stricmp( RI.currentmodel->name, "models/Props/Blandat/byggnader.mdl" ))
++	{
++		int sequence = RI.currententity->curstate.sequence;
++		if( sequence < 0 || sequence >= m_pStudioHeader->numseq ) sequence = 0;
++		mstudioseqdesc_t *seqdesc = (mstudioseqdesc_t *)((byte *)m_pStudioHeader + m_pStudioHeader->seqindex) + sequence;
++		cof_skyline_trace_count++;
++		gEngfuncs.Con_Reportf( "[cof-skyline] transform ent=%d eang=(%.1f %.1f %.1f) cang=(%.1f %.1f %.1f) scale=%.3f model=(%.1f %.1f %.1f)-(%.1f %.1f %.1f) seq=(%.1f %.1f %.1f)-(%.1f %.1f %.1f) matrix=((%.3f %.3f %.3f %.1f)(%.3f %.3f %.3f %.1f)(%.3f %.3f %.3f %.1f))\n",
++			RI.currententity->index, RI.currententity->angles[0], RI.currententity->angles[1], RI.currententity->angles[2],
++			RI.currententity->curstate.angles[0], RI.currententity->curstate.angles[1], RI.currententity->curstate.angles[2], RI.currententity->curstate.scale,
++			RI.currentmodel->mins[0], RI.currentmodel->mins[1], RI.currentmodel->mins[2], RI.currentmodel->maxs[0], RI.currentmodel->maxs[1], RI.currentmodel->maxs[2],
++			seqdesc->bbmin[0], seqdesc->bbmin[1], seqdesc->bbmin[2], seqdesc->bbmax[0], seqdesc->bbmax[1], seqdesc->bbmax[2],
++			g_studio.rotationmatrix[0][0], g_studio.rotationmatrix[0][1], g_studio.rotationmatrix[0][2], g_studio.rotationmatrix[0][3],
++			g_studio.rotationmatrix[1][0], g_studio.rotationmatrix[1][1], g_studio.rotationmatrix[1][2], g_studio.rotationmatrix[1][3],
++			g_studio.rotationmatrix[2][0], g_studio.rotationmatrix[2][1], g_studio.rotationmatrix[2][2], g_studio.rotationmatrix[2][3] );
++	}
+ 
+ 	if( flags & STUDIO_RENDER )
+ 	{
+@@ -3205,6 +3247,13 @@ R_StudioDrawModelInternal
  */
  static void R_StudioDrawModelInternal( cl_entity_t *e, int flags )
  {
-+	if( cof_skyline_trace.value && cof_skyline_trace_count < 32 && e && e->model &&
++	if( cof_skyline_trace.value && cof_skyline_trace_count < 48 && e && e->model &&
 +		!Q_stricmp( e->model->name, "models/Props/Blandat/byggnader.mdl" ))
 +	{
 +		cof_skyline_trace_count++;
@@ -70,3 +115,42 @@ diff --git a/ref/gl/gl_studio.c b/ref/gl/gl_studio.c
  	if( !FBitSet( RI.rvp.flags, RF_DRAW_WORLD ))
  	{
  		if( e->player )
+@@ -3222,7 +3271,37 @@ static void R_StudioDrawModelInternal( cl_entity_t *e, int flags )
+ 		// select the properly method
+ 		if( e->player )
+ 			pStudioDraw->StudioDrawPlayer( flags, R_StudioGetPlayerState( e->index - 1 ));
+-		else pStudioDraw->StudioDrawModel( flags );
++		else
++		{
++			const qboolean trace = cof_skyline_trace.value && cof_skyline_trace_count < 48 && e->model &&
++				!Q_stricmp( e->model->name, "models/Props/Blandat/byggnader.mdl" );
++			if( trace )
++			{
++				GLfloat color[4];
++				GLboolean depthwrite, colorwrite[4];
++				pglGetFloatv( GL_CURRENT_COLOR, color );
++				pglGetBooleanv( GL_DEPTH_WRITEMASK, &depthwrite );
++				pglGetBooleanv( GL_COLOR_WRITEMASK, colorwrite );
++				cof_skyline_trace_count++;
++				gEngfuncs.Con_Reportf( "[cof-skyline] callback-before ent=%d flags=%d mode=%d amount=%d fx=%d body=%d skin=%d blend=%.3f color=(%.3f %.3f %.3f %.3f) depthwrite=%d colorwrite=%d%d%d%d\n",
++					e->index, flags, e->curstate.rendermode, e->curstate.renderamt, e->curstate.renderfx,
++					e->curstate.body, e->curstate.skin, tr.blend, color[0], color[1], color[2], color[3],
++					depthwrite, colorwrite[0], colorwrite[1], colorwrite[2], colorwrite[3] );
++			}
++			const int result = pStudioDraw->StudioDrawModel( flags );
++			if( trace && cof_skyline_trace_count < 48 )
++			{
++				GLfloat color[4];
++				GLboolean depthwrite, colorwrite[4];
++				pglGetFloatv( GL_CURRENT_COLOR, color );
++				pglGetBooleanv( GL_DEPTH_WRITEMASK, &depthwrite );
++				pglGetBooleanv( GL_COLOR_WRITEMASK, colorwrite );
++				cof_skyline_trace_count++;
++				gEngfuncs.Con_Reportf( "[cof-skyline] callback-after ent=%d result=%d color=(%.3f %.3f %.3f %.3f) depthwrite=%d colorwrite=%d%d%d%d\n",
++					e->index, result, color[0], color[1], color[2], color[3], depthwrite,
++					colorwrite[0], colorwrite[1], colorwrite[2], colorwrite[3] );
++			}
++		}
+ 	}
+ }
+ 

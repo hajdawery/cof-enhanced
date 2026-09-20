@@ -1,0 +1,65 @@
+diff --git a/ref/gl/gl_opengl.c b/ref/gl/gl_opengl.c
+index 6850200..6b3c258 100644
+--- a/ref/gl/gl_opengl.c
++++ b/ref/gl/gl_opengl.c
+@@ -432,12 +432,60 @@ For ARB_debug_output
+ ========================
+ */
+ #if !XASH_GL4ES // GL4ES doesn't provide glDebug functions, even as stubs
++#if XASH_WIN32
++#define COF_GL_TRACE_STACK_FRAMES 12
++#define COF_GL_TRACE_STACK_SAMPLES 2
++
++static void GL_CoFTraceDebugStack( const char *kind, unsigned int *samples )
++{
++	void *frames[COF_GL_TRACE_STACK_FRAMES];
++	USHORT count;
++	unsigned int i;
++
++	if( !cof_gl_trace.value || *samples >= COF_GL_TRACE_STACK_SAMPLES )
++		return;
++
++	(*samples)++;
++	count = CaptureStackBackTrace( 1, ARRAYSIZE( frames ), frames, NULL );
++	gEngfuncs.Con_Printf( "[cof-gl-trace] %s stack sample %u\n", kind, *samples );
++
++	for( i = 0; i < count; i++ )
++	{
++		HMODULE module = NULL;
++		char path[MAX_PATH];
++		const char *name = "unknown";
++
++		if( GetModuleHandleExA( GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)frames[i], &module ))
++		{
++			const char *slash;
++			path[0] = '\0';
++			GetModuleFileNameA( module, path, ARRAYSIZE( path ));
++			path[ARRAYSIZE( path ) - 1] = '\0';
++			slash = Q_strrchr( path, '\\' );
++			name = slash ? slash + 1 : path;
++		}
++
++		gEngfuncs.Con_Printf( "[cof-gl-trace]   #%u %s+0x%zx\n", i, name, (size_t)frames[i] - (size_t)module );
++	}
++}
++#endif // XASH_WIN32
+ static void APIENTRY GL_DebugOutput( GLuint source, GLuint type, GLuint id, GLuint severity, GLint length, const GLcharARB *message, GLvoid *userParam )
+ {
+ 	switch( type )
+ 	{
+ 	case GL_DEBUG_TYPE_ERROR_ARB:
+ 		gEngfuncs.Con_Printf( S_OPENGL_ERROR "%s\n", message );
++#if XASH_WIN32
++	{
++		static unsigned int negative_count_samples;
++		static unsigned int invalid_cull_mode_samples;
++
++		if( Q_stristr( message, "must not be negative" ))
++			GL_CoFTraceDebugStack( "negative-count", &negative_count_samples );
++		else if( Q_stristr( message, "valid face culling mode" ))
++			GL_CoFTraceDebugStack( "invalid-cull-mode", &invalid_cull_mode_samples );
++	}
++#endif // XASH_WIN32
+ 		break;
+ 	case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR_ARB:
+ 	case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR_ARB:
