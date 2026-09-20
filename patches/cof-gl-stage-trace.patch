@@ -1,0 +1,182 @@
+diff --git "a/ref/gl/gl_local.h" "b/ref/gl/gl_local.h"
+index f1ac6eb..962fef1 100644
+--- "a/ref/gl/gl_local.h"
++++ "b/ref/gl/gl_local.h"
+@@ -481,6 +481,7 @@ void Mod_SetOrthoBounds( const float *mins, const float *maxs );
+ //
+ #define GL_CheckForErrors() GL_CheckForErrors_( __FILE__, __LINE__ )
+ void GL_CheckForErrors_( const char *filename, const int fileline );
++void GL_CheckForErrorsNamed_( const char *stage, const char *filename, const int fileline );
+ const char *GL_ErrorString( int err ) RETURNS_NONNULL;
+ 
+ //
+@@ -723,6 +724,7 @@ extern convar_t	gl_msaa;
+ extern convar_t	gl_stencilbits;
+ extern convar_t	gl_overbright;
+ extern convar_t gl_fog;
++extern convar_t cof_gl_trace;
+ extern convar_t	gl_litwater_force;
+ 
+ extern convar_t	r_lighting_ambient;
+diff --git "a/ref/gl/gl_opengl.c" "b/ref/gl/gl_opengl.c"
+index 95e5bea..6d0e741 100644
+--- "a/ref/gl/gl_opengl.c"
++++ "b/ref/gl/gl_opengl.c"
+@@ -22,6 +22,7 @@ CVAR_DEFINE_AUTO( gl_msaa, "1", FCVAR_GLCONFIG, "enable or disable multisample a
+ CVAR_DEFINE_AUTO( gl_stencilbits, "8", FCVAR_GLCONFIG|FCVAR_READ_ONLY, "pixelformat stencil bits (0 - auto)" );
+ CVAR_DEFINE_AUTO( gl_overbright, "1", FCVAR_GLCONFIG, "overbrights" );
+ CVAR_DEFINE_AUTO( gl_fog, "1", FCVAR_GLCONFIG, "allow for rendering fog using built-in OpenGL fog implementation" );
++CVAR_DEFINE_AUTO( cof_gl_trace, "0", FCVAR_GLCONFIG, "label GL errors at Cry of Fear draw-stage boundaries (diagnostic)" );
+ CVAR_DEFINE_AUTO( gl_litwater_force, "0", FCVAR_GLCONFIG, "force enable lightmapped water, even if support not declared in the map" );
+ CVAR_DEFINE_AUTO( r_lighting_ambient, "0.3", FCVAR_GLCONFIG, "map ambient lighting scale" );
+ CVAR_DEFINE_AUTO( r_detailtextures, "1", FCVAR_GLCONFIG, "enable detail textures support" );
+@@ -1357,6 +1358,19 @@ void GL_CheckForErrors_( const char *filename, const int fileline )
+ 	gEngfuncs.Con_Printf( S_OPENGL_ERROR "%s (at %s:%i)\n", GL_ErrorString( err ), filename, fileline );
+ }
+ 
++void GL_CheckForErrorsNamed_( const char *stage, const char *filename, const int fileline )
++{
++	if( !gl_check_errors.value || !gpGlobals->developer )
++		return;
++
++	int err = pglGetError();
++	if( err == GL_NO_ERROR )
++		return;
++
++	gEngfuncs.Con_Printf( S_OPENGL_ERROR "%s [cof-stage=%s] (at %s:%i)\n",
++		GL_ErrorString( err ), stage, filename, fileline );
++}
++
+ void GL_SetupAttributes( int safegl )
+ {
+ 	int context_flags = 0; // REFTODO!!!!!
+@@ -1175,6 +1177,7 @@ static void GL_InitCommands( void )
+ 	gEngfuncs.Cvar_RegisterVariable( &gl_round_down );
+ 	gEngfuncs.Cvar_RegisterVariable( &gl_overbright );
+ 	gEngfuncs.Cvar_RegisterVariable( &gl_fog );
++	gEngfuncs.Cvar_RegisterVariable( &cof_gl_trace );
+ 	gEngfuncs.Cvar_RegisterVariable( &gl_litwater_force );
+ 
+ 	gEngfuncs.Cvar_RegisterVariable( &gl_polyoffset );
+diff --git "a/ref/gl/gl_rmain.c" "b/ref/gl/gl_rmain.c"
+index 5358cd8..613f621 100644
+--- "a/ref/gl/gl_rmain.c"
++++ "b/ref/gl/gl_rmain.c"
+@@ -797,7 +797,10 @@ R_DrawEntitiesOnList
+ static void R_DrawEntitiesOnList( void )
+ {
+ 	tr.blend = 1.0f;
+-	GL_CheckForErrors();
++	#define COF_GL_STAGE_CHECK( name ) \
++		do { if( cof_gl_trace.value ) GL_CheckForErrorsNamed_( name, __FILE__, __LINE__ ); else GL_CheckForErrors(); } while( 0 )
++
++	COF_GL_STAGE_CHECK( "before_solid_entities" );
+ 
+ 	// first draw solid entities
+ 	for( int i = 0; i < tr.draw_list->num_solid_entities && !FBitSet( RI.rvp.flags, RF_ONLY_CLIENTDRAW ); i++ )
+@@ -827,12 +830,12 @@ static void R_DrawEntitiesOnList( void )
+ 		}
+ 	}
+ 
+-	GL_CheckForErrors();
++	COF_GL_STAGE_CHECK( "after_solid_entities" );
+ 
+ 	// quake-specific feature
+ 	R_DrawAlphaTextureChains();
+ 
+-	GL_CheckForErrors();
++	COF_GL_STAGE_CHECK( "after_alpha_texture_chains" );
+ 
+ 	// draw sprites seperately, because of alpha blending
+ 	for( int i = 0; i < tr.draw_list->num_solid_entities && !FBitSet( RI.rvp.flags, RF_ONLY_CLIENTDRAW ); i++ )
+@@ -854,19 +857,19 @@ static void R_DrawEntitiesOnList( void )
+ 		}
+ 	}
+ 
+-	GL_CheckForErrors();
++	COF_GL_STAGE_CHECK( "after_solid_sprites" );
+ 
+ 	if( !FBitSet( RI.rvp.flags, RF_ONLY_CLIENTDRAW ))
+ 	{
+ 		gEngfuncs.CL_DrawEFX( tr.frametime, false );
+ 	}
+ 
+-	GL_CheckForErrors();
++	COF_GL_STAGE_CHECK( "after_solid_efx" );
+ 
+ 	if( FBitSet( RI.rvp.flags, RF_DRAW_WORLD ))
+ 		gEngfuncs.pfnDrawNormalTriangles();
+ 
+-	GL_CheckForErrors();
++	COF_GL_STAGE_CHECK( "after_client_normal_triangles" );
+ 
+ #ifdef HACKS_RELATED_HLMODS
+ 	// Vampire Slayer leave GL_LINEAR fog with their own start/end after
+@@ -913,7 +916,7 @@ static void R_DrawEntitiesOnList( void )
+ 		}
+ 	}
+ 
+-	GL_CheckForErrors();
++	COF_GL_STAGE_CHECK( "after_trans_entities" );
+ 
+ 	if( FBitSet( RI.rvp.flags, RF_DRAW_WORLD ))
+ 	{
+@@ -921,7 +924,7 @@ static void R_DrawEntitiesOnList( void )
+ 		gEngfuncs.pfnDrawTransparentTriangles ();
+ 	}
+ 
+-	GL_CheckForErrors();
++	COF_GL_STAGE_CHECK( "after_client_transparent_triangles" );
+ 
+ 	if( !FBitSet( RI.rvp.flags, RF_ONLY_CLIENTDRAW ))
+ 	{
+@@ -930,7 +933,7 @@ static void R_DrawEntitiesOnList( void )
+ 		R_AllowFog( true );
+ 	}
+ 
+-	GL_CheckForErrors();
++	COF_GL_STAGE_CHECK( "after_transparent_efx" );
+ 
+ 	pglDisable( GL_BLEND );	// Trinity Render issues
+ 
+@@ -938,7 +941,8 @@ static void R_DrawEntitiesOnList( void )
+ 		R_DrawViewModel();
+ 	gEngfuncs.CL_ExtraUpdate();
+ 
+-	GL_CheckForErrors();
++	COF_GL_STAGE_CHECK( "after_viewmodel" );
++	#undef COF_GL_STAGE_CHECK
+ }
+ 
+ /*
+diff --git "a/ref/gl/gl_beams.c" "b/ref/gl/gl_beams.c"
+index bfddac7..2f1c0fe 100644
+--- "a/ref/gl/gl_beams.c"
++++ "b/ref/gl/gl_beams.c"
+@@ -1206,6 +1206,8 @@ draw beam loop
+ */
+ void CL_DrawBeams( int fTrans, BEAM *active_beams )
+ {
++	if( cof_gl_trace.value ) GL_CheckForErrorsNamed_( "beams_before_server", __FILE__, __LINE__ );
++
+ 	pglShadeModel( GL_SMOOTH );
+ 	pglDepthMask( fTrans ? GL_FALSE : GL_TRUE );
+ 
+@@ -1226,6 +1228,8 @@ void CL_DrawBeams( int fTrans, BEAM *active_beams )
+ 		r_stats.c_view_beams_count++;
+ 	}
+ 
++	if( cof_gl_trace.value ) GL_CheckForErrorsNamed_( "beams_after_server", __FILE__, __LINE__ );
++
+ 	RI.currentbeam = NULL;
+ 
+ 	// draw temporary entity beams
+@@ -1240,6 +1244,8 @@ void CL_DrawBeams( int fTrans, BEAM *active_beams )
+ 		R_BeamDraw( pBeam, gp_cl->time -   gp_cl->oldtime );
+ 	}
+ 
++	if( cof_gl_trace.value ) GL_CheckForErrorsNamed_( "beams_after_temp", __FILE__, __LINE__ );
++
+ 	pglShadeModel( GL_FLAT );
+ 	pglDepthMask( GL_TRUE );
+ }

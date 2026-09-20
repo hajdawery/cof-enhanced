@@ -1,0 +1,299 @@
+diff --git a/engine/server/sv_save.c b/engine/server/sv_save.c
+index 16d7922..1f9ba6c 100644
+--- a/engine/server/sv_save.c
++++ b/engine/server/sv_save.c
+@@ -36,6 +36,142 @@ half-life implementation of saverestore system
+ #define SAVE_HEAPSIZE		0x400000				// reserve 4Mb for now
+ #define SAVE_HASHSTRINGS		0xFFF				// 4095 unique strings
+ 
++/*
++ * Cry of Fear's stock installation keeps SAVE at the runtime root while
++ * Xash game-directory I/O is rooted at cryoffear/.  Keep the compatibility
++ * path opt-in and translate only save paths; generic filesystem searches
++ * remain unchanged.  Reads use the static root search path (SAVE/...), while
++ * writes/deletes/renames use ../SAVE/... relative to the active game path.
++ */
++static qboolean SV_CoFRootSaveCompat( void )
++{
++	return Cvar_VariableInteger( "cof_save_root_compat" ) && GI &&
++		!Q_stricmp( GI->gamefolder, "cryoffear" );
++}
++
++static qboolean SV_IsSavePath( const char *path )
++{
++	const char *relative;
++
++	if( !path )
++		return false;
++
++	if( !Q_strnicmp( path, DEFAULT_SAVE_DIRECTORY, 5 ) || !Q_strnicmp( path, "SAVE/", 5 ))
++		relative = path + 5;
++	else return false;
++
++	/* Direct-path writes must remain confined to the runtime-root SAVE tree. */
++	return relative[0] && !Q_strchr( relative, '\\' ) && !COM_CheckNastyPath( relative );
++}
++
++static const char *SV_SaveCompatPath( const char *path, qboolean write, char *buffer, size_t size )
++{
++	if( !SV_CoFRootSaveCompat( ) || !SV_IsSavePath( path ))
++		return path;
++
++	if( write )
++		Q_snprintf( buffer, size, "../SAVE/%s", path + 5 );
++	else
++		Q_snprintf( buffer, size, "SAVE/%s", path + 5 );
++
++	return buffer;
++}
++
++static qboolean SV_SaveWriteMode( const char *mode )
++{
++	return mode && ( mode[0] == 'w' || mode[0] == 'a' || mode[0] == 'e' || Q_strchr( mode, '+' ));
++}
++
++static file_t *SV_SaveFSOpen( const char *path, const char *mode, qboolean gamedironly )
++{
++	char mapped[MAX_SYSPATH];
++	const qboolean write = SV_SaveWriteMode( mode );
++	const qboolean translated = SV_CoFRootSaveCompat( ) && SV_IsSavePath( path );
++	const char *name = SV_SaveCompatPath( path, write, mapped, sizeof( mapped ));
++	file_t *file;
++
++	if( write && translated )
++		FS_AllowDirectPaths( true );
++	file = FS_Open( name, mode, write ? gamedironly : (name != path ? false : gamedironly) );
++	if( write && translated )
++		FS_AllowDirectPaths( false );
++	return file;
++}
++
++static int SV_SaveFSFileExists( const char *path, int gamedironly )
++{
++	char mapped[MAX_SYSPATH];
++	const char *name = SV_SaveCompatPath( path, false, mapped, sizeof( mapped ));
++
++	return FS_FileExists( name, name != path ? false : gamedironly );
++}
++
++static int SV_SaveFSFileTime( const char *path, qboolean gamedironly )
++{
++	char mapped[MAX_SYSPATH];
++	const char *name = SV_SaveCompatPath( path, false, mapped, sizeof( mapped ));
++
++	return FS_FileTime( name, name != path ? false : gamedironly );
++}
++
++static search_t *SV_SaveFSSearch( const char *pattern, int caseinsensitive, int gamedironly )
++{
++	char mapped[MAX_SYSPATH];
++	const char *name = SV_SaveCompatPath( pattern, false, mapped, sizeof( mapped ));
++
++	return FS_Search( name, caseinsensitive, name != pattern ? false : gamedironly );
++}
++
++static qboolean SV_SaveFSDelete( const char *path )
++{
++	char mapped[MAX_SYSPATH];
++	const qboolean translated = SV_CoFRootSaveCompat( ) && SV_IsSavePath( path );
++	const char *name = SV_SaveCompatPath( path, true, mapped, sizeof( mapped ));
++	qboolean result;
++
++	if( translated )
++		FS_AllowDirectPaths( true );
++	result = FS_Delete( name );
++	if( translated )
++		FS_AllowDirectPaths( false );
++	return result;
++}
++
++static qboolean SV_SaveFSRename( const char *oldpath, const char *newpath )
++{
++	char oldmapped[MAX_SYSPATH], newmapped[MAX_SYSPATH];
++	const qboolean translated = SV_CoFRootSaveCompat( ) && SV_IsSavePath( oldpath ) && SV_IsSavePath( newpath );
++	const char *oldname = SV_SaveCompatPath( oldpath, true, oldmapped, sizeof( oldmapped ));
++	const char *newname = SV_SaveCompatPath( newpath, true, newmapped, sizeof( newmapped ));
++	qboolean result;
++
++	if( translated )
++		FS_AllowDirectPaths( true );
++	result = FS_Rename( oldname, newname );
++	if( translated )
++		FS_AllowDirectPaths( false );
++	return result;
++}
++
++qboolean SV_CoFSaveDelete( const char *path )
++{
++	return SV_SaveFSDelete( path );
++}
++
++/* Keep the save implementation's existing calls scoped to this adapter. */
++#undef FS_Open
++#undef FS_FileExists
++#undef FS_FileTime
++#undef FS_Search
++#undef FS_Delete
++#undef FS_Rename
++#define FS_Open       SV_SaveFSOpen
++#define FS_FileExists SV_SaveFSFileExists
++#define FS_FileTime   SV_SaveFSFileTime
++#define FS_Search     SV_SaveFSSearch
++#define FS_Delete     SV_SaveFSDelete
++#define FS_Rename     SV_SaveFSRename
++
+ // savedata headers
+ typedef struct
+ {
+
+diff --git a/engine/server/server.h b/engine/server/server.h
+index 401ced2..1651af5 100644
+--- a/engine/server/server.h
++++ b/engine/server/server.h
+@@ -677,6 +677,7 @@ void SV_SetLogAddress_f( void );
+ //
+ qboolean SV_SaveGame( const char *pName );
+ qboolean SV_LoadGame( const char *pName );
++qboolean SV_CoFSaveDelete( const char *pName );
+ int SV_LoadGameState( char const *level );
+ void SV_ChangeLevel( qboolean loadfromsavedgame, const char *mapname, const char *start, qboolean background );
+ const char *SV_GetLatestSave( void );
+
+diff --git a/engine/server/sv_cmds.c b/engine/server/sv_cmds.c
+index ed1ee09..9a0e1af 100644
+--- a/engine/server/sv_cmds.c
++++ b/engine/server/sv_cmds.c
+@@ -469,8 +469,8 @@ static void SV_DeleteSave_f( void )
+ 	}
+ 
+ 	// delete save and saveshot
+-	FS_Delete( va( DEFAULT_SAVE_DIRECTORY "%s.sav", Cmd_Argv( 1 )));
+-	FS_Delete( va( DEFAULT_SAVE_DIRECTORY "%s.bmp", Cmd_Argv( 1 )));
++	SV_CoFSaveDelete( va( DEFAULT_SAVE_DIRECTORY "%s.sav", Cmd_Argv( 1 )));
++	SV_CoFSaveDelete( va( DEFAULT_SAVE_DIRECTORY "%s.bmp", Cmd_Argv( 1 )));
+ }
+ 
+ /*
+
+diff --git a/engine/client/cl_cmds.c b/engine/client/cl_cmds.c
+index 6ddb3b7..34a6e5b 100644
+--- a/engine/client/cl_cmds.c
++++ b/engine/client/cl_cmds.c
+@@ -15,6 +15,20 @@
+ #include "common.h"
+ #include "client.h"
+ 
++static qboolean CL_IsSafeCoFSaveShotName( const char *name )
++{
++	if( COM_StringEmptyOrNULL( name ) || !Q_stricmp( name, "." ) || !Q_stricmp( name, ".." ))
++		return false;
++
++	for( const char *c = name; *c; c++ )
++	{
++		if( *c == '/' || *c == '\\' || *c == ':' )
++			return false;
++	}
++
++	return true;
++}
++
+ /*
+ ====================
+ CL_PlayVideo_f
+@@ -360,7 +375,18 @@ void CL_GenericShot_f( void )
+ 		Q_snprintf( cls.shotname, sizeof( cls.shotname ), "gfx/env/%s", Cmd_Argv( 1 ));
+ 		break;
+ 	case scrshot_savegame:
+-        Q_snprintf( cls.shotname, sizeof( cls.shotname ), DEFAULT_SAVE_DIRECTORY "%s.bmp", Cmd_Argv( 1 ));
++		if( Cvar_VariableInteger( "cof_save_root_compat" ) && GI && !Q_stricmp( GI->gamefolder, "cryoffear" ))
++		{
++			if( !CL_IsSafeCoFSaveShotName( Cmd_Argv( 1 )))
++			{
++				Con_Printf( S_ERROR "Invalid Cry of Fear saveshot name: %s\\n", Cmd_Argv( 1 ));
++				return;
++			}
++
++			Q_snprintf( cls.shotname, sizeof( cls.shotname ), "../SAVE/%s.bmp", Cmd_Argv( 1 ));
++		}
++		else Q_snprintf( cls.shotname, sizeof( cls.shotname ), DEFAULT_SAVE_DIRECTORY "%s.bmp", Cmd_Argv( 1 ));
++		break;
+ 	case scrshot_mapshot:
+ 		Q_snprintf( cls.shotname, sizeof( cls.shotname ), "overviews/%s.bmp", clgame.mapname );
+ 		break;
+
+diff --git a/engine/client/cl_scrn.c b/engine/client/cl_scrn.c
+index 45c527b..f183631 100644
+--- a/engine/client/cl_scrn.c
++++ b/engine/client/cl_scrn.c
+@@ -36,2 +36,20 @@ static CVAR_DEFINE_AUTO( cl_showpos, "0", FCVAR_ARCHIVE, "show client position and velocity" );
+ static CVAR_DEFINE_AUTO( cl_showents, "0", FCVAR_ARCHIVE | FCVAR_CHEAT, "show entities information (largely undone)" );
++
++static qboolean SCR_IsSafeCoFRootSaveShotPath( const char *path )
++{
++	const char *const prefix = "../SAVE/";
++	const size_t prefixLength = Q_strlen( prefix );
++	const size_t pathLength = Q_strlen( path );
++
++	if( Q_strncmp( path, prefix, prefixLength ) || pathLength <= prefixLength + 4 || Q_stricmp( path + pathLength - 4, ".bmp" ))
++		return false;
++
++	for( const char *c = path + prefixLength; c < path + pathLength - 4; c++ )
++	{
++		if( *c == '/' || *c == '\\' || *c == ':' )
++			return false;
++	}
++
++	return true;
++}
+ static CVAR_DEFINE_AUTO( cl_showcmd, "0", 0, "visualize usercmd button presses" );
+@@ -435,7 +452,18 @@ void SCR_MakeScreenShot( void )
+ 		iRet = ref.dllFuncs.VID_ScreenShot( cls.shotname, VID_LEVELSHOT );
+ 		break;
+ 	case scrshot_savegame:
+-        iRet = ref.dllFuncs.VID_ScreenShot( cls.shotname, VID_MINISHOT );
++		if( Cvar_VariableInteger( "cof_save_root_compat" ) && GI && !Q_stricmp( GI->gamefolder, "cryoffear" ))
++		{
++			if( !SCR_IsSafeCoFRootSaveShotPath( cls.shotname ))
++			{
++				Con_Printf( S_ERROR "Refusing unsafe Cry of Fear saveshot path: %s\\n", cls.shotname );
++				break;
++			}
++
++			FS_AllowDirectPaths( true );
++		}
++		iRet = ref.dllFuncs.VID_ScreenShot( cls.shotname, VID_MINISHOT );
++		FS_AllowDirectPaths( false );
+ 		break;
+ 	case scrshot_envshot:
+ 		iRet = ref.dllFuncs.VID_CubemapShot( cls.shotname, viewsize, cls.envshot_vieworg, false );
+
+diff --git a/engine/common/con_utils.c b/engine/common/con_utils.c
+index 10e25a6..a55595b 100644
+--- a/engine/common/con_utils.c
++++ b/engine/common/con_utils.c
+@@ -365,8 +365,10 @@ Prints or complete savegame filename
+ static qboolean Cmd_GetSavesList( const char *s, char *completedname, int length, qboolean print_suggestions )
+ {
+ 	string matchbuf;
++	const qboolean cof_root_save = Cvar_VariableInteger( "cof_save_root_compat" ) && GI &&
++		!Q_stricmp( GI->gamefolder, "cryoffear" );
+ 
+-        search_t *t = FS_Search( va( DEFAULT_SAVE_DIRECTORY "%s*.sav", s ), true, true );        // lookup only in save location
++	search_t *t = FS_Search( va( cof_root_save ? "SAVE/%s*.sav" : DEFAULT_SAVE_DIRECTORY "%s*.sav", s ), true, !cof_root_save );	// lookup only in save location
+ 	if( !t ) return false;
+ 
+ 	COM_FileBase( t->filenames[0], matchbuf, sizeof( matchbuf ));
+
+diff --git a/engine/server/sv_main.c b/engine/server/sv_main.c
+index b3e1d7e..ffa2d7b 100644
+--- a/engine/server/sv_main.c
++++ b/engine/server/sv_main.c
+@@ -864,6 +864,8 @@ void SV_Init( void )
+ 	Cvar_Get( "servercfgfile", "server.cfg", 0, "name of dedicated server configuration file" );
+ 	Cvar_Get( "lservercfgfile", "listenserver.cfg", 0, "name of listen server configuration file" );
+ 	Cvar_Get( "cof_trace_menu_load", "0", 0, "trace Cry of Fear cofload/save dispatch (diagnostic)" );
++	Cvar_Get( "cof_save_root_compat", "0", 0, "use Cry of Fear's runtime-root SAVE directory (opt-in)" );
++
+ 	Cvar_RegisterVariable( &sv_zmax );
+ 	Cvar_RegisterVariable( &sv_wateramp );
+ 	Cvar_RegisterVariable( &sv_skycolor_r );
