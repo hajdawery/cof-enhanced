@@ -128,6 +128,45 @@ is `(1818,1750)`–`(2020,2108)`. These measurements are not semantic masks or
 visual-fidelity scores. Use normalized coordinates and row spacing after the
 actual owner is identified.
 
+### Font and bitmap audit
+
+The ignored CoF runtime contains width-specific VGUI bitmap atlases under
+`cryoffear/gfx/vgui/fonts`: `640_*`, `800_*`, `1024_*`, `1152_*`, `1280_*`, and
+`1600_*` variants for button, command-menu, scoreboard, briefing, title, and
+team-info text. It also contains `.chw`/`.tga` pairs for chapter title,
+credits, inventory, and pager. A filename inventory found no `impact` atlas and
+no atlas named `Default Text`; `gfx/vgui/fonts/font info.txt` names only
+credits, credits title, chapter title, and inventory. The width-specific
+`*_textscheme.txt` files describe Arial sizes and colors, while
+`resource/clientscheme.res` describes a separate VGUI scheme whose default
+families use Tahoma and document replacement when a font fails to load.
+
+The runtime logs for the retained orange-glyph captures report bitmap-scheme
+failures for `Default Text` and `impact` while loading other `800_*` fonts.
+This is a **verified resource mismatch to investigate**, not yet a proven
+source of the orange output: the logs do not identify the drawing caller, and
+the retained captures are command-equivalent harness runs. The relevant frames
+are `stage1/menu-transition-evidence-20260920/dev0-c_forest3_shot0001.png` and
+`bypass-hud-c_forest3_shot0000.png`; the full hashes remain in the menu
+investigation.
+
+There are two independent font systems in the pinned source. FWGS `mainui`
+builds its `hDefaultFont` from `DEFAULT_MENUFONT` (`Trebuchet MS`) through its
+font manager (`3rdparty/mainui/font/FontManager.cpp:33,78-100`); on Windows,
+the mainui build selects the GDI/WinAPI font renderer. The original/VGUI path
+draws bitmap quads through `VGUI_DrawQuad` and the client game UI exposes an
+atlas-character path at `engine/client/dll_int/cl_gameui.c:705-740`. A log
+label such as `Default Text` must therefore be tied to the loading subsystem
+before changing either the CoF bitmap schemes or mainui's system font.
+
+VGUI text and rectangle setup enables alpha blending in the renderer and
+stores `255 - pColor[3]` as the alpha (`engine/client/vgui/vgui_draw.c:199-209`,
+`ref/gl/gl_context.c:363-368`). That legacy alpha convention is a concrete
+color/opacity audit point for orange glyphs, but no color fix is justified by
+the current evidence. The orange glyphs persist when the client
+`HUD_Redraw` callback is bypassed, so they are not attributable to that
+callback alone.
+
 ## Menu transition side effects
 
 The full slot click handler has more work than the server save command. Static
