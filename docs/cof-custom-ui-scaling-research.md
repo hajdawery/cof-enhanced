@@ -75,6 +75,11 @@ panel that uses `GetScreenInfo`. It is separate from the `mainui` scale and
 from `vid_scale`. A change to `hud_scale` can move the HUD while leaving a map
 menu camera or VGUI panel unchanged.
 
+`SPR_AdjustSize` (`engine/client/dll_int/cl_game.c:326-355`) is the common
+client-side conversion for HUD sprites and is also used by VGUI drawing. A
+sprite or panel that already calls this helper must not receive an additional
+blind viewport multiplier.
+
 The ignored runtime `menu_settings.txt` describes the weapon-selection overlay
 in a 640×480 logical coordinate space. Treat that as a **verified runtime
 configuration fact**, not proof that every CoF menu uses 640×480. Inventory,
@@ -88,6 +93,20 @@ specific failure mode: a panel can render at one scale while hit testing uses
 another. For every interaction capture, record native cursor coordinates,
 `refState` dimensions, `clgame.scrInfo` dimensions, and the resulting logical
 coordinates.
+
+The same conversion is used by `VGui_MouseMove` (`vgui_draw.c:626-634`) before
+calling the support library. VGUI quads and paint offsets pass through
+`SPR_AdjustSize` (`vgui_draw.c:221,244-251`), and `VGui_Paint` resets the
+renderer 2D offset to `(0,0)` after the support library paints
+(`vgui_draw.c:636-643`). A support panel that leaves an offset or assumes
+native pixels can therefore shift later screen-space drawing; this is a
+coordinate-contract issue to test before changing a global scale.
+
+`VGui_Startup` (`vgui_draw.c:402-419`) clamps the requested height to at least
+480 and quantizes the support-library width to 640, 800, 1024, 1152, 1280, or
+1600. This legacy VGUI layout contract explains why a panel may use a
+quantized logical width even when the render target is 1920 or 3840 pixels;
+record the width passed to the support library as well as the actual viewport.
 
 The supplied capture reports 3840×2160 pixels and embedded metadata of
 143.9926×143.9926 DPI. The DPI metadata does not establish Windows display
