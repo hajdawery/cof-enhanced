@@ -167,6 +167,19 @@ the current evidence. The orange glyphs persist when the client
 `HUD_Redraw` callback is bypassed, so they are not attributable to that
 callback alone.
 
+There is a second font trap in the client export bridge. The VGUI2 character
+exports `pfnVGUI2DrawCharacter` and `pfnVGUI2DrawCharacterAdditive`
+(`engine/client/dll_int/cl_game.c:2986-3005`) ignore their supplied `font`
+handle and route through `pfnDrawCharacter`, which always uses the shared
+`cls.creditsFont`. `SCR_LoadCreditsFont` (`engine/client/cl_scrn.c:743-778`)
+loads that atlas from the accepted `gfx.wad` charset or falls back to
+`gfx/conchars`, then copies its metrics into `clgame.scrInfo`. If an orange
+glyph is produced through these exports, inspect the shared credits-font
+source, `hud_fontscale`, and `hud_fontrender` before attributing it to a
+missing `impact` VGUI bitmap. This is a **verified source contract**; the
+current captures do not yet identify whether their orange glyphs use this
+bridge or the separate VGUI bitmap scheme.
+
 ## Menu transition side effects
 
 The full slot click handler has more work than the server save command. Static
