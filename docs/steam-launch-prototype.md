@@ -22,13 +22,13 @@ The proof used a fresh complete vanilla-layout copy under `stage1/launch-prototy
 | --- | --- | --- |
 | `CoFLaunchApp.exe` | replace | `7B3FD518F10A780EDA6932934AF619C1241FDB852B362943F4737DF20DC086A9` |
 | `xash.dll` | add | `65ACDEA266B66E7FFA44B15281B97C9938C63069E81411D84F9A5C6C00E79FAE` |
-| `filesystem_stdio.dll` (same Windows path as `FileSystem_Stdio.dll`) | replace | `D7594A89C326E747AD23D54013E60EADA605090A091EF0641756D4A47992C2CF` |
+| `FileSystem_Stdio.dll` (same Windows path as `filesystem_stdio.dll`) | replace | `D7594A89C326E747AD23D54013E60EADA605090A091EF0641756D4A47992C2CF` |
 | `SDL2.dll` | add | `68C78590D1997122C30C992EC79857D32E5E976A0F17C0A69A2E29EAB0101D70` |
 | `menu.dll` | add | `EE426DA222D6D5E995A514A5D8B104D47114A292C4C1FCBEBF6F0AE343A1DB68` |
 | `ref_gl.dll` | add | `F3B1D4B9F3C2237C50447D956EE43070B22BF578C9E15CD0ED67D30B30E6F172` |
 | `vgui.dll` | replace | `B839D47942F0AF487F12D433D3EBEC8628788C5C436E3254900EB7BE6D9775A74` |
-| `cryoffear\\cl_dlls\\client.dll` | profile copy | `D2A04641B301804F6F449AA68265042B13ADC360925B80033D417EC9F38C9C00` |
-| `cryoffear\\cl_dlls\\hl.dll` | profile copy | `0036B91C01E92ED205513F52563053A55A66A32D257EFB5F476B8F1F3DDE0E63` |
+| `cryoffear\\cl_dlls\\client.dll` | retain baseline; no overlay write | `D2A04641B301804F6F449AA68265042B13ADC360925B80033D417EC9F38C9C00` |
+| `cryoffear\\cl_dlls\\hl.dll` | retain baseline; no overlay write | `0036B91C01E92ED205513F52563053A55A66A32D257EFB5F476B8F1F3DDE0E63` |
 | `cryoffear\\gameinfo.txt` | add | `6EEA04D3455DCB4D3FB43C6EDC8706189F6BFC0D65718C212E7C9FDE38C17E23` |
 | `opengl32.dll` | retain baseline; no overlay write | — |
 
@@ -55,13 +55,14 @@ For a test root, remove the overlay files listed above. The untouched isolated b
 
 No real-Steam change has been performed. If a later, separately approved test
 uses the Steam game root, the proposed relative changes are exactly the table
-above: replace `CoFLaunchApp.exe`, `filesystem_stdio.dll`, and `vgui.dll`; add
-`xash.dll`, `SDL2.dll`, `menu.dll`, and `ref_gl.dll`; replace the two
-`cryoffear\\cl_dlls` profile DLLs; and add or replace
-`cryoffear\\gameinfo.txt` according to the baseline manifest. `opengl32.dll`,
-Steam runtime files, and all game assets remain unchanged. The Windows
-case-insensitive `filesystem_stdio.dll` destination must be backed up once
-under its existing spelling before replacement.
+above: replace `CoFLaunchApp.exe`, `FileSystem_Stdio.dll`, and `vgui.dll`; add
+`xash.dll`, `SDL2.dll`, `menu.dll`, `ref_gl.dll`, and
+`cryoffear\\gameinfo.txt`. The original
+`cryoffear\\cl_dlls\\client.dll` and `cryoffear\\cl_dlls\\hl.dll` already
+match the tested baseline and remain untouched. `opengl32.dll`, Steam runtime
+files, and all game assets remain unchanged. The Windows case-insensitive
+`FileSystem_Stdio.dll` destination must be backed up once under its existing spelling
+before replacement.
 
 Rollback would stop the launcher and engine, restore each replaced file from
 its pre-change backup, remove each added file, and restore or remove
