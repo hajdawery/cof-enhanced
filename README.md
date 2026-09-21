@@ -1,6 +1,6 @@
 # cof-fix
 
-![COF Fix emblem](assets/branding/coffix.png)
+<img src="assets/branding/coffix.png" alt="COF Fix emblem" width="180">
 
 This repository contains a bounded, opt-in experiment for the original Steam Cry of Fear server and client DLLs on FWGS Xash3D.
 
@@ -14,6 +14,8 @@ The repo intentionally contains no game files, Steam DLLs, runtime archives, dum
 
 For reusable engine/game development lessons from this investigation, see the [Xash/GoldSrc developer notes](docs/xash-goldsrc-developer-notes.md).
 For the detailed custom CoF UI ownership, coordinate-space, and scaling research, see [the custom UI scaling note](docs/cof-custom-ui-scaling-research.md).
+For the disposable-runtime and per-run evidence policy used by isolated
+runtime checks, see the [launcher fixture workflow](docs/steam-launch-prototype.md#reusable-fixture-workflow).
 
 ## Applying the patch
 

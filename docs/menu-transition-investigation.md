@@ -511,3 +511,29 @@ The renderer is not fully tested. Water or water-shader differences are
 explicitly deferred and are not a current priority. When renderer work
 resumes, restore the missing main-menu geometry first, then revisit water
 behavior after the save-menu interaction path remains stable.
+
+## Night handoff: sky callback matrix
+
+The current matrix check is paused at the user's request. The callback's
+before/after modelview and projection capture restored correctly. The valid
+matrix log is
+`stage1/sky-fx137-callback-matrix-qa-20260920/sky-fx137-callback-matrix-c-game-menu1-20260920.log`
+(SHA256
+`F172E2C0B64D31407D6A828BBC3D8B161118096270784EE179E61FA014692B5D`).
+The sky-only built-in selector restored the skyline; the building-only
+selector and the sky `depthmask`-off variant did not. This does not identify
+the remaining state or depth cause.
+
+The staged capture has already completed. Its renderer was
+`C5D72C02A450269E485236C6293000E35FBC198BD51B2D1C5A58868B9DB4D451`, and the
+preserved images are
+`stage1/sky-stage-capture-qa-20260920/cryoffear/cof-skyline-before-sky.tga`,
+`cof-skyline-after-sky.tga`, and `cof-skyline-after-normal.tga`. Worker review
+found detailed left/right skyline buildings and windows before the sky path,
+then most buildings missing after the sky and after normal. The log SHA256 is
+`8191AD1C7D618959D85EB1EBE157221B2CC52B461F217CF4806C24EA146AEE3C`.
+These capture directories are evidence-only; use the retained verified
+runtime fixture for any later diagnostic run rather than treating them as
+launchable copies.
+The next session should compare these existing captures and diagnose why the
+sky callback overwrites the prior skyline; no new launch or build is needed.

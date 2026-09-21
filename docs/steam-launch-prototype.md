@@ -41,6 +41,30 @@ The proof used a fresh complete vanilla-layout copy under `stage1/launch-prototy
 | `cryoffear\\gameinfo.txt` | add | `6EEA04D3455DCB4D3FB43C6EDC8706189F6BFC0D65718C212E7C9FDE38C17E23` |
 | `opengl32.dll` | retain baseline; no overlay write | — |
 
+### Reusable fixture workflow
+
+For sequential diagnostic runs, keep one disposable runtime fixture and reuse
+it. Create the complete baseline once, record a compact path/hash manifest, and
+retain per-run evidence as logs, selected screenshots, and the run manifest in
+an evidence directory. Do not create another full game copy for each run.
+
+Before a run, replace only the built binaries or configuration files required
+by that run and record their hashes. Keep the runtime's user saves intact.
+Save-writing tests must use the backed-up fixture save state and restore it
+afterward; do not add slots or overwrite user saves. Never hardlink mutable
+saves or configuration files: a fixture must not share writable state with
+another runtime or with the source installation.
+
+Stop the launcher and verify no game process remains before changing the
+fixture. If a run changes more than the declared overlay, restore the affected
+files from the retained baseline copy, using the path/hash manifest to verify
+the restored bytes. Recreate the one fixture only when its baseline or mutable
+state can no longer be verified. The `S:\Steam` installation and its original
+saves/configuration remain outside this workflow and must not be modified.
+
+No repository script currently owns a full-game copy operation; this section
+is the required workflow for any external fixture-preparation command.
+
 The colocated layout is required because the Windows loader resolves the engine's SDL and renderer dependencies beside `xash.dll`, while the engine resolves the game modules through the root's `cryoffear` directory. The original root `opengl32.dll`, Steam runtime files, and game assets were retained in the isolated copy. No modified game DLL or cheat pack was used. The two spellings of `filesystem_stdio.dll` above are one case-insensitive Windows destination; they must not be treated as separate files.
 
 ## Proof result
