@@ -59,22 +59,24 @@ diff --git a/engine/server/sv_client.c b/engine/server/sv_client.c
 +			Con_Reportf( "[cof-trace] hl ClientCommand returned for cofload %s\n", cofload_slot );
  
  		if( fullupdate )
-@@ -3676,7 +3686,10 @@ void SV_ParseClientMessage( sv_client_t *cl, sizebuf_t *msg )
+@@ -3667,7 +3678,12 @@ void SV_ExecuteClientMessage( sv_client_t *cl, sizebuf_t *msg )
+ 			SV_ParseClientMove( cl, msg );
  			break;
  		case clc_stringcmd:
- 		{
 -			SV_ExecuteClientCommand( cl, MSG_ReadString( msg ));
++		{
 +			const char *stringcmd = MSG_ReadString( msg );
 +			if( Cvar_VariableInteger( "cof_trace_menu_load" ) && !Q_strnicmp( stringcmd, "cofload ", 8 ))
 +				Con_Reportf( "[cof-trace] clc_stringcmd cofload packet: %s\n", stringcmd );
 +			SV_ExecuteClientCommand( cl, stringcmd );
- 		}
++		}
  			if( cl->state == cs_zombie )
  				return; // disconnect command
+ 			break;
 diff --git a/engine/server/sv_game.c b/engine/server/sv_game.c
 --- a/engine/server/sv_game.c
 +++ b/engine/server/sv_game.c
-@@ -2320,9 +2320,15 @@ pfnServerCommand
+@@ -2320,8 +2320,17 @@ pfnServerCommand
  */
  static void GAME_EXPORT pfnServerCommand( const char* str )
  {
@@ -82,59 +84,65 @@ diff --git a/engine/server/sv_game.c b/engine/server/sv_game.c
 +		str[12] >= '1' && str[12] <= '5' );
 +	if( cofload && Cvar_VariableInteger( "cof_trace_menu_load" ))
 +		Con_Reportf( "[cof-trace] hl pfnServerCommand: %s\n", str );
- 
++
  	if( !SV_IsValidCmd( str ))
- 	{
++	{
 +		if( cofload && Cvar_VariableInteger( "cof_trace_menu_load" ))
 +			Con_Reportf( "[cof-trace] hl pfnServerCommand rejected\n" );
  		Con_Printf( S_ERROR "bad server command %s\n", str );
- 	}
++	}
  	else Cbuf_AddText( str );
+ }
+ 
 diff --git a/engine/server/sv_save.c b/engine/server/sv_save.c
 --- a/engine/server/sv_save.c
 +++ b/engine/server/sv_save.c
-@@ -2114,9 +2114,14 @@ qboolean SV_LoadGame( const char *pPath )
+@@ -2114,23 +2114,43 @@ qboolean SV_LoadGame( const char *pPath )
  	GAME_HEADER	gameHeader;
  	file_t		*pFile;
  	uint		flags;
 +	qboolean	cofsave = ( pPath && !Q_strnicmp( pPath, DEFAULT_SAVE_DIRECTORY "cofsave", 12 ) &&
 +		pPath[12] >= '1' && pPath[12] <= '5' );
- 
++
 +	if( cofsave && Cvar_VariableInteger( "cof_trace_menu_load" ))
 +		Con_Reportf( "[cof-trace] SV_LoadGame entry: %s\n", pPath );
  
  	if( Host_IsDedicated() )
- 	{
++	{
 +		if( cofsave && Cvar_VariableInteger( "cof_trace_menu_load" )) Con_Reportf( "[cof-trace] load rejected: dedicated\n" );
  		return false;
- 	}
-@@ -2125,9 +2129,11 @@ qboolean SV_LoadGame( const char *pPath )
++	}
+ 
  	if( UI_CreditsActive( ))
- 	{
++	{
 +		if( cofsave && Cvar_VariableInteger( "cof_trace_menu_load" )) Con_Reportf( "[cof-trace] load rejected: credits\n" );
  		return false;
- 	}
++	}
  
  	if( COM_StringEmptyOrNULL( pPath ))
- 	{
++	{
 +		if( cofsave && Cvar_VariableInteger( "cof_trace_menu_load" )) Con_Reportf( "[cof-trace] load rejected: empty path\n" );
  		return false;
- 	}
-@@ -2140,5 +2148,6 @@ qboolean SV_LoadGame( const char *pPath )
++	}
+ 
  	// silently ignore if missed
  	if( !FS_FileExists( pPath, true ))
- 	{
++	{
 +		if( cofsave && Cvar_VariableInteger( "cof_trace_menu_load" )) Con_Reportf( "[cof-trace] load rejected: file missing\n" );
  		return false;
- 	}
-@@ -2146,5 +2156,6 @@ qboolean SV_LoadGame( const char *pPath )
++	}
+ 
  	// initialize game if needs
  	if( !SV_InitGame( false ))
- 	{
++	{
 +		if( cofsave && Cvar_VariableInteger( "cof_trace_menu_load" )) Con_Reportf( "[cof-trace] load rejected: SV_InitGame failed\n" );
  		return false;
- 	}
-@@ -2181,5 +2193,7 @@ qboolean SV_LoadGame( const char *pPath )
++	}
+ 
+ 	svs.initialized = true;
+ 	pFile = FS_Open( pPath, "rb", true );
+@@ -2165,10 +2185,14 @@ qboolean SV_LoadGame( const char *pPath )
+ 
  	if( !validload )
  	{
 +		if( cofsave && Cvar_VariableInteger( "cof_trace_menu_load" ))
@@ -142,7 +150,9 @@ diff --git a/engine/server/sv_save.c b/engine/server/sv_save.c
  		Con_Printf( S_ERROR "Couldn't load %s\n", pPath );
  		return false;
  	}
-@@ -2194,1 +2194,3 @@ qboolean SV_LoadGame( const char *pPath )
+ 
 +	if( cofsave && Cvar_VariableInteger( "cof_trace_menu_load" ))
 +		Con_Reportf( "[cof-trace] load accepted: map=%s\n", gameHeader.mapName );
  	Con_Printf( "Loading game from %s...\n", pPath );
+ 	Cvar_FullSet( "maxplayers", "1", FCVAR_LATCH );
+ 	Cvar_SetValue( "deathmatch", 0 );

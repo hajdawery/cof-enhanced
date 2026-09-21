@@ -201,11 +201,11 @@ index 6ddb3b7..34a6e5b 100644
  /*
  ====================
  CL_PlayVideo_f
-@@ -360,7 +375,18 @@ void CL_GenericShot_f( void )
+@@ -360,7 +374,17 @@ void CL_GenericShot_f( void )
  		Q_snprintf( cls.shotname, sizeof( cls.shotname ), "gfx/env/%s", Cmd_Argv( 1 ));
  		break;
  	case scrshot_savegame:
--        Q_snprintf( cls.shotname, sizeof( cls.shotname ), DEFAULT_SAVE_DIRECTORY "%s.bmp", Cmd_Argv( 1 ));
+-		Q_snprintf( cls.shotname, sizeof( cls.shotname ), DEFAULT_SAVE_DIRECTORY "%s.bmp", Cmd_Argv( 1 ));
 +		if( Cvar_VariableInteger( "cof_save_root_compat" ) && GI && !Q_stricmp( GI->gamefolder, "cryoffear" ))
 +		{
 +			if( !CL_IsSafeCoFSaveShotName( Cmd_Argv( 1 )))
@@ -217,7 +217,7 @@ index 6ddb3b7..34a6e5b 100644
 +			Q_snprintf( cls.shotname, sizeof( cls.shotname ), "../SAVE/%s.bmp", Cmd_Argv( 1 ));
 +		}
 +		else Q_snprintf( cls.shotname, sizeof( cls.shotname ), DEFAULT_SAVE_DIRECTORY "%s.bmp", Cmd_Argv( 1 ));
-+		break;
+ 		break;
  	case scrshot_mapshot:
  		Q_snprintf( cls.shotname, sizeof( cls.shotname ), "overviews/%s.bmp", clgame.mapname );
  		break;
@@ -279,7 +279,7 @@ index 10e25a6..a55595b 100644
 +	const qboolean cof_root_save = Cvar_VariableInteger( "cof_save_root_compat" ) && GI &&
 +		!Q_stricmp( GI->gamefolder, "cryoffear" );
  
--        search_t *t = FS_Search( va( DEFAULT_SAVE_DIRECTORY "%s*.sav", s ), true, true );        // lookup only in save location
+-	search_t *t = FS_Search( va( DEFAULT_SAVE_DIRECTORY "%s*.sav", s ), true, true );	// lookup only in gamedir
 +	search_t *t = FS_Search( va( cof_root_save ? "SAVE/%s*.sav" : DEFAULT_SAVE_DIRECTORY "%s*.sav", s ), true, !cof_root_save );	// lookup only in save location
  	if( !t ) return false;
  
@@ -289,12 +289,12 @@ diff --git a/engine/server/sv_main.c b/engine/server/sv_main.c
 index b3e1d7e..ffa2d7b 100644
 --- a/engine/server/sv_main.c
 +++ b/engine/server/sv_main.c
-@@ -864,6 +864,8 @@ void SV_Init( void )
+@@ -864,6 +864,7 @@ void SV_Init( void )
  	Cvar_Get( "servercfgfile", "server.cfg", 0, "name of dedicated server configuration file" );
  	Cvar_Get( "lservercfgfile", "listenserver.cfg", 0, "name of listen server configuration file" );
  	Cvar_Get( "cof_trace_menu_load", "0", 0, "trace Cry of Fear cofload/save dispatch (diagnostic)" );
 +	Cvar_Get( "cof_save_root_compat", "0", 0, "use Cry of Fear's runtime-root SAVE directory (opt-in)" );
-+
+ 
  	Cvar_RegisterVariable( &sv_zmax );
  	Cvar_RegisterVariable( &sv_wateramp );
  	Cvar_RegisterVariable( &sv_skycolor_r );

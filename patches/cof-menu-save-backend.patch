@@ -81,14 +81,19 @@ index 73917e6..087a6da 100644
  
  // savedata headers
  typedef struct
-@@ -786,6 +837,7 @@ static void DirectoryCopy( const char *pPath, file_t *pFile )
+@@ -784,6 +835,12 @@ static void DirectoryCopy( const char *pPath, file_t *pFile )
+ 	{
+ 		char	szName[MAX_OSPATH];
  		file_t	*pCopy = FS_Open( t->filenames[i], "rb", true );
- 		if( !pCopy )
- 		{
++		if( !pCopy )
++		{
 +			if( cofMenuSaveTracking ) cofMenuSaveIOFailed = true;
- 			Con_Printf( S_ERROR "could not read save component %s\n", t->filenames[i] );
- 			continue;
- 		}
++			Con_Printf( S_ERROR "could not read save component %s\n", t->filenames[i] );
++			continue;
++		}
+ 		int	fileSize = FS_FileLength( pCopy );
+ 
+ 		memset( szName, 0, sizeof( szName )); // clearing the string to prevent garbage in output file
 @@ -2391,6 +2443,106 @@ qboolean SV_SaveGame( const char *pName )
  	return SaveGameSlot( savename, comment );
  }

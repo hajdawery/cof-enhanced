@@ -1,0 +1,28 @@
+// Cry of Fear gameinfo.txt keys added by UI milestone 1.
+// Merge these lines into <runtime>/cryoffear/gameinfo.txt; this file is not a
+// complete gameinfo.txt and the engine does not read it.
+//
+// The runtime must have a gameinfo.txt and no liblist.gam beside it, or the
+// engine reconverts liblist.gam over gameinfo.txt whenever liblist.gam is the
+// newer file (filesystem/gameinfo.c:665-673) and these keys are lost.
+
+// Render every MainUI pic button as blurred TTF text instead of looking for
+// the gfx/shell/btns_main.bmp atlas. Cry of Fear ships no gfx/shell button
+// artwork, so without this the style depends on whatever a fallback search
+// path happens to provide.
+// filesystem/gameinfo.c:436-439 -> GFL_RENDER_PICBUTTON_TEXT
+// (engine/client/dll_int/cl_gameui.c:401) -> uiStatic.renderPicbuttonText
+// (3rdparty/mainui/BaseMenu.cpp:1176); consumed by Btns.cpp:37-39 and
+// controls/PicButton.cpp:259.
+render_picbutton_text 1
+
+// The engine menu's New Game runs the restricted "newgame" command, which
+// loads GI->startmap as a new game (engine/server/sv_cmds.c:355-360 ->
+// COM_NewGame, engine/common/host_state.c:47-67). Cry of Fear's own New Game
+// flow starts on its difficulty map; "intro" is not a map in this game folder.
+startmap "c_difficulty_settings"
+
+// Skip MainUI's own Easy/Medium/Hard page and call newgame straight away
+// (3rdparty/mainui/menus/NewGame.cpp:37-43), because c_difficulty_settings
+// asks for the difficulty itself and writes the "difficulty" cvar, not "skill".
+noskills 1

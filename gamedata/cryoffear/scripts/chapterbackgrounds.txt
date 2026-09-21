@@ -1,0 +1,6 @@
+// Cry of Fear background map list for the FWGS engine menu (mainui).
+// mainui reads this file in UI_LoadBackgroundMapList (3rdparty/mainui/
+// BaseMenu.cpp:970-994) and UI_StartBackGroundMap (:547-583) issues
+// "map_background <name>" for a random entry on the first menu draw.
+// c_game_menu1 is Cry of Fear's authored 3D main-menu scene.
+c_game_menu1

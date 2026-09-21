@@ -1,0 +1,62 @@
+diff --git a/3rdparty/mainui/BaseMenu.cpp b/3rdparty/mainui/BaseMenu.cpp
+index c5be361..5f8eb42 100755
+--- a/3rdparty/mainui/BaseMenu.cpp
++++ b/3rdparty/mainui/BaseMenu.cpp
+@@ -37,6 +37,7 @@ cvar_t		*ui_borderclip;
+ cvar_t		*ui_prefer_won_background;
+ cvar_t		*ui_background_stretch;
+ cvar_t		*ui_logohorizontal;
++cvar_t		*ui_scrim_alpha;
+ 
+ uiStatic_t	uiStatic;
+ static CMenuEntry	*s_pEntries = NULL;
+@@ -1149,6 +1150,9 @@ void UI_Init( void )
+ 	ui_prefer_won_background = EngFuncs::CvarRegister( "ui_prefer_won_background", "0", FCVAR_ARCHIVE );
+ 	ui_background_stretch = EngFuncs::CvarRegister( "ui_background_stretch", "0", FCVAR_ARCHIVE );
+ 	ui_logohorizontal = EngFuncs::CvarRegister( "ui_logohorizontal", "0", FCVAR_ARCHIVE );
++	// alpha of the in-game scrim drawn behind the menu while ui_renderworld
++	// keeps the world visible. 0 = no dimming, 255 = fully opaque black.
++	ui_scrim_alpha = EngFuncs::CvarRegister( "ui_scrim_alpha", "150", FCVAR_ARCHIVE );
+ 
+ 	// show cl_predict dialog
+ 	EngFuncs::CvarRegister( "menu_mp_firsttime2", "1", FCVAR_ARCHIVE );
+diff --git a/3rdparty/mainui/BaseMenu.h b/3rdparty/mainui/BaseMenu.h
+index 4d663ef..af5e79c 100755
+--- a/3rdparty/mainui/BaseMenu.h
++++ b/3rdparty/mainui/BaseMenu.h
+@@ -62,6 +62,7 @@ extern cvar_t	*ui_borderclip;
+ extern cvar_t	*ui_prefer_won_background;
+ extern cvar_t	*ui_background_stretch;
+ extern cvar_t	*ui_logohorizontal;
++extern cvar_t	*ui_scrim_alpha;
+ 
+ enum EUISounds
+ {
+diff --git a/3rdparty/mainui/controls/BackgroundBitmap.cpp b/3rdparty/mainui/controls/BackgroundBitmap.cpp
+index 0b087a4..5c86f39 100644
+--- a/3rdparty/mainui/controls/BackgroundBitmap.cpp
++++ b/3rdparty/mainui/controls/BackgroundBitmap.cpp
+@@ -65,6 +65,23 @@ void CMenuBackgroundBitmap::VidInit()
+ 
+ void CMenuBackgroundBitmap::DrawInGameBackground()
+ {
++	// When ui_renderworld is on, the engine keeps drawing the world behind the
++	// menu (engine/client/cl_view.c:395). Filling the screen with the opaque
++	// background then throws that frame away. Draw a translucent scrim instead
++	// so the paused scene stays visible behind the menu, Source-style.
++	// ui_scrim_alpha controls how dark it is; the world is not being rendered
++	// otherwise, so that case keeps the original fill.
++	if( EngFuncs::GetCvarFloat( "ui_renderworld" ) != 0.0f )
++	{
++		int alpha = (int)EngFuncs::GetCvarFloat( "ui_scrim_alpha" );
++
++		if( alpha < 0 ) alpha = 0;
++		if( alpha > 255 ) alpha = 255;
++
++		UI_FillRect( m_scPos, m_scSize, PackRGBA( 0, 0, 0, alpha ));
++		return;
++	}
++
+ 	UI_FillRect( m_scPos, m_scSize, uiColorBlack );
+ }
+ 

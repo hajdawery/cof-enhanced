@@ -1,0 +1,3 @@
+# Entity-lump overrides are generated from the shipped BSPs (see README.md).
+# They are game data and must not be committed.
+*.ent

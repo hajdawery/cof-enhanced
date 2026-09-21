@@ -73,4 +73,46 @@ whatever their `renderfx` is, behind the `cof_custom_renderfx_opaque` cvar
 (default `1`). See [custom renderfx opaque classification](docs/cof-custom-renderfx-opaque.md)
 for the root cause, the measured evidence, and the validation.
 
+Milestone 1 of the unified UI stack is the engine-side input and paint gate. It
+is applied after the engine save/menu patches above; it is independent of the
+`ref/gl` patches and may be applied before or after them:
+
+```powershell
+pwsh -File .\scripts\apply-cof-ui-input-gate.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+```
+
+With `cof_ui_input_gate 1` (default) the Cry of Fear client neither paints its
+VGUI/HUD layer nor receives keyboard and mouse input while the engine menu, the
+console or the chat line has focus, and `Escape` always reaches `CL_Escape_f` so
+the engine menu opens even while a CoF VGUI panel is up. Game focus is
+unchanged. The patch also packages the previously untracked
+`cof_skip_client_hud_redraw` and `cof_skip_vgui_paint` diagnostics (both default
+`0`).
+
+The same patch carries the sibling cvar `cof_ui_deferred_cmd_guard` (default
+`1`). Cry of Fear's `HUD_Init` issues `map c_game_menu1` before the engine is
+initialised, so the engine parks it in `host.deferred_cmd` and replays it the
+first frame the engine menu becomes visible: from gameplay that threw the loaded
+save away, and on a plain boot it replaced MainUI's `map_background` with a real
+map. The guard drops that stale boot command instead and reports it once at
+developer level. Setting the cvar to `0` restores the stock path and reproduces
+both effects. See [unified UI input gate](docs/cof-ui-input-gate.md) for the
+design, the disassembly and log evidence, and the limits.
+
+The first milestone of the unified UI stack puts the engine menu on screen over
+the live Cry of Fear scene. It is one small MainUI change plus game-directory
+data files:
+
+```powershell
+pwsh -File .\scripts\apply-cof-mainui-background-scrim.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+```
+
+The patch makes the in-game menu background a translucent scrim instead of an
+opaque fill while `ui_renderworld` is on, behind the new `ui_scrim_alpha` cvar
+(default `150`, `255` reproduces the previous behaviour). The data files that
+go with it live in [`gamedata/`](gamedata/README.md), which is an overlay for a
+runtime's `cryoffear/` folder and contains no game assets. See
+[UI milestone 1 plumbing](docs/cof-ui-m1-plumbing.md) for what was verified,
+the Cry of Fear menu-map command table, and the font-backend finding.
+
 The upstream Windows build requires the recursive dependencies and an SDL2 Visual Studio development package for a client build. The isolated client build attempt used the official SDL2 `2.30.9-VC` package (SHA-256 `8C91D91E5BCB997D062EC2B553C53832EBF95654D4AA35E8C02A954D4CE752AE`). Visual Studio 2022 BuildTools with Win32 tools and Windows SDK 10.0.26100 are installed on the research host. A dedicated x86 compile of the patched source completed locally; this repository does not provide a dependency lockfile or reproducible build script, and that artifact is not committed.

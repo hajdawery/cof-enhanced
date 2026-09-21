@@ -1,0 +1,359 @@
+diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
+--- a/engine/client/cl_main.c
++++ b/engine/client/cl_main.c
+@@ -65,6 +65,10 @@
+ CVAR_DEFINE_AUTO( hud_fontscale, "1.0", FCVAR_ARCHIVE|FCVAR_LATCH, "scale hud font texture" );
+ CVAR_DEFINE_AUTO( hud_fontrender, "0", FCVAR_ARCHIVE, "hud font render mode (0: additive, 1: holes, 2: trans)" );
+ CVAR_DEFINE_AUTO( hud_scale, "0", FCVAR_ARCHIVE|FCVAR_LATCH, "scale hud at current resolution" );
++CVAR_DEFINE_AUTO( cof_skip_client_hud_redraw, "0", 0, "skip client HUD_Redraw callback (diagnostic)" );
++CVAR_DEFINE_AUTO( cof_skip_vgui_paint, "0", 0, "skip VGUI support Paint callback (diagnostic)" );
++CVAR_DEFINE_AUTO( cof_ui_input_gate, "1", 0, "unified UI gate: while the menu or console has focus the client neither paints its HUD/VGUI layer nor receives input, and escape always reaches the engine" );
++CVAR_DEFINE_AUTO( cof_ui_deferred_cmd_guard, "1", 0, "unified UI gate: drop the client DLL's boot-time deferred console commands instead of running them the first time the engine menu becomes visible" );
+ CVAR_DEFINE_AUTO( hud_scale_minimal_width, "640", FCVAR_ARCHIVE|FCVAR_LATCH, "if hud_scale results in a HUD virtual screen smaller than this value, it won't be applied" );
+ CVAR_DEFINE_AUTO( cl_solid_players, "1", 0, "Make all players not solid (can't traceline them)" );
+ CVAR_DEFINE_AUTO( cl_updaterate, "20", FCVAR_USERINFO|FCVAR_ARCHIVE, "refresh rate of server messages" );
+@@ -129,6 +133,43 @@
+ 	return ( cls.key_dest == key_game ); // active if not menu or console
+ }
+ 
++/*
++====================
++CL_CoF_UIGateActive
++
++Cry of Fear unified UI gate (cof_ui_input_gate, default on).
++
++True whenever the engine menu, the console or the chat line owns input, that
++is whenever key_dest is not key_game. While it is true the client DLL must
++neither paint its HUD/VGUI layer nor receive keyboard and mouse input, so the
++engine menu and the console are the only interactive surface on screen. It
++goes false again as soon as the game regains focus, which restores the client
++HUD and the client's VGUI panels unchanged.
++
++Unlike CL_IsInGame() this deliberately does not special-case background maps
++or multiplayer: the point is focus ownership, not server simulation.
++====================
++*/
++qboolean CL_CoF_UIGateActive( void )
++{
++	static qboolean	reported;
++	qboolean	active;
++
++	if( !cof_ui_input_gate.value )
++		active = false;
++	else active = ( cls.key_dest != key_game );
++
++	// developer-level trace of the transitions, so a capture can prove when the
++	// client layer was suppressed and when it came back
++	if( active != reported )
++	{
++		reported = active;
++		Con_Reportf( "[cof-ui] input gate %s (key_dest=%d)\n", active ? "engaged" : "released", cls.key_dest );
++	}
++
++	return active;
++}
++
+ qboolean CL_IsInConsole( void )
+ {
+ 	return ( cls.key_dest == key_console );
+@@ -3749,6 +3790,10 @@
+ 	Cvar_RegisterVariable( &hud_fontscale );
+ 	Cvar_RegisterVariable( &hud_fontrender );
+ 	Cvar_RegisterVariable( &hud_scale );
++	Cvar_RegisterVariable( &cof_skip_client_hud_redraw );
++	Cvar_RegisterVariable( &cof_skip_vgui_paint );
++	Cvar_RegisterVariable( &cof_ui_input_gate );
++	Cvar_RegisterVariable( &cof_ui_deferred_cmd_guard );
+ 	Cvar_RegisterVariable( &hud_scale_minimal_width );
+ 	Cvar_RegisterVariable( &cl_showevents );
+ 	Cvar_Get( "lastdemo", "", FCVAR_ARCHIVE, "last played demo" );
+diff --git a/engine/client/client.h b/engine/client/client.h
+--- a/engine/client/client.h
++++ b/engine/client/client.h
+@@ -1271,6 +1271,11 @@
+ 
+ extern rgba_t g_color_table[8];
+ extern triangleapi_t gTriApi;
++extern convar_t cof_skip_client_hud_redraw;
++extern convar_t cof_skip_vgui_paint;
++extern convar_t cof_ui_input_gate;
++extern convar_t cof_ui_deferred_cmd_guard;
++qboolean CL_CoF_UIGateActive( void );
+ extern net_api_t gNetApi;
+ 
+ #endif//CLIENT_H
+diff --git a/engine/client/cl_view.c b/engine/client/cl_view.c
+--- a/engine/client/cl_view.c
++++ b/engine/client/cl_view.c
+@@ -533,7 +533,8 @@
+ 	{
+ 		SCR_TileClear();
+ 		CL_DrawHUD( CL_ACTIVE );
+-		VGui_Paint();
++		if( !cof_skip_vgui_paint.value )
++			VGui_Paint();
+ 	}
+ 
+ 	switch( cls.scrshot_action )
+diff --git a/engine/client/dll_int/cl_game.c b/engine/client/dll_int/cl_game.c
+--- a/engine/client/dll_int/cl_game.c
++++ b/engine/client/dll_int/cl_game.c
+@@ -896,6 +896,13 @@
+ 
+ void CL_DrawHUD( int state )
+ {
++	// Cry of Fear unified UI: while the engine menu or the console owns input
++	// the client DLL's own redraw callback is not run, so no CoF HUD, overlay
++	// or 3D-menu artwork can appear underneath the unified stack. Everything
++	// the engine itself draws (screen fade, crosshair, centerprint, pause icon)
++	// is left alone.
++	const qboolean cof_gate = CL_CoF_UIGateActive();
++
+ 	if( state == CL_ACTIVE && !cl.video_prepped )
+ 		state = CL_LOADING;
+ 
+@@ -909,14 +916,16 @@
+ 			CL_DrawScreenFade ();
+ 		CL_DrawCrosshair ();
+ 		CL_DrawCenterPrint ();
+-		clgame.dllFuncs.pfnRedraw( cl.time, cl.intermission );
++		if( !cof_skip_client_hud_redraw.value && !cof_gate )
++			clgame.dllFuncs.pfnRedraw( cl.time, cl.intermission );
+ 		if( cl.intermission ) CL_DrawScreenFade ();
+ 		break;
+ 	case CL_PAUSED:
+ 		CL_DrawScreenFade ();
+ 		CL_DrawCrosshair ();
+ 		CL_DrawCenterPrint ();
+-		clgame.dllFuncs.pfnRedraw( cl.time, cl.intermission );
++		if( !cof_skip_client_hud_redraw.value && !cof_gate )
++			clgame.dllFuncs.pfnRedraw( cl.time, cl.intermission );
+ 		if( showpause.value )
+ 		{
+ 			if( !cls.pauseIcon )
+diff --git a/engine/client/dll_int/cl_gameui.c b/engine/client/dll_int/cl_gameui.c
+--- a/engine/client/dll_int/cl_gameui.c
++++ b/engine/client/dll_int/cl_gameui.c
+@@ -43,10 +43,41 @@
+ 	// if some deferred cmds is waiting
+ 	if( UI_IsVisible() && !COM_StringEmptyOrNULL( host.deferred_cmd ))
+ 	{
+-		Cbuf_AddText( host.deferred_cmd );
+-		host.deferred_cmd[0] = '\0';
+-		Cbuf_Execute();
+-		return;
++		// Cry of Fear unified UI (cof_ui_deferred_cmd_guard, default on).
++		//
++		// host.deferred_cmd can only be written by pfnClientCmd before
++		// cls.initialized, i.e. while CL_LoadProgs() is running HUD_Init
++		// (engine/client/cl_main.c: CL_LoadProgs is called before
++		// cls.initialized = true). Cry of Fear's HUD_Init issues
++		// "map c_game_menu1" there, so that string sits in the buffer for the
++		// whole session and detonates the first frame the engine menu is
++		// visible: from gameplay it throws the running save away, and on the
++		// unified main menu it replaces mainui's map_background with a real
++		// map and hands focus back to the game.
++		//
++		// A boot-time client command that is still pending once the engine
++		// menu is up has missed its moment; running it late is never what the
++		// client meant. Drop it and say so. Set the cvar to 0 for the stock
++		// behaviour.
++		if( cof_ui_deferred_cmd_guard.value )
++		{
++			char	report[sizeof( host.deferred_cmd )];
++			size_t	len;
++
++			Q_strncpy( report, host.deferred_cmd, sizeof( report ));
++			for( len = Q_strlen( report ); len > 0 && ( report[len - 1] == '\n' || report[len - 1] == '\r' ); len-- )
++				report[len - 1] = '\0';
++
++			Con_Reportf( "[cof-ui] dropped stale deferred client command \"%s\"\n", report );
++			host.deferred_cmd[0] = '\0';
++		}
++		else
++		{
++			Cbuf_AddText( host.deferred_cmd );
++			host.deferred_cmd[0] = '\0';
++			Cbuf_Execute();
++			return;
++		}
+ 	}
+ 
+ 	// don't show menu while level is loaded
+diff --git a/engine/client/vgui/vgui_draw.c b/engine/client/vgui/vgui_draw.c
+--- a/engine/client/vgui/vgui_draw.c
++++ b/engine/client/vgui/vgui_draw.c
+@@ -59,6 +59,41 @@
+ static CVAR_DEFINE_AUTO( vgui_utf8, "0", FCVAR_ARCHIVE, "enable utf-8 support for vgui text" );
+ static CVAR_DEFINE_AUTO( vgui_key_layout, "1", FCVAR_ARCHIVE, "translate keys sent to vgui through the keyboard layout, like GoldSrc does, so text entries type what's on the keycap" );
+ 
++// Cry of Fear unified UI: remembers which keys and mouse buttons the support
++// library was actually told about, so a release is only ever delivered for a
++// press it received. Gating presses alone would leak the matching release into
++// a CoF panel (measured: the 3D menu reacted to the escape release and
++// re-issued "map c_game_menu1"), and gating releases alone would leave a key
++// pressed in game stuck down inside VGUI after focus moved to the menu.
++static byte vgui_key_delivered[256];
++
++static qboolean VGui_CoF_DeliverKey( int key, int down )
++{
++	if( key < 0 || key >= (int)ARRAYSIZE( vgui_key_delivered ))
++		return !CL_CoF_UIGateActive();
++
++	if( down )
++	{
++		if( CL_CoF_UIGateActive( ))
++			return false;
++
++		vgui_key_delivered[key] = 1;
++		return true;
++	}
++
++	if( !vgui_key_delivered[key] )
++		return false;
++
++	vgui_key_delivered[key] = 0;
++	return true;
++}
++
++void VGui_CoF_ForgetKey( int key )
++{
++	if( key >= 0 && key < (int)ARRAYSIZE( vgui_key_delivered ))
++		vgui_key_delivered[key] = 0;
++}
++
+ static void GAME_EXPORT VGUI_DrawInit( void )
+ {
+ 	if( vgui.mempool )
+@@ -573,6 +608,10 @@
+ 	if( !vgui.dllFuncs.Mouse )
+ 		return;
+ 
++	// see VGui_KeyEvent: a release is only delivered for a press VGUI received
++	if( !VGui_CoF_DeliverKey( key, clicks >= 1 ))
++		return;
++
+ 	switch( key )
+ 	{
+ 	case K_MOUSE1: code = MOUSE_LEFT; break;
+@@ -596,6 +635,9 @@
+ 	if( !vgui.dllFuncs.Mouse )
+ 		return;
+ 
++	if( CL_CoF_UIGateActive( ))
++		return;
++
+ 	vgui.dllFuncs.Mouse( MA_WHEEL, y );
+ }
+ 
+@@ -606,6 +648,9 @@
+ 	if( !vgui.dllFuncs.Key )
+ 		return;
+ 
++	if( !VGui_CoF_DeliverKey( key, down ))
++		return;
++
+ 	// VGUI wants the character printed on the keycap, not the physical key position, so text entries work on non-QWERTY layouts
+ 	// in the future we might want to partially (at least we can control TextEntry and friends implementation now in freevgui)
+ 	// to handle this through SDL's text mode.
+@@ -625,6 +670,12 @@
+ 
+ void VGui_MouseMove( int x, int y )
+ {
++	// Cry of Fear unified UI: only one cursor may be live at a time. While the
++	// engine menu or the console owns input, UI_MouseMove drives the menu cursor
++	// and the client's VGUI cursor is frozen where it was.
++	if( CL_CoF_UIGateActive( ))
++		return;
++
+ 	if( vgui.dllFuncs.MouseMove )
+ 	{
+ 		float xscale = (float)refState.width / (float)clgame.scrInfo.iWidth;
+@@ -635,6 +686,13 @@
+ 
+ void VGui_Paint( void )
+ {
++	// Cry of Fear unified UI: nothing from the client's VGUI1 layer may be drawn
++	// underneath the engine menu or the console. This is what keeps the CoF 3D
++	// menu overlay off the screen while mainui owns it, and what will keep the
++	// CoF HUD from bleeding through a translucent pause scrim later.
++	if( CL_CoF_UIGateActive( ))
++		return;
++
+ 	if( vgui.dllFuncs.Paint )
+ 		vgui.dllFuncs.Paint();
+ 
+@@ -656,6 +714,11 @@
+ 
+ void VGui_ReportTextInput( const char *text )
+ {
++	// Cry of Fear unified UI: characters typed into the console or a menu field
++	// must not also land in a CoF text entry (the computer, the phone keypad).
++	if( CL_CoF_UIGateActive( ))
++		return;
++
+ 	if( vgui.dllFuncs.TextInput )
+ 		vgui.dllFuncs.TextInput( text );
+ }
+diff --git a/engine/client/vgui/vgui_draw.h b/engine/client/vgui/vgui_draw.h
+--- a/engine/client/vgui/vgui_draw.h
++++ b/engine/client/vgui/vgui_draw.h
+@@ -28,6 +28,7 @@
+ void VGui_MouseEvent( int key, int clicks );
+ void VGui_MWheelEvent( int y );
+ void VGui_KeyEvent( int key, int down );
++void VGui_CoF_ForgetKey( int key );
+ void VGui_MouseMove( int x, int y );
+ qboolean VGui_IsActive( void );
+ qboolean VGui_IsProvidedByClientDll( void );
+diff --git a/engine/client/input/in_keys.c b/engine/client/input/in_keys.c
+--- a/engine/client/input/in_keys.c
++++ b/engine/client/input/in_keys.c
+@@ -716,6 +716,47 @@
+ 		return;
+ 	}
+ #endif
++	// Cry of Fear unified UI (cof_ui_input_gate, default on): escape must always
++	// reach the engine so the engine menu can be opened, even while a client
++	// VGUI panel is up. client.dll's TeamFortressViewport::KeyInput answers
++	// "handled" for K_ESCAPE whenever one of its panels is visible (the 3D menu,
++	// the keypad, the computer, the save selector, the phone), and the client
++	// first-refusal block below would then return before CL_Escape_f is reached,
++	// leaving the engine menu unreachable from those screens.
++	//
++	// This branch is deliberately narrow: only K_ESCAPE, only key down, only
++	// while the game itself has focus, and only with the gate enabled. Every
++	// other key keeps the upstream client-first behaviour, including the CoF
++	// computer-input workaround for FWGS issue #1923 below. Neither the client
++	// nor the VGUI support library is offered this key, so the client's own
++	// escape handling cannot fire a second time alongside the engine menu.
++	if( cof_ui_input_gate.value && key == K_ESCAPE && down && cls.key_dest == key_game )
++	{
++		if( r_showtextures.value )
++		{
++			// close texture atlas, same as the generic escape handler below
++			Cvar_DirectSet( &r_showtextures, "0" );
++			return;
++		}
++
++		keys[key].repeats++;
++
++		// ignore autorepeat, otherwise holding escape flips the menu open and shut
++		if( keys[key].repeats > 1 )
++			return;
++
++		keys[key].gamedown = false;
++
++		// neither the client nor the support library saw this press, so make
++		// sure the matching release is not delivered to a CoF panel either
++		VGui_CoF_ForgetKey( key );
++
++		Con_Reportf( "[cof-ui] escape routed to the engine, client key handling bypassed\n" );
++
++		CL_Escape_f();
++		return;
++	}
++
+ 	// distribute the key down event to the apropriate handler
+ 	if( cls.key_dest == key_game && ( down || keys[key].gamedown ))
+ 	{

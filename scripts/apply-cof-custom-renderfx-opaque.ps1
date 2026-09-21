@@ -40,8 +40,9 @@ if($Reverse) {
     if(-not $header.Contains('cof_gl_trace') -or
        -not $header.Contains('cof_solid_entity_trace') -or
        -not $header.Contains('cof_skip_client_normal_triangles') -or
-       -not $header.Contains('cof_skip_client_transparent_triangles')) {
-        throw 'Apply the GL stage, solid-entity, and transparent-triangle trace prerequisites first.'
+       -not $header.Contains('cof_skip_client_transparent_triangles') -or
+       -not $header.Contains('cof_skyline_trace')) {
+        throw 'Apply the GL stage, solid-entity, transparent-triangle, and skyline trace prerequisites first.'
     }
     if($hasOpaque) { throw 'The CoF custom-renderfx opaque fix is already present; use a clean source tree.' }
 }
