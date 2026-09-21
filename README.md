@@ -99,6 +99,28 @@ developer level. Setting the cvar to `0` restores the stock path and reproduces
 both effects. See [unified UI input gate](docs/cof-ui-input-gate.md) for the
 design, the disassembly and log evidence, and the limits.
 
+A video mode change made from the menu used to strip the Cry of Fear background
+scene - custom sky, atmosphere and snow gone, the map's plain `blue22` skybox
+left behind - because FWGS keeps the GL context and only re-calls the client's
+`pfnVidInit`, which in this client is a per-level entry point whose one-shot
+setup nothing replays. The fix is applied after the input gate:
+
+```powershell
+pwsh -File .\scripts\apply-cof-vid-restart-background.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+```
+
+With `cof_vid_restart_background 1` (default) a completed resolution change or
+windowed/fullscreen toggle restarts the menu background map through the command
+buffer, so the client's per-level init reruns and the scene comes back whole.
+A real game in progress is never reloaded: the engine prints a one-line
+developer notice instead, which is the hook for a later fix. The sibling cvar
+`cof_vid_skip_redundant_vidinit` (default `0`, off) skips the client
+`pfnVidInit` outright when the render size did not change, which is the cheaper
+repair for a pure fullscreen toggle; it is off because it has only been
+exercised on SDL2 + `ref_gl` on Windows. See
+[video mode changes and the menu scene](docs/cof-vid-restart-background.md) for
+the root cause, the measured A/B and the limits.
+
 The first milestone of the unified UI stack puts the engine menu on screen over
 the live Cry of Fear scene. It is one small MainUI change plus game-directory
 data files:
@@ -114,5 +136,27 @@ go with it live in [`gamedata/`](gamedata/README.md), which is an overlay for a
 runtime's `cryoffear/` folder and contains no game assets. See
 [UI milestone 1 plumbing](docs/cof-ui-m1-plumbing.md) for what was verified,
 the Cry of Fear menu-map command table, and the font-backend finding.
+
+The second milestone makes that engine menu *be* Cry of Fear's menu. It is one
+more MainUI patch, applied after the two above:
+
+```powershell
+pwsh -File .\scripts\apply-cof-mainui-cof-menu.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+```
+
+The main menu becomes New Game, Load Game, Custom Campaign, Join Server, Host
+Server, Language, Unlockables, Extras, Options, Quit - and, in game, Resume,
+Save\Load Game, Options, Quit to menu, Quit. New Game opens a Cry of Fear
+difficulty page that forwards the game DLL's own `cmd skillset 1..4` to the
+live background-map server, so the original white fade and `c_intro` start
+happen for real; Custom Campaign lists `maps/*.custom` and prefixes
+`cmd campaign <firstmap>`; Language sends `cmd subtitleset 1..7`; Unlockables
+runs the client's `unlockablescmd`; Extras opens the six original links with
+`ShellExecute` instead of the Steam overlay the game used. The two white
+squares that used to sit in the top-right corner were MainUI's minimize and
+close bitmaps with no `gfx/shell` artwork behind them; they are gone. Only the
+`cryoffear` game directory is affected - every other game keeps the stock menu.
+See [UI milestone 2](docs/cof-ui-m2-cof-menu.md) for the measured command
+table, the evidence and the open items.
 
 The upstream Windows build requires the recursive dependencies and an SDL2 Visual Studio development package for a client build. The isolated client build attempt used the official SDL2 `2.30.9-VC` package (SHA-256 `8C91D91E5BCB997D062EC2B553C53832EBF95654D4AA35E8C02A954D4CE752AE`). Visual Studio 2022 BuildTools with Win32 tools and Windows SDK 10.0.26100 are installed on the research host. A dedicated x86 compile of the patched source completed locally; this repository does not provide a dependency lockfile or reproducible build script, and that artifact is not committed.

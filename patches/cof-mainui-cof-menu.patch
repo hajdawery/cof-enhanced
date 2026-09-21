@@ -1,0 +1,1124 @@
+diff --git a/3rdparty/mainui/BaseMenu.h b/3rdparty/mainui/BaseMenu.h
+index af5e79c..bd3c25d 100644
+--- a/3rdparty/mainui/BaseMenu.h
++++ b/3rdparty/mainui/BaseMenu.h
+@@ -222,6 +222,9 @@ void UI_DrawFinalCredits( void );
+ 
+ void UI_CloseMenu( void );
+ 
++// starts one of scripts/chapterbackgrounds.txt maps, if any is available
++bool UI_StartBackGroundMap( void );
++
+ // SCR support
+ void UI_LoadScriptConfig( void );
+ void UI_SaveScriptConfig( void );
+diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFear.cpp
+new file mode 100644
+index 0000000..21f6b98
+--- /dev/null
++++ b/3rdparty/mainui/menus/CryOfFear.cpp
+@@ -0,0 +1,748 @@
++/*
++CryOfFear.cpp -- Cry of Fear specific menu pages
++
++This program is free software: you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation, either version 3 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++
++------------------------------------------------------------------------------
++
++These pages replace the Cry of Fear client's own VGUI panels with engine menus.
++Every one of them emits exactly the console command the original panel emitted,
++so the game DLL (cl_dlls/hl.dll) keeps doing the work:
++
++  difficulty      cmd skillset 1..4        (Easy / Medium / Difficult / Nightmare)
++  custom campaign cmd campaign <firstmap>  sent before the skillset, exactly as
++                                           the original CCampaignSlider does
++  language        cmd subtitleset 1..7     (English + the six txtfiles/languages)
++  unlockables     unlockablescmd           the client's own entry command; it
++                                           loads the c_unlockables gallery map,
++                                           whose state is anti-tamper obfuscated
++                                           and cannot be drawn from here
++  extras          ShellExecute(<url>)      the original used the Steam overlay,
++                                           which never appears under FWGS
++
++Nothing here is reachable unless the running game directory is "cryoffear".
++*/
++
++#include "Framework.h"
++#include "Action.h"
++#include "Bitmap.h"
++#include "CheckBox.h"
++#include "PicButton.h"
++#include "Table.h"
++#include "YesNoMessageBox.h"
++#include "keydefs.h"
++#include "MenuStrings.h"
++#include "Utils.h"
++#include "utlvector.h"
++#include "CryOfFear.h"
++
++// ---------------------------------------------------------------------------
++// game detection
++// ---------------------------------------------------------------------------
++
++bool UI_IsCryOfFear( void )
++{
++	char gameDir[256];
++	char *base;
++
++	EngFuncs::GetGameDir( gameDir );
++	base = strrchr( gameDir, '/' );
++	if( !base ) base = strrchr( gameDir, '\\' );
++	return !stricmp( base ? base + 1 : gameDir, "cryoffear" ) ? true : false;
++}
++
++/*
++=================
++UI_CoFMapNameIsSane
++
++Every map name this file can put on the command line comes from a data file
++(maps/*.custom), so treat it as untrusted. An empty or malformed name would
++reach the engine's map/campaign handling and, once a level load is aborted,
++CL_LevelShot_f dereferences cl.worldmodel unconditionally
++(engine/client/cl_cmds.c:322) and takes the process down. Refuse here instead.
++=================
++*/
++static bool UI_CoFMapNameIsSane( const char *name )
++{
++	if( !name || !name[0] )
++		return false;
++
++	for( const char *p = name; *p; p++ )
++	{
++		if( *p >= 'a' && *p <= 'z' ) continue;
++		if( *p >= 'A' && *p <= 'Z' ) continue;
++		if( *p >= '0' && *p <= '9' ) continue;
++		if( *p == '_' || *p == '-' || *p == '.' ) continue;
++		return false;
++	}
++	return strstr( name, ".." ) == NULL;
++}
++
++// ---------------------------------------------------------------------------
++// difficulty
++// ---------------------------------------------------------------------------
++
++#define COF_NUM_SKILLSETS 4
++
++// The four rows of gfx/vgui/640_difficulty.tga, in the order the original
++// panel draws them. The fourth is replaced by "LOCKED" in
++// gfx/vgui/640_difficultylocked.tga until the Nightmare mode unlockable is
++// earned, which is a client-side flag inside the obfuscated
++// cryoffear/scriptsettings.dat and is not readable from the menu library;
++// cof_nightmare_unlocked mirrors it here.
++static const char *s_cofSkillName[COF_NUM_SKILLSETS] =
++{
++	"Easy", "Medium", "Difficult", "Nightmare"
++};
++
++static const char *s_cofSkillStatus[COF_NUM_SKILLSETS] =
++{
++	"Start a new game on Easy",
++	"Start a new game on Medium",
++	"Start a new game on Difficult",
++	"Start a new game on Nightmare"
++};
++
++static const EDefaultBtns s_cofSkillPic[COF_NUM_SKILLSETS] =
++{
++	PC_EASY, PC_MEDIUM, PC_DIFFICULT, PC_DIFFICULT
++};
++
++class CMenuCoFDifficulty : public CMenuFramework
++{
++public:
++	CMenuCoFDifficulty() : CMenuFramework( "CMenuCoFDifficulty" )
++	{
++		memset( skillBtn, 0, sizeof( skillBtn ));
++		m_szCampaign[0] = m_szTitle[0] = m_szLabel[0] = m_szCommentaryLabel[0] = 0;
++	}
++
++	void SetCampaign( const char *firstmap, const char *title );
++	void Show() override;
++
++private:
++	void _Init() override;
++	void _VidInit() override;
++
++	static void StartGameCb( CMenuBaseItem *pSelf, void *pExtra );
++	void StartGame( int skillset );
++	void DevCommentaryChanged();
++	void Refresh();
++
++	CEventCallback  skillCallback[COF_NUM_SKILLSETS];
++	CMenuPicButton *skillBtn[COF_NUM_SKILLSETS];
++	CMenuAction     campaignLabel;
++	CMenuCheckBox   devCommentary;
++
++	char m_szCampaign[64];
++	char m_szTitle[128];
++	char m_szLabel[224];
++	char m_szCommentaryLabel[CS_SIZE];
++};
++
++void CMenuCoFDifficulty::SetCampaign( const char *firstmap, const char *title )
++{
++	if( firstmap && firstmap[0] )
++	{
++		Q_strncpy( m_szCampaign, firstmap, sizeof( m_szCampaign ));
++		Q_strncpy( m_szTitle, title ? title : firstmap, sizeof( m_szTitle ));
++	}
++	else
++	{
++		m_szCampaign[0] = 0;
++		m_szTitle[0] = 0;
++	}
++}
++
++/*
++=================
++CMenuCoFDifficulty::StartGame
++
++The original client panel does, in this order and only in this order:
++
++    if( a custom campaign is selected ) ServerCmd( "campaign <firstmap>" );
++    ServerCmd( "skillset N" );
++
++ServerCmd is "cmd <text>" from a console point of view. Because the engine menu
++is drawn over a live background map (scripts/chapterbackgrounds.txt), there is
++a real local server to forward them to, so the game DLL runs its own handler:
++it sets the "difficulty" cvar, plays inventory/game_start.wav, fades to white
++for five seconds and only then changes level - the authentic sequence.
++
++Without a server (for example right after Quit to menu, before the background
++map is back) there is nothing to forward to, so set the cvar the handler would
++have set and change level here instead.
++=================
++*/
++void CMenuCoFDifficulty::StartGame( int skillset )
++{
++	if( skillset < 1 || skillset > COF_NUM_SKILLSETS )
++		return;
++
++	if( skillset == COF_NUM_SKILLSETS && EngFuncs::GetCvarFloat( "cof_nightmare_unlocked" ) == 0.0f )
++		return;
++
++	// Never emit a level change with an empty map name: the engine's own
++	// levelshot handler dereferences the world model unconditionally
++	// (engine/client/cl_cmds.c:322) and an aborted load crashes it.
++	if( m_szCampaign[0] && !UI_CoFMapNameIsSane( m_szCampaign ))
++	{
++		Con_Printf( "Cry of Fear: refusing to start campaign, bad first map \"%s\"\n", m_szCampaign );
++		return;
++	}
++
++	EngFuncs::CvarSetValue( "deathmatch", 0.0f );
++	EngFuncs::CvarSetValue( "teamplay", 0.0f );
++	EngFuncs::CvarSetValue( "pausable", 1.0f );
++	EngFuncs::CvarSetValue( "maxplayers", 1.0f );
++	EngFuncs::CvarSetValue( "coop", 0.0f );
++	EngFuncs::PlayBackgroundTrack( NULL, NULL );
++
++	if( EngFuncs::GetCvarFloat( "host_serverstate" ) != 0.0f )
++	{
++		if( m_szCampaign[0] )
++			EngFuncs::ClientCmdF( false, "cmd campaign %s\n", m_szCampaign );
++		EngFuncs::ClientCmdF( false, "cmd skillset %d\n", skillset );
++	}
++	else
++	{
++		EngFuncs::CvarSetValue( "difficulty", (float)skillset );
++		EngFuncs::ClientCmdF( false, "map %s\n", m_szCampaign[0] ? m_szCampaign : "c_intro" );
++	}
++
++	UI_CloseMenu();
++}
++
++void CMenuCoFDifficulty::StartGameCb( CMenuBaseItem *pSelf, void *pExtra )
++{
++	CMenuCoFDifficulty *ui = (CMenuCoFDifficulty *)pSelf->Parent();
++
++	ui->StartGame( (int)(size_t)pExtra );
++}
++
++void CMenuCoFDifficulty::DevCommentaryChanged()
++{
++	devCommentary.WriteCvar();
++	snprintf( m_szCommentaryLabel, sizeof( m_szCommentaryLabel ), "%s %s",
++		devCommentary.bChecked ? "[ON ]" : "[OFF]", L( "Enable developer commentary" ));
++	devCommentary.szName = m_szCommentaryLabel;
++}
++
++void CMenuCoFDifficulty::Refresh()
++{
++	// _Init() creates the buttons; Show() and _VidInit() can both be reached
++	// before that has happened (a menu_* console command, or a global VidInit),
++	// so never dereference them blind.
++	if( !skillBtn[COF_NUM_SKILLSETS - 1] )
++		return;
++
++	if( m_szCampaign[0] )
++		snprintf( m_szLabel, sizeof( m_szLabel ), "Custom campaign: %s (first map %s)",
++			m_szTitle, m_szCampaign );
++	else
++		snprintf( m_szLabel, sizeof( m_szLabel ), "%s", L( "Cry of Fear" ));
++	campaignLabel.szName = m_szLabel;
++
++	const bool nightmare = EngFuncs::GetCvarFloat( "cof_nightmare_unlocked" ) != 0.0f;
++	skillBtn[COF_NUM_SKILLSETS - 1]->szName = nightmare ? s_cofSkillName[COF_NUM_SKILLSETS - 1] : "Locked";
++	skillBtn[COF_NUM_SKILLSETS - 1]->szStatusText = nightmare ? s_cofSkillStatus[COF_NUM_SKILLSETS - 1] :
++		"Nightmare mode has to be unlocked in game (cof_nightmare_unlocked)";
++	skillBtn[COF_NUM_SKILLSETS - 1]->SetGrayed( !nightmare );
++
++	devCommentary.UpdateEditable();
++	snprintf( m_szCommentaryLabel, sizeof( m_szCommentaryLabel ), "%s %s",
++		devCommentary.bChecked ? "[ON ]" : "[OFF]", L( "Enable developer commentary" ));
++	devCommentary.szName = m_szCommentaryLabel;
++}
++
++void CMenuCoFDifficulty::Show()
++{
++	// base Show() runs Init() the first time, so the items only exist after it
++	CMenuFramework::Show();
++	Refresh();
++}
++
++void CMenuCoFDifficulty::_Init( void )
++{
++	banner.szName = L( "Choose a difficulty" );
++
++	for( int i = 0; i < COF_NUM_SKILLSETS; i++ )
++	{
++		skillCallback[i] = StartGameCb;
++		skillCallback[i].pExtra = (void *)(size_t)( i + 1 );
++		skillBtn[i] = AddButton( s_cofSkillName[i], s_cofSkillStatus[i],
++			s_cofSkillPic[i], skillCallback[i], QMF_NOTIFY );
++	}
++
++	AddButton( L( "GameUI_Cancel" ), L( "Go back to the Main menu" ), PC_CANCEL,
++		VoidCb( &CMenuCoFDifficulty::Hide ), QMF_NOTIFY );
++
++	campaignLabel.iFlags = QMF_INACTIVE;
++	campaignLabel.colorBase = uiColorHelp;
++	campaignLabel.SetCharSize( QM_SMALLFONT );
++	campaignLabel.szName = m_szLabel;
++	campaignLabel.SetCoord( 72, 200 );
++
++	devCommentary.SetCoord( 72, 230 + ( COF_NUM_SKILLSETS + 1 ) * 50 );
++	devCommentary.LinkCvar( "dev_commentary" );
++	devCommentary.UpdateEditable();
++	devCommentary.szStatusText = L( "Play with the developer commentary track" );
++	devCommentary.onChanged = VoidCb( &CMenuCoFDifficulty::DevCommentaryChanged );
++
++	AddItem( banner );
++	AddItem( campaignLabel );
++	AddItem( devCommentary );
++
++	Refresh();
++}
++
++void CMenuCoFDifficulty::_VidInit( void )
++{
++	Refresh();
++}
++
++static void UI_CoFDifficulty_Precache( void );
++static void UI_CoFDifficulty_Shutdown( void );
++static CMenuCoFDifficulty *menu_cofdifficulty = NULL;
++
++static void UI_CoFDifficulty_Precache( void )
++{
++	menu_cofdifficulty = new CMenuCoFDifficulty();
++	EngFuncs::CvarRegister( "cof_nightmare_unlocked", "0", FCVAR_ARCHIVE );
++	EngFuncs::CvarRegister( "dev_commentary", "0", FCVAR_ARCHIVE );
++}
++
++static void UI_CoFDifficulty_Shutdown( void )
++{
++	delete menu_cofdifficulty;
++	menu_cofdifficulty = NULL;
++}
++
++void UI_CoFDifficulty_Menu( void )
++{
++	menu_cofdifficulty->SetCampaign( NULL, NULL );
++	menu_cofdifficulty->Show();
++}
++
++void UI_CoFDifficultyForCampaign( const char *firstmap, const char *title )
++{
++	menu_cofdifficulty->SetCampaign( firstmap, title );
++	menu_cofdifficulty->Show();
++}
++
++ADD_MENU4( menu_cofdifficulty, UI_CoFDifficulty_Precache, UI_CoFDifficulty_Menu, UI_CoFDifficulty_Shutdown );
++
++// ---------------------------------------------------------------------------
++// custom campaign
++// ---------------------------------------------------------------------------
++
++struct cofCampaign_t
++{
++	char file[64];
++	char firstmap[64];
++	char description[128];
++	char author[128];
++};
++
++class CMenuCoFCampaign;
++
++class CMenuCoFCampaignModel : public CMenuBaseModel, public CUtlVector<cofCampaign_t>
++{
++public:
++	CMenuCoFCampaignModel( CMenuCoFCampaign *parent ) : parent( parent ) { }
++
++	void Update() override;
++	int GetColumns() const override { return 3; }
++	int GetRows() const override { return Count(); }
++	const char *GetCellText( int line, int column ) override
++	{
++		switch( column )
++		{
++		case 0: return Element( line ).description;
++		case 1: return Element( line ).author;
++		case 2: return Element( line ).firstmap;
++		}
++		return NULL;
++	}
++	void OnActivateEntry( int line ) override;
++
++private:
++	CMenuCoFCampaign *parent;
++};
++
++class CMenuCoFCampaign : public CMenuFramework
++{
++public:
++	CMenuCoFCampaign() : CMenuFramework( "CMenuCoFCampaign" ), model( this ) { }
++
++	void Show() override
++	{
++		// base Show() runs Init(), which is what creates play/list
++		CMenuFramework::Show();
++		model.Update();
++	}
++
++	void Play( int line );
++
++private:
++	void _Init() override;
++	void PlaySelected();
++
++	CMenuPicButton play;
++	CMenuPicButton cancel;
++	CMenuTable     list;
++	CMenuAction    hint;
++	CMenuCoFCampaignModel model;
++
++	friend class CMenuCoFCampaignModel;
++};
++
++/*
++=================
++CMenuCoFCampaignModel::Update
++
++maps/*.custom is a flat three-line file of quoted key/value pairs, keys
++firstmap / description / author, with no braces - not a KeyValues block. The
++client's own parser only knows those three keys. Values are used verbatim,
++trailing spaces included, so the list reads exactly like the original.
++=================
++*/
++void CMenuCoFCampaignModel::Update( void )
++{
++	char **filenames;
++	int numFiles = 0;
++
++	RemoveAll();
++
++	filenames = EngFuncs::GetFilesList( "maps/*.custom", &numFiles, 1 );
++	for( int i = 0; i < numFiles; i++ )
++	{
++		cofCampaign_t entry;
++		char token[256];
++		char *pfile;
++		byte *raw;
++		int length = 0;
++
++		memset( &entry, 0, sizeof( entry ));
++		COM_FileBase( filenames[i], entry.file, sizeof( entry.file ));
++
++		raw = EngFuncs::COM_LoadFile( filenames[i], &length );
++		if( !raw )
++			continue;
++
++		pfile = (char *)raw;
++		while(( pfile = EngFuncs::COM_ParseFile( pfile, token, sizeof( token ))) != NULL )
++		{
++			char *dest = NULL;
++			size_t destSize = 0;
++
++			if( !stricmp( token, "firstmap" ))        { dest = entry.firstmap;    destSize = sizeof( entry.firstmap ); }
++			else if( !stricmp( token, "description" )) { dest = entry.description; destSize = sizeof( entry.description ); }
++			else if( !stricmp( token, "author" ))      { dest = entry.author;      destSize = sizeof( entry.author ); }
++
++			pfile = EngFuncs::COM_ParseFile( pfile, token, sizeof( token ));
++			if( !pfile )
++				break;
++			if( dest )
++				Q_strncpy( dest, token, destSize );
++		}
++		EngFuncs::COM_FreeFile( raw );
++
++		if( !UI_CoFMapNameIsSane( entry.firstmap ))
++		{
++			// the client rejects a campaign file without firstmap too
++			Con_Printf( "Cry of Fear: skipping %s, bad or missing firstmap\n", filenames[i] );
++			continue;
++		}
++		if( !EngFuncs::IsMapValid( entry.firstmap ))
++		{
++			Con_Printf( "Cry of Fear: skipping %s, map %s is not installed\n",
++				filenames[i], entry.firstmap );
++			continue;
++		}
++		if( !entry.description[0] )
++			Q_strncpy( entry.description, entry.file, sizeof( entry.description ));
++
++		AddToTail( entry );
++	}
++
++	parent->play.SetGrayed( !IsValidIndex( 0 ));
++}
++
++void CMenuCoFCampaignModel::OnActivateEntry( int line )
++{
++	parent->Play( line );
++}
++
++void CMenuCoFCampaign::Play( int line )
++{
++	if( !model.IsValidIndex( line ))
++		return;
++
++	if( !UI_CoFMapNameIsSane( model[line].firstmap ))
++	{
++		Con_Printf( "Cry of Fear: campaign %s has no usable first map\n", model[line].file );
++		return;
++	}
++
++	// Same two steps as the original: remember the campaign, then let the
++	// difficulty page send "campaign <firstmap>" followed by "skillset N".
++	UI_CoFDifficultyForCampaign( model[line].firstmap, model[line].description );
++}
++
++void CMenuCoFCampaign::PlaySelected()
++{
++	Play( list.GetCurrentIndex( ));
++}
++
++void CMenuCoFCampaign::_Init( void )
++{
++	banner.szName = L( "Custom Campaign" );
++
++	play.szName = L( "Play" );
++	play.SetPicture( PC_NEW_GAME );
++	play.iFlags |= QMF_NOTIFY;
++	play.onReleased = VoidCb( &CMenuCoFCampaign::PlaySelected );
++	play.SetCoord( 72, 230 );
++
++	cancel.szName = L( "GameUI_Cancel" );
++	cancel.SetPicture( PC_CANCEL );
++	cancel.iFlags |= QMF_NOTIFY;
++	cancel.onReleased = VoidCb( &CMenuCoFCampaign::Hide );
++	cancel.SetCoord( 72, 280 );
++
++	hint.iFlags = QMF_INACTIVE;
++	hint.colorBase = uiColorHelp;
++	hint.SetCharSize( QM_SMALLFONT );
++	hint.szName = L( "From maps/*.custom" );
++	hint.SetCoord( 72, 340 );
++
++	list.SetupColumn( 0, L( "Campaign" ), 0.45f );
++	list.SetupColumn( 1, L( "Author" ), 0.35f );
++	list.SetupColumn( 2, L( "First map" ), 0.20f );
++	list.SetModel( &model );
++	list.SetCharSize( QM_SMALLFONT );
++	list.SetRect( 360, 230, -20, 465 );
++
++	AddItem( banner );
++	AddItem( play );
++	AddItem( cancel );
++	AddItem( hint );
++	AddItem( list );
++}
++
++ADD_MENU( menu_cofcampaign, CMenuCoFCampaign, UI_CoFCampaign_Menu );
++
++// ---------------------------------------------------------------------------
++// language
++// ---------------------------------------------------------------------------
++
++#define COF_NUM_LANGUAGES 7
++
++// subtitleset 1 is English, whose text lives directly in cryoffear/txtfiles;
++// 2..7 are the six cryoffear/txtfiles/languages/<name> folders, in the same
++// alphabetical order as the client's own path table.
++static const char *s_cofLanguage[COF_NUM_LANGUAGES] =
++{
++	"English", "Dutch", "French", "German", "Norwegian", "Spanish", "Swedish"
++};
++
++class CMenuCoFLanguage : public CMenuFramework
++{
++public:
++	CMenuCoFLanguage() : CMenuFramework( "CMenuCoFLanguage" ) { m_szCurrent[0] = 0; }
++
++	void Show() override
++	{
++		// base Show() runs Init(), which is what creates the items
++		CMenuFramework::Show();
++		Refresh();
++	}
++
++private:
++	void _Init() override;
++	void _VidInit() override { Refresh(); }
++	void Refresh();
++
++	static void SetLanguageCb( CMenuBaseItem *pSelf, void *pExtra );
++	void SetLanguage( int index );
++
++	CEventCallback  langCallback[COF_NUM_LANGUAGES];
++	CMenuPicButton *langBtn[COF_NUM_LANGUAGES];
++	CMenuAction     current;
++	char            m_szCurrent[128];
++};
++
++/*
++=================
++CMenuCoFLanguage::SetLanguage
++
++The original panel sends the bare game-DLL command "subtitleset N"; the client
++answers it by writing the archived cvar cof_subtitlelanguage, which is how the
++choice survives a restart (it is saved in cryoffear/config.cfg). Measured:
++"cmd subtitleset 4" changes cof_subtitlelanguage from 1 to 4.
++=================
++*/
++void CMenuCoFLanguage::SetLanguage( int index )
++{
++	if( EngFuncs::GetCvarFloat( "host_serverstate" ) != 0.0f )
++		EngFuncs::ClientCmdF( false, "cmd subtitleset %d\n", index );
++	else
++		EngFuncs::CvarSetValue( "cof_subtitlelanguage", (float)index );
++
++	Refresh();
++}
++
++void CMenuCoFLanguage::SetLanguageCb( CMenuBaseItem *pSelf, void *pExtra )
++{
++	CMenuCoFLanguage *ui = (CMenuCoFLanguage *)pSelf->Parent();
++
++	ui->SetLanguage( (int)(size_t)pExtra );
++}
++
++void CMenuCoFLanguage::Refresh()
++{
++	int index = (int)EngFuncs::GetCvarFloat( "cof_subtitlelanguage" );
++
++	if( index < 1 || index > COF_NUM_LANGUAGES )
++		index = 1;
++
++	snprintf( m_szCurrent, sizeof( m_szCurrent ), "Subtitle language: %s", s_cofLanguage[index - 1] );
++	current.szName = m_szCurrent;
++}
++
++void CMenuCoFLanguage::_Init( void )
++{
++	banner.szName = L( "Language" );
++
++	for( int i = 0; i < COF_NUM_LANGUAGES; i++ )
++	{
++		langCallback[i] = SetLanguageCb;
++		langCallback[i].pExtra = (void *)(size_t)( i + 1 );
++		langBtn[i] = AddButton( s_cofLanguage[i], L( "Set the subtitle and document language" ),
++			PC_CUSTOMIZE, langCallback[i], QMF_NOTIFY );
++	}
++
++	AddButton( L( "Done" ), L( "Go back to the Main menu" ), PC_DONE,
++		VoidCb( &CMenuCoFLanguage::Hide ), QMF_NOTIFY );
++
++	current.iFlags = QMF_INACTIVE;
++	current.colorBase = uiColorHelp;
++	current.SetCharSize( QM_SMALLFONT );
++	current.szName = m_szCurrent;
++	current.SetCoord( 72, 200 );
++
++	AddItem( banner );
++	AddItem( current );
++
++	Refresh();
++}
++
++ADD_MENU( menu_coflanguage, CMenuCoFLanguage, UI_CoFLanguage_Menu );
++
++// ---------------------------------------------------------------------------
++// extras
++// ---------------------------------------------------------------------------
++
++#define COF_NUM_EXTRAS 6
++
++// The six links of the original Extras panel, in its own order. The original
++// opened them with SteamFriends()->ActivateGameOverlayToWebPage and had no
++// fallback, so under FWGS every one of them was a silent no-op; ShellExecute
++// hands them to the system browser instead.
++static const char *s_cofExtraName[COF_NUM_EXTRAS] =
++{
++	"Donate",
++	"Soundtrack 1",
++	"Soundtrack 2",
++	"Clothes",
++	"Afraid of Monsters DC",
++	"Facebook"
++};
++
++static const char *s_cofExtraUrl[COF_NUM_EXTRAS] =
++{
++	"http://www.cry-of-fear.com/donate.php",
++	"http://www.cdbaby.com/cd/andreasronnberg",
++	"http://www.cdbaby.com/cd/andreasronnberg2",
++	"http://teampsykskallar.spreadshirt.se/",
++	"http://www.moddb.com/mods/afraid-of-monsters-dc",
++	"http://www.facebook.com/CryOfFearOfficial"
++};
++
++class CMenuCoFExtras : public CMenuFramework
++{
++public:
++	CMenuCoFExtras() : CMenuFramework( "CMenuCoFExtras" ) { }
++
++private:
++	void _Init() override;
++
++	static void OpenCb( CMenuBaseItem *pSelf, void *pExtra );
++
++	CEventCallback urlCallback[COF_NUM_EXTRAS];
++};
++
++void CMenuCoFExtras::OpenCb( CMenuBaseItem *pSelf, void *pExtra )
++{
++	const int index = (int)(size_t)pExtra;
++
++	if( index < 0 || index >= COF_NUM_EXTRAS )
++		return;
++
++	EngFuncs::ShellExecute( s_cofExtraUrl[index], NULL, false );
++}
++
++void CMenuCoFExtras::_Init( void )
++{
++	banner.szName = L( "Extras" );
++
++	for( int i = 0; i < COF_NUM_EXTRAS; i++ )
++	{
++		urlCallback[i] = OpenCb;
++		urlCallback[i].pExtra = (void *)(size_t)i;
++		AddButton( s_cofExtraName[i], s_cofExtraUrl[i], PC_VISIT_WEB_SITE,
++			urlCallback[i], QMF_NOTIFY );
++	}
++
++	AddButton( L( "Done" ), L( "Go back to the Main menu" ), PC_DONE,
++		VoidCb( &CMenuCoFExtras::Hide ), QMF_NOTIFY );
++
++	AddItem( banner );
++}
++
++ADD_MENU( menu_cofextras, CMenuCoFExtras, UI_CoFExtras_Menu );
++
++// ---------------------------------------------------------------------------
++// unlockables
++// ---------------------------------------------------------------------------
++
++/*
++=================
++UI_CoFUnlockables
++
++The unlock state lives in cryoffear/scriptsettings.dat as 101 fixed-width
++obfuscated tokens compared against a table compiled into client.dll, so the
++menu library cannot render the gallery itself. Run the client's own entry
++command instead, which is what the original main menu did; it loads
++maps/c_unlockables.bsp, where the gallery entity draws the real state.
++=================
++*/
++void UI_CoFUnlockables( void )
++{
++	EngFuncs::CvarSetValue( "deathmatch", 0.0f );
++	EngFuncs::CvarSetValue( "coop", 0.0f );
++	EngFuncs::CvarSetValue( "maxplayers", 1.0f );
++	EngFuncs::PlayBackgroundTrack( NULL, NULL );
++
++	EngFuncs::ClientCmd( false, "unlockablescmd\n" );
++	UI_CloseMenu();
++}
+diff --git a/3rdparty/mainui/menus/CryOfFear.h b/3rdparty/mainui/menus/CryOfFear.h
+new file mode 100644
+index 0000000..4cead8f
+--- /dev/null
++++ b/3rdparty/mainui/menus/CryOfFear.h
+@@ -0,0 +1,36 @@
++/*
++CryOfFear.h -- Cry of Fear specific menu pages
++
++This program is free software: you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation, either version 3 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++*/
++#ifndef MENU_CRYOFFEAR_H
++#define MENU_CRYOFFEAR_H
++
++// True when the running game directory is Cry of Fear. Everything this header
++// declares is inert for every other game; the same runtime check the save
++// integration uses (menus/LoadGame.cpp) so no build flag is needed.
++bool UI_IsCryOfFear( void );
++
++// Difficulty page: Easy / Medium / Difficult / Nightmare, the four skillsets
++// of the original c_difficulty_settings panel. Entered for the base game or,
++// through UI_CoFCampaign_Menu, for one of maps/*.custom.
++void UI_CoFDifficulty_Menu( void );
++void UI_CoFDifficultyForCampaign( const char *firstmap, const char *title );
++
++void UI_CoFCampaign_Menu( void );
++void UI_CoFLanguage_Menu( void );
++void UI_CoFExtras_Menu( void );
++
++// Unlockables is not a page: the gallery is a map with anti-tamper state the
++// menu cannot read, so this only runs the client's own entry command.
++void UI_CoFUnlockables( void );
++
++#endif // MENU_CRYOFFEAR_H
+diff --git a/3rdparty/mainui/menus/LoadGame.cpp b/3rdparty/mainui/menus/LoadGame.cpp
+index 03595e1..53138ba 100644
+--- a/3rdparty/mainui/menus/LoadGame.cpp
++++ b/3rdparty/mainui/menus/LoadGame.cpp
+@@ -111,9 +111,24 @@ public:
+ 		else
+ 		{
+ 			char path[128];
+-			snprintf( path, sizeof( path ), "save/%s.bmp", name );
++			bool gamedironly = true;
++
++			// cof_save_root_compat keeps Cry of Fear's five slots and their
++			// thumbnails in the runtime root SAVE folder, not in
++			// cryoffear/save, so look the preview up there - the same place
++			// and the same gamedironly=false lookup the slot list itself uses.
++			if( UI_IsCoFRootSaveGame( ))
++			{
++				snprintf( path, sizeof( path ), "SAVE/%s.bmp", name );
++				gamedironly = false;
++			}
++			else
++			{
++				snprintf( path, sizeof( path ), "save/%s.bmp", name );
++			}
++
+ 			saveshot.ForceUnload();
+-			if( EngFuncs::FileExists( path, true ) )
++			if( EngFuncs::FileExists( path, gamedironly ) )
+ 				saveshot.Load( path );
+ 
+ 			if( saveshot.IsValid( ))
+diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
+index 4d1a382..a99e669 100644
+--- a/3rdparty/mainui/menus/Main.cpp
++++ b/3rdparty/mainui/menus/Main.cpp
+@@ -30,6 +30,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ #include "gameinfo.h"
+ #include "AnimatedBanner.h"
+ #include "MovieBanner.h"
++#include "CryOfFear.h"
+ 
+ #define ART_MINIMIZE_N	"gfx/shell/min_n"
+ #define ART_MINIMIZE_F	"gfx/shell/min_f"
+@@ -54,6 +55,10 @@ private:
+ 
+ 	void VidInit(bool connected);
+ 
++	// Cry of Fear replaces the stock item set with its own, see InitCoF().
++	void InitCoF();
++	void VidInitCoF( bool connected );
++
+ 	void DisconnectCb();
+ 	void DisconnectDialogCb();
+ 	void HazardCourseDialogCb();
+@@ -74,6 +79,15 @@ private:
+ 	CMenuPicButton	previews;
+ 	CMenuPicButton	quit;
+ 
++	// Cry of Fear main-menu items
++	CMenuPicButton	cofCampaign;
++	CMenuPicButton	cofJoinServer;
++	CMenuPicButton	cofHostServer;
++	CMenuPicButton	cofLanguage;
++	CMenuPicButton	cofUnlockables;
++	CMenuPicButton	cofExtras;
++	CMenuPicButton	cofQuitToMenu;
++
+ 	// buttons on top right. Maybe should be drawn if fullscreen == 1?
+ 	CMenuBitmap	minimizeBtn;
+ 	CMenuBitmap	quitButton;
+@@ -83,8 +97,16 @@ private:
+ 
+ 	bool bTrainMap;
+ 	bool bCustomGame;
++	bool bCoF;
++	bool bCoFWantBackgroundMap;
++	int  iCoFBackgroundMapDelay;
+ };
+ 
++// Frames the engine has to look completely idle before Quit to menu is allowed
++// to bring the background map back. A level change that is only queued is not
++// visible in any cvar yet, so wait a moment instead of racing it.
++#define COF_BACKGROUND_RESTART_DELAY 30
++
+ void CMenuMain::QuitDialogCb()
+ {
+ 	if( CL_IsActive() && EngFuncs::GetCvarFloat( "host_serverstate" ) && EngFuncs::GetCvarFloat( "maxplayers" ) == 1.0f )
+@@ -99,6 +121,12 @@ void CMenuMain::QuitDialogCb()
+ void CMenuMain::DisconnectCb()
+ {
+ 	EngFuncs::ClientCmd( false, "disconnect\n" );
++	// mainui only ever starts a background map once per process
++	// (BaseMenu.cpp, the "first" latch in UI_UpdateMenu). Cry of Fear's menu
++	// lives on that map, so remember to bring it back as soon as the
++	// disconnect has actually gone through; Think() does it.
++	bCoFWantBackgroundMap = bCoF;
++	iCoFBackgroundMapDelay = COF_BACKGROUND_RESTART_DELAY;
+ 	VidInit( false );
+ 	CalcPosition();
+ 	CalcSizes();
+@@ -166,6 +194,10 @@ void CMenuMain::HazardCourseCb()
+ 
+ void CMenuMain::_Init( void )
+ {
++	bCoF = UI_IsCryOfFear();
++	bCoFWantBackgroundMap = false;
++	iCoFBackgroundMapDelay = COF_BACKGROUND_RESTART_DELAY;
++
+ 	if( gMenu.m_gameinfo.trainmap[0] && stricmp( gMenu.m_gameinfo.trainmap, gMenu.m_gameinfo.startmap ) != 0 )
+ 		bTrainMap = true;
+ 	else bTrainMap = false;
+@@ -281,6 +313,12 @@ void CMenuMain::_Init( void )
+ 
+ 	dialog.Link( this );
+ 
++	if( bCoF )
++	{
++		InitCoF();
++		return;
++	}
++
+ 	AddItem( banner );
+ 	AddItem( console );
+ 	AddItem( disconnect );
+@@ -303,13 +341,154 @@ void CMenuMain::_Init( void )
+ 	AddItem( quitButton );
+ }
+ 
++/*
++=================
++CMenuMain::InitCoF
++
++Cry of Fear's own main menu is
++
++    New Game, Load Game, Custom Campaign, Join Server, Host Server,
++    Language, Unlockables, Extras, Options, Quit
++
++and in game
++
++    Resume, Save\Load Game, Options, Quit to menu, Quit
++
++so the stock Console, Training Room, Multiplayer, Previews and Change Game
++items are not added at all. Neither are minimizeBtn and quitButton: they are
++CMenuBitmaps of gfx/shell/min_n and gfx/shell/cls_n, and Cry of Fear ships no
++gfx/shell button art at all (only gfx/shell/kb_act.lst), so CMenuBitmap::Draw
++painted the engine's fallback texture - the two white squares in the top right
++corner of the menu. The window already has a Quit item and the title bar has
++the real buttons.
++=================
++*/
++void CMenuMain::InitCoF( void )
++{
++	// New Game goes to the Cry of Fear difficulty page instead of mainui's
++	// Easy/Medium/Hard page: this game reads the "difficulty" cvar, not
++	// "skill", and expects the game DLL's own skillset command.
++	newGame.onReleased = UI_CoFDifficulty_Menu;
++	newGame.onReleasedClActive = UI_CoFDifficulty_Menu;
++
++	cofCampaign.SetNameAndStatus( L( "Custom Campaign" ), L( "Play one of the campaigns in cryoffear/maps" ) );
++	cofCampaign.SetPicture( PC_CUSTOM_GAME );
++	cofCampaign.iFlags |= QMF_NOTIFY;
++	cofCampaign.onReleased = UI_CoFCampaign_Menu;
++
++	cofJoinServer.SetNameAndStatus( L( "Join Server" ), L( "Find and join a co-op server" ) );
++	cofJoinServer.SetPicture( PC_INET_GAME );
++	cofJoinServer.iFlags |= QMF_NOTIFY;
++	cofJoinServer.onReleased = UI_InternetGames_Menu;
++
++	cofHostServer.SetNameAndStatus( L( "Host Server" ), L( "Start a co-op server" ) );
++	cofHostServer.SetPicture( PC_CREATE_GAME );
++	cofHostServer.iFlags |= QMF_NOTIFY;
++	cofHostServer.onReleased = UI_CreateGame_Menu;
++
++	cofLanguage.SetNameAndStatus( L( "Language" ), L( "Choose the subtitle and document language" ) );
++	cofLanguage.SetPicture( PC_CUSTOMIZE );
++	cofLanguage.iFlags |= QMF_NOTIFY;
++	cofLanguage.onReleased = UI_CoFLanguage_Menu;
++
++	cofUnlockables.SetNameAndStatus( L( "Unlockables" ), L( "Open the unlockables gallery" ) );
++	cofUnlockables.SetPicture( PC_VIEW_GAME_INFO );
++	cofUnlockables.iFlags |= QMF_NOTIFY;
++	cofUnlockables.onReleased = UI_CoFUnlockables;
++
++	cofExtras.SetNameAndStatus( L( "Extras" ), L( "Soundtrack, merchandise and community links" ) );
++	cofExtras.SetPicture( PC_VISIT_WEB_SITE );
++	cofExtras.iFlags |= QMF_NOTIFY;
++	cofExtras.onReleased = UI_CoFExtras_Menu;
++
++	cofQuitToMenu.SetNameAndStatus( L( "Quit to menu" ), L( "Leave the game and return to the main menu" ) );
++	cofQuitToMenu.SetPicture( PC_DISCONNECT );
++	cofQuitToMenu.iFlags |= QMF_NOTIFY;
++	cofQuitToMenu.onReleased = VoidCb( &CMenuMain::DisconnectDialogCb );
++
++	AddItem( banner );
++	AddItem( resumeGame );
++	AddItem( newGame );
++	AddItem( saveRestore );
++	AddItem( cofCampaign );
++	AddItem( cofJoinServer );
++	AddItem( cofHostServer );
++	AddItem( cofLanguage );
++	AddItem( cofUnlockables );
++	AddItem( cofExtras );
++	AddItem( configuration );
++	AddItem( cofQuitToMenu );
++	AddItem( quit );
++}
++
+ /*
+ =================
+ UI_Main_Init
+ =================
+ */
++/*
++=================
++CMenuMain::VidInitCoF
++
++Ten items do not fit the stock bottom-anchored WON layout, so the Cry of Fear
++list runs top down from the usual first-button line instead. Nothing else about
++the look changes; styling is a later milestone.
++=================
++*/
++void CMenuMain::VidInitCoF( bool connected )
++{
++	const int hoffset = ( 70 / 640.0 ) * 1024.0;
++	const int ygap = (( 404 - 373 ) / 480.0 ) * 768.0;
++
++	resumeGame.SetVisibility( connected );
++	cofQuitToMenu.SetVisibility( connected );
++	newGame.SetVisibility( !connected );
++	cofCampaign.SetVisibility( !connected );
++	cofJoinServer.SetVisibility( !connected );
++	cofHostServer.SetVisibility( !connected );
++	cofLanguage.SetVisibility( !connected );
++	cofUnlockables.SetVisibility( !connected );
++	cofExtras.SetVisibility( !connected );
++
++	if( connected )
++	{
++		saveRestore.SetNameAndStatus( L( "Save\\Load Game" ), L( "StringsList_192" ) );
++		saveRestore.SetPicture( PC_SAVE_LOAD_GAME );
++		saveRestore.onReleased = UI_SaveLoad_Menu;
++	}
++	else
++	{
++		saveRestore.SetNameAndStatus( L( "GameUI_LoadGame" ), L( "StringsList_191" ) );
++		saveRestore.SetPicture( PC_LOAD_GAME );
++		saveRestore.onReleased = UI_LoadGame_Menu;
++	}
++
++	CMenuPicButton *order[] =
++	{
++		&resumeGame, &newGame, &saveRestore, &cofCampaign, &cofJoinServer,
++		&cofHostServer, &cofLanguage, &cofUnlockables, &cofExtras,
++		&configuration, &cofQuitToMenu, &quit
++	};
++
++	int yoffset = 230;
++	for( size_t i = 0; i < sizeof( order ) / sizeof( order[0] ); i++ )
++	{
++		if( !order[i]->IsVisible( ))
++			continue;
++
++		order[i]->SetCoord( hoffset, yoffset );
++		yoffset += ygap;
++	}
++}
++
+ void CMenuMain::VidInit( bool connected )
+ {
++	if( bCoF )
++	{
++		VidInitCoF( connected );
++		return;
++	}
++
+ 	int hoffset = ( 70 / 640.0 ) * 1024.0;
+ 
+ 	// in original menu Previews is located at specific point
+@@ -394,6 +573,34 @@ void CMenuMain::_VidInit()
+ 
+ void CMenuMain::Think()
+ {
++	if( bCoF )
++	{
++		// Quit to menu has disconnected us; once that has actually happened,
++		// and nothing else is loading, put Cry of Fear's own menu scene back
++		// under the menu.
++		if( bCoFWantBackgroundMap )
++		{
++			const bool idle = !EngFuncs::ClientInGame() &&
++				EngFuncs::GetCvarFloat( "cl_background" ) == 0.0f &&
++				EngFuncs::GetCvarFloat( "host_serverstate" ) == 0.0f;
++
++			// A level change that is still sitting in the command buffer is
++			// not visible anywhere yet, so only restart after the engine has
++			// looked completely idle for a while; any sign of life restarts
++			// the count, and the request never overlaps a real level load.
++			if( !idle )
++				iCoFBackgroundMapDelay = COF_BACKGROUND_RESTART_DELAY;
++			else if( --iCoFBackgroundMapDelay <= 0 )
++			{
++				bCoFWantBackgroundMap = false;
++				UI_StartBackGroundMap();
++			}
++		}
++
++		CMenuFramework::Think();
++		return;
++	}
++
+ 	if( gpGlobals->developer )
+ 	{
+ 		if( !console.IsVisible( ))

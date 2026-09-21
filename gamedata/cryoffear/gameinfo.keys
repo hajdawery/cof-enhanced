@@ -16,13 +16,17 @@
 // controls/PicButton.cpp:259.
 render_picbutton_text 1
 
-// The engine menu's New Game runs the restricted "newgame" command, which
-// loads GI->startmap as a new game (engine/server/sv_cmds.c:355-360 ->
-// COM_NewGame, engine/common/host_state.c:47-67). Cry of Fear's own New Game
-// flow starts on its difficulty map; "intro" is not a map in this game folder.
-startmap "c_difficulty_settings"
+// UI milestone 2 changed this key. Milestone 1 pointed it at the Cry of Fear
+// difficulty *map* ("c_difficulty_settings") because New Game still had to go
+// through the client's own VGUI panel. The engine menu now has its own
+// difficulty page (3rdparty/mainui/menus/CryOfFear.cpp), which emits the same
+// "cmd skillset N" the map did, so startmap is back to the first map of the
+// campaign. It is still needed: CMenuMain grays New Game out when startmap is
+// empty (menus/Main.cpp:246-247) and the restricted "newgame" command loads it
+// (engine/server/sv_cmds.c:355-360 -> COM_NewGame).
+startmap "c_intro"
 
-// Skip MainUI's own Easy/Medium/Hard page and call newgame straight away
-// (3rdparty/mainui/menus/NewGame.cpp:37-43), because c_difficulty_settings
-// asks for the difficulty itself and writes the "difficulty" cvar, not "skill".
-noskills 1
+// Milestone 1 also set "noskills 1" so MainUI's Easy/Medium/Hard page was
+// skipped. Milestone 2 removes it: for Cry of Fear the New Game button no
+// longer opens CMenuNewGame at all, so the key has nothing left to suppress.
+// Leaving it in is harmless but misleading.

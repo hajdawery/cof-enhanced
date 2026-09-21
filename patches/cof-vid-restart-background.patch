@@ -1,0 +1,181 @@
+diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
+--- a/engine/client/cl_main.c
++++ b/engine/client/cl_main.c
+@@ -69,6 +69,8 @@ CVAR_DEFINE_AUTO( cof_skip_client_hud_redraw, "0", 0, "skip client HUD_Redraw ca
+ CVAR_DEFINE_AUTO( cof_skip_vgui_paint, "0", 0, "skip VGUI support Paint callback (diagnostic)" );
+ CVAR_DEFINE_AUTO( cof_ui_input_gate, "1", 0, "unified UI gate: while the menu or console has focus the client neither paints its HUD/VGUI layer nor receives input, and escape always reaches the engine" );
+ CVAR_DEFINE_AUTO( cof_ui_deferred_cmd_guard, "1", 0, "unified UI gate: drop the client DLL's boot-time deferred console commands instead of running them the first time the engine menu becomes visible" );
++CVAR_DEFINE_AUTO( cof_vid_restart_background, "1", 0, "video mode change: restart the menu background map afterwards so the client's per-level setup is rebuilt (0 = stock behaviour)" );
++CVAR_DEFINE_AUTO( cof_vid_skip_redundant_vidinit, "0", 0, "video mode change: skip the client VidInit callback when the render size did not change, e.g. a pure windowed/fullscreen toggle (off by default)" );
+ CVAR_DEFINE_AUTO( hud_scale_minimal_width, "640", FCVAR_ARCHIVE|FCVAR_LATCH, "if hud_scale results in a HUD virtual screen smaller than this value, it won't be applied" );
+ CVAR_DEFINE_AUTO( cl_solid_players, "1", 0, "Make all players not solid (can't traceline them)" );
+ CVAR_DEFINE_AUTO( cl_updaterate, "20", FCVAR_USERINFO|FCVAR_ARCHIVE, "refresh rate of server messages" );
+@@ -110,6 +112,9 @@ client_t		cl;
+ client_static_t	cls;
+ clgame_static_t	clgame;
+ 
++// Cry of Fear video mode change hook: a background-map restart is queued
++static qboolean	cof_vid_restart_pending;
++
+ //======================================================================
+ int GAME_EXPORT CL_Active( void )
+ {
+@@ -170,6 +175,80 @@ qboolean CL_CoF_UIGateActive( void )
+ 	return active;
+ }
+ 
++/*
++====================
++CL_CoF_VidRestartForget
++
++Drop a queued background-map restart. Called from CL_ClearState so a restart
++that never reached the server (an invalid map name, a level load that was
++overtaken) cannot latch the guard on for the rest of the session.
++====================
++*/
++void CL_CoF_VidRestartForget( void )
++{
++	cof_vid_restart_pending = false;
++}
++
++/*
++====================
++CL_CoF_VidModeChanged
++
++Cry of Fear video mode change hook (cof_vid_restart_background, default on).
++
++Called once a resolution change or a windowed/fullscreen toggle has completed,
++right after the engine has re-called the client's pfnVidInit through
++SCR_VidInit(). FWGS keeps the GL context across a mode change and only re-runs
++that one callback, but Cry of Fear's HUD_VidInit is a per-level entry point: it
++rebuilds the screen-sized state and clears the one-shot state the map set up
++(custom sky, atmosphere, the snow the server enabled with a single user message
++at spawn). Nothing replays that, so the menu scene comes back stripped.
++
++While the engine menu is running over a background map there is no session to
++lose, so the cheapest correct repair is to reload that background map: the
++server respawns it, resends its messages and the client's per-level init runs
++in full. The restart goes through the command buffer, so it lands at the start
++of the next Cbuf_Execute rather than inside the video code.
++
++With a real game in progress a reload would throw the session away, so this
++only reports the situation at developer level. Rebuilding a live session's
++client state after a mode change needs the client to be told to replay its
++per-level setup and is left for later; this function is the hook for it.
++====================
++*/
++void CL_CoF_VidModeChanged( void )
++{
++	if( cls.state != ca_active )
++	{
++		// nothing is loaded (or a level change is already under way)
++		cof_vid_restart_pending = false;
++		return;
++	}
++
++	if( cls.demoplayback )
++		return; // startup demos and demo playback own their own level flow
++
++	if( !cl.background )
++	{
++		// documented hook: a live game keeps the stock behaviour for now
++		Con_Reportf( "[cof-vid] video mode changed during a live game: the client's per-level setup is not rebuilt (map \"%s\")\n",
++			clgame.mapname );
++		return;
++	}
++
++	if( !cof_vid_restart_background.value )
++		return;
++
++	if( cof_vid_restart_pending )
++		return; // one restart per mode change, even if two call sites report it
++
++	if( COM_StringEmpty( clgame.mapname ))
++		return;
++
++	cof_vid_restart_pending = true;
++	Con_Reportf( "[cof-vid] restarting background map \"%s\" after a video mode change\n", clgame.mapname );
++	Cbuf_AddTextf( "map_background %s\n", clgame.mapname );
++}
++
+ qboolean CL_IsInConsole( void )
+ {
+ 	return ( cls.key_dest == key_console );
+@@ -1671,6 +1750,7 @@ void CL_ClearState( void )
+ 	memset( &clgame.fade, 0, sizeof( clgame.fade ));
+ 	memset( &clgame.shake, 0, sizeof( clgame.shake ));
+ 	clgame.mapname[0] = '\0';
++	CL_CoF_VidRestartForget();
+ 	Cvar_DirectFullSet( &cl_background, "0", FCVAR_READ_ONLY );
+ 	cl.maxclients = 1; // allow to drawing player in menu
+ 	cl.mtime[0] = cl.mtime[1] = 1.0f; // because level starts from 1.0f second
+@@ -3794,6 +3874,8 @@ static void CL_InitLocal( void )
+ 	Cvar_RegisterVariable( &cof_skip_vgui_paint );
+ 	Cvar_RegisterVariable( &cof_ui_input_gate );
+ 	Cvar_RegisterVariable( &cof_ui_deferred_cmd_guard );
++	Cvar_RegisterVariable( &cof_vid_restart_background );
++	Cvar_RegisterVariable( &cof_vid_skip_redundant_vidinit );
+ 	Cvar_RegisterVariable( &hud_scale_minimal_width );
+ 	Cvar_RegisterVariable( &cl_showevents );
+ 	Cvar_Get( "lastdemo", "", FCVAR_ARCHIVE, "last played demo" );
+diff --git a/engine/client/client.h b/engine/client/client.h
+--- a/engine/client/client.h
++++ b/engine/client/client.h
+@@ -1276,6 +1276,10 @@ extern convar_t cof_skip_vgui_paint;
+ extern convar_t cof_ui_input_gate;
+ extern convar_t cof_ui_deferred_cmd_guard;
+ qboolean CL_CoF_UIGateActive( void );
++extern convar_t cof_vid_restart_background;
++extern convar_t cof_vid_skip_redundant_vidinit;
++void CL_CoF_VidModeChanged( void );
++void CL_CoF_VidRestartForget( void );
+ extern net_api_t gNetApi;
+ 
+ #endif//CLIENT_H
+diff --git a/engine/client/vid_common.c b/engine/client/vid_common.c
+--- a/engine/client/vid_common.c
++++ b/engine/client/vid_common.c
+@@ -82,6 +82,10 @@ void R_SaveVideoMode( int w, int h, int render_w, int render_h, qboolean maximiz
+ 	refState.wideScreen = render_w * 3 != render_h * 4 && render_w * 4 != render_h * 5;
+ 
+ 	SCR_VidInit(); // tell client.dll that vid_mode has changed
++
++	// Cry of Fear video mode change hook: the client's per-level setup has just
++	// been thrown away by its own pfnVidInit, rebuild it if we can
++	CL_CoF_VidModeChanged();
+ }
+ 
+ /*
+@@ -119,9 +123,31 @@ void VID_CheckChanges( void )
+ 
+ 	if( host.renderinfo_changed )
+ 	{
++		// Cry of Fear (cof_vid_skip_redundant_vidinit, default off): remember the
++		// render size so a mode change that does not resize anything - a pure
++		// windowed/fullscreen toggle at the same resolution - can be told apart.
++		// In that case R_SaveVideoMode() returns before its own SCR_VidInit() and
++		// the call below is the only one, even though nothing screen-sized moved:
++		// the GL context survives R_ChangeDisplaySettings(), so every texture,
++		// sprite and font is still valid and the client's pfnVidInit has nothing
++		// to rebuild. It only destroys the client's per-level state.
++		const int cof_prev_width = refState.width;
++		const int cof_prev_height = refState.height;
++
+ 		if( VID_SetMode( ))
+ 		{
+-			SCR_VidInit(); // tell the client.dll what vid_mode has changed
++			const qboolean cof_resized = ( refState.width != cof_prev_width || refState.height != cof_prev_height );
++
++			if( !cof_resized && cof_vid_skip_redundant_vidinit.value )
++			{
++				Con_Reportf( "[cof-vid] skipped the redundant client VidInit: render size unchanged (%dx%d)\n",
++					refState.width, refState.height );
++			}
++			else
++			{
++				SCR_VidInit(); // tell the client.dll what vid_mode has changed
++				CL_CoF_VidModeChanged();
++			}
+ 		}
+ 		else
+ 		{
