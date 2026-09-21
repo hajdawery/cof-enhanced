@@ -121,6 +121,94 @@ exercised on SDL2 + `ref_gl` on Windows. See
 [video mode changes and the menu scene](docs/cof-vid-restart-background.md) for
 the root cause, the measured A/B and the limits.
 
+Cry of Fear's main menu is a client VGUI panel that lives on the real map
+`c_game_menu1`, so "back to the main menu" is spelled `map c_game_menu1`
+everywhere in the game: by the client's `to3dmenu` command and by its
+Unlockables, difficulty and server-settings panels through `pfnClientCmd`, and
+by `hl.dll` after deaths, endings and the `closegame` teardown through
+`CLIENT_COMMAND`, which arrives as an `svc_stufftext`. Under the unified UI that
+brought the *old* Cry of Fear menu back - the reported symptom was the
+Unlockables gallery's MAIN MENU button. The redirect is applied after the input
+gate, the video-mode background restart and the menu-load trace, whose lines it
+uses as hunk context:
+
+```powershell
+pwsh -File .\scripts\apply-cof-ui-menu-map-redirect.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+```
+
+With `cof_ui_menu_map_redirect 1` (default) the engine answers any of those with
+the sequence MainUI's own Quit-to-menu path produces - `disconnect`, then
+`menu_main`, then `map_background` of the scene from
+`scripts/chapterbackgrounds.txt` - and prints one developer line naming the
+producer. `map_background` itself is untouched, so the background map still
+works and the redirect cannot recurse. Setting the cvar to `0` restores the
+stock path and reproduces the old behaviour in the same binary. See
+[menu-map redirect](docs/cof-ui-menu-map-redirect.md) for the disassembly of
+every producer, the interception points, the measured runs and the limits.
+
+Dying was the other place the old Cry of Fear UI came back: the game DLL puts up
+a `GAME OVER` panel with `LOAD GAME` and `EXIT` links, and `EXIT` then reached
+the old menu. Measured, that screen is not a command and not a level change at
+all - it is the user message `VGUIMenu` with a first byte of 35, which
+`client.dll`'s `CClientViewport::ShowVGUIMenu` turns into its `CGameOver` panel,
+and nothing follows it. The engine now catches that message and opens its own
+death page instead. The same patch adds `con_enable`, the archived cvar stock
+FWGS does not have, so "Enable console" can be a real checkbox rather than the
+one-way `ui_allowconsole` button. It is applied after the menu-map redirect, the
+input gate and the styled console:
+
+```powershell
+pwsh -File .\scripts\apply-cof-ui-death-flow.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+```
+
+With `cof_ui_death_menu 1` (default) death brings up `GAME OVER` in the theme's
+wordmark over the untouched scene - no panel, no scrim - with `Load Game` (our
+save list, whose Cancel comes back to it, as the original's did) and `Exit`
+(the original link's own `map c_game_menu1`, which the redirect turns into
+disconnect plus background map). The client's panel is still sent the message
+and is simply never painted, because `cof_ui_input_gate` owns the client layer
+while a menu page is up. `cof_ui_death_menu 0` reproduces the stock flow in the
+same binary. See [the death flow](docs/cof-ui-death-flow.md) for the
+disassembly, the measured message trace and timings, the button end states, and
+the console cvar.
+
+Milestone 3 part (b) of the unified UI stack turns the engine console into a
+Source-style window while keeping every bit of its GoldSrc behaviour. It is
+applied after the console variable-width font fallback, whose lines it uses as
+hunk context:
+
+```powershell
+pwsh -File .\scripts\apply-cof-console-style.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+```
+
+With `cof_console_style 1` (default) the console is a centred translucent panel
+of `cof_console_width` x `cof_console_height` of the screen (0.70 x 0.60), with
+a hairline border, a title band carrying `CONSOLE` and the build string, a
+clickable close `X`, and a separate input box with its own border and caret.
+The geometry is derived from the render size and the font, with none of the
+stock path's hardcoded 4:3 math. The tilde toggle, key handling, history,
+completion, backscroll and the notify area are untouched code, and
+`cof_console_style 0` reaches the stock drawing unchanged. Panel colours follow
+the milestone-3a theme spec and are exposed as `cof_console_*_color` cvars.
+`cof_console_font_grayscale` (default `1`, only honoured while the style is on)
+loads the console font as luminance, because Cry of Fear's own `CONCHARS` atlas
+is orange and would otherwise tint every colour the console draws. See
+[the console as a Source-style window](docs/cof-console-style.md) for the
+measured colours, the geometry, the screenshot matrix and the limits.
+
+A separate one-function crash fix came out of the same work: `newgame` typed at
+the console while the menu background map runs shuts the server down, and the
+levelshot queued by the next level load then ran with no world and dereferenced
+a null path in `FS_FixFileCase`. It shares no hunk context with anything else
+and can be applied in any order:
+
+```powershell
+pwsh -File .\scripts\apply-cof-levelshot-guard.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+```
+
+See [levelshot NULL-world guard](docs/cof-levelshot-guard.md) for the measured
+stack and the verification run.
+
 The first milestone of the unified UI stack puts the engine menu on screen over
 the live Cry of Fear scene. It is one small MainUI change plus game-directory
 data files:
@@ -151,12 +239,65 @@ difficulty page that forwards the game DLL's own `cmd skillset 1..4` to the
 live background-map server, so the original white fade and `c_intro` start
 happen for real; Custom Campaign lists `maps/*.custom` and prefixes
 `cmd campaign <firstmap>`; Language sends `cmd subtitleset 1..7`; Unlockables
-runs the client's `unlockablescmd`; Extras opens the six original links with
-`ShellExecute` instead of the Steam overlay the game used. The two white
+opens an engine-menu list of the 27 items with a button that still runs the
+client's `unlockablescmd` gallery; Extras opens the original links with
+`ShellExecute` instead of the Steam overlay the game used, with
+`Cry of Fear: Enhanced` (<https://cofenhanced.haej.pl>) added as its first
+entry. The two white
 squares that used to sit in the top-right corner were MainUI's minimize and
 close bitmaps with no `gfx/shell` artwork behind them; they are gone. Only the
 `cryoffear` game directory is affected - every other game keeps the stock menu.
 See [UI milestone 2](docs/cof-ui-m2-cof-menu.md) for the measured command
 table, the evidence and the open items.
+
+The third milestone gives that menu one minimalist Source-era look. It is one
+more MainUI patch, applied after the three above:
+
+```powershell
+pwsh -File .\scripts\apply-cof-mainui-source-theme.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+```
+
+Dialogs become centred translucent dark-grey panels with a thin border, an
+uppercase title band, a close X and an OK/Cancel row bottom-right; the main
+menu becomes a centred plain-text list under a `CRY OF FEAR` / `ENHANCED` text
+wordmark, and the pause menu a lower-left list over the scrim. Checkboxes,
+sliders, spinner arrows, table arrows, drop-down arrows and the close X are
+drawn from primitives, so nothing depends on the `gfx/shell` artwork Cry of
+Fear does not ship, and the library-wide 4-unit scaled outline becomes a
+hairline. Type is Inter (SIL Open Font License 1.1) read from
+`cryoffear/gfx/fonts/` through stb_truetype - configure the menu with
+`--enable-stbtt` - with a GDI fallback chain so a missing file can never drop
+the menu to the bitmap font. The whole theme is behind the archived cvar
+`ui_theme` (default `1`; `0` restores the upstream WON look). The same patch
+carries one functional fix: the menu now issues the client's own `stopmp3`
+before a Cry of Fear save load or a new game, which the original client panels
+did and the engine menu did not. See
+[UI milestone 3a](docs/cof-ui-m3-theme.md) for the palette, the per-dialog
+layouts, the screenshots and the open items.
+
+A feedback round on that milestone (same patch, same apply script) reshapes the
+options tree and fixes what the first deployed build got wrong. Options is now
+**Game, Controls, Audio, Video**: *Game* is a new top-level page holding what
+used to be hidden behind Controls > Advanced, plus the pause-menu-saves switch
+that used to live in the Save/Load menu and a subtitle-language selector, and
+the *Adv. Controls* button is gone from Controls; *Video* is one page instead
+of a hub with two children, with renderer, window mode, V-sync and the
+resolution list on the left, gamma, brightness and the image checkboxes on the
+right and a single Cancel/Apply row that keeps FWGS's test-mode and
+restart-required semantics; *Audio* drops the HEV suit volume, which Cry of
+Fear has no suit for. Message boxes wrap their text and size the panel to it,
+the Controls list draws `kb_act.lst` section rules as real section captions
+instead of rows of `=`, hover follows the pointer rather than the list cursor,
+and the first Cry of Fear run of a build that knows about it turns
+`ui_renderworld` on once (recorded in the archived `ui_cof_scene_defaults`) so
+the paused scene shows through the pause scrim; a later change by the user is
+kept.
+
+A death-flow round (still the same patch and apply script) adds two more things:
+`CMenuCoFDeath`, the `GAME OVER` page the engine's `cof_ui_death_menu` hook
+opens - the one page drawn with no panel and no scrim, so the scene the player
+died in stays exactly as it was - and an **Enable console** checkbox on the Game
+page, bound to the new archived engine cvar `con_enable`. Both are documented in
+[the death flow](docs/cof-ui-death-flow.md).
 
 The upstream Windows build requires the recursive dependencies and an SDL2 Visual Studio development package for a client build. The isolated client build attempt used the official SDL2 `2.30.9-VC` package (SHA-256 `8C91D91E5BCB997D062EC2B553C53832EBF95654D4AA35E8C02A954D4CE752AE`). Visual Studio 2022 BuildTools with Win32 tools and Windows SDK 10.0.26100 are installed on the research host. A dedicated x86 compile of the patched source completed locally; this repository does not provide a dependency lockfile or reproducible build script, and that artifact is not committed.

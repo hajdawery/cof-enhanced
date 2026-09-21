@@ -1,0 +1,431 @@
+diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
+--- a/engine/client/cl_main.c
++++ b/engine/client/cl_main.c
+@@ -90,6 +90,7 @@ CVAR_DEFINE_AUTO( cl_trace_events, "0", FCVAR_CHEAT, "enable events tracing (goo
+ static CVAR_DEFINE_AUTO( cl_nat, "0", 0, "show servers running under NAT" );
+ CVAR_DEFINE_AUTO( hud_utf8, "0", FCVAR_ARCHIVE, "Use utf-8 encoding for hud text" );
+ CVAR_DEFINE_AUTO( ui_renderworld, "0", FCVAR_ARCHIVE, "render world when UI is visible" );
++static CVAR_DEFINE_AUTO( cof_ui_menu_map_redirect, "1", 0, "unified UI gate: turn a client- or server-issued \"map c_game_menu1\" into a return to the engine menu over the background map (0 = stock behaviour)" );
+ static CVAR_DEFINE_AUTO( cl_maxframetime, "0", 0, "set deadline timer for client rendering to catch freezes" );
+ CVAR_DEFINE_AUTO( cl_fixmodelinterpolationartifacts, "1", 0, "try to fix up models interpolation on a moving platforms (monsters on trains for example)" );
+ 
+@@ -115,6 +116,13 @@ clgame_static_t	clgame;
+ // Cry of Fear video mode change hook: a background-map restart is queued
+ static qboolean	cof_vid_restart_pending;
+ 
++// Cry of Fear unified UI: the map name of the last background map the engine
++// was asked to start, and the map whose level changes the redirect intercepts
++static char	cof_menu_background_map[MAX_QPATH];
++#define COF_MENU_MAP		"c_game_menu1"
++// one console command line; cmd.c's own MAX_CMD_LINE is private to that file
++#define COF_MENU_CMD_MAX	2048
++
+ //======================================================================
+ int GAME_EXPORT CL_Active( void )
+ {
+@@ -254,6 +262,281 @@ qboolean CL_IsInConsole( void )
+ 	return ( cls.key_dest == key_console );
+ }
+ 
++/*
++====================
++CL_CoF_RememberBackgroundMap
++
++Cry of Fear unified UI (cof_ui_menu_map_redirect, default on).
++
++Record the name of every background map the engine is actually asked to start
++(engine/server/sv_cmds.c, SV_MapBackground_f). MainUI picks that name at random
++from scripts/chapterbackgrounds.txt and the engine has nowhere else to read it
++back from, so remembering it is what lets the redirect below put the very same
++scene back under the menu instead of guessing one.
++====================
++*/
++void CL_CoF_RememberBackgroundMap( const char *mapname )
++{
++	if( COM_StringEmptyOrNULL( mapname ))
++		return;
++
++	Q_strncpy( cof_menu_background_map, mapname, sizeof( cof_menu_background_map ));
++}
++
++/*
++====================
++CL_CoF_MenuBackgroundMap
++
++Which map the redirect re-arms under the engine menu, in order of preference:
++
++1. the last background map the engine really started (above);
++2. the first entry of scripts/chapterbackgrounds.txt - the same file, and the
++   same "skip the numbers of the old format list" parse, MainUI uses in
++   UI_LoadBackgroundMapList() (3rdparty/mainui/BaseMenu.cpp:971-995);
++3. the map the intercepted command asked for, so the redirect can never end up
++   with no scene at all. For Cry of Fear that is its own authored menu map.
++====================
++*/
++static const char *CL_CoF_MenuBackgroundMap( const char *requested )
++{
++	static char	name[MAX_QPATH];
++	char		token[MAX_QPATH];
++	char		*afile, *pfile;
++
++	if( cof_menu_background_map[0] != '\0' )
++		return cof_menu_background_map;
++
++	afile = (char *)FS_LoadFile( "scripts/chapterbackgrounds.txt", NULL, false );
++
++	if( afile != NULL )
++	{
++		pfile = afile;
++
++		while(( pfile = COM_ParseFile( pfile, token, sizeof( token ))) != NULL )
++		{
++			if( token[0] >= '0' && token[0] <= '9' )
++				continue; // skip the numbers of the old format list
++
++			Q_strncpy( name, token, sizeof( name ));
++			Mem_Free( afile );
++			return name;
++		}
++
++		Mem_Free( afile );
++	}
++
++	return requested;
++}
++
++/*
++====================
++CL_CoF_ParseMenuMapCommand
++
++True when one console command is a level change to Cry of Fear's 3D menu map:
++"map c_game_menu1" or "changelevel c_game_menu1", case-insensitive, with any
++whitespace and an optionally quoted map name. Anything after the map name (a
++"changelevel2 <map> <landmark>", say) makes it a real transition and is left
++alone.
++====================
++*/
++static qboolean CL_CoF_ParseMenuMapCommand( const char *segment )
++{
++	char	buffer[COF_MENU_CMD_MAX];
++	char	token[MAX_QPATH];
++	char	*pfile;
++
++	Q_strncpy( buffer, segment, sizeof( buffer ));
++	pfile = buffer;
++
++	if(( pfile = COM_ParseFile( pfile, token, sizeof( token ))) == NULL )
++		return false;
++
++	if( Q_stricmp( token, "map" ) && Q_stricmp( token, "changelevel" ))
++		return false;
++
++	if(( pfile = COM_ParseFile( pfile, token, sizeof( token ))) == NULL )
++		return false;
++
++	COM_StripExtension( token );
++
++	if( Q_stricmp( token, COF_MENU_MAP ))
++		return false;
++
++	// a landmark or any other argument means this is a real level change
++	if( COM_ParseFile( pfile, token, sizeof( token )) != NULL )
++		return false;
++
++	return true;
++}
++
++/*
++====================
++CL_CoF_MenuMapReturn
++
++Queue the return to the engine menu. This is the sequence MainUI's own
++Quit-to-menu path produces: CMenuMain::DisconnectCb issues "disconnect" and
++CMenuMain::Think then calls UI_StartBackGroundMap(), which issues
++"map_background <chapterbackground>" (3rdparty/mainui/menus/Main.cpp:180-192,
++:709-728, BaseMenu.cpp:548-583). menu_main is added in between because a
++disconnect in a developer build does not raise the menu by itself
++(CL_Disconnect's "back to menu in non-developer mode" test).
++
++"disconnect" ends a local game through Host_EndGame(), which aborts the current
++frame; the command buffer keeps everything behind the line it has already
++popped (engine/common/cmd.c, Cbuf_ExecuteCommandsFromBuffer), so menu_main and
++map_background run at the start of the next frame, after the server is really
++down. That is also why this can be queued from inside a client or server DLL
++callback: nothing is executed here.
++====================
++*/
++static qboolean CL_CoF_MenuMapReturn( const char *what, const char *source )
++{
++	char		redirect[COF_MENU_CMD_MAX];
++	const char	*background;
++
++	if( cl_background.value != 0.0f )
++	{
++		// already exactly where the redirect would take us
++		Con_Reportf( "[cof-ui] menu map redirect: dropped \"%s\" from %s (already on the background map)\n",
++			what, source );
++		return true;
++	}
++
++	background = CL_CoF_MenuBackgroundMap( COF_MENU_MAP );
++	Q_snprintf( redirect, sizeof( redirect ), "disconnect\nmenu_main\nmap_background %s\n", background );
++	Cbuf_AddText( redirect );
++
++	Con_Reportf( "[cof-ui] menu map redirect: \"%s\" from %s -> disconnect + menu_main + map_background %s\n",
++		what, source, background );
++
++	return true;
++}
++
++/*
++====================
++CL_CoF_MenuMapLevelChange
++
++Cry of Fear unified UI (cof_ui_menu_map_redirect, default on).
++
++The backstop, called from the "map" and "changelevel" console commands
++themselves (engine/server/sv_cmds.c). The three producer hooks below stop the
++command before it ever reaches the command buffer and can name who issued it;
++this one catches every other route to the same level change - an alias, a cfg,
++a typed console line, a stufftext that arrived in a compound string - so the
++invariant "c_game_menu1 is never a real level under the unified UI" holds
++whatever asks for it. "map_background c_game_menu1" is a different command
++(SV_MapBackground_f) and is deliberately not affected, so the redirect cannot
++recurse and the background map still works.
++====================
++*/
++qboolean CL_CoF_MenuMapLevelChange( const char *mapname, const char *source )
++{
++	char	name[MAX_QPATH];
++
++	if( !cof_ui_menu_map_redirect.value )
++		return false;
++
++	if( COM_StringEmptyOrNULL( mapname ))
++		return false;
++
++	if( cl.maxclients > 1 )
++		return false;
++
++	Q_strncpy( name, mapname, sizeof( name ));
++	COM_StripExtension( name );
++
++	if( Q_stricmp( name, COF_MENU_MAP ))
++		return false;
++
++	return CL_CoF_MenuMapReturn( mapname, source );
++}
++
++/*
++====================
++CL_CoF_MenuMapRedirect
++
++Cry of Fear unified UI (cof_ui_menu_map_redirect, default on).
++
++Cry of Fear's main menu is a client VGUI panel that lives on a real map, so
++"go back to the main menu" is spelled "map c_game_menu1" all over the game:
++the client's own to3dmenu console command and its Unlockables / difficulty /
++server-settings panels issue it through pfnClientCmd, and hl.dll issues it
++through CLIENT_COMMAND, which reaches the client as an svc_stufftext. Under
++the unified UI the main menu is the engine menu over a background map, so
++every one of those is a request to come back to *our* menu, not to load a
++level and hand focus to the client's panel.
++
++This is the single place that answers it. The command is taken over only when
++the whole string is that one level change (";"- and newline-separated empty
++commands aside), which is exactly how every producer measured in Cry of Fear
++spells it; a compound command that merely contains one is left to the stock
++path, so nothing this function does can promote a server's stufftext into the
++unfiltered command buffer. What it did not take over still reaches the backstop
++in the "map"/"changelevel" commands above.
++
++Returns true when it took the command over, in which case the caller must not
++queue the original text; false leaves the caller's stock path untouched, which
++is also what a cvar of 0 gives.
++====================
++*/
++qboolean CL_CoF_MenuMapRedirect( const char *cmd, const char *source )
++{
++	char		segment[COF_MENU_CMD_MAX];
++	char		matchedcmd[COF_MENU_CMD_MAX];
++	char		token[MAX_QPATH];
++	const char	*begin, *p;
++	qboolean	matched = false;
++	size_t		len;
++
++	if( !cof_ui_menu_map_redirect.value )
++		return false;
++
++	if( COM_StringEmptyOrNULL( cmd ))
++		return false;
++
++	// Cry of Fear's own client makes the same distinction: with more than one
++	// client its menu buttons disconnect instead of loading the menu map, and
++	// a server-driven level change there is a real one.
++	if( cl.maxclients > 1 )
++		return false;
++
++	begin = cmd;
++
++	for( p = cmd; ; p++ )
++	{
++		if( *p != ';' && *p != '\n' && *p != '\0' )
++			continue;
++
++		len = p - begin;
++		if( len >= sizeof( segment ))
++			len = sizeof( segment ) - 1;
++		memcpy( segment, begin, len );
++		segment[len] = '\0';
++
++		if( CL_CoF_ParseMenuMapCommand( segment ))
++		{
++			if( matched )
++				return false; // twice in one string: not something we wrote
++			matched = true;
++			Q_strncpy( matchedcmd, segment, sizeof( matchedcmd ));
++		}
++		else if( COM_ParseFile( segment, token, sizeof( token )) != NULL )
++		{
++			return false; // another real command shares the string, leave it alone
++		}
++
++		if( *p == '\0' )
++			break;
++
++		begin = p + 1;
++	}
++
++	if( !matched )
++		return false;
++
++	return CL_CoF_MenuMapReturn( matchedcmd, source );
++}
++
+ qboolean CL_IsIntermission( void )
+ {
+ 	return cl.intermission;
+@@ -3880,6 +4163,7 @@ static void CL_InitLocal( void )
+ 	Cvar_RegisterVariable( &cl_showevents );
+ 	Cvar_Get( "lastdemo", "", FCVAR_ARCHIVE, "last played demo" );
+ 	Cvar_RegisterVariable( &ui_renderworld );
++	Cvar_RegisterVariable( &cof_ui_menu_map_redirect );
+ 	Cvar_RegisterVariable( &cl_maxframetime );
+ 	Cvar_RegisterVariable( &cl_fixmodelinterpolationartifacts );
+ 
+diff --git a/engine/client/dll_int/cl_game.c b/engine/client/dll_int/cl_game.c
+--- a/engine/client/dll_int/cl_game.c
++++ b/engine/client/dll_int/cl_game.c
+@@ -1843,12 +1843,19 @@ static int GAME_EXPORT pfnClientCmd( const char *szCmdString )
+ 
+ 	if( cls.initialized )
+ 	{
++		// Cry of Fear unified UI (cof_ui_menu_map_redirect, default on): the
++		// client's to3dmenu command and its Unlockables / difficulty / server
++		// panels ask for the main menu by loading c_game_menu1. Send them back
++		// to the engine menu over the background map instead.
++		if( CL_CoF_MenuMapRedirect( szCmdString, "client pfnClientCmd" ))
++			return 1;
++
+ 		Cbuf_AddText( szCmdString );
+ 		Cbuf_AddText( "\n" );
+ 	}
+ 	else
+ 	{
+-		// will exec later
++		// too early to redirect: cof_ui_deferred_cmd_guard owns this buffer
+ 		Q_strncat( host.deferred_cmd, szCmdString, sizeof( host.deferred_cmd ));
+ 		Q_strncat( host.deferred_cmd, "\n", sizeof( host.deferred_cmd ));
+ 	}
+diff --git a/engine/client/parse/cl_parse.c b/engine/client/parse/cl_parse.c
+--- a/engine/client/parse/cl_parse.c
++++ b/engine/client/parse/cl_parse.c
+@@ -2432,6 +2432,11 @@ qboolean CL_ParseCommonHLMessage( sizebuf_t *msg, connprotocol_t proto, int svc_
+ 		if( !Q_strnicmp( s, "disconnect", 10 ) && cls.signon != SIGNONS )
+ 			break; // too early
+ #endif
++		// Cry of Fear unified UI (cof_ui_menu_map_redirect, default on): hl.dll
++		// returns to the main menu with CLIENT_COMMAND( player, "map
++		// c_game_menu1" ), which arrives here as a stufftext
++		if( CL_CoF_MenuMapRedirect( s, "server svc_stufftext" ))
++			break;
+ 
+ 		Cbuf_AddFilteredText( s );
+ 		break;
+diff --git a/engine/common/common.h b/engine/common/common.h
+--- a/engine/common/common.h
++++ b/engine/common/common.h
+@@ -753,6 +753,11 @@ qboolean CL_IsPlaybackDemo( void );
+ qboolean UI_CreditsActive( void );
+ void *UI_GetMenuFactory( void );
+ int CL_GetMaxClients( void );
++// Cry of Fear unified UI (cof_ui_menu_map_redirect): defined in cl_main.c,
++// called from the client and from the server's pfnServerCommand
++qboolean CL_CoF_MenuMapRedirect( const char *cmd, const char *source );
++qboolean CL_CoF_MenuMapLevelChange( const char *mapname, const char *source );
++void CL_CoF_RememberBackgroundMap( const char *mapname );
+ #else
+ static inline qboolean CL_Initialized( void ) { return false; }
+ static inline qboolean CL_IsInGame( void ) { return true; } // always true for dedicated
+@@ -764,6 +769,9 @@ static inline qboolean CL_IsPlaybackDemo( void ) { return false; }
+ static inline qboolean UI_CreditsActive( void ) { return false; }
+ static inline void *UI_GetMenuFactory( void ) { return NULL; }
+ static inline int CL_GetMaxClients( void ) { return SV_GetMaxClients(); }
++static inline qboolean CL_CoF_MenuMapRedirect( const char *cmd, const char *source ) { return false; }
++static inline qboolean CL_CoF_MenuMapLevelChange( const char *mapname, const char *source ) { return false; }
++static inline void CL_CoF_RememberBackgroundMap( const char *mapname ) { }
+ #endif
+ 
+ char *CL_Userinfo( void );
+diff --git a/engine/server/sv_cmds.c b/engine/server/sv_cmds.c
+--- a/engine/server/sv_cmds.c
++++ b/engine/server/sv_cmds.c
+@@ -208,6 +208,11 @@ static void SV_Map_f( void )
+ 	Q_strncpy( mapname, Cmd_Argv( 1 ), sizeof( mapname ));
+ 	COM_StripExtension( mapname );
+ 
++	// Cry of Fear unified UI (cof_ui_menu_map_redirect, default on): the 3D
++	// menu map is never a real level here, whatever route asked for it
++	if( CL_CoF_MenuMapLevelChange( mapname, "map command" ))
++		return;
++
+ 	if( !SV_ValidateMap( mapname ))
+ 		return;
+ 
+@@ -287,6 +292,10 @@ static void SV_MapBackground_f( void )
+ 	if( !SV_ValidateMap( mapname ))
+ 		return;
+ 
++	// Cry of Fear unified UI (cof_ui_menu_map_redirect): remember the scene the
++	// engine menu is running over, so the redirect can put this exact map back
++	CL_CoF_RememberBackgroundMap( mapname );
++
+ 	// background map is always run as singleplayer
+ 	Cvar_FullSet( "maxplayers", "1", FCVAR_LATCH );
+ 	Cvar_FullSet( "deathmatch", "0", FCVAR_LATCH|FCVAR_SERVER );
+@@ -550,6 +559,10 @@ static void SV_ChangeLevel_f( void )
+ 		return;
+ 	}
+ 
++	// Cry of Fear unified UI (cof_ui_menu_map_redirect, default on)
++	if( CL_CoF_MenuMapLevelChange( Cmd_Argv( 1 ), "changelevel command" ))
++		return;
++
+ 	SV_QueueChangeLevel( Cmd_Argv( 1 ), NULL );
+ }
+ 
+diff --git a/engine/server/sv_game.c b/engine/server/sv_game.c
+--- a/engine/server/sv_game.c
++++ b/engine/server/sv_game.c
+@@ -2331,7 +2331,10 @@ static void GAME_EXPORT pfnServerCommand( const char* str )
+ 			Con_Reportf( "[cof-trace] hl pfnServerCommand rejected\n" );
+ 		Con_Printf( S_ERROR "bad server command %s\n", str );
+ 	}
+-	else Cbuf_AddText( str );
++	// Cry of Fear unified UI (cof_ui_menu_map_redirect, default on): a game DLL
++	// asking for the 3D-menu map is asking to go back to the main menu
++	else if( !CL_CoF_MenuMapRedirect( str, "server pfnServerCommand" ))
++		Cbuf_AddText( str );
+ }
+ 
+ /*

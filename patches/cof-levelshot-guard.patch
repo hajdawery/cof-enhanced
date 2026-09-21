@@ -1,0 +1,37 @@
+diff --git a/engine/client/cl_cmds.c b/engine/client/cl_cmds.c
+--- a/engine/client/cl_cmds.c
++++ b/engine/client/cl_cmds.c
+@@ -304,6 +304,13 @@ void CL_LevelShot_f( void )
+ 	// check for exist
+ 	if( cls.demoplayback && ( cls.demonum != -1 ))
+ 	{
++		if( COM_StringEmpty( cls.demoname ))
++		{
++			// nothing to name the levelshot after
++			cls.scrshot_action = scrshot_inactive;
++			return;
++		}
++
+ 		Q_snprintf( cls.shotname, sizeof( cls.shotname ),
+ 			"levelshots/%s_%s.bmp", cls.demoname, refState.wideScreen ? "16x9" : "4x3" );
+ 		Q_snprintf( filename, sizeof( filename ), "%s.dem", cls.demoname );
+@@ -314,6 +321,19 @@ void CL_LevelShot_f( void )
+ 	}
+ 	else
+ 	{
++		// a queued levelshot can outlive the world it was queued for: a command
++		// that shuts the server down (e.g. "newgame" typed at the console while a
++		// background map is running) runs from the same command buffer, so by the
++		// time this is executed cl.worldmodel is NULL. cl.worldmodel->name is then
++		// a NULL path and FS_FileTime -> FS_FindFile -> FS_FixFileCase (dir.c:294)
++		// dereferences it. Drop the levelshot instead.
++		if( !cl.worldmodel || COM_StringEmpty( cl.worldmodel->name ) || COM_StringEmpty( clgame.mapname ))
++		{
++			Con_Reportf( "%s: no world loaded, skipping the levelshot\n", __func__ );
++			cls.scrshot_action = scrshot_inactive;
++			return;
++		}
++
+ 		Q_snprintf( cls.shotname, sizeof( cls.shotname ),
+ 			"levelshots/%s_%s.bmp", clgame.mapname, refState.wideScreen ? "16x9" : "4x3" );
+ 

@@ -1,0 +1,717 @@
+diff --git a/engine/client/console.c b/engine/client/console.c
+--- a/engine/client/console.c
++++ b/engine/client/console.c
+@@ -35,6 +35,30 @@ static CVAR_DEFINE_AUTO( scr_drawversion, "1", FCVAR_ARCHIVE, "draw version in m
+ static CVAR_DEFINE_AUTO( con_oldfont, "0", 0, "use legacy font from gfx.wad, might be missing or broken" );
+ static CVAR_DEFINE_AUTO( con_showcompletion, "1", FCVAR_ARCHIVE, "perform simplified autocompletion while typing" );
+ 
++// Cry of Fear unified UI, milestone 3b: the console as a Source-style window.
++// Deliberately not FCVAR_ARCHIVE, like the rest of the cof_* stack, so a stale
++// config.cfg cannot pin the look. cof_console_style 0 restores the stock
++// full-width drawing byte for byte.
++static CVAR_DEFINE_AUTO( cof_console_style, "1", 0, "draw the console as a centred Source-style window (0 = stock full-width drawing)" );
++static CVAR_DEFINE_AUTO( cof_console_width, "0.70", 0, "styled console: panel width as a fraction of the screen" );
++static CVAR_DEFINE_AUTO( cof_console_height, "0.60", 0, "styled console: panel height as a fraction of the screen" );
++static CVAR_DEFINE_AUTO( cof_console_title, "CONSOLE", 0, "styled console: title band text" );
++static CVAR_DEFINE_AUTO( cof_console_panel_color, "32 32 32 230", 0, "styled console: panel background colour, \"r g b a\"" );
++static CVAR_DEFINE_AUTO( cof_console_border_color, "150 150 150 200", 0, "styled console: panel border colour, \"r g b a\"" );
++static CVAR_DEFINE_AUTO( cof_console_band_color, "20 20 20 240", 0, "styled console: title band colour, \"r g b a\"" );
++static CVAR_DEFINE_AUTO( cof_console_title_color, "220 220 220 255", 0, "styled console: title and version text colour, \"r g b a\"" );
++static CVAR_DEFINE_AUTO( cof_console_text_color, "190 190 190 255", 0, "styled console: log and input text colour, \"r g b a\"" );
++static CVAR_DEFINE_AUTO( cof_console_input_bg_color, "12 12 12 200", 0, "styled console: input box background colour, \"r g b a\"" );
++static CVAR_DEFINE_AUTO( cof_console_input_border_color, "90 90 90 255", 0, "styled console: input box border colour, \"r g b a\"" );
++static CVAR_DEFINE_AUTO( cof_console_accent_color, "240 180 24 255", 0, "styled console: caret and hovered close-button colour, \"r g b a\"" );
++// Cry of Fear ships an amber CONCHARS atlas in gfx.wad, so every glyph is
++// pre-tinted and no colour a draw call passes can make it neutral. Loading the
++// console font as TF_LUMINANCE makes the glyphs white again, which is what lets
++// cof_console_text_color land on the spec grey. Only honoured while
++// cof_console_style is on, so "cof_console_style 0" is still the stock console
++// down to the font texture.
++static CVAR_DEFINE_AUTO( cof_console_font_grayscale, "1", 0, "styled console: load the console font as greyscale, so a pre-tinted game font stops forcing its own colour" );
++
+ static int g_codepage = 0;
+ 
+ static qboolean g_messagemode_privileged = true;
+@@ -154,6 +178,14 @@ static void Con_InvalidateFonts( void );
+ static void Con_LoadHistory( con_history_t *self );
+ static void Con_SaveHistory( con_history_t *self );
+ 
++// milestone 3b, styled console window
++static qboolean Con_StyleEnabled( void );
++static qboolean Con_StyleCloseHit( int mx, int my );
++
++// last known mouse position, fed by IN_MouseMove()
++static int con_style_mouse_x = -1;
++static int con_style_mouse_y = -1;
++
+ /*
+ ================
+ Con_BackgroundMapActive
+@@ -555,13 +587,19 @@ static void Con_LoadConsoleFont( int fontNumber, cl_font_t *font )
+ {
+ 	qboolean success = false;
+ 	float scale = con_fontscale.value;
++	uint texFlags = TF_FONT|TF_NEAREST;
+ 
+ 	if( font->valid )
+ 		return; // already loaded
+ 
++	// milestone 3b: neutralise a pre-tinted game font so the styled console's
++	// text colour means something (Cry of Fear's CONCHARS atlas is amber)
++	if( Con_StyleEnabled() && cof_console_font_grayscale.value != 0.0f )
++		SetBits( texFlags, TF_LUMINANCE );
++
+ 	if( con_oldfont.value )
+ 	{
+-		success = Con_LoadVariableWidthFont( "gfx/conchars.fnt", font, scale, &con_fontrender, TF_FONT|TF_NEAREST );
++		success = Con_LoadVariableWidthFont( "gfx/conchars.fnt", font, scale, &con_fontrender, texFlags );
+ 	}
+ 	else
+ 	{
+@@ -574,20 +612,20 @@ static void Con_LoadConsoleFont( int fontNumber, cl_font_t *font )
+ 			if( Q_snprintf( path, sizeof( path ),
+ 				"font%i_%s.fnt", fontNumber, Cvar_VariableString( "con_charset" )) > 0 )
+ 			{
+-				success = Con_LoadVariableWidthFont( path, font, scale, &con_fontrender, TF_FONT|TF_NEAREST );
++				success = Con_LoadVariableWidthFont( path, font, scale, &con_fontrender, texFlags );
+ 			}
+ 		}
+ 
+ 		if( !success )
+ 		{
+ 			Q_snprintf( path, sizeof( path ), "fonts/font%i", fontNumber );
+-			success = Con_LoadVariableWidthFont( path, font, scale, &con_fontrender, TF_FONT|TF_NEAREST );
++			success = Con_LoadVariableWidthFont( path, font, scale, &con_fontrender, texFlags );
+ 		}
+ 
+ 		if( !success )
+ 		{
+ 			// Some mods provide a variable-width console font in gfx.wad.
+-			success = Con_LoadVariableWidthFont( "gfx/conchars.fnt", font, scale, &con_fontrender, TF_FONT|TF_NEAREST );
++			success = Con_LoadVariableWidthFont( "gfx/conchars.fnt", font, scale, &con_fontrender, texFlags );
+ 		}
+ 	}
+ 
+@@ -595,7 +633,7 @@ static void Con_LoadConsoleFont( int fontNumber, cl_font_t *font )
+ 	{
+ 		// quake fixed font as fallback
+ 		// keep source to print directly into conback image
+-		if( !Con_LoadFixedWidthFont( "gfx/conchars", font, scale, &con_fontrender, TF_FONT|TF_NEAREST|TF_KEEP_SOURCE ))
++		if( !Con_LoadFixedWidthFont( "gfx/conchars", font, scale, &con_fontrender, texFlags|TF_KEEP_SOURCE ))
+ 			Con_DPrintf( S_ERROR "failed to load console font\n" );
+ 	}
+ }
+@@ -798,6 +836,21 @@ void Con_Init( void )
+ 	Cvar_RegisterVariable( &con_oldfont );
+ 	Cvar_RegisterVariable( &con_showcompletion );
+ 
++	// milestone 3b: the Source-style console window
++	Cvar_RegisterVariable( &cof_console_style );
++	Cvar_RegisterVariable( &cof_console_width );
++	Cvar_RegisterVariable( &cof_console_height );
++	Cvar_RegisterVariable( &cof_console_title );
++	Cvar_RegisterVariable( &cof_console_panel_color );
++	Cvar_RegisterVariable( &cof_console_border_color );
++	Cvar_RegisterVariable( &cof_console_band_color );
++	Cvar_RegisterVariable( &cof_console_title_color );
++	Cvar_RegisterVariable( &cof_console_text_color );
++	Cvar_RegisterVariable( &cof_console_input_bg_color );
++	Cvar_RegisterVariable( &cof_console_input_border_color );
++	Cvar_RegisterVariable( &cof_console_accent_color );
++	Cvar_RegisterVariable( &cof_console_font_grayscale );
++
+ 	// init the console buffer
+ 	con.bufsize = CON_TEXTSIZE;
+ 	con.buffer = (char *)Z_Calloc( con.bufsize );
+@@ -1510,6 +1563,15 @@ void Key_Console( int key )
+ 		return;
+ 	}
+ 
++	// milestone 3b: the close "X" of the styled console window. Only ever acts
++	// inside that one box, and only while the styled window is the thing on
++	// screen; otherwise the click falls through exactly as it used to.
++	if( key == K_MOUSE1 && Con_StyleCloseHit( con_style_mouse_x, con_style_mouse_y ))
++	{
++		Con_ToggleConsole_f();
++		return;
++	}
++
+ 	// ctrl-L clears screen
+ 	if( key == 'l' && Key_IsDown( K_CTRL ))
+ 	{
+@@ -1897,6 +1959,482 @@ static void Con_LastVisibleLine( int *lastline )
+ 	con.backscroll = lines_seen - 1;
+ }
+ 
++/*
++==============================================================================
++
++CRY OF FEAR UNIFIED UI, MILESTONE 3B: THE CONSOLE AS A SOURCE-STYLE WINDOW
++
++A centred panel of cof_console_width x cof_console_height of the screen, with a
++translucent dark-grey body, a hairline border, a title band carrying the title
++and the build string, and a separate input box at the bottom. Nothing about the
++console's *behaviour* changes: the tilde toggle, the key handling, the history,
++the notify lines, the backscroll and the completion ghost are all the stock
++code. Only Con_DrawSolidConsole() forks, and only when cof_console_style is on,
++so "cof_console_style 0" reaches the original drawing unchanged.
++
++Geometry is derived from refState.width/height and the loaded bitmap font, so
++there is no 4:3 assumption anywhere in here.
++
++==============================================================================
++*/
++typedef struct
++{
++	int	x, y, w, h;			// the panel
++	int	border;				// hairline width, pixels
++	int	padx, pady;
++	int	band_h;				// title band height
++	int	log_x, log_y, log_w, log_h;	// log area, log_y is its top
++	int	in_x, in_y, in_w, in_h;		// input box, outer edge
++	int	close_x, close_y, close_s;	// close button box
++} constyle_t;
++
++static qboolean Con_StyleEnabled( void )
++{
++	return cof_console_style.value != 0.0f;
++}
++
++/*
++================
++Con_StyleColor
++
++"r g b" or "r g b a"; anything else falls back to the cvar's own default
++================
++*/
++static void Con_StyleColor( convar_t *cv, rgba_t out, byte alphaScale )
++{
++	int	r = 255, g = 255, b = 255, a = 255;
++	int	num;
++
++	num = sscanf( cv->string, "%i %i %i %i", &r, &g, &b, &a );
++
++	if( num < 3 )
++	{
++		r = 255; g = 255; b = 255; a = 255;
++		if( sscanf( cv->def_string, "%i %i %i %i", &r, &g, &b, &a ) < 3 )
++			r = g = b = a = 255;
++	}
++	else if( num == 3 )
++	{
++		a = 255;
++	}
++
++	out[0] = bound( 0, r, 255 );
++	out[1] = bound( 0, g, 255 );
++	out[2] = bound( 0, b, 255 );
++	out[3] = ( bound( 0, a, 255 ) * alphaScale ) / 255;
++}
++
++static void Con_StyleFill( int x, int y, int w, int h, const rgba_t color )
++{
++	if( w <= 0 || h <= 0 || color[3] == 0 )
++		return;
++
++	ref.dllFuncs.FillRGBA( kRenderTransTexture, x, y, w, h, color[0], color[1], color[2], color[3] );
++}
++
++// a hairline frame drawn *inside* the given rect, unlike mainui's UI_DrawRectangle
++static void Con_StyleFrame( int t, int x, int y, int w, int h, const rgba_t color )
++{
++	if( t < 1 ) t = 1;
++
++	if( w <= t * 2 || h <= t * 2 )
++		return;
++
++	Con_StyleFill( x,         y,         w, t,         color );
++	Con_StyleFill( x,         y + h - t, w, t,         color );
++	Con_StyleFill( x,         y + t,     t, h - t * 2, color );
++	Con_StyleFill( x + w - t, y + t,     t, h - t * 2, color );
++}
++
++/*
++================
++Con_StyleLayout
++
++Pure: no side effects, so Con_GetInputRect() can ask for the same numbers the
++drawing code uses.
++================
++*/
++static qboolean Con_StyleLayout( constyle_t *r )
++{
++	int	charH, minw, minh, gap;
++	float	fw, fh;
++
++	if( !con.curFont || !con.curFont->valid )
++		return false;
++
++	if( refState.width < 320 || refState.height < 200 )
++		return false;
++
++	memset( r, 0, sizeof( *r ));
++
++	charH = con.curFont->charHeight;
++	if( charH < 4 ) charH = 4;
++
++	r->border = Q_max( 1, refState.height / 720 );
++	r->padx   = Q_max( 8, refState.height / 72 );
++	r->pady   = Q_max( 5, refState.height / 144 );
++	gap       = r->pady;
++
++	r->band_h = charH + r->pady * 2;
++	r->in_h   = charH + r->pady * 2;
++
++	fw = bound( 0.25f, cof_console_width.value, 1.0f );
++	fh = bound( 0.25f, cof_console_height.value, 1.0f );
++
++	// the panel must at least hold band + one log line + input box + padding
++	minw = r->padx * 6 + charH * 8;
++	minh = r->band_h + gap + charH + gap + r->in_h + r->pady;
++
++	r->w = bound( minw, (int)( refState.width  * fw ), refState.width  );
++	r->h = bound( minh, (int)( refState.height * fh ), refState.height );
++
++	if( r->w > refState.width || r->h > refState.height )
++		return false; // screen too small for a window, caller falls back
++
++	r->x = ( refState.width  - r->w ) / 2;
++	r->y = ( refState.height - r->h ) / 2;
++
++	r->in_x = r->x + r->padx;
++	r->in_w = r->w - r->padx * 2;
++	r->in_y = r->y + r->h - r->pady - r->in_h;
++
++	r->log_x = r->x + r->padx;
++	r->log_w = r->w - r->padx * 2;
++	r->log_y = r->y + r->band_h + gap;
++	r->log_h = ( r->in_y - gap ) - r->log_y;
++
++	if( r->log_h < charH )
++		r->log_h = charH;
++
++	r->close_s = r->band_h - r->pady;
++	r->close_x = r->x + r->w - r->padx - r->close_s;
++	r->close_y = r->y + ( r->band_h - r->close_s ) / 2;
++
++	return true;
++}
++
++/*
++================
++Con_StyleCloseHit
++
++The close "X" is clickable only if a mouse position ever reached us and the
++styled console is the thing on screen. Called from Key_Console().
++================
++*/
++static qboolean Con_StyleCloseHit( int mx, int my )
++{
++	constyle_t	r;
++
++	if( !Con_StyleEnabled() || !Con_Visible() )
++		return false;
++
++	if( mx < 0 || my < 0 )
++		return false;
++
++	if( !Con_StyleLayout( &r ))
++		return false;
++
++	return mx >= r.close_x && mx < r.close_x + r.close_s
++		&& my >= r.close_y && my < r.close_y + r.close_s;
++}
++
++/*
++================
++Con_MouseMove
++
++Called from IN_MouseMove() next to UI_MouseMove(). Only remembers where the
++cursor is; nothing else in the console reads it unless the styled window is up.
++================
++*/
++void Con_MouseMove( int x, int y )
++{
++	con_style_mouse_x = x;
++	con_style_mouse_y = y;
++}
++
++/*
++================
++Con_DrawStringClipped
++
++Like Con_DrawString(), but stops before it would draw past maxWidth, so a long
++log line cannot spill out of the panel. Colour codes and the UTF-8 state machine
++behave exactly as in CL_DrawString().
++================
++*/
++static int Con_DrawStringClipped( int x, int y, int maxWidth, const char *s, const rgba_t color )
++{
++	cl_font_t	*font = con.curFont;
++	rgba_t		cur;
++	int		draw_len = 0;
++	int		widest;
++
++	if( !font || !font->valid || !s )
++		return 0;
++
++	widest = font->charWidths['W'];
++	if( widest <= 0 ) widest = font->charHeight;
++
++	Con_UtfProcessChar( 0 ); // clear utf state
++	CL_SetFontRendermode( font );
++
++	memcpy( cur, color, sizeof( cur ));
++
++	while( *s )
++	{
++		if( *s == '\n' )
++		{
++			s++;
++			continue; // console lines never carry one, but never wrap here either
++		}
++
++		if( IsColorString( s ))
++		{
++			const byte *c = g_color_table[ColorIndex( *( s + 1 ))];
++
++			MakeRGBA( cur, c[0], c[1], c[2], color[3] );
++			s += 2;
++			continue;
++		}
++
++		if( draw_len + widest > maxWidth )
++			break;
++
++		draw_len += CL_DrawCharacter( x + draw_len, y, (byte)*s, cur, font,
++			FONT_DRAW_UTF8 | FONT_DRAW_NORENDERMODE );
++		s++;
++	}
++
++	return draw_len;
++}
++
++/*
++================
++Con_DrawStyledField
++
++The stock Field_DrawInputLine() hardcodes the default console colour and has no
++width limit; this is the same logic inside the panel's input box.
++================
++*/
++static int Con_DrawStyledField( int x, int y, int maxWidth, const field_t *edit, const rgba_t color, const rgba_t caret, byte alpha, qboolean cursor )
++{
++	char	str[MAX_SYSPATH];
++	rgba_t	base, tip;
++	const int prestep = bound( 0, edit->scroll, (int)sizeof( edit->buffer ) - 1 );
++	const int drawLen = bound( 0, edit->widthInChars, (int)sizeof( str ));
++	const int cursorCharPos = bound( 0, edit->cursor - prestep, (int)sizeof( str ) - 1 );
++	int	curPos = 0;
++
++	MakeRGBA( base, color[0], color[1], color[2], alpha );
++	Q_strncpy( str, edit->buffer + prestep, drawLen );
++
++	Con_DrawStringClipped( x, y, maxWidth, str, base );
++
++	// where the caret goes
++	str[cursorCharPos] = 0;
++	CL_DrawStringLen( con.curFont, str, &curPos, NULL, FONT_DRAW_UTF8 );
++
++	if( !cursor || (int)( host.realtime * 4 ) & 1 )
++		return curPos; // off blink
++
++	if( curPos < maxWidth )
++	{
++		MakeRGBA( tip, caret[0], caret[1], caret[2], alpha );
++		CL_DrawCharacter( x + curPos, y, host.key_overstrike ? '|' : '_', tip, con.curFont, 0 );
++	}
++
++	return curPos;
++}
++
++/*
++================
++Con_DrawStyledInput
++================
++*/
++static void Con_DrawStyledInput( const constyle_t *r, const rgba_t text, const rgba_t accent, byte alpha )
++{
++	rgba_t	bg, frame, prompt;
++	int	tx, ty, tw, x, chars, charW;
++
++	if( cls.key_dest != key_console || !con.curFont )
++		return;
++
++	Con_StyleColor( &cof_console_input_bg_color, bg, alpha );
++	Con_StyleColor( &cof_console_input_border_color, frame, alpha );
++
++	Con_StyleFill( r->in_x, r->in_y, r->in_w, r->in_h, bg );
++	Con_StyleFrame( r->border, r->in_x, r->in_y, r->in_w, r->in_h, frame );
++
++	tx = r->in_x + r->border + r->pady;
++	ty = r->in_y + r->pady;
++	tw = r->in_w - ( tx - r->in_x ) - r->border - r->pady;
++
++	if( tw <= 0 )
++		return;
++
++	// keep the field's horizontal scrolling in step with the box, not the screen
++	charW = con.curFont->charWidths['O'] - 1;
++	if( charW < 1 ) charW = 1;
++	chars = Q_max( 8, ( tw / charW ) - 2 );
++	if( con.input.widthInChars != chars )
++		con.input.widthInChars = chars;
++
++	MakeRGBA( prompt, accent[0], accent[1], accent[2], alpha );
++	x = CL_DrawCharacter( tx, ty, ']', prompt, con.curFont, 0 );
++
++	x += Con_DrawStyledField( tx + x, ty, tw - x, &con.input, text, accent, alpha, true );
++
++	// completion ghost, same guard as the stock path
++	if( con_showcompletion.value && con.input.scroll == 0 )
++	{
++		int len = Q_strlen( con.input.buffer );
++
++		if( FBitSet( con_showcompletion.flags, FCVAR_CHANGED ))
++		{
++			Con_InputCompletion();
++			ClearBits( con_showcompletion.flags, FCVAR_CHANGED );
++		}
++
++		if( Q_strlen( con.input_completion.buffer ) > len && !Q_strncmp( con.input.buffer, con.input_completion.buffer, len ))
++		{
++			con.input_completion.scroll = len;
++			con.input_completion.widthInChars = con.input.widthInChars;
++			Con_DrawStyledField( tx + x, ty, tw - x, &con.input_completion, text, text, alpha / 2, false );
++		}
++	}
++}
++
++/*
++================
++Con_DrawStyledConsole
++
++lines is the stock slide-in height; here it only drives the fade, so
++scr_conspeed still governs how long the window takes to appear.
++================
++*/
++static qboolean Con_DrawStyledConsole( int lines )
++{
++	constyle_t	r;
++	rgba_t		panel, border, band, title, text, accent, xcol;
++	string		curbuild;
++	byte		alpha;
++	float		frac;
++	int		y, ymin, lastline, stringLen, charH, tx;
++	const char	*titleText;
++
++	// no font or no console at all: let the stock path handle it
++	if( !con.curFont || !host.allow_console )
++		return false;
++
++	// screen too small for a window: fall back to the stock drawing
++	if( !Con_StyleLayout( &r ))
++		return false;
++
++	frac  = lines / (float)Q_max( 1, refState.height );
++	alpha = (byte)( Q_min( frac * 2.0f, 1.0f ) * 255 );
++	if( alpha == 0 )
++		return true;
++
++	Con_StyleColor( &cof_console_panel_color,  panel,  alpha );
++	Con_StyleColor( &cof_console_border_color, border, alpha );
++	Con_StyleColor( &cof_console_band_color,   band,   alpha );
++	Con_StyleColor( &cof_console_title_color,  title,  alpha );
++	Con_StyleColor( &cof_console_text_color,   text,   alpha );
++	Con_StyleColor( &cof_console_accent_color, accent, alpha );
++
++	ref.dllFuncs.GL_SetRenderMode( kRenderTransTexture );
++	ref.dllFuncs.Color4ub( 255, 255, 255, 255 ); // don't inherit a screenfade colour
++
++	// body, title band, hairline under the band, outer border
++	Con_StyleFill( r.x, r.y, r.w, r.h, panel );
++	Con_StyleFill( r.x, r.y, r.w, r.band_h, band );
++	Con_StyleFill( r.x, r.y + r.band_h, r.w, r.border, border );
++	Con_StyleFrame( r.border, r.x, r.y, r.w, r.h, border );
++
++	// title, small and uppercase
++	titleText = cof_console_title.string;
++	if( COM_StringEmpty( titleText ))
++		titleText = "CONSOLE";
++
++	tx = r.x + r.padx;
++	Con_DrawStringClipped( tx, r.y + r.pady, r.w - r.padx * 2, titleText, title );
++
++	// the build string lives in the band now, not across the top of the screen
++	Q_snprintf( curbuild, sizeof( curbuild ), XASH_ENGINE_NAME " %i/" XASH_VERSION " (%s-%s build %i)",
++		PROTOCOL_VERSION, Q_buildos(), Q_buildarch(), Q_buildnum( ));
++	Con_DrawStringLen( curbuild, &stringLen, &charH );
++
++	{
++		rgba_t dim;
++		int bx = r.close_x - r.padx - stringLen;
++
++		MakeRGBA( dim, title[0], title[1], title[2], alpha / 2 );
++		if( bx > tx + r.padx * 4 )
++			Con_DrawStringClipped( bx, r.y + r.pady, stringLen + 1, curbuild, dim );
++	}
++
++	// close button: an "X" in the band, highlighted while the cursor is over it
++	if( Con_StyleCloseHit( con_style_mouse_x, con_style_mouse_y ))
++		memcpy( xcol, accent, sizeof( xcol ));
++	else memcpy( xcol, title, sizeof( xcol ));
++
++	{
++		int cw = con.curFont->charWidths['X'];
++
++		CL_DrawCharacter( r.close_x + ( r.close_s - cw ) / 2,
++			r.close_y + ( r.close_s - con.curFont->charHeight ) / 2,
++			'X', xcol, con.curFont, 0 );
++	}
++
++	// the log
++	charH = con.curFont->charHeight;
++	ymin  = r.log_y;
++	y     = r.log_y + r.log_h - charH;
++
++	if( CON_LINES_COUNT > 0 )
++	{
++		int i;
++
++		Con_LastVisibleLine( &lastline );
++
++		if( con.backscroll )
++		{
++			int step = con.curFont->charWidths[' '];
++			int x;
++
++			// red arrows, as in the stock console, but inside the panel
++			CL_SetFontColor( con.curFont, g_color_table[1] );
++			for( x = 0; ( x + 1 ) * step < r.log_w; x += 4 )
++				CL_DrawCharacter( r.log_x + ( x + 1 ) * step, y, '^', NULL, con.curFont, FONT_DRAW_NOCOLOR );
++			y -= charH;
++		}
++
++		i = lastline;
++
++		while( y >= ymin )
++		{
++			con_lineinfo_t *li = &CON_LINES( i );
++
++			if( li && li->start && *li->start != '\1' )
++			{
++				Con_DrawStringClipped( r.log_x, y, r.log_w, li->start, text );
++				y -= charH;
++			}
++
++			if( i == 0 )
++				break;
++			i--;
++		}
++	}
++
++	Con_DrawStyledInput( &r, text, accent, alpha );
++
++	SCR_DrawFPS( 4 );
++
++	ref.dllFuncs.Color4ub( 255, 255, 255, 255 );
++
++	return true;
++}
++
+ /*
+ ================
+ Con_DrawConsole
+@@ -1915,6 +2453,11 @@ static void Con_DrawSolidConsole( int lines )
+ 
+ 	if( lines <= 0 ) return;
+ 
++	// milestone 3b: the Source-style window. Everything below this point is the
++	// stock drawing and is reached unchanged with "cof_console_style 0".
++	if( Con_StyleEnabled() && Con_DrawStyledConsole( lines ))
++		return;
++
+ 	// draw the background
+ 	ref.dllFuncs.GL_SetRenderMode( kRenderNormal );
+ 	ref.dllFuncs.Color4ub( 255, 255, 255, 255 ); // to prevent grab color from screenfade
+@@ -1995,6 +2538,31 @@ void Con_DrawConsole( void )
+ 	if( cls.state != ca_disconnected && ( cls.changelevel || cls.changedemo ))
+ 		return;
+ 
++	// milestone 3b: the styled input box narrows con.input.widthInChars, so when
++	// the style is switched off Con_CheckResize() has to recompute it from the
++	// screen; and the greyscale font flag is baked into the texture, so it needs
++	// the fonts reloaded, exactly as a video mode change does.
++	{
++		static qboolean styled_last = false;
++		static qboolean gray_last = false;
++		qboolean styled_now = Con_StyleEnabled();
++		qboolean gray_now = styled_now && cof_console_font_grayscale.value != 0.0f;
++
++		if( styled_now != styled_last )
++		{
++			styled_last = styled_now;
++			con.linewidth = 0; // force Con_CheckResize() to redo the width
++		}
++
++		if( gray_now != gray_last )
++		{
++			gray_last = gray_now;
++			Con_InvalidateFonts();
++			Con_LoadConchars();
++			con.linewidth = 0;
++		}
++	}
++
+ 	// check for console width changes from a vid mode change
+ 	Con_CheckResize ();
+ 
+@@ -2130,10 +2698,23 @@ qboolean Con_GetInputRect( int *x, int *y, int *w, int *h )
+ 	if( cls.key_dest == key_console )
+ 	{
+ 		int lines = Con_DestHeight();
++		constyle_t r;
+ 
+ 		if( lines <= 0 )
+ 			return false;
+ 
++		// milestone 3b: report the styled window's input box, so the on-screen
++		// keyboard and IME candidate window land on it and not on the old
++		// full-width line
++		if( Con_StyleEnabled() && Con_StyleLayout( &r ))
++		{
++			*x = r.in_x + r.border + r.pady;
++			*y = r.in_y + r.pady;
++			*w = r.in_w - ( r.border + r.pady ) * 2;
++			*h = con.curFont->charHeight;
++			return true;
++		}
++
+ 		*x = con.curFont->charWidths[' '];
+ 		*y = lines - con.curFont->charHeight * 2;
+ 		*w = refState.width - *x;
+diff --git a/engine/client/client.h b/engine/client/client.h
+--- a/engine/client/client.h
++++ b/engine/client/client.h
+@@ -1128,6 +1128,7 @@ void Con_ClearNotify( void );
+ void Con_DrawDebug( void );
+ void Con_RunConsole( void );
+ qboolean Con_GetInputRect( int *x, int *y, int *w, int *h );
++void Con_MouseMove( int x, int y ); // CoF milestone 3b: styled console close button hover/click
+ void Con_DrawConsole( void );
+ void Con_DrawVersion( void );
+ int Con_UtfProcessChar( int in );
+diff --git a/engine/client/input/input.c b/engine/client/input/input.c
+--- a/engine/client/input/input.c
++++ b/engine/client/input/input.c
+@@ -365,6 +365,10 @@ static void IN_MouseMove( void )
+ 
+ 	// if the menu is visible, move the menu cursor
+ 	UI_MouseMove( x, y );
++
++	// CoF milestone 3b: the styled console window has a close button; it only
++	// remembers the position, nothing reads it unless that window is up
++	Con_MouseMove( x, y );
+ }
+ 
+ /*
