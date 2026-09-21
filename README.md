@@ -61,4 +61,16 @@ save path separate. See [root-save compatibility](docs/cof-save-root-compat.md),
 limits. These checkpoints are source/apply experiments; runtime menu-save
 success and visual parity are not implied.
 
+The renderer fix for the missing Cry of Fear main-menu skyline is applied after
+the GL stage, solid-entity, and transparent-triangle trace patches:
+
+```powershell
+pwsh -File .\scripts\apply-cof-custom-renderfx-opaque.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+```
+
+It restores GoldSrc's rule that `rendermode`-normal entities stay opaque
+whatever their `renderfx` is, behind the `cof_custom_renderfx_opaque` cvar
+(default `1`). See [custom renderfx opaque classification](docs/cof-custom-renderfx-opaque.md)
+for the root cause, the measured evidence, and the validation.
+
 The upstream Windows build requires the recursive dependencies and an SDL2 Visual Studio development package for a client build. The isolated client build attempt used the official SDL2 `2.30.9-VC` package (SHA-256 `8C91D91E5BCB997D062EC2B553C53832EBF95654D4AA35E8C02A954D4CE752AE`). Visual Studio 2022 BuildTools with Win32 tools and Windows SDK 10.0.26100 are installed on the research host. A dedicated x86 compile of the patched source completed locally; this repository does not provide a dependency lockfile or reproducible build script, and that artifact is not committed.

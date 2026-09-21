@@ -81,6 +81,29 @@ being processed. A map transition or console-equivalent command therefore
 does not prove mouse hit testing, input focus, camera handoff, or the original
 client''s inventory/phone UI path.
 
+## FWGS reclassifies custom `renderfx` entities as translucent; GoldSrc does not
+
+GoldSrc decides opaque versus translucent from `curstate.rendermode` alone, so
+an entity with `rendermode 0` is drawn in the solid pass no matter what value a
+mod stores in `curstate.renderfx`. FWGS `R_OpaqueEntity()` in
+`ref/gl/gl_rmain.c` instead accepts only `kRenderFxNone`,
+`kRenderFxDeadPlayer`, `kRenderFxLightMultiplier` and `kRenderFxExplode`, so
+any mod-defined `renderfx` silently demotes a solid entity into the translucent
+list, where it is sorted after translucent brush geometry and drawn on top of
+it.
+
+Mods really do carry their own `renderfx` values. Cry of Fear identifies sky
+models by `renderfx` in `{70, 137, 184}` and uses 92/93/94 as draw-distance
+cull flags; its main-menu sky sphere (`rendermode 0`, `renderfx 137`) was being
+drawn after the translucent brush entity that paints the skyline and covering
+it. Because a translucent brush correctly leaves depth writes off, there is no
+depth value protecting the skyline, so this is purely an ordering defect.
+
+Runtime evidence: walk the draw lists entity by entity rather than reasoning
+about depth state. Both the wrong draw order and the fix are visible in list
+membership alone. See
+[custom renderfx opaque classification](cof-custom-renderfx-opaque.md).
+
 ## Evidence convention
 
 Record the pinned source revision, relative source path, evidence type

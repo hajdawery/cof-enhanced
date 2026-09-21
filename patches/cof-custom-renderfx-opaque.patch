@@ -1,0 +1,52 @@
+diff --git a/ref/gl/gl_local.h b/ref/gl/gl_local.h
+index 2733eca..4e41311 100644
+--- a/ref/gl/gl_local.h
++++ b/ref/gl/gl_local.h
+@@ -729,6 +729,7 @@ extern convar_t cof_solid_entity_trace;
+ extern convar_t cof_skyline_trace;
+ extern convar_t cof_skip_client_transparent_triangles;
+ extern convar_t cof_skip_client_normal_triangles;
++extern convar_t cof_custom_renderfx_opaque;
+ extern convar_t	gl_litwater_force;
+ 
+ extern convar_t	r_lighting_ambient;
+diff --git a/ref/gl/gl_opengl.c b/ref/gl/gl_opengl.c
+index fdb8888..42b1fac 100644
+--- a/ref/gl/gl_opengl.c
++++ b/ref/gl/gl_opengl.c
+@@ -27,6 +27,7 @@ CVAR_DEFINE_AUTO( cof_solid_entity_trace, "0", FCVAR_GLCONFIG, "trace GL errors
+ CVAR_DEFINE_AUTO( cof_skyline_trace, "0", FCVAR_GLCONFIG, "trace Cry of Fear menu skyline studio culling (diagnostic)" );
+ CVAR_DEFINE_AUTO( cof_skip_client_transparent_triangles, "0", FCVAR_GLCONFIG, "skip client transparent-triangle callback (diagnostic)" );
+ CVAR_DEFINE_AUTO( cof_skip_client_normal_triangles, "0", FCVAR_GLCONFIG, "skip client normal-triangle callback (diagnostic)" );
++CVAR_DEFINE_AUTO( cof_custom_renderfx_opaque, "1", FCVAR_GLCONFIG, "treat rendermode-normal entities with non-standard renderfx values as opaque, matching GoldSrc" );
+ CVAR_DEFINE_AUTO( gl_litwater_force, "0", FCVAR_GLCONFIG, "force enable lightmapped water, even if support not declared in the map" );
+ CVAR_DEFINE_AUTO( r_lighting_ambient, "0.3", FCVAR_GLCONFIG, "map ambient lighting scale" );
+ CVAR_DEFINE_AUTO( r_detailtextures, "1", FCVAR_GLCONFIG, "enable detail textures support" );
+@@ -1234,6 +1235,7 @@ static void GL_InitCommands( void )
+ 	gEngfuncs.Cvar_RegisterVariable( &cof_skyline_trace );
+ 	gEngfuncs.Cvar_RegisterVariable( &cof_skip_client_transparent_triangles );
+ 	gEngfuncs.Cvar_RegisterVariable( &cof_skip_client_normal_triangles );
++	gEngfuncs.Cvar_RegisterVariable( &cof_custom_renderfx_opaque );
+ 	gEngfuncs.Cvar_RegisterVariable( &gl_litwater_force );
+ 
+ 	gEngfuncs.Cvar_RegisterVariable( &gl_polyoffset );
+diff --git a/ref/gl/gl_rmain.c b/ref/gl/gl_rmain.c
+index 964b885..d6fa910 100644
+--- a/ref/gl/gl_rmain.c
++++ b/ref/gl/gl_rmain.c
+@@ -64,6 +64,15 @@ qboolean R_OpaqueEntity( cl_entity_t *ent )
+ {
+ 	if( R_GetEntityRenderMode( ent ) == kRenderNormal )
+ 	{
++		// GoldSrc classifies an entity as opaque from its rendermode alone, so a
++		// mod that stores its own meaning in renderfx (Cry of Fear uses 92/137/184
++		// for draw-distance and sky markers) still gets a solid-pass draw there.
++		// Values above the last standard enum entry are outside this switch, so
++		// without this they would be sorted into the translucent list and drawn
++		// after translucent brush geometry.
++		if( cof_custom_renderfx_opaque.value && ent->curstate.renderfx > kRenderFxLightMultiplier )
++			return true;
++
+ 		switch( ent->curstate.renderfx )
+ 		{
+ 		case kRenderFxNone:
