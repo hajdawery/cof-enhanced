@@ -1,0 +1,1356 @@
+diff --git a/engine/common/common.h b/engine/common/common.h
+index f6b631a..d06ca5e 100644
+--- a/engine/common/common.h
++++ b/engine/common/common.h
+@@ -384,6 +384,7 @@ void _Mem_FreePool( poolhandle_t *poolptr, const char *filename, int fileline );
+ void _Mem_EmptyPool( poolhandle_t poolptr, const char *filename, int fileline );
+ void _Mem_Check( const char *filename, int fileline );
+ qboolean Mem_IsAllocatedExt( poolhandle_t poolptr, void *data );
++size_t Mem_AllocatedSize( poolhandle_t poolptr, void *data );
+ void Mem_PrintStats( void );
+ void Mem_Stats_f( void );
+ 
+diff --git a/engine/common/zone.c b/engine/common/zone.c
+index a0d9c23..eccc0f3 100644
+--- a/engine/common/zone.c
++++ b/engine/common/zone.c
+@@ -611,6 +611,44 @@ qboolean Mem_IsAllocatedExt( poolhandle_t poolptr, void *data )
+ 	return Mem_CheckAlloc( pool, data );
+ }
+ 
++/*
++========================
++Mem_AllocatedSize
++
++Size of the live allocation that starts at data in poolptr, 0 when data is not
++the start of one. Walks the pool's chains like Mem_IsAllocatedExt.
++========================
++*/
++size_t Mem_AllocatedSize( poolhandle_t poolptr, void *data )
++{
++	mempool_t *pool;
++
++	if( !poolptr || !data )
++		return 0;
++
++	pool = Mem_FindPool( poolptr );
++	if( !pool )
++		return 0;
++
++	memheader_t *target_big = (memheader_t *)((byte *)data - sizeof( memheader_t ));
++
++	for( memheader_t *header = pool->chain; header; header = header->next )
++	{
++		if( header == target_big )
++			return header->size;
++	}
++
++	memheader_small_t *target_small = (memheader_small_t *)((byte *)data - sizeof( memheader_small_t ));
++
++	for( memheader_small_t *header = pool->chain_small; header; header = header->next )
++	{
++		if( header == target_small )
++			return header->size;
++	}
++
++	return 0;
++}
++
+ void _Mem_Check( const char *filename, int fileline )
+ {
+ 	for( size_t i = 0; i < poolcount; i++ )
+diff --git a/engine/server/sv_client.c b/engine/server/sv_client.c
+index c1db181..08c363b 100644
+--- a/engine/server/sv_client.c
++++ b/engine/server/sv_client.c
+@@ -18,6 +18,7 @@ GNU General Public License for more details.
+ #include "const.h"
+ #include "server.h"
+ #include "net_encode.h"
++#include "sv_cof_cheats.h"
+ 
+ // challenges are valid for two consecutive windows of this size (max lifetime ~10s).
+ #define CHALLENGE_WINDOW_SECONDS 5
+@@ -3098,6 +3099,10 @@ static void SV_ExecuteClientCommand( sv_client_t *cl, const char *s )
+ 		Con_Reportf( "[cof-trace] server received cofload %s client_state=%d server_state=%d\n",
+ 			Cmd_Argv( 1 ), cl->state, sv.state );
+ 
++	// Cry of Fear: latched noclip/notarget, fly, give and the cof_* cheats
++	if( SV_CoF_CheatsClientCommand( cl ))
++		return;
++
+ 	for( i = 0; i < ARRAYSIZE( ucmds ); i++ )
+ 	{
+ 		if( !Q_strcmp( Cmd_Argv( 0 ), ucmds[i].name ))
+diff --git a/engine/server/sv_cof_cheats.c b/engine/server/sv_cof_cheats.c
+new file mode 100644
+index 0000000..c4bdce8
+--- /dev/null
++++ b/engine/server/sv_cof_cheats.c
+@@ -0,0 +1,1211 @@
++/*
++sv_cof_cheats.c - Cry of Fear: restored cheats (engine side)
++Copyright (C) 2026 cofenhanced
++
++This program is free software: you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation, either version 3 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++
++Cry of Fear 1.6 removed its developer cheats in its own engine (hw.dll), which
++Xash replaces, and it resets or ignores the stock engine ones in its game DLL:
++CBasePlayer::PostThink puts MOVETYPE_NOCLIP back to MOVETYPE_WALK every frame,
++thirteen places clear FL_NOTARGET, CBasePlayer::TakeDamage never looks at
++FL_GODMODE and there is no "give". What the game DLL still has are dead
++developer switches and plain data in the player object that a runtime write
++turns on. See cof-fix/docs/cof-cheats.md for every command, the offsets and
++where they come from.
++
++Everything here is gated twice:
++  * sv_cheats 1 (and a real, non-background game), and
++  * the loaded server DLL must be the retail Cry of Fear 1.6 hl.dll, checked by
++    SHA-256 of the module file, because every offset below is specific to that
++    build. Anything else gets the stock engine behaviour back, and the cof_*
++    commands refuse with one line.
++Every write re-validates the player edict, its private data allocation, the
++allocation size and the CBaseEntity::pev back-pointer, and checks that the
++value it replaces is one the retail game can hold; anything unexpected is
++refused rather than written.
++*/
++
++#include "common.h"
++#include "server.h"
++#include "const.h"
++#include "library.h"
++#include "sv_cof_cheats.h"
++#include <stddef.h>
++#if XASH_WIN32
++#include <windows.h>
++#endif
++
++#if XASH_WIN32 && XASH_X86 && defined( XASH_COF_ENTVARS_LEGACY ) && XASH_COF_ENTVARS_LEGACY
++#define COF_CHEATS_SUPPORTED 1
++// the CoF entvars layout the retail DLL was built against: movetype is before
++// the four-byte legacy gap, flags and air_finished after it
++STATIC_ASSERT( offsetof( entvars_t, movetype ) == 0x108, "CoF entvars: movetype" );
++STATIC_ASSERT( offsetof( entvars_t, flags ) == 0x1A8, "CoF entvars: flags" );
++STATIC_ASSERT( offsetof( entvars_t, air_finished ) == 0x200, "CoF entvars: air_finished" );
++#else
++#define COF_CHEATS_SUPPORTED 0
++#endif
++
++// SHA-256 of cryoffear/cl_dlls/hl.dll as shipped by Cry of Fear 1.6 (Steam)
++static const char cof_retail_hl_sha256[] = "0036b91c01e92ed205513f52563053a55a66a32d257efb5f476b8f1f3dde0e63";
++
++/*
++=============================================================================
++
++CBasePlayer / CInterDoor member offsets in the retail 1.6 hl.dll
++
++Offsets from CBaseEntity* == edict->pvPrivateData (vtable at +0, pev at +4),
++taken from the DLL's own TYPEDESCRIPTION save tables (player table at
++VA 10217FE8) and from the code that reads them; see docs/cof-cheats.md.
++
++=============================================================================
++*/
++#define COF_PV_PEV                  0x0004 // entvars_t *pev
++#define COF_PV_TOUCH                0x007C // CBaseEntity::m_pfnTouch
++#define COF_PV_USE                  0x0080 // CBaseEntity::m_pfnUse
++#define COF_PL_HAS_NIGHTVISION      0x0434 // bool m_bHasNightVision
++#define COF_PL_ENDING_ROOFBOSS      0x04CD // bool m_b_Ending_RoofBossKilled
++#define COF_PL_ENDING_GIVENP345     0x04CE // bool m_b_Ending_GivenP345
++#define COF_PL_ENDING_DELIVERED     0x04CF // bool m_b_Ending_DeliveredPackage
++#define COF_PL_GOING_THROUGH_DOOR   0x1EA4 // bool b_GoingThroughADoor
++#define COF_PL_TAPES                0x1EF4 // int  m_iTapes
++#define COF_PL_INFINITE_STAMINA     0x21E8 // bool m_bInfiniteStamina
++#define COF_PL_INFINITE_AMMO        0x21EA // bool m_bInfiniteAmmo
++#define COF_PL_STAMINA              0x21F0 // float m_fStamina (read only, for the status line)
++#define COF_PL_HEADSHIELD           0x2300 // int  m_iHeadShieldOn (nightvision state)
++#define COF_PL_MIN_SIZE             0x2304 // the player object must be at least this big
++
++// m_iHeadShieldOn: 0 off, 1 on, 0x65 "turn on" and 0x64 "turn off" requests
++// that CBasePlayer::PostThink completes on its next run (retail 100EB92A/100EBB23)
++#define COF_NV_OFF       0
++#define COF_NV_ON        1
++#define COF_NV_REQ_OFF   0x64
++#define COF_NV_REQ_ON    0x65
++
++#define COF_TAPES_MAX    999
++
++typedef struct cof_lock_desc_s
++{
++	const char *classname;
++	int         locked_by; // string_t m_sLockedBy
++	int         locked_msg; // string_t m_sLockedMsg
++} cof_lock_desc_t;
++
++static const cof_lock_desc_t cof_lock_descs[] =
++{
++{ "inter_door",      0x190, 0x194 },
++{ "inter_door_coop", 0x114, 0x118 },
++{ "func_valve",      0x180, 0x184 },
++};
++
++/*
++=============================================================================
++
++engine-side state
++
++=============================================================================
++*/
++typedef struct cof_latch_s
++{
++	qboolean noclip;
++	qboolean notarget;
++	qboolean fly;
++	qboolean infammo;
++	qboolean infstamina;
++	qboolean nodamage;
++	qboolean nodrown;
++} cof_latch_t;
++
++// per client slot, engine memory only: it outlives changelevel and load, and
++// is re-applied onto whatever player object the slot has after either
++static cof_latch_t cof_latches[MAX_CLIENTS];
++
++typedef enum
++{
++	COF_HASH_UNCHECKED = 0,
++	COF_HASH_MATCH,
++	COF_HASH_MISMATCH,
++	COF_HASH_UNREADABLE,
++	COF_HASH_UNSUPPORTED,
++} cof_hash_state_t;
++
++static struct
++{
++	const void       *instance; // svgame.hInstance the result belongs to
++	cof_hash_state_t state;
++	char             hex[65];
++} cof_hash;
++
++/*
++=============================================================================
++
++SHA-256 (FIPS 180-4), only used to identify the loaded game DLL
++
++=============================================================================
++*/
++typedef struct cof_sha256_s
++{
++	uint32_t state[8];
++	uint64_t length;
++	byte     block[64];
++	size_t   fill;
++} cof_sha256_t;
++
++static const uint32_t cof_sha256_k[64] =
++{
++0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
++0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
++0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
++0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
++0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
++0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
++0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
++0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
++};
++
++#define COF_ROR32( x, n ) ((( x ) >> ( n )) | (( x ) << ( 32 - ( n ))))
++
++static void CoF_Sha256Block( cof_sha256_t *ctx, const byte *p )
++{
++	uint32_t w[64], a, b, c, d, e, f, g, h;
++	int i;
++
++	for( i = 0; i < 16; i++ )
++		w[i] = ((uint32_t)p[i * 4] << 24 ) | ((uint32_t)p[i * 4 + 1] << 16 ) | ((uint32_t)p[i * 4 + 2] << 8 ) | p[i * 4 + 3];
++
++	for( i = 16; i < 64; i++ )
++	{
++		uint32_t s0 = COF_ROR32( w[i - 15], 7 ) ^ COF_ROR32( w[i - 15], 18 ) ^ ( w[i - 15] >> 3 );
++		uint32_t s1 = COF_ROR32( w[i - 2], 17 ) ^ COF_ROR32( w[i - 2], 19 ) ^ ( w[i - 2] >> 10 );
++		w[i] = w[i - 16] + s0 + w[i - 7] + s1;
++	}
++
++	a = ctx->state[0]; b = ctx->state[1]; c = ctx->state[2]; d = ctx->state[3];
++	e = ctx->state[4]; f = ctx->state[5]; g = ctx->state[6]; h = ctx->state[7];
++
++	for( i = 0; i < 64; i++ )
++	{
++		uint32_t s1 = COF_ROR32( e, 6 ) ^ COF_ROR32( e, 11 ) ^ COF_ROR32( e, 25 );
++		uint32_t ch = ( e & f ) ^ ( ~e & g );
++		uint32_t t1 = h + s1 + ch + cof_sha256_k[i] + w[i];
++		uint32_t s0 = COF_ROR32( a, 2 ) ^ COF_ROR32( a, 13 ) ^ COF_ROR32( a, 22 );
++		uint32_t maj = ( a & b ) ^ ( a & c ) ^ ( b & c );
++		uint32_t t2 = s0 + maj;
++
++		h = g; g = f; f = e; e = d + t1;
++		d = c; c = b; b = a; a = t1 + t2;
++	}
++
++	ctx->state[0] += a; ctx->state[1] += b; ctx->state[2] += c; ctx->state[3] += d;
++	ctx->state[4] += e; ctx->state[5] += f; ctx->state[6] += g; ctx->state[7] += h;
++}
++
++static void CoF_Sha256Init( cof_sha256_t *ctx )
++{
++	static const uint32_t iv[8] =
++	{
++	0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
++	};
++
++	memcpy( ctx->state, iv, sizeof( iv ));
++	ctx->length = 0;
++	ctx->fill = 0;
++}
++
++static void CoF_Sha256Update( cof_sha256_t *ctx, const byte *data, size_t len )
++{
++	ctx->length += len;
++
++	while( len > 0 )
++	{
++		size_t n = Q_min( len, sizeof( ctx->block ) - ctx->fill );
++
++		memcpy( ctx->block + ctx->fill, data, n );
++		ctx->fill += n;
++		data += n;
++		len -= n;
++
++		if( ctx->fill == sizeof( ctx->block ))
++		{
++			CoF_Sha256Block( ctx, ctx->block );
++			ctx->fill = 0;
++		}
++	}
++}
++
++static void CoF_Sha256Final( cof_sha256_t *ctx, char hex[65] )
++{
++	uint64_t bits = ctx->length * 8;
++	byte pad = 0x80, len[8];
++	int i;
++
++	CoF_Sha256Update( ctx, &pad, 1 );
++	pad = 0;
++	while( ctx->fill != 56 )
++		CoF_Sha256Update( ctx, &pad, 1 );
++
++	for( i = 0; i < 8; i++ )
++		len[i] = (byte)( bits >> ( 56 - i * 8 ));
++	CoF_Sha256Update( ctx, len, 8 );
++
++	for( i = 0; i < 32; i++ )
++	{
++		static const char digits[] = "0123456789abcdef";
++		byte v = (byte)( ctx->state[i >> 2] >> ( 24 - ( i & 3 ) * 8 ));
++
++		hex[i * 2] = digits[v >> 4];
++		hex[i * 2 + 1] = digits[v & 15];
++	}
++	hex[64] = '\0';
++}
++
++/*
++=============================================================================
++
++game DLL identity
++
++=============================================================================
++*/
++#if COF_CHEATS_SUPPORTED
++static cof_hash_state_t CoF_HashModuleFile( const dll_user_t *hInst, char hex[65] )
++{
++	wchar_t path[2048];
++	cof_sha256_t ctx;
++	byte buf[16384];
++	size_t n;
++	FILE *f;
++
++	path[0] = 0;
++
++	// the file the loader actually mapped; the loader's own resolved path is
++	// the fallback (and the only answer for the in-memory loader)
++	if( !hInst->custom_loader && hInst->hInstance )
++	{
++		DWORD len = GetModuleFileNameW((HMODULE)hInst->hInstance, path, ARRAYSIZE( path ));
++
++		if( len == 0 || len >= ARRAYSIZE( path ))
++			path[0] = 0;
++	}
++
++	if( !path[0] && !MultiByteToWideChar( CP_UTF8, 0, hInst->fullPath, -1, path, ARRAYSIZE( path )))
++		return COF_HASH_UNREADABLE;
++
++	f = _wfopen( path, L"rb" );
++	if( !f )
++		return COF_HASH_UNREADABLE;
++
++	CoF_Sha256Init( &ctx );
++	while(( n = fread( buf, 1, sizeof( buf ), f )) > 0 )
++		CoF_Sha256Update( &ctx, buf, n );
++
++	if( ferror( f ))
++	{
++		fclose( f );
++		return COF_HASH_UNREADABLE;
++	}
++
++	fclose( f );
++	CoF_Sha256Final( &ctx, hex );
++
++	return !Q_strcmp( hex, cof_retail_hl_sha256 ) ? COF_HASH_MATCH : COF_HASH_MISMATCH;
++}
++#endif // COF_CHEATS_SUPPORTED
++
++static cof_hash_state_t CoF_GameDllState( void )
++{
++	if( !svgame.hInstance )
++		return COF_HASH_UNREADABLE;
++
++	// hashed once per loaded game DLL
++	if( cof_hash.state != COF_HASH_UNCHECKED && cof_hash.instance == svgame.hInstance )
++		return cof_hash.state;
++
++	cof_hash.instance = svgame.hInstance;
++	cof_hash.hex[0] = '\0';
++
++#if COF_CHEATS_SUPPORTED
++	cof_hash.state = CoF_HashModuleFile((const dll_user_t *)svgame.hInstance, cof_hash.hex );
++#else
++	cof_hash.state = COF_HASH_UNSUPPORTED;
++#endif
++
++	switch( cof_hash.state )
++	{
++	case COF_HASH_MATCH:
++		Con_Reportf( "cof cheats: server DLL is the retail Cry of Fear 1.6 hl.dll (sha256 %s)\n", cof_hash.hex );
++		break;
++	case COF_HASH_MISMATCH:
++		Con_Reportf( "cof cheats: server DLL sha256 %s is not the retail Cry of Fear 1.6 hl.dll, cof cheats stay off\n", cof_hash.hex );
++		break;
++	case COF_HASH_UNREADABLE:
++		Con_Reportf( "cof cheats: could not read the server DLL to identify it, cof cheats stay off\n" );
++		break;
++	default:
++		Con_Reportf( "cof cheats: this engine build cannot carry the cof cheats (needs Win32 x86 with the CoF entvars layout)\n" );
++		break;
++	}
++
++	return cof_hash.state;
++}
++
++static const char *CoF_HashRefusal( cof_hash_state_t state )
++{
++	switch( state )
++	{
++	case COF_HASH_MISMATCH:   return "the loaded hl.dll is not the retail Cry of Fear 1.6 build (offsets unknown)";
++	case COF_HASH_UNREADABLE: return "the loaded hl.dll could not be read to identify it";
++	default:                  return "this engine build does not support the Cry of Fear cheats";
++	}
++}
++
++/*
++=============================================================================
++
++validated access to the player object
++
++=============================================================================
++*/
++typedef struct cof_player_s
++{
++	edict_t *ent;
++	byte    *pv;
++	size_t  size;
++} cof_player_t;
++
++// last validated private data per slot, so the per-frame path does not walk
++// the allocation chain every frame (the edict's own pvPrivateData changes on
++// every load and changelevel, which invalidates this)
++static struct
++{
++	const void *pv;
++	size_t      size;
++} cof_pvcache[MAX_CLIENTS];
++
++static size_t CoF_PrivateDataSize( int slot, const void *pv )
++{
++	size_t size;
++
++	if( slot >= 0 && slot < MAX_CLIENTS && cof_pvcache[slot].pv == pv && pv != NULL )
++		return cof_pvcache[slot].size;
++
++	size = Mem_AllocatedSize( svgame.mempool, (void *)pv );
++
++	if( slot >= 0 && slot < MAX_CLIENTS )
++	{
++		cof_pvcache[slot].pv = size ? pv : NULL;
++		cof_pvcache[slot].size = size;
++	}
++
++	return size;
++}
++
++// an entity's private data: allocated by the engine for this edict, big enough
++// and pointing back at this edict's entvars
++static byte *CoF_EntityPrivate( edict_t *ent, int slot, size_t need, size_t *outsize )
++{
++	byte *pv;
++	size_t size;
++
++	if( !SV_IsValidEdict( ent ) || !ent->pvPrivateData )
++		return NULL;
++
++	pv = (byte *)ent->pvPrivateData;
++	size = CoF_PrivateDataSize( slot, pv );
++
++	if( size < need )
++		return NULL;
++
++	if( *(entvars_t **)( pv + COF_PV_PEV ) != &ent->v )
++		return NULL;
++
++	if( outsize )
++		*outsize = size;
++
++	return pv;
++}
++
++static int CoF_ClientSlot( const sv_client_t *cl )
++{
++	int slot = (int)( cl - svs.clients );
++
++	if( slot < 0 || slot >= svs.maxclients || slot >= MAX_CLIENTS )
++		return -1;
++	return slot;
++}
++
++static qboolean CoF_GetPlayer( sv_client_t *cl, cof_player_t *p )
++{
++	int slot = CoF_ClientSlot( cl );
++	edict_t *ent;
++
++	memset( p, 0, sizeof( *p ));
++
++	if( slot < 0 || cl->state != cs_spawned || sv.state != ss_active )
++		return false;
++
++	ent = cl->edict;
++	if( !SV_IsValidEdict( ent ) || Q_strcmp( SV_GetString( ent->v.classname ), "player" ))
++		return false;
++
++	p->pv = CoF_EntityPrivate( ent, slot, COF_PL_MIN_SIZE, &p->size );
++	if( !p->pv )
++		return false;
++
++	p->ent = ent;
++	return true;
++}
++
++static qboolean CoF_ReadBool( const cof_player_t *p, int ofs, byte *out )
++{
++	if( ofs < 0 || (size_t)ofs + 1 > p->size )
++		return false;
++
++	*out = p->pv[ofs];
++	return *out <= 1; // a C++ bool the game wrote is 0 or 1, anything else is not our field
++}
++
++static qboolean CoF_WriteBool( const cof_player_t *p, int ofs, qboolean value )
++{
++	byte cur;
++
++	if( !CoF_ReadBool( p, ofs, &cur ))
++		return false;
++
++	if( cur != ( value ? 1 : 0 ))
++		p->pv[ofs] = value ? 1 : 0;
++	return true;
++}
++
++static qboolean CoF_ReadInt( const cof_player_t *p, int ofs, int *out )
++{
++	if( ofs < 0 || (size_t)ofs + sizeof( int ) > p->size )
++		return false;
++
++	memcpy( out, p->pv + ofs, sizeof( int ));
++	return true;
++}
++
++static void CoF_WriteInt( const cof_player_t *p, int ofs, int value )
++{
++	if( ofs < 0 || (size_t)ofs + sizeof( int ) > p->size )
++		return;
++
++	memcpy( p->pv + ofs, &value, sizeof( int ));
++}
++
++/*
++=============================================================================
++
++gate
++
++=============================================================================
++*/
++typedef enum
++{
++	COF_GATE_OK = 0,
++	COF_GATE_NOT_IN_GAME,   // no running, non-background game or no spawned player
++	COF_GATE_NO_CHEATS,     // sv_cheats 0
++	COF_GATE_WRONG_DLL,     // not the retail hl.dll, or an unsupported engine build
++} cof_gate_t;
++
++static cof_gate_t CoF_Gate( const sv_client_t *cl )
++{
++	if( sv.state != ss_active || sv.background || cl->state != cs_spawned )
++		return COF_GATE_NOT_IN_GAME;
++
++	if( !Cvar_VariableInteger( "sv_cheats" ))
++		return COF_GATE_NO_CHEATS;
++
++	if( CoF_GameDllState() != COF_HASH_MATCH )
++		return COF_GATE_WRONG_DLL;
++
++	return COF_GATE_OK;
++}
++
++// the one-line refusal every cof_* command prints when it cannot run
++static qboolean CoF_Refuse( sv_client_t *cl, const char *name, cof_gate_t gate )
++{
++	switch( gate )
++	{
++	case COF_GATE_NOT_IN_GAME:
++		SV_ClientPrintf( cl, "%s: needs a loaded game (not the menu background)\n", name );
++		break;
++	case COF_GATE_NO_CHEATS:
++		SV_ClientPrintf( cl, "%s: needs sv_cheats 1\n", name );
++		break;
++	case COF_GATE_WRONG_DLL:
++		SV_ClientPrintf( cl, "%s: refused: %s\n", name, CoF_HashRefusal( CoF_GameDllState( )));
++		break;
++	default:
++		break;
++	}
++	return true;
++}
++
++static qboolean CoF_PlayerOrRefuse( sv_client_t *cl, const char *name, cof_player_t *p )
++{
++	if( CoF_GetPlayer( cl, p ))
++		return true;
++
++	SV_ClientPrintf( cl, "%s: refused: the player object does not look like the retail Cry of Fear player\n", name );
++	return false;
++}
++
++// "0" or "1" in argv[1]; no argument toggles when toggle_ok, else is an error
++static qboolean CoF_ParseSwitch( int *out, qboolean current, qboolean toggle_ok )
++{
++	const char *arg;
++
++	if( Cmd_Argc() < 2 )
++	{
++		if( !toggle_ok )
++			return false;
++		*out = !current;
++		return true;
++	}
++
++	arg = Cmd_Argv( 1 );
++	if(( arg[0] == '0' || arg[0] == '1' ) && arg[1] == '\0' )
++	{
++		*out = arg[0] - '0';
++		return true;
++	}
++
++	return false;
++}
++
++static cof_latch_t *CoF_Latch( const sv_client_t *cl )
++{
++	int slot = CoF_ClientSlot( cl );
++
++	return slot >= 0 ? &cof_latches[slot] : NULL;
++}
++
++static qboolean CoF_AnyLatched( const cof_latch_t *l )
++{
++	return l->noclip || l->notarget || l->fly || l->infammo || l->infstamina || l->nodamage || l->nodrown;
++}
++
++/*
++=============================================================================
++
++bucket A: noclip, notarget, fly (latched), give
++
++=============================================================================
++*/
++static qboolean CoF_Alive( const edict_t *ent )
++{
++	return ent->v.deadflag == DEAD_NO && ent->v.health > 0.0f;
++}
++
++static qboolean CoF_Cmd_Movetype( sv_client_t *cl, const char *name, qboolean *latch, qboolean *other, int movetype )
++{
++	edict_t *ent = cl->edict;
++	int on;
++
++	if( !CoF_ParseSwitch( &on, *latch, true ))
++	{
++		SV_ClientPrintf( cl, "usage: %s [0|1]\n", name );
++		return true;
++	}
++
++	*latch = on;
++	if( on )
++	{
++		*other = false; // noclip and fly exclude each other
++		if( CoF_Alive( ent ))
++			ent->v.movetype = movetype;
++	}
++	else if( ent->v.movetype == movetype )
++	{
++		ent->v.movetype = MOVETYPE_WALK;
++	}
++
++	SV_ClientPrintf( cl, "%s %s\n", name, on ? "ON" : "OFF" );
++	return true;
++}
++
++static qboolean CoF_Cmd_Notarget( sv_client_t *cl, cof_latch_t *l )
++{
++	edict_t *ent = cl->edict;
++	int on;
++
++	if( !CoF_ParseSwitch( &on, l->notarget, true ))
++	{
++		SV_ClientPrintf( cl, "usage: notarget [0|1]\n" );
++		return true;
++	}
++
++	l->notarget = on;
++	if( on ) SetBits( ent->v.flags, FL_NOTARGET );
++	else ClearBits( ent->v.flags, FL_NOTARGET );
++
++	SV_ClientPrintf( cl, "notarget %s\n", on ? "ON" : "OFF" );
++	return true;
++}
++
++// has the game taken the item? AttachToPlayer (weapons) hides it on the player,
++// the ammo and item pickups clear its touch and use functions and schedule
++// SUB_Remove, UTIL_Remove marks it FL_KILLME
++static qboolean CoF_ItemTaken( const edict_t *ent, const edict_t *player, const byte *pv, size_t pvsize, const int before[2] )
++{
++	int after[2];
++
++	if( ent->free || FBitSet( ent->v.flags, FL_KILLME ) || ent->v.owner == player || ent->v.aiment == player || FBitSet( ent->v.effects, EF_NODRAW ))
++		return true;
++
++	if( !pv || pvsize < COF_PV_USE + sizeof( int ) || !before )
++		return false;
++
++	memcpy( &after[0], pv + COF_PV_TOUCH, sizeof( int ));
++	memcpy( &after[1], pv + COF_PV_USE, sizeof( int ));
++	return ( before[0] || before[1] ) && !after[0] && !after[1];
++}
++
++// CBasePlayer::GiveNamedItem, done by the engine: the same creation ent_create
++// uses, placed on the player and spawned; then the player "uses" it the way a
++// Cry of Fear pickup is taken (+use held, CBasePlayerItem/Ammo::DefaultUse and
++// CItem::ItemUse), with a plain touch as the fallback for anything else
++static qboolean CoF_Cmd_Give( sv_client_t *cl )
++{
++	static const char *prefixes[] = { "weapon_", "item_", "ammo_" };
++	const char *classname = Cmd_Argv( 1 );
++	qboolean prefix_ok = false, taken;
++	edict_t *player = cl->edict;
++	int before[2] = { 0, 0 };
++	size_t pvsize = 0;
++	edict_t *ent;
++	byte *pv;
++	int i, buttons;
++
++	if( Cmd_Argc() != 2 || !classname[0] )
++	{
++		SV_ClientPrintf( cl, "usage: give <classname>, e.g. give weapon_glock\n" );
++		return true;
++	}
++
++	// anything else (a monster, a trigger, a second player) can take the game
++	// DLL down; ent_create with sv_enttools_enable 1 is still there for that
++	for( i = 0; i < ARRAYSIZE( prefixes ); i++ )
++	{
++		if( !Q_strnicmp( classname, prefixes[i], Q_strlen( prefixes[i] )))
++			prefix_ok = true;
++	}
++
++	if( !prefix_ok )
++	{
++		SV_ClientPrintf( cl, "give: only weapon_*, item_* and ammo_* classnames (use ent_create for anything else)\n" );
++		return true;
++	}
++
++	if( !CoF_Alive( player ))
++	{
++		SV_ClientPrintf( cl, "give: you are dead\n" );
++		return true;
++	}
++
++	ent = SV_CreateNamedEntity( NULL, SV_AllocString( classname ));
++	if( !SV_IsValidEdict( ent ) || !ent->pvPrivateData )
++	{
++		if( SV_IsValidEdict( ent ))
++			SV_FreeEdict( ent );
++		SV_ClientPrintf( cl, "give: no such entity \"%s\"\n", classname );
++		return true;
++	}
++
++	VectorCopy( player->v.origin, ent->v.origin );
++	SetBits( ent->v.spawnflags, BIT( 30 )); // SF_NORESPAWN, as GiveNamedItem does
++
++	if( svgame.dllFuncs.pfnSpawn( ent ) == -1 || ent->free || FBitSet( ent->v.flags, FL_KILLME ))
++	{
++		if( !ent->free )
++			SV_FreeEdict( ent );
++		SV_ClientPrintf( cl, "give: \"%s\" removed itself on spawn\n", classname );
++		return true;
++	}
++
++	pv = CoF_EntityPrivate( ent, -1, COF_PV_USE + sizeof( int ), &pvsize );
++	if( pv )
++	{
++		memcpy( &before[0], pv + COF_PV_TOUCH, sizeof( int ));
++		memcpy( &before[1], pv + COF_PV_USE, sizeof( int ));
++	}
++
++	buttons = player->v.button;
++	SetBits( player->v.button, IN_USE );
++	svgame.dllFuncs.pfnUse( ent, player );
++	taken = CoF_ItemTaken( ent, player, pv, pvsize, pv ? before : NULL );
++
++	if( !taken && !ent->free )
++	{
++		svgame.dllFuncs.pfnTouch( ent, player );
++		taken = CoF_ItemTaken( ent, player, pv, pvsize, pv ? before : NULL );
++	}
++	player->v.button = buttons;
++
++	if( taken )
++		SV_ClientPrintf( cl, "give: %s\n", classname );
++	else
++		SV_ClientPrintf( cl, "give: %s was not taken (already carried, inventory full or not allowed), it is at your feet\n", classname );
++
++	return true;
++}
++
++/*
++=============================================================================
++
++bucket B: writes into the retail player object
++
++=============================================================================
++*/
++static qboolean CoF_Cmd_BoolLatch( sv_client_t *cl, const char *name, qboolean *latch, int ofs, const char *what )
++{
++	cof_player_t p;
++	byte cur;
++	int on;
++
++	if( !CoF_PlayerOrRefuse( cl, name, &p ))
++		return true;
++
++	if( !CoF_ReadBool( &p, ofs, &cur ))
++	{
++		SV_ClientPrintf( cl, "%s: refused: unexpected value %d in the player field\n", name, p.pv[ofs] );
++		*latch = false;
++		return true;
++	}
++
++	if( !CoF_ParseSwitch( &on, *latch, false ))
++	{
++		SV_ClientPrintf( cl, "%s is %d (game field %d): usage %s 0|1 (%s)\n", name, *latch, cur, name, what );
++		return true;
++	}
++
++	*latch = on;
++	CoF_WriteBool( &p, ofs, on );
++	SV_ClientPrintf( cl, "%s %s\n", name, on ? "ON" : "OFF" );
++	return true;
++}
++
++static qboolean CoF_Cmd_Nodrown( sv_client_t *cl, cof_latch_t *l )
++{
++	cof_player_t p;
++	int on;
++
++	if( !CoF_PlayerOrRefuse( cl, "cof_nodrown", &p ))
++		return true;
++
++	if( !CoF_ParseSwitch( &on, l->nodrown, false ))
++	{
++		SV_ClientPrintf( cl, "cof_nodrown is %d: usage cof_nodrown 0|1 (never run out of air)\n", l->nodrown );
++		return true;
++	}
++
++	l->nodrown = on;
++	if( on )
++		p.ent->v.air_finished = sv.time + 12.0f;
++	SV_ClientPrintf( cl, "cof_nodrown %s\n", on ? "ON" : "OFF" );
++	return true;
++}
++
++static qboolean CoF_Cmd_Ending( sv_client_t *cl )
++{
++	// CInterDoor::EndSequence (retail 100481FF): (roof, p345) picks endings 1-4,
++	// delivered overrides to 5
++	static const byte table[5][3] =
++	{
++	{ 0, 0, 0 },
++	{ 0, 1, 0 },
++	{ 1, 0, 0 },
++	{ 1, 1, 0 },
++	{ 1, 1, 1 },
++	};
++	const char *arg = Cmd_Argv( 1 );
++	cof_player_t p;
++	byte cur;
++	int ending, i;
++
++	if( !CoF_PlayerOrRefuse( cl, "cof_ending", &p ))
++		return true;
++
++	if( Cmd_Argc() != 2 || arg[0] < '1' || arg[0] > '5' || arg[1] != '\0' )
++	{
++		byte r = 0, g = 0, d = 0;
++		CoF_ReadBool( &p, COF_PL_ENDING_ROOFBOSS, &r );
++		CoF_ReadBool( &p, COF_PL_ENDING_GIVENP345, &g );
++		CoF_ReadBool( &p, COF_PL_ENDING_DELIVERED, &d );
++		SV_ClientPrintf( cl, "usage: cof_ending 1..5 (current flags roof=%d p345=%d package=%d)\n", r, g, d );
++		return true;
++	}
++
++	for( i = 0; i < 3; i++ )
++	{
++		if( !CoF_ReadBool( &p, COF_PL_ENDING_ROOFBOSS + i, &cur ))
++		{
++			SV_ClientPrintf( cl, "cof_ending: refused: unexpected value %d in the ending flags\n", p.pv[COF_PL_ENDING_ROOFBOSS + i] );
++			return true;
++		}
++	}
++
++	ending = arg[0] - '0';
++	for( i = 0; i < 3; i++ )
++		CoF_WriteBool( &p, COF_PL_ENDING_ROOFBOSS + i, table[ending - 1][i] );
++
++	SV_ClientPrintf( cl, "cof_ending %d set (takes effect at the ending door in Simon's house; saved with the game)\n", ending );
++	return true;
++}
++
++static qboolean CoF_Cmd_Nightvision( sv_client_t *cl )
++{
++	cof_player_t p;
++	byte has;
++	int state, on;
++
++	if( !CoF_PlayerOrRefuse( cl, "cof_nightvision", &p ))
++		return true;
++
++	if( !CoF_ReadBool( &p, COF_PL_HAS_NIGHTVISION, &has ) || !CoF_ReadInt( &p, COF_PL_HEADSHIELD, &state ) ||
++		( state != COF_NV_OFF && state != COF_NV_ON && state != COF_NV_REQ_OFF && state != COF_NV_REQ_ON ))
++	{
++		SV_ClientPrintf( cl, "cof_nightvision: refused: unexpected nightvision state\n" );
++		return true;
++	}
++
++	if( !CoF_ParseSwitch( &on, state == COF_NV_ON || state == COF_NV_REQ_ON, true ))
++	{
++		SV_ClientPrintf( cl, "usage: cof_nightvision [0|1]\n" );
++		return true;
++	}
++
++	if( state == COF_NV_REQ_ON || state == COF_NV_REQ_OFF )
++	{
++		SV_ClientPrintf( cl, "cof_nightvision: a switch is still in progress, try again\n" );
++		return true;
++	}
++
++	// owning it is what picking up item_nightvision does; the request values
++	// are what the game's own "flashlight" command writes once its gates pass
++	CoF_WriteBool( &p, COF_PL_HAS_NIGHTVISION, true );
++
++	if( on && state == COF_NV_OFF )
++		CoF_WriteInt( &p, COF_PL_HEADSHIELD, COF_NV_REQ_ON );
++	else if( !on && state == COF_NV_ON )
++		CoF_WriteInt( &p, COF_PL_HEADSHIELD, COF_NV_REQ_OFF );
++
++	SV_ClientPrintf( cl, "cof_nightvision %s\n", on ? "ON" : "OFF" );
++	return true;
++}
++
++static qboolean CoF_Cmd_Tapes( sv_client_t *cl )
++{
++	const char *arg = Cmd_Argv( 1 );
++	cof_player_t p;
++	int cur, n, i;
++
++	if( !CoF_PlayerOrRefuse( cl, "cof_tapes", &p ))
++		return true;
++
++	if( !CoF_ReadInt( &p, COF_PL_TAPES, &cur ) || cur < 0 || cur > 100000 )
++	{
++		SV_ClientPrintf( cl, "cof_tapes: refused: unexpected value in the tape counter\n" );
++		return true;
++	}
++
++	if( Cmd_Argc() != 2 || !arg[0] || Q_strlen( arg ) > 3 )
++	{
++		SV_ClientPrintf( cl, "cof_tapes is %d: usage cof_tapes 0..%d\n", cur, COF_TAPES_MAX );
++		return true;
++	}
++
++	for( i = 0; arg[i]; i++ )
++	{
++		if( arg[i] < '0' || arg[i] > '9' )
++		{
++			SV_ClientPrintf( cl, "cof_tapes is %d: usage cof_tapes 0..%d\n", cur, COF_TAPES_MAX );
++			return true;
++		}
++	}
++
++	n = Q_atoi( arg );
++	CoF_WriteInt( &p, COF_PL_TAPES, n );
++	SV_ClientPrintf( cl, "cof_tapes %d (was %d; a cassette in the inventory is still needed)\n", n, cur );
++	return true;
++}
++
++static qboolean CoF_Cmd_UnlockDoors( sv_client_t *cl )
++{
++	int counts[ARRAYSIZE( cof_lock_descs )] = { 0 };
++	int i, j, total = 0;
++
++	for( i = svs.maxclients + 1; i < svgame.numEntities; i++ )
++	{
++		edict_t *ent = SV_EdictNum( i );
++		const char *classname;
++
++		if( !SV_IsValidEdict( ent ) || !ent->pvPrivateData || !ent->v.classname )
++			continue;
++
++		classname = SV_GetString( ent->v.classname );
++
++		for( j = 0; j < ARRAYSIZE( cof_lock_descs ); j++ )
++		{
++			const cof_lock_desc_t *d = &cof_lock_descs[j];
++			size_t need = Q_max( d->locked_by, d->locked_msg ) + sizeof( int );
++			byte *pv;
++			int locked;
++
++			if( Q_strcmp( classname, d->classname ))
++				continue;
++
++			pv = CoF_EntityPrivate( ent, -1, need, NULL );
++			if( !pv )
++				break;
++
++			memcpy( &locked, pv + d->locked_by, sizeof( locked ));
++			if( locked != 0 )
++			{
++				locked = 0;
++				memcpy( pv + d->locked_by, &locked, sizeof( locked ));
++				memcpy( pv + d->locked_msg, &locked, sizeof( locked ));
++				counts[j]++;
++				total++;
++			}
++			break;
++		}
++	}
++
++	SV_ClientPrintf( cl, "cof_unlockdoors: unlocked %d (inter_door %d, inter_door_coop %d, func_valve %d); unlock targets were not fired\n",
++		total, counts[0], counts[1], counts[2] );
++	return true;
++}
++
++static qboolean CoF_Cmd_Status( sv_client_t *cl )
++{
++	cof_hash_state_t hs = CoF_GameDllState();
++	cof_latch_t *l = CoF_Latch( cl );
++	cof_player_t p;
++
++	if( hs == COF_HASH_MATCH )
++		SV_ClientPrintf( cl, "cof cheats: sv_cheats %d, hl.dll is the retail 1.6 build\n", Cvar_VariableInteger( "sv_cheats" ));
++	else SV_ClientPrintf( cl, "cof cheats: sv_cheats %d, OFF: %s\n", Cvar_VariableInteger( "sv_cheats" ), CoF_HashRefusal( hs ));
++
++	if( cof_hash.hex[0] )
++		SV_ClientPrintf( cl, "hl.dll sha256 %s\n", cof_hash.hex );
++
++	if( !l )
++		return true;
++
++	SV_ClientPrintf( cl, "latched: noclip %d notarget %d fly %d infammo %d infstamina %d nodamage %d nodrown %d\n",
++		l->noclip, l->notarget, l->fly, l->infammo, l->infstamina, l->nodamage, l->nodrown );
++
++	if( hs != COF_HASH_MATCH || !CoF_GetPlayer( cl, &p ))
++		return true;
++
++	{
++		byte ammo = 0, stam = 0, door = 0, nv = 0, r = 0, g = 0, d = 0;
++		int shield = 0, tapes = 0;
++		float stamina = 0.0f;
++
++		CoF_ReadBool( &p, COF_PL_INFINITE_AMMO, &ammo );
++		CoF_ReadBool( &p, COF_PL_INFINITE_STAMINA, &stam );
++		CoF_ReadBool( &p, COF_PL_GOING_THROUGH_DOOR, &door );
++		CoF_ReadBool( &p, COF_PL_HAS_NIGHTVISION, &nv );
++		CoF_ReadBool( &p, COF_PL_ENDING_ROOFBOSS, &r );
++		CoF_ReadBool( &p, COF_PL_ENDING_GIVENP345, &g );
++		CoF_ReadBool( &p, COF_PL_ENDING_DELIVERED, &d );
++		CoF_ReadInt( &p, COF_PL_HEADSHIELD, &shield );
++		CoF_ReadInt( &p, COF_PL_TAPES, &tapes );
++		memcpy( &stamina, p.pv + COF_PL_STAMINA, sizeof( stamina ));
++
++		SV_ClientPrintf( cl, "player: movetype %d flags 0x%x health %g origin %.0f %.0f %.0f air %.1f\n",
++			p.ent->v.movetype, p.ent->v.flags, p.ent->v.health,
++			p.ent->v.origin[0], p.ent->v.origin[1], p.ent->v.origin[2],
++			p.ent->v.air_finished - sv.time );
++		SV_ClientPrintf( cl, "player: infammo %d infstamina %d stamina %.1f door %d nightvision %d/%d tapes %d ending %d%d%d\n",
++			ammo, stam, stamina, door, nv, shield, tapes, r, g, d );
++	}
++
++	return true;
++}
++
++/*
++=============================================================================
++
++dispatch
++
++=============================================================================
++*/
++qboolean SV_CoF_CheatsClientCommand( sv_client_t *cl )
++{
++	const char *cmd = Cmd_Argv( 0 );
++	cof_latch_t *l = CoF_Latch( cl );
++	qboolean stock_name;
++	cof_gate_t gate;
++
++	if( !l || !cmd[0] )
++		return false;
++
++	stock_name = !Q_strcmp( cmd, "noclip" ) || !Q_strcmp( cmd, "notarget" ) || !Q_strcmp( cmd, "give" );
++
++	if( !stock_name && Q_strcmp( cmd, "fly" ) && Q_strncmp( cmd, "cof_", 4 ))
++		return false;
++
++	if( !Q_strcmp( cmd, "cof_cheats" ))
++		return CoF_Cmd_Status( cl );
++
++	gate = CoF_Gate( cl );
++
++	if( stock_name )
++	{
++		// retail hl.dll not loaded (or no cheats): the engine's own noclip and
++		// notarget, and the game DLL's own "give", exactly as before
++		if( gate != COF_GATE_OK )
++		{
++			if( gate == COF_GATE_NO_CHEATS && !Q_strcmp( cmd, "give" ) && CoF_GameDllState() == COF_HASH_MATCH )
++			{
++				SV_ClientPrintf( cl, "give: needs sv_cheats 1\n" );
++				return true;
++			}
++			return false;
++		}
++
++		if( !Q_strcmp( cmd, "noclip" ))
++			return CoF_Cmd_Movetype( cl, "noclip", &l->noclip, &l->fly, MOVETYPE_NOCLIP );
++		if( !Q_strcmp( cmd, "notarget" ))
++			return CoF_Cmd_Notarget( cl, l );
++		return CoF_Cmd_Give( cl );
++	}
++
++	if( Q_strcmp( cmd, "fly" ) && Q_strcmp( cmd, "cof_infammo" ) && Q_strcmp( cmd, "cof_infstamina" ) &&
++		Q_strcmp( cmd, "cof_ending" ) && Q_strcmp( cmd, "cof_nodamage" ) && Q_strcmp( cmd, "cof_nodrown" ) &&
++		Q_strcmp( cmd, "cof_nightvision" ) && Q_strcmp( cmd, "cof_unlockdoors" ) && Q_strcmp( cmd, "cof_tapes" ))
++		return false; // some other cof_ name: not ours, the game DLL may know it
++
++	if( gate != COF_GATE_OK )
++		return CoF_Refuse( cl, cmd, gate );
++
++	if( !Q_strcmp( cmd, "fly" ))
++		return CoF_Cmd_Movetype( cl, "fly", &l->fly, &l->noclip, MOVETYPE_FLY );
++	if( !Q_strcmp( cmd, "cof_infammo" ))
++		return CoF_Cmd_BoolLatch( cl, cmd, &l->infammo, COF_PL_INFINITE_AMMO, "infinite ammo, no reload, infinite syringes and flares" );
++	if( !Q_strcmp( cmd, "cof_infstamina" ))
++		return CoF_Cmd_BoolLatch( cl, cmd, &l->infstamina, COF_PL_INFINITE_STAMINA, "infinite sprint, dodge and jump stamina" );
++	if( !Q_strcmp( cmd, "cof_nodamage" ))
++	{
++		// in multiplayer the retail PostThink hides a player whose door flag is
++		// set (EF_NODRAW, 100EBDB0), which would leave you invisible
++		if( svs.maxclients > 1 )
++		{
++			SV_ClientPrintf( cl, "cof_nodamage: single player only (in coop the game hides a player with this flag)\n" );
++			return true;
++		}
++		return CoF_Cmd_BoolLatch( cl, cmd, &l->nodamage, COF_PL_GOING_THROUGH_DOOR, "take no damage" );
++	}
++	if( !Q_strcmp( cmd, "cof_nodrown" ))
++		return CoF_Cmd_Nodrown( cl, l );
++	if( !Q_strcmp( cmd, "cof_ending" ))
++		return CoF_Cmd_Ending( cl );
++	if( !Q_strcmp( cmd, "cof_nightvision" ))
++		return CoF_Cmd_Nightvision( cl );
++	if( !Q_strcmp( cmd, "cof_unlockdoors" ))
++		return CoF_Cmd_UnlockDoors( cl );
++	return CoF_Cmd_Tapes( cl );
++}
++
++/*
++=============================================================================
++
++per frame
++
++=============================================================================
++*/
++// sv_cheats went to 0: put back what the latches hold and forget them
++static void CoF_ReleaseLatches( sv_client_t *cl, cof_latch_t *l )
++{
++	cof_player_t p;
++
++	if( CoF_GameDllState() == COF_HASH_MATCH && CoF_GetPlayer( cl, &p ))
++	{
++		if(( l->noclip && p.ent->v.movetype == MOVETYPE_NOCLIP ) || ( l->fly && p.ent->v.movetype == MOVETYPE_FLY ))
++			p.ent->v.movetype = MOVETYPE_WALK;
++		if( l->notarget )
++			ClearBits( p.ent->v.flags, FL_NOTARGET );
++		if( l->infammo )
++			CoF_WriteBool( &p, COF_PL_INFINITE_AMMO, false );
++		if( l->infstamina )
++			CoF_WriteBool( &p, COF_PL_INFINITE_STAMINA, false );
++		if( l->nodamage )
++			CoF_WriteBool( &p, COF_PL_GOING_THROUGH_DOOR, false );
++	}
++
++	memset( l, 0, sizeof( *l ));
++	SV_ClientPrintf( cl, "cof cheats: sv_cheats is 0, latched cheats switched off\n" );
++}
++
++static void CoF_KeepBool( sv_client_t *cl, const cof_player_t *p, qboolean *latch, int ofs, const char *name )
++{
++	if( !*latch )
++		return;
++
++	if( !CoF_WriteBool( p, ofs, true ))
++	{
++		*latch = false;
++		SV_ClientPrintf( cl, "%s: switched off, unexpected value %d in the player field\n", name, p->pv[ofs] );
++	}
++}
++
++void SV_CoF_CheatsPostThink( sv_client_t *cl )
++{
++	cof_latch_t *l = CoF_Latch( cl );
++	cof_player_t p;
++	edict_t *ent;
++
++	if( !l || !CoF_AnyLatched( l ))
++		return;
++
++	// the menu background map and a level still loading are simply skipped:
++	// the latches wait for the next real game frame
++	if( sv.state != ss_active || sv.background || cl->state != cs_spawned )
++		return;
++
++	if( !Cvar_VariableInteger( "sv_cheats" ))
++	{
++		CoF_ReleaseLatches( cl, l );
++		return;
++	}
++
++	if( CoF_GameDllState() != COF_HASH_MATCH || !CoF_GetPlayer( cl, &p ))
++		return;
++
++	ent = p.ent;
++
++	// retail PostThink turns MOVETYPE_NOCLIP back into MOVETYPE_WALK; anything
++	// else the game chose (ladder, cutscene freeze, death) is left alone and
++	// the latch takes over again once the game hands back MOVETYPE_WALK
++	if( CoF_Alive( ent ) && ent->v.movetype == MOVETYPE_WALK )
++	{
++		if( l->noclip )
++			ent->v.movetype = MOVETYPE_NOCLIP;
++		else if( l->fly )
++			ent->v.movetype = MOVETYPE_FLY;
++	}
++
++	if( l->notarget && CoF_Alive( ent ))
++		SetBits( ent->v.flags, FL_NOTARGET );
++
++	if( l->nodrown )
++		ent->v.air_finished = svgame.globals->time + 12.0f;
++
++	CoF_KeepBool( cl, &p, &l->infammo, COF_PL_INFINITE_AMMO, "cof_infammo" );
++	CoF_KeepBool( cl, &p, &l->infstamina, COF_PL_INFINITE_STAMINA, "cof_infstamina" );
++	if( svs.maxclients == 1 )
++		CoF_KeepBool( cl, &p, &l->nodamage, COF_PL_GOING_THROUGH_DOOR, "cof_nodamage" );
++	else l->nodamage = false;
++}
+diff --git a/engine/server/sv_cof_cheats.h b/engine/server/sv_cof_cheats.h
+new file mode 100644
+index 0000000..95e07b2
+--- /dev/null
++++ b/engine/server/sv_cof_cheats.h
+@@ -0,0 +1,29 @@
++/*
++sv_cof_cheats.h - Cry of Fear: restored cheats (engine side)
++Copyright (C) 2026 cofenhanced
++
++This program is free software: you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation, either version 3 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++*/
++
++#ifndef SV_COF_CHEATS_H
++#define SV_COF_CHEATS_H
++
++// SV_ExecuteClientCommand: called with the command already tokenized, before
++// the engine's own user commands. Returns true when the command was consumed
++// (noclip, notarget, fly, give and the cof_* cheats while they are allowed),
++// false to let the stock path run.
++qboolean SV_CoF_CheatsClientCommand( sv_client_t *cl );
++
++// SV_RunCmd: called right after the game DLL's PlayerPostThink. Re-asserts the
++// latched cheats the retail game resets every frame.
++void SV_CoF_CheatsPostThink( sv_client_t *cl );
++
++#endif // SV_COF_CHEATS_H
+diff --git a/engine/server/sv_pmove.c b/engine/server/sv_pmove.c
+index 5dec206..0a97ea2 100644
+--- a/engine/server/sv_pmove.c
++++ b/engine/server/sv_pmove.c
+@@ -16,6 +16,7 @@ GNU General Public License for more details.
+ #include "common.h"
+ #include "server.h"
+ #include "const.h"
++#include "sv_cof_cheats.h"
+ #include "pm_local.h"
+ #include "event_flags.h"
+ #include "studio.h"
+@@ -1131,6 +1132,7 @@ void SV_RunCmd( sv_client_t *cl, usercmd_t *ucmd, int random_seed )
+ 
+ 	// run post-think
+ 	svgame.dllFuncs.pfnPlayerPostThink( clent );
++	SV_CoF_CheatsPostThink( cl ); // Cry of Fear: re-assert what PostThink reset
+ 	svgame.dllFuncs.pfnCmdEnd( clent );
+ 
+ 	if( !FBitSet( cl->flags, FCL_FAKECLIENT ))
