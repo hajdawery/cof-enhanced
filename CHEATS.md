@@ -102,26 +102,33 @@ after restarting the game. Type `cof_infammo 0` to take it out of that save.
 ### `give <item>`
 
 Puts an item straight into your inventory, with the normal pickup message.
-**One-shot.** Tested:
+**One-shot.** Only `weapon_...`, `ammo_...` and `item_...` names are accepted;
+a name the game does not know prints `no such entity`.
+
+**Weapons and tools** (`give weapon_<name>`):
+
+| | | | |
+|---|---|---|---|
+| `branch` | `browning` | `camera` | `famas` |
+| `flare` | `flashlight` | `g43` | `glock` |
+| `lantern` | `m16` | `m76` | `mobile` |
+| `mp5` | `nightstick` | `p345` | `radio` |
+| `revolver` | `rifle` | `shotgun` | `sledgehammer` |
+| `sledgeshovel` | `switchblade` | `syringe` | `tmp` |
+| `vp70` | | | |
+
+**Ammo** (`give ammo_<name>`): `glock`, `g43`, `m16`, `revolver`, `rifle`,
+`shells`, `tmp`.
+
+Examples:
 
 ```
 give weapon_glock
 give ammo_glock
 give weapon_shotgun
-give weapon_revolver
-give ammo_revolver
+give ammo_shells
 give weapon_syringe
 ```
-
-Other item names the game defines, which should work the same way but have not
-all been tried: `weapon_rifle`, `weapon_m16`, `weapon_mp5k`, `weapon_vp70`,
-`weapon_p345`, `weapon_famas`, `weapon_g43`, `weapon_axe`, `weapon_hammer`,
-`weapon_sledgehammer`, `weapon_nightstick`, `weapon_switchblade`,
-`weapon_branch`, `weapon_flare`, `weapon_camera`, `item_nightvision`,
-`item_glocktaclight`, `ammo_shells`, `ammo_rifle`, `ammo_m16`, `ammo_mp5`,
-`ammo_vp70`, `ammo_p345`, `ammo_g43`, `ammo_tmp`. Only `weapon_...`,
-`item_...` and `ammo_...` names are accepted; a name the game does not know
-prints `no such entity`.
 
 If you already carry the item, your inventory is full, or the game does not
 let you have it (the donator-only TMP and the mappers-only MP5 still check who
