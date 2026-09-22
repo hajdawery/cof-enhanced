@@ -295,27 +295,12 @@ index e374739..8709ec7 100644
 +	// the panel tree is solved (cofscale.cpp)
 +	Panel_SetSolveHook( CofUI_SolvePanel );
  }
-diff --git a/platform/xash3d-fwgs/support.h b/platform/xash3d-fwgs/support.h
-index c79ac76..1f70ee6 100644
---- a/platform/xash3d-fwgs/support.h
-+++ b/platform/xash3d-fwgs/support.h
-@@ -44,6 +44,11 @@ private:
- 
- extern Scissor g_scissor;
- 
-+// Cry of Fear in-game UI scaling (cofscale.cpp)
-+void CofUI_Refresh( void );
-+bool CofUI_RootSize( int &wide, int &tall );
-+void CofUI_SolvePanel( Panel *panel );
-+
- // input entry points the engine calls (input.cpp)
- void XashMouse( VGUI_MouseAction action, int code );
- void XashKey( VGUI_KeyAction action, VGUI_KeyCode code );
 diff --git a/platform/xash3d-fwgs/cofscale.cpp b/platform/xash3d-fwgs/cofscale.cpp
 new file mode 100644
+index 0000000..af80cae
 --- /dev/null
 +++ b/platform/xash3d-fwgs/cofscale.cpp
-@@ -0,0 +1,272 @@
+@@ -0,0 +1,380 @@
 +// SPDX-License-Identifier: BSD-3-Clause
 +// Cry of Fear in-game UI scaling (cof_ui_scale, unified UI milestone 4)
 +
@@ -393,6 +378,106 @@ new file mode 100644
 +	return size[0] >= g_cof.layout[0] && size[1] >= g_cof.layout[1];
 +}
 +
++// A full-screen page: a full-screen panel with no full-screen child of its own
++// (so not the viewport, the HUD container or the inventory with its backdrop)
++// whose visible children cover the whole layout screen between them.
++//
++// MEASURED, the tape recorder's SAVED GAMES page (client.dll panel at viewport
++// +0x1464, constructor 100309E0; tree dump stage1/fix-ads-tape-20260922/
++// evidence/tape7-tree.txt, 1920x1080 at 150 percent): a transparent full-screen
++// panel holding the 640x480 save_load.tga image centred at 640,300 and FOUR
++// OPAQUE BLACK MASK PANELS around it - 0,0 640x1080, 1280,0 640x1080, 640,0
++// 640x300 and 640,780 640x300 - so the page shows the picture on black. Anchored
++// one by one, the left and right masks went to their own edges while the
++// picture stayed centred, and at any scale above 1 each mask slid over half of
++// the picture: the recorder showed a black screen and nothing could be clicked.
++// As one page the masks frame the picture exactly as the game laid them out.
++bool CofIsPage( Panel *p )
++{
++	enum { COF_PAGE_MAX_KIDS = 32 };
++	int	rect[COF_PAGE_MAX_KIDS][4];
++	int	xs[2 * COF_PAGE_MAX_KIDS + 2], ys[2 * COF_PAGE_MAX_KIDS + 2];
++	int	count = p->getChildCount();
++	int	n = 0, nx = 0, ny = 0;
++	const int	lw = g_cof.layout[0], lh = g_cof.layout[1];
++	long long	uncovered = 0;
++
++	if( count < 2 || count > COF_PAGE_MAX_KIDS )
++		return false;
++
++	for( int i = 0; i < count; i++ )
++	{
++		Panel	*c = p->getChild( i );
++		int	x, y;
++		const int	*size;
++
++		if( !c )
++			continue;
++
++		if( CofIsFullScreen( c ))
++			return false; // a container of containers or a backdrop
++
++		if( !c->isVisible( ))
++			continue;
++
++		c->getPos( x, y );
++		size = CofPanelAccess::size( c );
++
++		rect[n][0] = Q_max( 0, x );
++		rect[n][1] = Q_max( 0, y );
++		rect[n][2] = Q_min( lw, x + size[0] );
++		rect[n][3] = Q_min( lh, y + size[1] );
++
++		if( rect[n][2] > rect[n][0] && rect[n][3] > rect[n][1] )
++			n++;
++	}
++
++	if( n < 2 )
++		return false;
++
++	// coordinate compression: the cells between consecutive edges are either
++	// wholly inside some child or wholly outside all of them
++	xs[nx++] = 0; xs[nx++] = lw;
++	ys[ny++] = 0; ys[ny++] = lh;
++
++	for( int i = 0; i < n; i++ )
++	{
++		xs[nx++] = rect[i][0]; xs[nx++] = rect[i][2];
++		ys[ny++] = rect[i][1]; ys[ny++] = rect[i][3];
++	}
++
++	for( int i = 1; i < nx; i++ ) // insertion sorts, a few dozen values
++		for( int j = i; j > 0 && xs[j - 1] > xs[j]; j-- ) { int t = xs[j]; xs[j] = xs[j - 1]; xs[j - 1] = t; }
++	for( int i = 1; i < ny; i++ )
++		for( int j = i; j > 0 && ys[j - 1] > ys[j]; j-- ) { int t = ys[j]; ys[j] = ys[j - 1]; ys[j - 1] = t; }
++
++	for( int i = 0; i + 1 < nx; i++ )
++	{
++		if( xs[i + 1] <= xs[i] )
++			continue;
++
++		for( int j = 0; j + 1 < ny; j++ )
++		{
++			bool covered = false;
++
++			if( ys[j + 1] <= ys[j] )
++				continue;
++
++			for( int k = 0; k < n && !covered; k++ )
++			{
++				covered = rect[k][0] <= xs[i] && rect[k][2] >= xs[i + 1]
++					&& rect[k][1] <= ys[j] && rect[k][3] >= ys[j + 1];
++			}
++
++			if( !covered )
++				uncovered += (long long)( xs[i + 1] - xs[i] ) * ( ys[j + 1] - ys[j] );
++		}
++	}
++
++	// a stray pixel row between two hand-placed pieces is still a page
++	return uncovered * 200 <= (long long)lw * lh;
++}
++
 +// how many parents there are between this panel and the root
 +int CofDepth( Panel *p )
 +{
@@ -438,13 +523,21 @@ new file mode 100644
 +// Every full-screen panel here is a container, and every real surface hangs off
 +// one. Stopping the descent any earlier - at a fixed depth, say - gives the HUD
 +// bars the inventory's centre anchor and walks them off the bottom left corner.
++//
++// The one exception is a full-screen PAGE (CofIsPage above): a full-screen
++// panel whose pieces tile the whole screen between them. It owns the anchor
++// for its whole subtree, so the pieces keep their places relative to each
++// other and the page is scaled as one picture about the screen centre.
 +Panel *CofAnchorOwner( Panel *p, int depth )
 +{
 +	for( int d = 1; d <= depth; d++ )
 +	{
 +		Panel *a = CofAncestor( p, depth, d );
 +
-+		if( a && !CofIsFullScreen( a ))
++		if( !a )
++			continue;
++
++		if( !CofIsFullScreen( a ) || CofIsPage( a ))
 +			return a;
 +	}
 +
@@ -588,3 +681,19 @@ new file mode 100644
 +		clip[3] = Q_min( clip[3], pclip[3] );
 +	}
 +}
+diff --git a/platform/xash3d-fwgs/support.h b/platform/xash3d-fwgs/support.h
+index c79ac76..1f70ee6 100644
+--- a/platform/xash3d-fwgs/support.h
++++ b/platform/xash3d-fwgs/support.h
+@@ -44,6 +44,11 @@ private:
+ 
+ extern Scissor g_scissor;
+ 
++// Cry of Fear in-game UI scaling (cofscale.cpp)
++void CofUI_Refresh( void );
++bool CofUI_RootSize( int &wide, int &tall );
++void CofUI_SolvePanel( Panel *panel );
++
+ // input entry points the engine calls (input.cpp)
+ void XashMouse( VGUI_MouseAction action, int code );
+ void XashKey( VGUI_KeyAction action, VGUI_KeyCode code );

@@ -1,0 +1,637 @@
+diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
+index d0dc746..8ed0188 100644
+--- a/engine/client/cl_main.c
++++ b/engine/client/cl_main.c
+@@ -94,7 +94,10 @@ static CVAR_DEFINE_AUTO( cof_ui_menu_map_redirect, "1", 0, "unified UI gate: tur
+ static CVAR_DEFINE_AUTO( cof_ui_death_menu, "1", 0, "unified UI gate: open the engine menu's own death page when the game DLL sends the Cry of Fear GAME OVER screen (0 = stock behaviour, the client's own panel)" );
+ static CVAR_DEFINE_AUTO( cof_ui_death_keep_running, "1", 0, "unified UI gate: keep the world simulating and audible behind the GAME OVER page, the way the original death screen did (0 = the page pauses the game like every other menu)" );
+ static CVAR_DEFINE_AUTO( cof_mp3_stop_on_map, "1", 0, "run the client's \"stopmp3\" command before a fresh map, newgame, save load or disconnect, so the client's own MP3 player does not bleed across the transition (changelevel is deliberately untouched)" );
+-static CVAR_DEFINE_AUTO( cof_sky_reset_per_map, "1", 0, "restore the client's \"gl_customsky\" on every map load when the client turned it off after a failed sky load, so one map's missing sky faces do not disable the sky for the rest of the session (0 = stock behaviour)" );
++static CVAR_DEFINE_AUTO( cof_sky_reset_per_map, "1", 0,"restore the client's \"gl_customsky\" on every map load when the client turned it off after a failed sky load, so one map's missing sky faces do not disable the sky for the rest of the session (0 = stock behaviour)" );
++// "Aim down sights: Hold / Toggle" (see CL_CoF_ADSHoldKey): Toggle is the
++// game's own ironsights, Hold is emulated by the engine on top of them
++CVAR_DEFINE_AUTO( cof_ads_toggle, "1", FCVAR_ARCHIVE, "Cry of Fear aim down sights: 1 = a press toggles ironsights (the game's own behaviour), 0 = hold the aim key to aim, release to leave (the engine drives the game's toggle for you, so firing while aimed works with every weapon)" );
+ // Milestone 4, in-game UI scaling. Archived, unlike the gate cvars above,
+ // because these are display preferences that have to survive a restart. Both
+ // are live: nothing the client computed has to change for them to take effect.
+@@ -2028,12 +2031,412 @@ qboolean CL_CoF_DeathUserMessage( const char *name, int size, const byte *buf )
+ 
+ 	cof_death_menu_open = true;
+ 	cof_death_menu_pending = true;
++
+ 	Con_Reportf( "[cof-ui] death screen: user message \"%s\" index %d (%d bytes) -> %s\n",
+ 		name, COF_DEATH_MENU_INDEX, size, COF_DEATH_MENU_CMD );
+ 
+ 	return true;
+ }
+ 
++/*
++==============================================================================
++
++	CRY OF FEAR: "AIM DOWN SIGHTS: HOLD / TOGGLE"  (cof_ads_toggle)
++
++The game's own ironsights are a TOGGLE: hl.dll registers a server cvar
++"ironsights_toggle" (default "1", FCVAR_SERVER, not archived; the name string
++is at hl.dll 101AEC8C) and a press of +attack3 flips the weapon's
++m_bIronSights. The game also has a half-finished "hold" mode behind
++ironsights_toggle 0, and it is NOT usable (read from the retail hl.dll and
++MEASURED, stage1/fix-ads-tape-20260922/RESULTS.md):
++
++  * CBasePlayerWeapon::ItemPostFrame (1011DA9C) tests the +attack3 button bit
++    (0x40) FIRST and reaches PrimaryAttack only in its else branch, so while
++    the aim key is held the weapon never fires;
++  * only ten weapons read the cvar (glock, vp70, p345, revolver, tmp, g43, mp5,
++    m16, famas, shotgun: vtable slot 107, seven of them also the release check
++    in slot 86). The hunting rifle's +attack3 handler (100682A0) ignores it,
++    toggles its scope (m_bRaised, +0x106) without a press-edge check and has no
++    release path, so in "hold" the rifle does not come out of the scope.
++
++So "Hold" is built here, on top of the game's working toggle. The game is kept
++at ironsights_toggle 1 in both modes, and with cof_ads_toggle 0 the engine turns
++the aim key's press and its release each into one toggle PULSE: "+attack3 K"
++and "-attack3 K" in the same command-buffer pass, which the client's kbutton
++turns into exactly one usercmd carrying the 0x40 bit (a press edge) and nothing
++held afterwards. The +attack3 button is never held, so firing while aimed works,
++and every weapon, the rifle included, aims in on the press and out on the
++release.
++
++A pulse can be dropped by the game: a weapon refuses the toggle while it is
++busy (next-attack times, a reload, the rifle's 0.25 s scope delay). So the
++engine watches the result - the zoom target the server keeps in the player's
++vuser2[0] and sends in the client data (90 at the hip; about 50 for the glock's
++ironsights, 85 then 30 for the rifle's scope; hl.dll writes it on every enter
++and leave) - and repeats the pulse every COF_ADS_RETRY seconds until the weapon
++is where the key says, for at most COF_ADS_WINDOW seconds after the key edge. A
++release retries only while the weapon still reports aimed, and a press only
++with a weapon (its view model) that has been seen aimed before, so a weapon
++whose +attack3 does something else gets exactly one pulse per key edge.
++
++cof_ads_toggle is archived (the Game options page writes it); the engine pushes
++"1" into ironsights_toggle whenever the server DLL has (re)registered it.
++
++==============================================================================
++*/
++#define COF_ADS_RETRY		0.35	// seconds between pulses while reconciling
++#define COF_ADS_WINDOW		5.0	// seconds after a key edge the engine keeps trying
++#define COF_ADS_MAX_LEARNED	32
++
++static CVAR_DEFINE_AUTO( cof_ads_hold_pulse, "0.2", 0, "Cry of Fear aim down sights, Hold: the longest time, in seconds, the engine holds the game's +attack3 for one toggle; the press ends as soon as the weapon has switched (0 = press and release in the same frame)" );
++
++static const convar_t	*cof_ads_pushed_var;	// the ironsights_toggle registration last written
++
++static struct
++{
++	qboolean	down;		// the aim key is held, as far as the emulation saw it
++	int		key;		// its key number, the kbutton parameter
++	qboolean	pending;	// the weapon has not settled in the wanted state yet
++	qboolean	want;		// aimed (true) or at the hip (false)
++	double		deadline;	// give up reconciling after this
++	double		next;		// earliest time for the next pulse
++	int		pulses;		// pulses sent for the current key edge
++	int		servercount;	// the learned list below belongs to this server
++	qboolean	pulsing;	// +attack3 is held by the emulation right now
++	qboolean	tracked;	// the fields below describe the current server
++	float		last_zoom;	// the zoom target seen on the previous frame
++	int		aim_vm;		// the view model the current zoom began with (0 = none)
++	int		pulse_from;	// the aim state when that press began
++	double		pulse_end;	// release it at the latest then
++	int		learned[COF_ADS_MAX_LEARNED];	// view models seen aimed
++	int		numlearned;
++} cof_ads_hold;
++
++void CL_CoF_ADSSync( void )
++{
++	convar_t	*var;
++
++	if( !GI || Q_stricmp( GI->gamefolder, "cryoffear" ))
++		return;
++
++	var = Cvar_FindVar( "ironsights_toggle" );
++
++	if( !var )
++	{
++		cof_ads_pushed_var = NULL;	// the server DLL is not loaded
++		return;
++	}
++
++	// both modes run on the game's toggle, see above
++	if( var == cof_ads_pushed_var )
++		return;
++
++	cof_ads_pushed_var = var;
++
++	if( var->value == 1.0f )
++		return;
++
++	Cvar_DirectSet( var, "1" );
++	Con_Reportf( "[cof-ads] ironsights_toggle set to 1 (%s runs on the game's toggle)\n",
++		cof_ads_toggle.value != 0.0f ? "Toggle" : "Hold, emulated by the engine," );
++}
++
++static int CL_CoF_ADSViewModel( void )
++{
++	return cl.frames[cl.parsecountmod].clientdata.viewmodel;
++}
++
++// hl.dll writes 90 when a zoom ends; 0 means nothing has zoomed yet
++static qboolean CL_CoF_ADSZoomed( float zoom )
++{
++	return zoom > 1.0f && zoom < 89.5f;
++}
++
++/*
++====================
++CL_CoF_ADSTrackZoom
++
++The zoom target alone is not the weapon's state: nothing in hl.dll resets it
++when a weapon is put away, so after a weapon change it can still say "aimed"
++for a weapon that is at the hip (MEASURED, stage1/fix-ads-tape-20260922,
++ads2.log: the glock left at 50, the rifle drawn, the target stayed 50). So the
++engine remembers which view model a zoom began with, and a zoom counts only
++while that weapon is in the hands. On a new server, or the first frame of one,
++the target is taken at its word.
++====================
++*/
++static void CL_CoF_ADSTrackZoom( void )
++{
++	float	zoom = cl.frames[cl.parsecountmod].clientdata.vuser2[0];
++	int	viewmodel = CL_CoF_ADSViewModel();
++
++	if( !cof_ads_hold.tracked )
++	{
++		cof_ads_hold.tracked = true;
++		cof_ads_hold.aim_vm = CL_CoF_ADSZoomed( zoom ) ? viewmodel : 0;
++	}
++	else if( !CL_CoF_ADSZoomed( zoom ))
++	{
++		cof_ads_hold.aim_vm = 0;
++	}
++	else if( !CL_CoF_ADSZoomed( cof_ads_hold.last_zoom ) || zoom != cof_ads_hold.last_zoom )
++	{
++		cof_ads_hold.aim_vm = viewmodel; // a zoom began (or moved on) with this weapon
++	}
++
++	cof_ads_hold.last_zoom = zoom;
++}
++
++// 1 aimed, 0 at the hip, -1 unknown (no game running)
++static int CL_CoF_ADSAimState( void )
++{
++	if( cls.state != ca_active || !cl.validsequence || !cof_ads_hold.tracked )
++		return -1;
++
++	if( !CL_CoF_ADSZoomed( cl.frames[cl.parsecountmod].clientdata.vuser2[0] ))
++		return 0;
++
++	return cof_ads_hold.aim_vm == CL_CoF_ADSViewModel() ? 1 : 0;
++}
++
++static qboolean CL_CoF_ADSLearned( int viewmodel )
++{
++	int	i;
++
++	for( i = 0; i < cof_ads_hold.numlearned; i++ )
++	{
++		if( cof_ads_hold.learned[i] == viewmodel )
++			return true;
++	}
++
++	return false;
++}
++
++static void CL_CoF_ADSSend( const char *cmd, qboolean immediate )
++{
++	// a key edge goes where the key's own bind text would have gone; anything
++	// from the frame loop happens "now", ahead of whatever waits in the buffer
++	if( immediate )
++		Cbuf_InsertText( cmd );
++	else Key_QueueBindText( cmd );
++}
++
++static void CL_CoF_ADSPulseEnd( const char *why )
++{
++	char	cmd[32];
++
++	if( !cof_ads_hold.pulsing )
++		return;
++
++	Q_snprintf( cmd, sizeof( cmd ), "-attack3 %i\n", cof_ads_hold.key );
++	CL_CoF_ADSSend( cmd, true );
++	cof_ads_hold.pulsing = false;
++	cof_ads_hold.next = host.realtime + COF_ADS_RETRY;
++
++	Con_Reportf( "[cof-ads] hold: toggle press released (%s)\n", why );
++}
++
++static void CL_CoF_ADSPulse( const char *why, qboolean immediate )
++{
++	char	cmd[64];
++	float	hold = bound( 0.0f, cof_ads_hold_pulse.value, 0.24f ); // held 0.25 s the rifle would toggle twice
++
++	if( hold <= 0.0f )
++	{
++		Q_snprintf( cmd, sizeof( cmd ), "+attack3 %i\n-attack3 %i\n", cof_ads_hold.key, cof_ads_hold.key );
++		CL_CoF_ADSSend( cmd, immediate );
++		cof_ads_hold.next = host.realtime + COF_ADS_RETRY;
++	}
++	else
++	{
++		Q_snprintf( cmd, sizeof( cmd ), "+attack3 %i\n", cof_ads_hold.key );
++		CL_CoF_ADSSend( cmd, immediate );
++		cof_ads_hold.pulsing = true;
++		cof_ads_hold.pulse_from = CL_CoF_ADSAimState();
++		cof_ads_hold.pulse_end = host.realtime + hold;
++		cof_ads_hold.next = cof_ads_hold.pulse_end + COF_ADS_RETRY;
++	}
++
++	cof_ads_hold.pulses++;
++
++	Con_Reportf( "[cof-ads] hold: %s -> toggle pulse %d (want %s, zoom target %g)\n", why,
++		cof_ads_hold.pulses, cof_ads_hold.want ? "aimed" : "hip",
++		cls.state == ca_active ? cl.frames[cl.parsecountmod].clientdata.vuser2[0] : -1.0f );
++}
++
++/*
++====================
++CL_CoF_ADSHoldActive
++
++True when the aim key has to go through the hold emulation: Cry of Fear, the
++option at Hold, a game running.
++====================
++*/
++qboolean CL_CoF_ADSHoldActive( void )
++{
++	if( cof_ads_toggle.value != 0.0f )
++		return false;
++
++	if( !GI || Q_stricmp( GI->gamefolder, "cryoffear" ))
++		return false;
++
++	return cls.state == ca_active;
++}
++
++/*
++====================
++CL_CoF_ADSHoldKey
++
++A key bound to "+attack3" went down or up while CL_CoF_ADSHoldActive(). The
++bind's own "+attack3 K" / "-attack3 K" is replaced by one toggle pulse per edge
++(a second press while the aim is already held is ignored, like the kbutton
++ignores a repeat).
++====================
++*/
++void CL_CoF_ADSHoldKey( int key, qboolean down )
++{
++	if( down && cof_ads_hold.down )
++		return;	// auto-repeat, or a second key bound to the aim
++
++	if( !down && ( !cof_ads_hold.down || key != cof_ads_hold.key ))
++		return;	// a release without a press the emulation saw
++
++	CL_CoF_ADSPulseEnd( "new key edge" );
++
++	cof_ads_hold.down = down;
++	cof_ads_hold.key = key;
++	cof_ads_hold.want = down;
++	cof_ads_hold.pulses = 0;
++	cof_ads_hold.pending = true;
++	cof_ads_hold.deadline = host.realtime + COF_ADS_WINDOW;
++
++	// already where the key wants it (a pulse would undo that): only watch
++	if( CL_CoF_ADSAimState() == ( down ? 1 : 0 ))
++	{
++		cof_ads_hold.next = host.realtime + COF_ADS_RETRY;
++		Con_Reportf( "[cof-ads] hold: key %s, already %s\n", down ? "down" : "up", down ? "aimed" : "at the hip" );
++		return;
++	}
++
++	CL_CoF_ADSPulse( down ? "key down" : "key up", false );
++}
++
++/*
++====================
++CL_CoF_ADSHoldFrame
++
++Every client frame: reconcile the weapon with the key (see the block comment).
++====================
++*/
++static void CL_CoF_ADSHoldFrame( void )
++{
++	int	state, viewmodel, wanted;
++
++	if( cls.state != ca_active )
++	{
++		cof_ads_hold.pending = false;
++		cof_ads_hold.down = false;
++		cof_ads_hold.pulsing = false;
++		cof_ads_hold.tracked = false;
++		return;
++	}
++
++	// a release the engine never passed on (key up while a menu had focus, see
++	// Key_Event): the key is up, so the hold is over
++	if( cof_ads_hold.down && !Key_IsDown( cof_ads_hold.key ) && cls.key_dest == key_game )
++		CL_CoF_ADSHoldKey( cof_ads_hold.key, false );
++
++	if( cof_ads_hold.servercount != cl.servercount )
++	{
++		cof_ads_hold.servercount = cl.servercount;
++		cof_ads_hold.numlearned = 0;	// model indices are per map
++		cof_ads_hold.tracked = false;
++	}
++
++	if( cl.validsequence )
++		CL_CoF_ADSTrackZoom();
++
++	state = CL_CoF_ADSAimState();
++	viewmodel = CL_CoF_ADSViewModel();
++
++	// the emulation's own press of +attack3: let go as soon as the weapon has
++	// switched, or when the press has lasted cof_ads_hold_pulse
++	if( cof_ads_hold.pulsing )
++	{
++		if( state != cof_ads_hold.pulse_from )
++			CL_CoF_ADSPulseEnd( "the weapon switched" );
++		else if( host.realtime >= cof_ads_hold.pulse_end )
++			CL_CoF_ADSPulseEnd( "time" );
++	}
++
++	// learn which weapons aim, in either mode, so a hold press may retry
++	if( state == 1 && viewmodel > 0 && !CL_CoF_ADSLearned( viewmodel ) && cof_ads_hold.numlearned < COF_ADS_MAX_LEARNED )
++		cof_ads_hold.learned[cof_ads_hold.numlearned++] = viewmodel;
++
++	if( !cof_ads_hold.pending )
++		return;
++
++	if( cof_ads_toggle.value != 0.0f )
++	{
++		cof_ads_hold.pending = false;	// switched to Toggle meanwhile
++		cof_ads_hold.down = false;
++		return;
++	}
++
++	wanted = cof_ads_hold.want ? 1 : 0;
++
++	if( host.realtime < cof_ads_hold.next )
++		return;	// the last pulse may still be on its way (the rifle zooms 0.1 s later)
++
++	if( state == wanted )
++	{
++		cof_ads_hold.pending = false;	// settled for a whole retry period
++		return;
++	}
++
++	if( host.realtime > cof_ads_hold.deadline )
++	{
++		Con_Reportf( "[cof-ads] hold: gave up after %d pulses, the weapon stays %s\n",
++			cof_ads_hold.pulses, state == 1 ? "aimed" : "at the hip" );
++		cof_ads_hold.pending = false;
++		return;
++	}
++
++	// never pulse into a menu, a pause or an intermission; the window keeps running
++	if( cls.key_dest != key_game || cl.paused || cl.intermission )
++		return;
++
++	// a release retries only while the weapon still reports aimed (it does,
++	// state != wanted here); a press only with a weapon that has aimed before
++	if( cof_ads_hold.want && !CL_CoF_ADSLearned( viewmodel ))
++	{
++		cof_ads_hold.pending = false;
++		return;
++	}
++
++	CL_CoF_ADSPulse( "retry", true );
++}
++
++/*
++====================
++CL_CoF_ADSStatus_f
++
++cof_ads_status - one line a cfg-driven test can read: the option, the game's
++cvar, the zoom target the server set (vuser2[0]; 90, or 0 before any zoom, at
++the hip), the FOV the client is drawing with, and the hold emulation's state.
++====================
++*/
++static void CL_CoF_ADSStatus_f( void )
++{
++	convar_t	*var = Cvar_FindVar( "ironsights_toggle" );
++	float		target = cls.state == ca_active ? cl.frames[cl.parsecountmod].clientdata.vuser2[0] : -1.0f;
++
++	Con_Printf( "[cof-ads] cof_ads_toggle %g, ironsights_toggle %s, zoom target %g (%s, view model %d, zoom began with %d), fov now %.2f, hold key %s, pending %d, pulses %d, pressing %d\n",
++		cof_ads_toggle.value, var ? var->string : "(not registered)", target,
++		CL_CoF_ADSAimState() == 1 ? "aimed" : "hip", cls.state == ca_active ? CL_CoF_ADSViewModel() : -1, cof_ads_hold.aim_vm, cl.local.scr_fov,
++		cof_ads_hold.down ? "down" : "up", cof_ads_hold.pending, cof_ads_hold.pulses, cof_ads_hold.pulsing );
++}
++
+ qboolean CL_IsIntermission( void )
+ {
+ 	return cl.intermission;
+@@ -2624,6 +3027,12 @@ tell the client.dll about player origin, angles, fov, etc
+ */
+ static void CL_UpdateClientData( void )
+ {
++	// Cry of Fear "Aim down sights": keep the game's ironsights_toggle at its
++	// working toggle (it is re-registered whenever hl.dll loads) and run the
++	// engine's hold emulation on top of it
++	CL_CoF_ADSSync();
++	CL_CoF_ADSHoldFrame();
++
+ 	if( cls.state != ca_active )
+ 		return;
+ 
+@@ -5668,6 +6077,8 @@ static void CL_InitLocal( void )
+ 	Cvar_RegisterVariable( &cof_ui_death_keep_running );
+ 	Cvar_RegisterVariable( &cof_mp3_stop_on_map );
+ 	Cvar_RegisterVariable( &cof_sky_reset_per_map );
++	Cvar_RegisterVariable( &cof_ads_toggle );
++	Cvar_RegisterVariable( &cof_ads_hold_pulse );
+ 	Cvar_RegisterVariable( &cof_ui_scale );
+ 	Cvar_RegisterVariable( &cof_ui_scale_user );
+ 	Cvar_RegisterVariable( &cof_ui_inter_fonts );
+@@ -5701,6 +6112,7 @@ static void CL_InitLocal( void )
+ 	Cmd_AddRestrictedCommand ("ent_info", NULL, "dump entity information" );
+ 	Cmd_AddRestrictedCommand ("ent_create", NULL, "create entity with specified values (be careful)" );
+ 	Cmd_AddRestrictedCommand ("ent_getvars", NULL, "put parameters of specified entities to client's' ent_last_* cvars" );
++	Cmd_AddCommand ("cof_ads_status", CL_CoF_ADSStatus_f, "developer: report the aim-down-sights option, the game's ironsights_toggle and the client's current field of view" );
+ 
+ 	// register our commands
+ 	Cmd_AddCommand ("pause", NULL, "pause the game (if the server allows pausing)" );
+diff --git a/engine/client/client.h b/engine/client/client.h
+index 39d0630..f3ff379 100644
+--- a/engine/client/client.h
++++ b/engine/client/client.h
+@@ -1266,6 +1266,8 @@ void CL_PlayVideo_f( void );
+ //
+ int Key_IsDown( int keynum );
+ void Key_Event( int key, int down );
++// where a bind's expanded command text goes; see input/in_keys.c
++void Key_QueueBindText( const char *text );
+ void Key_Init( void );
+ void Key_WriteBindings( file_t *f );
+ const char *Key_GetBinding( int keynum );
+@@ -1331,6 +1333,15 @@ void CL_CoF_VidRestartForget( void );
+ // client's Cvar_SetValue callback in cl_game.c and the reset from R_SetupSky.
+ void CL_CoF_SkyClientCvarSet( const char *name, float value );
+ void CL_CoF_SkyResetPerMap( void );
++// Cry of Fear "Aim down sights: Hold / Toggle" (cof_ads_toggle). The game's
++// ironsights_toggle is kept at its working toggle (CL_CoF_ADSSync, every client
++// frame from CL_UpdateClientData) and Hold is emulated by the engine: the key
++// path hands a key bound to "+attack3" to CL_CoF_ADSHoldKey while
++// CL_CoF_ADSHoldActive(). All in cl_main.c.
++extern convar_t cof_ads_toggle;
++void CL_CoF_ADSSync( void );
++qboolean CL_CoF_ADSHoldActive( void );
++void CL_CoF_ADSHoldKey( int key, qboolean down );
+ extern net_api_t gNetApi;
+ 
+ #endif//CLIENT_H
+diff --git a/engine/client/input/in_keys.c b/engine/client/input/in_keys.c
+index cc387fd..8e93d17 100644
+--- a/engine/client/input/in_keys.c
++++ b/engine/client/input/in_keys.c
+@@ -167,6 +167,9 @@ static const keyname_t keynames[] =
+ { "INTERNATIONAL9", K_INTERNATIONAL + 8,   ""                },
+ };
+ 
++// cof_key_probe: see Key_QueueBindText below
++static qboolean key_probe_immediate;
++
+ static CVAR_DEFINE_AUTO( key_rotate, "0", FCVAR_ARCHIVE|FCVAR_FILTERABLE, "rotate arrow keys (0-3)" );
+ 
+ /*
+@@ -553,6 +556,59 @@ qboolean Cmd_GetKeysList( const char *s, char *completedname, int length, qboole
+ 
+ ==============================================================================
+ */
++/*
++===================
++Key_CoFProbe_f
++
++cof_key_probe <key> <1|0> - deliver one key press or release straight into
++Key_Event, the same entry point the platform layer uses.
++
++This project may not inject OS keyboard or mouse input (a worker's injected
++keystrokes once landed in the user's editor), and Key_Event is internal, so
++there was no way to exercise a *bound key* from a cfg at all: running the bound
++command by hand goes through Cbuf and skips everything Key_Event does (the
++client's key hook, the bind expansion with its key number, the release of a
++button bound to a "+command"). This command closes that gap and nothing else:
++it does not synthesise mouse motion, it does not touch the platform event
++queue, it is restricted, so a server cannot reach it, and it only runs with
++"developer" set. Used to verify the aim-down-sights modes (cof_ads_toggle).
++===================
++*/
++static void Key_CoFProbe_f( void )
++{
++	int	key, down;
++
++	if( !host_developer.value )
++	{
++		Con_Printf( "cof_key_probe is a developer command: set \"developer 1\" first\n" );
++		return;
++	}
++
++	if( Cmd_Argc( ) != 3 )
++	{
++		Con_Printf( S_USAGE "cof_key_probe <key> <1|0> : deliver a key event to the engine's own key path\n" );
++		return;
++	}
++
++	key = Key_StringToKeynum( Cmd_Argv( 1 ));
++
++	if( key == -1 || key >= ARRAYSIZE( keys ))
++	{
++		Con_Printf( "cof_key_probe: \"%s\" isn't a valid key\n", Cmd_Argv( 1 ));
++		return;
++	}
++
++	down = Q_atoi( Cmd_Argv( 2 )) != 0;
++
++	Con_Printf( "[cof-key-probe] %s %s (bind \"%s\", key_dest %i)\n",
++		Key_KeynumToString( key ), down ? "down" : "up",
++		keys[key].binding ? keys[key].binding : "", (int)cls.key_dest );
++
++	key_probe_immediate = true;
++	Key_Event( key, down );
++	key_probe_immediate = false;
++}
++
+ /*
+ ===================
+ Key_Init
+@@ -566,6 +622,7 @@ void Key_Init( void )
+ 	Cmd_AddRestrictedCommand( "unbindall", Key_Unbindall_f, "removes all commands from all keys in bindmap" );
+ 	Cmd_AddRestrictedCommand( "resetkeys", Key_Reset_f, "reset all keys to their default values" );
+ 	Cmd_AddCommand( "bindlist", Key_Bindlist_f, "display current key bindings" );
++	Cmd_AddRestrictedCommand( "cof_key_probe", Key_CoFProbe_f, "developer: deliver a key press (1) or release (0) to the engine key path, without any OS input" );
+ 	Cmd_AddCommand( "makehelp", Key_EnumCmds_f, "write help.txt that contains all console cvars and cmds" );
+ 
+ 	// setup default binding. "unbindall" from config.cfg will be reset it
+@@ -576,6 +633,35 @@ void Key_Init( void )
+ 
+ }
+ 
++/*
++===================
++Key_QueueBindText
++
++Where a bind's expanded "+cmd"/"-cmd" text goes.
++
++Normally the end of the command buffer, exactly as upstream does it. The one
++exception is cof_key_probe, which delivers a key event from INSIDE the command
++buffer: a plain Cbuf_AddText would then queue the bind behind the whole rest of
++the test script - typically a few hundred "wait"s - and the command would not
++run until the script had finished, which is neither what a real key press does
++nor anything a test can observe. While the probe is running the text is
++inserted at the head of the buffer instead, which is where a key pressed on
++this frame lands.
++
++MEASURED, 2026-09-22 (stage1/ads-toggle-20260922/evidence): with Cbuf_AddText
++the probe's "+attack3 243" never reached the client before the test script's
++own "quit" (ads5.log, every cof_ads_status still at fov 90); with the insert
++the client zooms on the frame the press was delivered (ads6.log,
++stage1/m5b-integration-20260922/evidence/adsn*.log).
++===================
++*/
++void Key_QueueBindText( const char *text )
++{
++	if( key_probe_immediate )
++		Cbuf_InsertText( text );
++	else Cbuf_AddText( text );
++}
++
+ /*
+ ===================
+ Key_AddKeyCommands
+@@ -593,20 +679,26 @@ static void Key_AddKeyCommands( int key, const char *kb, qboolean down )
+ 		if( kb[i] == ';' || !kb[i] )
+ 		{
+ 			*buttonPtr = '\0';
+-			if( button[0] == '+' )
++			if( button[0] == '+' && !Q_stricmp( button, "+attack3" ) && CL_CoF_ADSHoldActive( ))
++			{
++				// Cry of Fear "Aim down sights: Hold": the aim key's press
++				// and release each become one toggle pulse (cl_main.c)
++				CL_CoF_ADSHoldKey( key, down );
++			}
++			else if( button[0] == '+' )
+ 			{
+ 				char cmd[1024];
+ 
+ 				// button commands add keynum as a parm
+ 				if( down ) Q_snprintf( cmd, sizeof( cmd ), "%s %i\n", button, key );
+ 				else Q_snprintf( cmd, sizeof( cmd ), "-%s %i\n", button + 1, key );
+-				Cbuf_AddText( cmd );
++				Key_QueueBindText( cmd );
+ 			}
+ 			else if( down )
+ 			{
+ 				// down-only command
+-				Cbuf_AddText( button );
+-				Cbuf_AddText( "\n" );
++				Key_QueueBindText( button );
++				Key_QueueBindText( "\n" );
+ 			}
+ 
+ 			buttonPtr = button;

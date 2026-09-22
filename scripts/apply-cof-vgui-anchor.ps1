@@ -87,7 +87,8 @@ try {
             $appCppAfter.Contains('Panel_SetSolveHook( CofUI_SolvePanel )') -and
             $fontAfter.Contains('getCharABCwide( (unsigned char)ch') -and
             $imageAfter.Contains('int ch = (unsigned char)text[i]') -and
-            (Test-Path -LiteralPath $scale)
+            (Test-Path -LiteralPath $scale) -and
+            (Get-Content -Raw -LiteralPath $scale).Contains('bool CofIsPage( Panel *p )')
         if (-not $present) { throw 'Applied, but the expected markers are missing. Inspect the tree.' }
         Write-Host 'Applied patches\cof-vgui-anchor.patch'
         Write-Host 'Build the support library as well as the engine: python waf build --targets=xash,vgui'

@@ -1,0 +1,137 @@
+diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
+index 8ed0188..ef085cd 100644
+--- a/engine/client/cl_main.c
++++ b/engine/client/cl_main.c
+@@ -94,6 +94,7 @@ static CVAR_DEFINE_AUTO( cof_ui_menu_map_redirect, "1", 0, "unified UI gate: tur
+ static CVAR_DEFINE_AUTO( cof_ui_death_menu, "1", 0, "unified UI gate: open the engine menu's own death page when the game DLL sends the Cry of Fear GAME OVER screen (0 = stock behaviour, the client's own panel)" );
+ static CVAR_DEFINE_AUTO( cof_ui_death_keep_running, "1", 0, "unified UI gate: keep the world simulating and audible behind the GAME OVER page, the way the original death screen did (0 = the page pauses the game like every other menu)" );
+ static CVAR_DEFINE_AUTO( cof_mp3_stop_on_map, "1", 0, "run the client's \"stopmp3\" command before a fresh map, newgame, save load or disconnect, so the client's own MP3 player does not bleed across the transition (changelevel is deliberately untouched)" );
++CVAR_DEFINE_AUTO( cof_hud_chapter_rule_hide, "1", 0, "Cry of Fear: do not draw the chapter title card's decorative rule (the client's pfnFillRGBA 463x2 white hairline, placed in raw screen pixels, which the scaled title no longer lines up with). 0 = draw it as the game does" );
+ static CVAR_DEFINE_AUTO( cof_sky_reset_per_map, "1", 0,"restore the client's \"gl_customsky\" on every map load when the client turned it off after a failed sky load, so one map's missing sky faces do not disable the sky for the rest of the session (0 = stock behaviour)" );
+ // "Aim down sights: Hold / Toggle" (see CL_CoF_ADSHoldKey): Toggle is the
+ // game's own ironsights, Hold is emulated by the engine on top of them
+@@ -6076,6 +6077,7 @@ static void CL_InitLocal( void )
+ 	Cvar_RegisterVariable( &cof_ui_death_menu );
+ 	Cvar_RegisterVariable( &cof_ui_death_keep_running );
+ 	Cvar_RegisterVariable( &cof_mp3_stop_on_map );
++	Cvar_RegisterVariable( &cof_hud_chapter_rule_hide );
+ 	Cvar_RegisterVariable( &cof_sky_reset_per_map );
+ 	Cvar_RegisterVariable( &cof_ads_toggle );
+ 	Cvar_RegisterVariable( &cof_ads_hold_pulse );
+diff --git a/engine/client/client.h b/engine/client/client.h
+index f3ff379..7f5ad67 100644
+--- a/engine/client/client.h
++++ b/engine/client/client.h
+@@ -1342,6 +1342,9 @@ extern convar_t cof_ads_toggle;
+ void CL_CoF_ADSSync( void );
+ qboolean CL_CoF_ADSHoldActive( void );
+ void CL_CoF_ADSHoldKey( int key, qboolean down );
++// Cry of Fear chapter title card rule (cof_hud_chapter_rule_hide), asked by
++// the client's pfnFillRGBA / pfnFillRGBABlend in dll_int/cl_game.c.
++extern convar_t cof_hud_chapter_rule_hide;
+ extern net_api_t gNetApi;
+ 
+ #endif//CLIENT_H
+diff --git a/engine/client/dll_int/cl_game.c b/engine/client/dll_int/cl_game.c
+index 9af2952..9fcfb43 100644
+--- a/engine/client/dll_int/cl_game.c
++++ b/engine/client/dll_int/cl_game.c
+@@ -1698,6 +1698,78 @@ static client_sprite_t *SPR_GetList( char *psz, int *piCount )
+ 	return pEntry->pList;
+ }
+ 
++/*
++=============
++CL_CoF_ChapterRuleHidden
++
++Cry of Fear chapter title card (cof_hud_chapter_rule_hide, default 1).
++
++The card is the chapter title in the chaptertitle VGUI scheme with a thin white
++rule under it. The title is a VGUI Label and goes through the milestone-4
++surface transform; the rule does not - the client draws it with pfnFillRGBA
++in raw screen pixels. At the user's HUD scale the title moved and the rule
++stayed, so the rule crosses the glyphs. User decision (2026-09-22): do not
++re-place it, suppress it.
++
++MEASURED (stage1/m5b-integration-20260922/evidence/chap-*-show*.log, c_bridge,
++cof_hud_text_trace 1, every client pfnFillRGBA logged): the card draws exactly
++one fill of its own, a white 2 px rule that grows in 16 px steps (15, 31, 47 ...
++447) to its full 463 px while the title types out, at a fixed place relative to
++the screen centre, and fades out with the card (alpha 223..228):
++
++	1920x1080   729,561    = 960-231, 540+21
++	2560x1440   1049,741   = 1280-231, 720+21
++	3840x2160   1689,1101  = 1920-231, 1080+21
++
++So the match is: pure white, 2 px tall, at most 463 px wide, at
++(width/2 - 231, height/2 + 21) of the screen the client is told about - every
++frame of the growth, not only the finished "463x2 rgba 255,255,255,228". The
++alpha is not matched (it fades). The client's other pfnFillRGBA users (fades,
++the vignette, the letterbox bars) are screen-covering rectangles and cannot
++match.
++=============
++*/
++#define COF_CHAPTER_RULE_W	463	// full width
++#define COF_CHAPTER_RULE_H	2
++#define COF_CHAPTER_RULE_DX	231	// left edge, pixels left of the screen centre
++#define COF_CHAPTER_RULE_DY	21	// top edge, pixels below the screen centre
++
++static qboolean CL_CoF_ChapterRuleHidden( int x, int y, int w, int h, int r, int g, int b, int a )
++{
++	static qboolean	reported;
++	int		cx, cy;
++
++	if( cof_hud_text_trace.value != 0.0f )
++		Con_Reportf( "[cof-fill] %i,%i %ix%i rgba %i,%i,%i,%i\n", x, y, w, h, r, g, b, a );
++
++	if( !cof_hud_chapter_rule_hide.value )
++		return false;
++
++	if( h != COF_CHAPTER_RULE_H || w <= 0 || w > COF_CHAPTER_RULE_W || r != 255 || g != 255 || b != 255 )
++		return false;
++
++	if( !GI || Q_stricmp( GI->gamefolder, "cryoffear" ))
++		return false;
++
++	// the screen size the client placed it with (hud_scale is ignored for
++	// Cry of Fear, so this is the render size); one pixel of slack for odd
++	// widths and heights, where the client's own halving may round the
++	// other way
++	cx = clgame.scrInfo.iWidth / 2 - COF_CHAPTER_RULE_DX;
++	cy = clgame.scrInfo.iHeight / 2 + COF_CHAPTER_RULE_DY;
++
++	if( abs( x - cx ) > 1 || abs( y - cy ) > 1 )
++		return false;
++
++	if( !reported )
++	{
++		reported = true;
++		Con_Reportf( "[cof-ui] chapter card rule %i,%i %ix%i suppressed (cof_hud_chapter_rule_hide 1)\n", x, y, w, h );
++	}
++
++	return true;
++}
++
+ /*
+ =============
+ CL_FillRGBA
+@@ -1713,6 +1785,9 @@ static void GAME_EXPORT CL_FillRGBA( int x, int y, int w, int h, int r, int g, i
+ 	b = bound( 0, b, 255 );
+ 	a = bound( 0, a, 255 );
+ 
++	if( CL_CoF_ChapterRuleHidden( x, y, w, h, r, g, b, a ))
++		return;
++
+ 	// NOT scaled by cof_ui_scale, deliberately: the Cry of Fear client uses
+ 	// pfnFillRGBA for screen-covering effects - fades, the vignette, the
+ 	// letterbox bars - built out of several adjoining rectangles. Anchoring
+@@ -3632,6 +3707,9 @@ static void GAME_EXPORT CL_FillRGBABlend( int x, int y, int w, int h, int r, int
+ 	b = bound( 0, b, 255 );
+ 	a = bound( 0, a, 255 );
+ 
++	if( CL_CoF_ChapterRuleHidden( x, y, w, h, r, g, b, a ))
++		return;
++
+ 	// not scaled by cof_ui_scale, see the note in CL_FillRGBA above
+ 	SPR_AdjustSize( &x_, &y_, &w_, &h_ );
+ 
