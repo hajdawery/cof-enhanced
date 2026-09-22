@@ -5,7 +5,7 @@ and patches are all welcome.
 
 ## Reporting a bug
 
-Open an issue at <https://github.com/hajdawery/cof-fix/issues> with:
+Open an issue at <https://github.com/hajdawery/cof-enhanced/issues> with:
 
 * the version line from the bottom-right corner of the main menu
   (`cofenhanced <version> (<milestone>, <commit>)`);

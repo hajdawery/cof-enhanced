@@ -201,7 +201,7 @@ Campaign. Playing through them has not been tested widely.
 
 ## Reporting bugs
 
-Open an issue at <https://github.com/hajdawery/cof-fix/issues>. Please include
+Open an issue at <https://github.com/hajdawery/cof-enhanced/issues>. Please include
 the version line from the bottom-right corner of the main menu
 (`cofenhanced ...`), your resolution and HUD scale, what you did and what
 happened, and a screenshot if it is visual. More in

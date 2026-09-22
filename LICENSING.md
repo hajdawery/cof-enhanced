@@ -8,7 +8,7 @@ and every third-party copyright line is in
 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
 
 Project owner: **haej**, <https://cofenhanced.haej.pl>.
-Repository: <https://github.com/hajdawery/cof-fix>.
+Repository: <https://github.com/hajdawery/cof-enhanced>.
 
 Copyright (c) 2026 haej (Cry of Fear: Enhanced contributors).
 
@@ -237,7 +237,7 @@ The release archive, and whatever the patcher installs, must include:
    [`docs/player-README-template.md`](docs/player-README-template.md)
    (disclaimer, attribution, source offer).
 6. A **source offer** (`SOURCE.txt` or the player README section) naming:
-   - this repository, <https://github.com/hajdawery/cof-fix>, and the exact
+   - this repository, <https://github.com/hajdawery/cof-enhanced>, and the exact
      commit the release was built from;
    - every upstream commit in section 3 that was used;
    - the build configuration in section 3.

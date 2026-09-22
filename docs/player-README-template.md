@@ -69,7 +69,7 @@ This software comes with ABSOLUTELY NO WARRANTY (GNU GPL sections 15-16).
 The complete source code for the binaries in this release is available at
 no charge:
 
-- Project repository: <https://github.com/hajdawery/cof-fix>, commit
+- Project repository: <https://github.com/hajdawery/cof-enhanced>, commit
   `{{COF_FIX_COMMIT}}`.
 - Source archive attached to this release: `{{SOURCE_ARCHIVE_NAME}}`.
 - Upstream: Xash3D FWGS commit `4857b389e6ba32ddaa68582aedcbc950c138f46a`;
