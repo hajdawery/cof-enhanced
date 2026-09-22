@@ -1,0 +1,272 @@
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp
+index ed24b2b..5fb8d3b 100644
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp
+@@ -725,6 +725,30 @@ int XashSurface::applyTextYTarget( void )
+ 	return delta;
+ }
+ 
++/*
++====================
++CofTextOverflowOn
++
++cof-coop-bridge: the engine's cof_vgui_text_overflow, read off the font
++descriptor the same way CofFont_TraceOn reads the trace flag. Only asked for a
++line that actually overflows, which is rare.
++====================
++*/
++static bool CofTextOverflowOn( void )
++{
++	cof_vgui_font_t	desc;
++
++	if( !g_engine || !g_engine->CofFontDesc )
++		return false;
++
++	memset( &desc, 0, sizeof( desc ));
++
++	if( !g_engine->CofFontDesc( "pager", &desc ))
++		return false;
++
++	return desc.overflow != 0;
++}
++
+ void XashSurface::flushBackingText( void )
+ {
+ 	if( backingGlyphCount == 0 )
+@@ -809,6 +833,44 @@ void XashSurface::flushBackingText( void )
+ 			else vgui_dprintf( "%s", msg );
+ 		}
+ 
++		// cof-coop-bridge: a line cut on BOTH sides by its own label is a
++		// centred caption the client sized for its own, narrower bitmap font
++		// - the co-op lobby's "Press MOUSE1 to become ready/unready" and the
++		// votekick hint lost their first and last words that way. Such a line
++		// may use its parent panel's width (never more), for this line only.
++		// A left-aligned line that runs off one edge stays cut, as before.
++		// The parent is asked for its clip rectangle directly: the paint
++		// stack does not nest panels (Panel::paintTraverse pops a panel
++		// before it paints the children).
++		int	lineClip[4];
++		bool	lineWidened = false;
++		Panel	*linePanel = paintStackPos > 0 ? paintStack[paintStackPos - 1].panel : nullptr;
++		Panel	*lineParent = linePanel ? linePanel->getParent() : nullptr;
++
++		if( lineParent )
++		{
++			g_scissor.getRect( lineClip );
++
++			if( line.minx < lineClip[0] && line.maxx > lineClip[2] && CofTextOverflowOn( ))
++			{
++				int	outer[4];
++				int	x0 = line.minx - line.tall / 2;
++				int	x1 = line.maxx + line.tall / 2;
++
++				lineParent->getClipRect( outer[0], outer[1], outer[2], outer[3] );
++
++				if( x0 < outer[0] ) x0 = outer[0];
++				if( x1 > outer[2] ) x1 = outer[2];
++
++				if( x0 < lineClip[0] || x1 > lineClip[2] )
++				{
++					g_scissor.setRect( x0 < lineClip[0] ? x0 : lineClip[0], lineClip[1],
++						x1 > lineClip[2] ? x1 : lineClip[2], lineClip[3] );
++					lineWidened = true;
++				}
++			}
++		}
++
+ 		// Which runs get a strip, milestone 5b:
+ 		//
+ 		//   pager (textYTarget < 0)     yes - the notes and document reader
+@@ -863,6 +925,9 @@ void XashSurface::flushBackingText( void )
+ 				g_engine->DrawQuad( &clippedTopLeft, &clippedBottomRight );
+ 			}
+ 		}
++
++		if( lineWidened )
++			g_scissor.setRect( lineClip[0], lineClip[1], lineClip[2], lineClip[3] );
+ 	}
+ 
+ 	if( clipMoved )
+diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
+index 2e7a138..b74dc18 100644
+--- a/engine/client/cl_main.c
++++ b/engine/client/cl_main.c
+@@ -91,6 +91,8 @@ static CVAR_DEFINE_AUTO( cl_nat, "0", 0, "show servers running under NAT" );
+ CVAR_DEFINE_AUTO( hud_utf8, "0", FCVAR_ARCHIVE, "Use utf-8 encoding for hud text" );
+ CVAR_DEFINE_AUTO( ui_renderworld, "0", FCVAR_ARCHIVE, "render world when UI is visible" );
+ static CVAR_DEFINE_AUTO( cof_ui_menu_map_redirect, "1", 0, "unified UI gate: turn a client- or server-issued \"map c_game_menu1\" into a return to the engine menu over the background map (0 = stock behaviour)" );
++// Cry of Fear co-op bridge, see CL_CoF_NoteSessionEnd
++static CVAR_DEFINE_AUTO( cof_ui_remote_end_menu, "1", 0, "Cry of Fear co-op: when a session with a remote server ends (server shut down, kicked, timed out, connection refused or failed, or our own disconnect) bring the engine menu back over the background map instead of the console over black; needs cof_ui_menu_map_redirect (0 = stock behaviour)" );
+ static CVAR_DEFINE_AUTO( cof_ui_death_menu, "1", 0, "unified UI gate: open the engine menu's own death page when the game DLL sends the Cry of Fear GAME OVER screen (0 = stock behaviour, the client's own panel)" );
+ static CVAR_DEFINE_AUTO( cof_ui_death_keep_running, "1", 0, "unified UI gate: keep the world simulating and audible behind the GAME OVER page, the way the original death screen did (0 = the page pauses the game like every other menu)" );
+ static CVAR_DEFINE_AUTO( cof_mp3_stop_on_map, "1", 0, "run the client's \"stopmp3\" command before a fresh map, newgame, save load or disconnect, so the client's own MP3 player does not bleed across the transition (changelevel is deliberately untouched)" );
+@@ -118,6 +120,8 @@ CVAR_DEFINE_AUTO( cof_hud_text_y, "0", FCVAR_ARCHIVE, "extra vertical offset for
+ CVAR_DEFINE_AUTO( cof_hud_text_y_shift, "0", 0, "correction for the engine HUD text position, in glyph-growth units: how many extra glyph heights the client's own vertical formula would have taken off the anchor. MEASURED 0 for Cry of Fear, whose messages use an absolute screen fraction and ignore the block height (see docs/cof-hud-text-legibility.md); 0.5 would be a centred block, 1.0 a bottom-aligned one" );
+ CVAR_DEFINE_AUTO( cof_hud_msg_y_pct, "78", FCVAR_ARCHIVE, "where the client's in-game message text (item pickups, cutscene subtitles) sits, as a percentage of the render height. The client centres that panel on the screen, so 50 restores its own placement and 78 puts the text in the lower quarter, where the original game had it" );
+ CVAR_DEFINE_AUTO( cof_hud_text_trace, "0", 0, "developer: log every line of engine HUD text with its position, extent and colour, once per frame" );
++// cof-coop-bridge: the co-op lobby's two hint lines, see docs/cof-coop-bridge.md
++static CVAR_DEFINE_AUTO( cof_vgui_text_overflow, "1", 0, "Cry of Fear: a centred line of client VGUI text (strip-backed roles) that is wider than its own label on both sides may draw across its parent panel instead of being cut off at the label's edges, e.g. the co-op lobby hints under the Inter fonts (0 = cut, as before)" );
+ static CVAR_DEFINE_AUTO( cl_maxframetime, "0", 0, "set deadline timer for client rendering to catch freezes" );
+ CVAR_DEFINE_AUTO( cl_fixmodelinterpolationartifacts, "1", 0, "try to fix up models interpolation on a moving platforms (monsters on trains for example)" );
+ 
+@@ -856,6 +860,7 @@ qboolean CL_CoF_FontDesc( const char *role, cof_vgui_font_t *out )
+ 	out->backing = 0;
+ 	out->ytarget = -1;
+ 	out->trace = ( cof_hud_text_trace.value != 0.0f ) ? 1 : 0;
++	out->overflow = ( cof_vgui_text_overflow.value != 0.0f ) ? 1 : 0;
+ 
+ 	if( !Q_stricmp( role, "pager" ) || CL_CoF_FontRoleIsMessage( role ))
+ 		out->backing = bound( 0, (int)cof_hud_text_backing.value, 255 );
+@@ -3758,6 +3763,82 @@ static void CL_Reconnect( qboolean setup_netchan )
+ 	CL_StartupDemoHeader ();
+ }
+ 
++/*
++====================
++CL_CoF_NoteSessionEnd
++
++Cry of Fear co-op bridge (cof_ui_remote_end_menu, default on; only while
++cof_ui_menu_map_redirect is on too).
++
++A co-op joiner's session ends in many places, none of which is the
++"disconnect" command CL_CoF_Disconnect_f wraps: the host quits or its server
++shuts down (svc_disconnect -> CL_Drop), a kick, a timeout (CL_CheckTimeout),
++a refused connection (CL_Reject), five unanswered connect packets
++(CL_CheckForResend's "couldn't connect"). Every one of them runs through
++CL_Disconnect, and every one of them used to leave the joiner in the console
++over black, with no menu scene - the background map was shut down by the
++"connect" itself (CL_Connect_f kills the local server first) and nothing
++brought it back (stage1/coop-investigation-20260922, runs 4 and 8).
++
++Called first thing in CL_Disconnect, while the address of the session that is
++ending is still known (CL_Disconnect clears it). A local game - single
++player, the background map, or a listen server this client hosts itself -
++talks over NA_LOOPBACK from its first packet on (CL_CheckForResend), and its
++ends are already owned by CL_CoF_Disconnect_f and MainUI's Quit to menu, so
++only a remote session (NA_IP, or an address that never resolved) is noted.
++
++Nothing is decided here: CL_Disconnect has callers that start a new session
++straight after it - connect, retry, reconnect - so only the check is queued,
++and cof_ui_session_end runs after the command that caused this has finished.
++====================
++*/
++static void CL_CoF_NoteSessionEnd( void )
++{
++	if( !cof_ui_menu_map_redirect.value || !cof_ui_remote_end_menu.value )
++		return;
++
++	if( host.type != HOST_NORMAL || cls.demoplayback )
++		return;
++
++	if( NET_IsLocalAddress( cls.serveradr ))
++		return; // our own server: not this hook's business
++
++	Cbuf_AddText( "cof_ui_session_end\n" );
++	Con_Reportf( "[cof-ui] remote session with \"%s\" ended; menu return check queued\n", cls.servername );
++}
++
++/*
++====================
++CL_CoF_SessionEnd_f
++
++The queued half of CL_CoF_NoteSessionEnd. If by now nothing has started a new
++session, put the engine menu back over the background map with the same two
++commands CL_CoF_Disconnect_f queues after a single-player disconnect.
++====================
++*/
++static void CL_CoF_SessionEnd_f( void )
++{
++	char		cmd[COF_MENU_CMD_MAX];
++	const char	*background;
++
++	if( !cof_ui_menu_map_redirect.value || !cof_ui_remote_end_menu.value )
++		return;
++
++	// connect to another server, retry, reconnect, a map or a demo got there
++	// first; the menu scene is not wanted
++	if( cls.state != ca_disconnected || SV_Active( ) || cls.demoplayback || cl_background.value != 0.0f )
++	{
++		Con_Reportf( "[cof-ui] remote session end: a new session is already starting, no menu return\n" );
++		return;
++	}
++
++	background = CL_CoF_MenuBackgroundMap( COF_MENU_MAP );
++	Q_snprintf( cmd, sizeof( cmd ), "menu_main\nmap_background %s\n", background );
++	Cbuf_AddText( cmd );
++
++	Con_Reportf( "[cof-ui] remote session end -> menu_main + map_background %s\n", background );
++}
++
+ /*
+ =====================
+ CL_Disconnect
+@@ -3772,6 +3853,9 @@ void CL_Disconnect( void )
+ 	if( cls.state == ca_disconnected )
+ 		return;
+ 
++	// Cry of Fear co-op bridge: must look at cls.serveradr before it is cleared
++	CL_CoF_NoteSessionEnd();
++
+ 	// Cry of Fear (cof_mp3_stop_on_map): the client's own irrKlang player is not
+ 	// part of the session the lines below tear down, so it has to be told. Done
+ 	// first, while the client DLL is still fully live.
+@@ -5757,6 +5841,7 @@ static void CL_InitLocal( void )
+ 	Cvar_Get( "lastdemo", "", FCVAR_ARCHIVE, "last played demo" );
+ 	Cvar_RegisterVariable( &ui_renderworld );
+ 	Cvar_RegisterVariable( &cof_ui_menu_map_redirect );
++	Cvar_RegisterVariable( &cof_ui_remote_end_menu );
+ 	Cvar_RegisterVariable( &cof_ui_death_menu );
+ 	Cvar_RegisterVariable( &cof_ui_death_keep_running );
+ 	Cvar_RegisterVariable( &cof_mp3_stop_on_map );
+@@ -5776,6 +5861,7 @@ static void CL_InitLocal( void )
+ 	Cvar_RegisterVariable( &cof_hud_text_y_shift );
+ 	Cvar_RegisterVariable( &cof_hud_msg_y_pct );
+ 	Cvar_RegisterVariable( &cof_hud_text_trace );
++	Cvar_RegisterVariable( &cof_vgui_text_overflow );
+ 	Cvar_RegisterVariable( &cl_maxframetime );
+ 	Cvar_RegisterVariable( &cl_fixmodelinterpolationartifacts );
+ 	{ void V_CoF_RegisterFovCvars( void ); V_CoF_RegisterFovCvars(); } // cof_fov, cof_fov_zoom_knee; both live in engine\client\cl_view.c
+@@ -5828,6 +5914,7 @@ static void CL_InitLocal( void )
+ 	Cmd_AddCommand ("info", NULL, "collect info about local servers with specified protocol" );
+ 	Cmd_AddCommand ("escape", CL_Escape_f, "escape from game to menu" );
+ 	Cmd_AddCommand ("cof_ui_menu_return", CL_CoF_MenuReturn_f, "Cry of Fear unified UI: disconnect and re-arm the engine menu over its background map" );
++	Cmd_AddCommand ("cof_ui_session_end", CL_CoF_SessionEnd_f, "Cry of Fear co-op: queued by the engine when a remote session ends; brings the menu back over the background map unless a new session has started" );
+ 	Cmd_AddCommand ("cof_hud_msg_probe", CL_CoF_MsgProbe_f, "developer: send the client one \"ProFont\" message, so the in-game message strip can be seen from a cfg" );
+ 	Cmd_AddCommand ("cof_hud_text_probe", CL_CoF_HudTextProbe_f, "developer: send the client one \"HudText\" message, so the engine HUD text path can be seen from a cfg" );
+ 	Cmd_AddCommand ("togglemenu", CL_Escape_f, "toggle between game and menu" );
+diff --git a/engine/common/cmd.c b/engine/common/cmd.c
+index 53bb94a..a9e24ec 100644
+--- a/engine/common/cmd.c
++++ b/engine/common/cmd.c
+@@ -1247,8 +1247,12 @@ static void Cmd_ExecScript( const char *filename )
+ 
+ 	if( f[len - 1] != '\n' )
+ 	{
+-		Cbuf_InsertTextLen( f, len, len + 1 );
+-		Cbuf_InsertTextLen( "\n", 1, 1 );
++		// both inserts go to the FRONT of the buffer, so the missing newline
++		// has to go in first to end up after the file; the other way round it
++		// landed in front of the file and the file's last line was glued onto
++		// whatever command followed the exec (upstreamable, cof-coop-bridge)
++		Cbuf_InsertTextLen( "\n", 1, len + 1 );
++		Cbuf_InsertTextLen( f, len, len );
+ 	}
+ 	else Cbuf_InsertTextLen( f, len, len );
+ 
+diff --git a/engine/vgui_api.h b/engine/vgui_api.h
+index 3c3318b..c8bb469 100644
+--- a/engine/vgui_api.h
++++ b/engine/vgui_api.h
+@@ -196,6 +196,11 @@ typedef struct
+ 				// Only the notes/document reader ("pager") asks for one,
+ 				// so no other client label, and not the boss bar or the
+ 				// inventory, is touched by it
++	int	overflow;	// cof-coop-bridge: a collected line wider than its own
++				// label on BOTH sides (a centred caption sized for the
++				// game's narrower bitmap font, e.g. the co-op lobby
++				// hints) may use its parent panel's width instead of
++				// being cut at the label's edges. Global, like trace
+ } cof_vgui_font_t;
+ 
+ typedef struct  vguiapi_s
