@@ -32,6 +32,15 @@ Project site: <https://cofenhanced.haej.pl>
 of this repository, and the first public release (with an installer) is being
 prepared. There is no download yet.
 
+> ⚠️ **There WILL be bugs.** The game has NOT been completed in its entirety
+> on this engine. You may get stuck, cutscenes may not work, and the textures
+> or fonts might bug out. That is totally expected: this is still an
+> early-stage project.
+>
+> If you notice ANYTHING, please report it via the
+> [issues](https://github.com/hajdawery/cof-enhanced/issues). Screenshots,
+> videos, steps to reproduce. It will help us massively.
+
 ## What it is
 
 Cry of Fear runs on Valve's old GoldSrc engine. Cry of Fear: Enhanced swaps
