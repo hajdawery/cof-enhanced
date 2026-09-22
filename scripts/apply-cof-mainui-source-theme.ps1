@@ -148,7 +148,11 @@ if ($Reverse) {
         -not $audioAfter.Contains('menuVolume.LinkCvar( "ui_sound_volume" );') -or
         -not $mainAfter.Contains('ADD_COMMAND( menu_cof_quit_to_menu, UI_CoFMainQuitToMenu );') -or
         -not $mainAfter.Contains('ADD_COMMAND( menu_cof_sound_probe, UI_CoFSoundProbe );') -or
-        -not $themeAfter.Contains('#define COF_SCENE_DEFAULTS_GEN')) {
+        -not $themeAfter.Contains('#define COF_SCENE_DEFAULTS_GEN') -or
+        # milestone 5b: pause-list Save Game item, ADS option, bind swap
+        -not $mainAfter.Contains('cofSaveGame.onReleased = UI_SaveGame_Menu;') -or
+        -not $advAfter.Contains('"cof_ads_toggle"') -or
+        -not $themeAfter.Contains('KEY_GetBinding( K_MOUSE2 )')) {
         throw 'Forward application completed without the expected MainUI Source-theme markers.'
     }
     Write-Host "Applied CoF MainUI Source theme in $mainui"

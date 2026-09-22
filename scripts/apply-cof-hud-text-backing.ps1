@@ -103,6 +103,8 @@ try {
             $suppAfter.Contains('MAX_TEXT_BACKING_LINES') -and
             # milestone 5a: the moved message run carries its clip rectangle
             $clipAfter.Contains('Scissor::getRect') -and
+            # milestone 5b: no strip for top-band (hint bar) runs
+            $surfAfter.Contains('runIsTopBand') -and
             $cofAfter.Contains('CofFont_Backing') -and
             $appAfter.Contains('flushBackingText')
         if (-not $present) { throw 'Applied, but the expected markers are missing. Inspect the tree.' }

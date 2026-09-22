@@ -174,10 +174,10 @@ index bd3c25d..85d150b 100644
  	int 	m_iOldMenuDepth;
 diff --git a/3rdparty/mainui/Theme.cpp b/3rdparty/mainui/Theme.cpp
 new file mode 100644
-index 0000000..33f3a01
+index 0000000..569e82c
 --- /dev/null
 +++ b/3rdparty/mainui/Theme.cpp
-@@ -0,0 +1,515 @@
+@@ -0,0 +1,541 @@
 +/*
 +Theme.cpp -- Source-style theme for the Cry of Fear unified UI (milestone 3a)
 +
@@ -209,10 +209,11 @@ index 0000000..33f3a01
 +static cvar_t *ui_cof_scene_defaults = NULL;
 +
 +// the marker's generation. 0 = nothing applied yet, 1 = ui_renderworld and
-+// r_detailtextures, 2 = ui_sound_volume, 3 = hud_scale cleared. Raise this when
-+// a new one-shot default is added; UI_ThemeApplyDeferredDefaults then applies
-+// only the steps between the recorded generation and this one.
-+#define COF_SCENE_DEFAULTS_GEN	3
++// r_detailtextures, 2 = ui_sound_volume, 3 = hud_scale cleared, 4 = the
++// MOUSE2/MOUSE3 swap (aim on the right button). Raise this when a new one-shot
++// default is added; UI_ThemeApplyDeferredDefaults then applies only the steps
++// between the recorded generation and this one.
++#define COF_SCENE_DEFAULTS_GEN	4
 +
 +/*
 +=================
@@ -297,6 +298,31 @@ index 0000000..33f3a01
 +
 +	if( generation >= COF_SCENE_DEFAULTS_GEN )
 +		return; // nothing new here; the user's choices stand
++
++	if( generation < 4 )
++	{
++		// Generation 4 (milestone 5b): aim down sights on the right mouse
++		// button. Cry of Fear ships MOUSE2 = "+attack2" (secondary attack,
++		// the melee bash) and MOUSE3 = "+attack3" (ironsights) in its
++		// config.cfg; the new defaults swap them, and gfx/shell/kb_def.lst
++		// (gamedata overlay) carries the same so "Use defaults" agrees.
++		// Only a config whose two binds are STILL the shipped pair is
++		// touched: a player who bound either button to anything else keeps
++		// their choice, and the swap is offered exactly once.
++		const char *m2 = EngFuncs::KEY_GetBinding( K_MOUSE2 );
++		const char *m3 = EngFuncs::KEY_GetBinding( K_MOUSE3 );
++
++		if( m2 && m3 && !stricmp( m2, "+attack2" ) && !stricmp( m3, "+attack3" ))
++		{
++			EngFuncs::ClientCmd( false, "bind MOUSE2 \"+attack3\"\nbind MOUSE3 \"+attack2\"\n" );
++			Con_Printf( "Cry of Fear: default binds updated - MOUSE2 aims down sights (+attack3), MOUSE3 is the secondary attack (+attack2)\n" );
++		}
++		else
++		{
++			Con_Printf( "Cry of Fear: MOUSE2/MOUSE3 are not the shipped binds (\"%s\" / \"%s\"), left as they are\n",
++				m2 ? m2 : "", m3 ? m3 : "" );
++		}
++	}
 +
 +	if( generation < 3 )
 +	{
@@ -2674,7 +2700,7 @@ index 7073e5c..6d03c4b 100644
  #include <malloc.h>
  
 diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/AdvancedControls.cpp
-index 3424ce3..c39071a 100644
+index 3424ce3..7b185f6 100644
 --- a/3rdparty/mainui/menus/AdvancedControls.cpp
 +++ b/3rdparty/mainui/menus/AdvancedControls.cpp
 @@ -18,6 +18,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -2695,7 +2721,7 @@ index 3424ce3..c39071a 100644
  #include "q_client.h"
  #include "Framework.h"
  #include "MenuStrings.h"
-@@ -25,14 +36,55 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+@@ -25,14 +36,70 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  #include "PicButton.h"
  #include "CheckBox.h"
  #include "Slider.h"
@@ -2743,6 +2769,21 @@ index 3424ce3..c39071a 100644
 +	const char *GetText( int line ) override { return g_cofHudScales[line].label; }
 +};
 +
++// "Aim down sights: Hold / Toggle" (milestone 5b). Both modes are the game's
++// own: hl.dll's server cvar ironsights_toggle (1 = a press toggles, the
++// game's default; 0 = aim while held). The game does not save it, so the
++// engine keeps the archived cof_ads_toggle (engine/client/cl_main.c) and
++// copies it into ironsights_toggle whenever the game DLL loads.
++static const char *g_cofAdsModes[] = { "Hold", "Toggle" };
++
++class CMenuCoFAdsModel : public CMenuBaseArrayModel
++{
++public:
++	void Update() override { }
++	int GetRows() const override { return (int)( sizeof( g_cofAdsModes ) / sizeof( g_cofAdsModes[0] )); }
++	const char *GetText( int line ) override { return L( g_cofAdsModes[line] ); }
++};
++
  class CAdvancedControls : public CMenuFramework
  {
  public:
@@ -2752,7 +2793,7 @@ index 3424ce3..c39071a 100644
  
  	void ToggleLookCheckboxes( bool write );
  
-@@ -43,6 +95,10 @@ private:
+@@ -43,6 +110,11 @@ private:
  
  	void GetConfig( void );
  	void PitchInvert( void );
@@ -2760,10 +2801,11 @@ index 3424ce3..c39071a 100644
 +	void ConsoleEnableChanged( void );
 +	void LanguageChanged( void );
 +	void HudScaleChanged( void );
++	void AdsModeChanged( void );
  
  	CMenuPicButton done, inputDev;
  
-@@ -55,6 +111,23 @@ private:
+@@ -55,6 +127,25 @@ private:
  	CMenuCheckBox	autoaim;
  	CMenuCheckBox	rawinput;
  	CMenuSlider	sensitivity;
@@ -2781,13 +2823,15 @@ index 3424ce3..c39071a 100644
 +	CMenuCheckBox	menuSaves;
 +	CMenuSpinControl	language;
 +	CMenuSpinControl	hudScale;
++	CMenuSpinControl	adsMode;
 +	CMenuCoFLanguageModel	languageModel;
 +	CMenuCoFHudScaleModel	hudScaleModel;
++	CMenuCoFAdsModel	adsModel;
 +	bool		m_bCoF;
  };
  
  /*
-@@ -92,9 +165,94 @@ void CAdvancedControls::GetConfig( )
+@@ -92,9 +183,110 @@ void CAdvancedControls::GetConfig( )
  	rawinput.LinkCvar( "m_rawinput" );
  	sensitivity.LinkCvar( "sensitivity" );
  
@@ -2822,6 +2866,8 @@ index 3424ce3..c39071a 100644
 +
 +			hudScale.SetCurrentValue( (float)row );
 +		}
++
++		adsMode.SetCurrentValue( EngFuncs::GetCvarFloat( "cof_ads_toggle" ) != 0.0f ? 1.0f : 0.0f );
 +	}
 +
  	ToggleLookCheckboxes( false );
@@ -2879,10 +2925,24 @@ index 3424ce3..c39071a 100644
 +	EngFuncs::CvarSetValue( "cof_ui_scale_user", g_cofHudScales[row].user );
 +}
 +
++/*
++=================
++CAdvancedControls::AdsModeChanged
++
++Live and archived, like the HUD scale: the engine copies cof_ads_toggle into
++the game's own ironsights_toggle on its next frame (CL_CoF_ADSSync), and the
++weapons read that on the next press.
++=================
++*/
++void CAdvancedControls::AdsModeChanged()
++{
++	EngFuncs::CvarSetValue( "cof_ads_toggle", adsMode.GetCurrentValue() >= 1.0f ? 1.0f : 0.0f );
++}
++
  void CAdvancedControls::PitchInvert()
  {
  	bool invert = invertMouse.bChecked;
-@@ -131,6 +289,8 @@ void CAdvancedControls::SaveAndPopMenu()
+@@ -131,6 +323,8 @@ void CAdvancedControls::SaveAndPopMenu()
  	autoaim.WriteCvar();
  	rawinput.WriteCvar();
  	sensitivity.WriteCvar();
@@ -2891,7 +2951,7 @@ index 3424ce3..c39071a 100644
  
  	ToggleLookCheckboxes( true );
  
-@@ -146,6 +306,11 @@ void CAdvancedControls::_Init( void )
+@@ -146,6 +340,11 @@ void CAdvancedControls::_Init( void )
  {
  	banner.SetPicture( ART_BANNER );
  
@@ -2903,7 +2963,7 @@ index 3424ce3..c39071a 100644
  	done.szName = L( "Done" );
  	done.SetPicture( PC_DONE );
  	done.onReleased = VoidCb( &CAdvancedControls::SaveAndPopMenu );
-@@ -197,7 +362,32 @@ void CAdvancedControls::_Init( void )
+@@ -197,7 +396,39 @@ void CAdvancedControls::_Init( void )
  		inputDev.SetGrayed( true );
  	inputDev.SetCoord( 72, 210 );
  
@@ -2932,12 +2992,19 @@ index 3424ce3..c39071a 100644
 +	hudScale.szStatusText = L( "Size of the in-game HUD, inventory and subtitles. Auto keeps them the same fraction of the screen at every resolution" );
 +	hudScale.onChanged = VoidCb( &CAdvancedControls::HudScaleChanged );
 +
++	adsMode.szName = L( "Aim down sights" );
++	adsMode.Setup( &adsModel );
++	adsMode.SetCharSize( QM_SMALLFONT );
++	adsMode.iFlags |= QMF_NOTIFY;
++	adsMode.szStatusText = L( "Hold: aim while the aim key is held. Toggle: press once to aim, press again to stop" );
++	adsMode.onChanged = VoidCb( &CAdvancedControls::AdsModeChanged );
++
 +	if( !UI_ThemeActive( ))
 +		AddItem( banner );
  	AddItem( done );
  	AddItem( inputDev );
  	AddItem( crosshair );
-@@ -209,11 +399,74 @@ void CAdvancedControls::_Init( void )
+@@ -209,11 +440,78 @@ void CAdvancedControls::_Init( void )
  	AddItem( autoaim );
  	AddItem( rawinput );
  	AddItem( sensitivity );
@@ -2950,6 +3017,7 @@ index 3424ce3..c39071a 100644
 +		AddItem( menuSaves );
 +		AddItem( language );
 +		AddItem( hudScale );
++		AddItem( adsMode );
 +	}
  }
  
@@ -3002,6 +3070,9 @@ index 3424ce3..c39071a 100644
 +			y += THEME_CTRL_PITCH;
 +			language.SetRect( left.pt.x, y, left.sz.w, THEME_CTRL_H );
 +			hudScale.SetRect( right.pt.x, y, right.sz.w, THEME_CTRL_H );
++
++			y += THEME_CTRL_PITCH;
++			adsMode.SetRect( left.pt.x, y, left.sz.w, THEME_CTRL_H );
 +		}
 +
 +		done.szName = L( "Close" );
@@ -3373,7 +3444,7 @@ index 00deec5..a745ba5 100644
  	nat.Hide();
  	// if( !EngFuncs::GetCvarFloat("public") )
 diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFear.cpp
-index 21f6b98..36ee0e2 100644
+index 21f6b98..aea7b2a 100644
 --- a/3rdparty/mainui/menus/CryOfFear.cpp
 +++ b/3rdparty/mainui/menus/CryOfFear.cpp
 @@ -21,10 +21,12 @@ so the game DLL (cl_dlls/hl.dll) keeps doing the work:
@@ -4473,7 +4544,7 @@ index 21f6b98..36ee0e2 100644
  =================
  */
  void UI_CoFUnlockables( void )
-@@ -746,3 +1423,732 @@ void UI_CoFUnlockables( void )
+@@ -746,3 +1423,802 @@ void UI_CoFUnlockables( void )
  	EngFuncs::ClientCmd( false, "unlockablescmd\n" );
  	UI_CloseMenu();
  }
@@ -4522,6 +4593,15 @@ index 21f6b98..36ee0e2 100644
 +// is invented.
 +// ---------------------------------------------------------------------------
 +
++// MEASURED 2026-09-22 (milestone 5b): the user's all-unlocked reference file
++// (K:\LLM\COF_Fix\CoF All Unlockables\scriptsettings.dat, SHA-256
++// 7C76FEC82FD546BB8DA6FFFF863EE464E14801B7EED0AC645A3B734D947579AA) differs
++// from the canonical one in exactly the 27 named lines (3, 39, 51-62, 70-80,
++// 82, 83). The seven "Unidentified flag" pairs (lines 7, 15, 22, 45, 47, 48,
++// 81) keep their locked token in a save with everything unlocked, so they are
++// not unlockables. They stay in the table - UI_CoFUnlockableStatus still
++// answers for them by index - but are flagged hidden and the page does not
++// list them.
 +#define COF_NUM_UNLOCKABLES  34
 +#define COF_TOKEN_LEN        20
 +#define COF_UNLOCK_NIGHTMARE 33  // index of scriptsettings.dat line 83, below
@@ -4530,6 +4610,7 @@ index 21f6b98..36ee0e2 100644
 +{
 +	int         line;     // 1-based line number in cryoffear/scriptsettings.dat
 +	int         pair;     // index of the pair in client.dll's .rdata table
++	bool        hidden;   // kept for the status function, not listed on the page
 +	const char *name;
 +	const char *how;      // "" when no condition is measured - never invented
 +	const char *locked;   // the client's own bytes, 0xA3 written as \243
@@ -4538,139 +4619,139 @@ index 21f6b98..36ee0e2 100644
 +
 +static const cofUnlockable_t s_cofUnlockables[COF_NUM_UNLOCKABLES] =
 +{
-+	{  3,  4, "Secret room, empty hint book, MP5",
++	{  3,  4, false, "Secret room, empty hint book, MP5",
 +		"One flag for all three; MP5 via Steam group",
 +		"z3,4lj)4b!9g7vgi4x5a",
 +		"z3,4rj)4b!9g7vgi4x5a" },
-+	{  7,  1, "Unidentified flag (line 7)",
++	{  7,  1, true,  "Unidentified flag (line 7)",
 +		"",
 +		"ye&ole1^0(fcanb3v5t4",
 +		"ye&0le1^0(fcanb3v5t4" },
-+	{ 15,  0, "Unidentified flag (line 15)",
++	{ 15,  0, true,  "Unidentified flag (line 15)",
 +		"",
 +		"v9agjak+p)(,o3qb)aq4",
 +		"v9agjak+p)(,03qb)aq4" },
-+	{ 22,  3, "Unidentified flag (line 22)",
++	{ 22,  3, true,  "Unidentified flag (line 22)",
 +		"",
 +		"2quwo6z3y4w\243ld)y!i35",
 +		"2quvo6z3y4w\243ld)y!i35" },
-+	{ 39,  5, "FAMAS with infinite ammo",
++	{ 39,  5, false, "FAMAS with infinite ammo",
 +		"",
 +		"r1&,iji4cjtvf,44w919",
 +		"r1&,iji4cjtvf.44w919" },
-+	{ 45,  2, "Unidentified flag (line 45)",
++	{ 45,  2, true,  "Unidentified flag (line 45)",
 +		"",
 +		"1r6fd46ob7u2yj9q83yx",
 +		"1r6fd46ob7u2yj9r83yx" },
-+	{ 47, 32, "Unidentified flag (line 47)",
++	{ 47, 32, true,  "Unidentified flag (line 47)",
 +		"",
 +		"g_t\2430j^zrqhli09jb5rc",
 +		"c_t\2430j^zrqhli09jb5rc" },
-+	{ 48, 33, "Unidentified flag (line 48)",
++	{ 48, 33, true,  "Unidentified flag (line 48)",
 +		"",
 +		"kk78kewvx9!%n218dkss",
 +		"ck78kewvx9!%n218dkss" },
-+	{ 51,  6, "David Leatherhoff suit",
++	{ 51,  6, false, "David Leatherhoff suit",
 +		"",
 +		"olt0\243s^\243rn(aki!9eqkh",
 +		"olt0\243s^\243rn(aki!9eqkj" },
-+	{ 52,  7, "ModDB hoodie",
++	{ 52,  7, false, "ModDB hoodie",
 +		"",
 +		"h*wchks\243n&%!\243bf%jtew",
 +		"h*wchks\243n&%!\243bf%jtei" },
-+	{ 53,  8, "Hello Kitty suit",
++	{ 53,  8, false, "Hello Kitty suit",
 +		"",
 +		"%xn%i)jhxmfnbgjsr^if",
 +		"\243xn%i)jhxmfnbgjsr^if" },
-+	{ 54,  9, "Afraid of Monsters suit",
++	{ 54,  9, false, "Afraid of Monsters suit",
 +		"",
 +		"fy^xix&&vkz)vcdn!wtv",
 +		"fy^xix&&vkz)vcrn!wtv" },
-+	{ 55, 10, "Camouflage hoodie",
++	{ 55, 10, false, "Camouflage hoodie",
 +		"",
 +		"jwsyv**yb&(qtqlg)moj",
 +		"jwtyv**yb&(qtqlg)moj" },
-+	{ 56, 11, "Half Life Creations hoodie",
++	{ 56, 11, false, "Half Life Creations hoodie",
 +		"",
 +		"henp(cm$at!n%\243f(c$jp",
 +		"henp(cm$at!m%\243f(c$jp" },
-+	{ 57, 12, "Black Metal suit",
++	{ 57, 12, false, "Black Metal suit",
 +		"",
 +		"yef!xkyzw*^vd*tj)zkc",
 +		"yef!&kyzw*^vd*tj)zkc" },
-+	{ 58, 13, "Team Psykskallar hoodie",
++	{ 58, 13, false, "Team Psykskallar hoodie",
 +		"",
 +		"z(*mbwy(talqlrqf$lmw",
 +		"z(*mbwy(tolqlrqf$lmw" },
-+	{ 59, 14, "Awesome suit",
++	{ 59, 14, false, "Awesome suit",
 +		"",
 +		"zgpwg\243vyqlzensuauwat",
 +		"zwpwg\243vyqlzensuauwat" },
-+	{ 60, 15, "Sick Simon suit",
++	{ 60, 15, false, "Sick Simon suit",
 +		"",
 +		"dzpy)*iiy$oj!akyfbn%",
 +		"dzpy)*iiy$0j!akyfbn%" },
-+	{ 61, 16, "AoM Twitcher suit",
++	{ 61, 16, false, "AoM Twitcher suit",
 +		"",
 +		"pe%%*\243\243rxa(%(bog)l^j",
 +		"pe%%*\243\243rxr(%(bog)l^j" },
-+	{ 62, 17, "Custom hoodies",
++	{ 62, 17, false, "Custom hoodies",
 +		"",
 +		"efq%)x)mk\243*odxsdocb)",
 +		"efq%)u)mk\243*odxsdocb)" },
-+	{ 70, 18, "David Leatherhoff's axe",
++	{ 70, 18, false, "David Leatherhoff's axe",
 +		"",
 +		"pzakmx&p^lbk^kw($(fo",
 +		"pzakhx&p^lbk^kw($(fo" },
-+	{ 71, 19, "Digital camera",
++	{ 71, 19, false, "Digital camera",
 +		"",
 +		"g*q$cceqhz&vcdp(au%!",
 +		"g*q$cceqhz&vcdp(av%!" },
-+	{ 72, 20, "Simon's book",
++	{ 72, 20, false, "Simon's book",
 +		"",
 +		"aaa^$i)whenzprdh!vus",
 +		"aba^$i)whenzprdh!vus" },
-+	{ 73, 21, "Developer commentary",
++	{ 73, 21, false, "Developer commentary",
 +		"Enable it on the New Game page once unlocked",
 +		"mwu\243g$&ztmkfwej(bg^a",
 +		"mwu\243g$&stmkfwej(bg^a" },
-+	{ 74, 22, "Hidden package",
++	{ 74, 22, false, "Hidden package",
 +		"Tied to the secret ending",
 +		"tzi&aoxfbkb^n&ikaxj%",
 +		"tzi&a0xfbkb^n&ikaxj%" },
-+	{ 75, 23, "Gasmask (night vision)",
++	{ 75, 23, false, "Gasmask (night vision)",
 +		"",
 +		"wph!uhhgrws)*erdb*rg",
 +		"wph!uhmgrws)*erdb*rg" },
-+	{ 76, 24, "First hint page",
++	{ 76, 24, false, "First hint page",
 +		"In-game hint page \"How To Unlock Book Pages\"",
 +		"&x&w%dvcr&$yoqs%c%ar",
 +		"&x&v%dvcr&$yoqs%c%ar" },
-+	{ 77, 25, "Second hint page",
++	{ 77, 25, false, "Second hint page",
 +		"In-game hint page \"Ranking System Explained\"",
 +		"feyvvuxq^i)brfentm$&",
 +		"foyvvuxq^i)brfentm$&" },
-+	{ 78, 26, "Third hint page",
++	{ 78, 26, false, "Third hint page",
 +		"In-game hint page \"How To Unlock Hoodies\"",
 +		"*j%gb*^noyresqjihoez",
 +		"*j%gb*^noyresqjihoes" },
-+	{ 79, 27, "Fourth hint page",
++	{ 79, 27, false, "Fourth hint page",
 +		"In-game hint page \"How To Unlock Secret Items\"",
 +		"nz(xdxj*w(\243!&uh\243qn*j",
 +		"nz(xdxj*w)\243!&uh\243qn*j" },
-+	{ 80, 28, "Fifth hint page",
++	{ 80, 28, false, "Fifth hint page",
 +		"In-game hint page \"How To Unlock Secret Weapons\"",
 +		"lvdw&bhwjqsjm$pfwnp)",
 +		"rvdw&bhwjqsjm$pfwnp)" },
-+	{ 81, 29, "Unidentified flag (line 81)",
++	{ 81, 29, true,  "Unidentified flag (line 81)",
 +		"",
 +		"zqv%n(nqquvh)dlmtl!x",
 +		"zqv%n(noquvh)dlmtl!x" },
-+	{ 82, 30, "Doctor mode",
++	{ 82, 30, false, "Doctor mode",
 +		"",
 +		")cfhc$vle$^hn\243padlvd",
 +		")cfhc$vle$^hn\243podlvd" },
-+	{ 83, 31, "Nightmare difficulty",
++	{ 83, 31, false, "Nightmare difficulty",
 +		"",
 +		"&fx!hd$bw^ayk%dfmcbg",
 +		"&fx!hd$bw!ayk%dfmcbg" },
@@ -4775,6 +4856,32 @@ index 21f6b98..36ee0e2 100644
 +	}
 +
 +	EngFuncs::COM_FreeFile( (byte *)buf );
++
++	// one developer line with every listed row, so the page can be checked
++	// from a log (27 rows do not fit on one screen of the table)
++	{
++		char rows[512];
++		int  used = 0, listed = 0, counts[3] = { 0, 0, 0 };
++
++		rows[0] = '\0';
++		for( i = 0; i < COF_NUM_UNLOCKABLES; i++ )
++		{
++			const int st = s_cofUnlockState[i];
++
++			if( s_cofUnlockables[i].hidden )
++				continue;
++
++			listed++;
++			counts[st + 1]++;
++			if( used < (int)sizeof( rows ) - 8 )
++				used += snprintf( rows + used, sizeof( rows ) - used, " %d:%c",
++					s_cofUnlockables[i].line, st == 1 ? 'U' : st == 0 ? 'L' : '?' );
++		}
++
++		Con_DPrintf( "Cry of Fear: unlockables page %d rows: %d unlocked, %d locked, %d unknown; Nightmare (line 83) %s; line:state%s\n",
++			listed, counts[2], counts[1], counts[0],
++			s_cofUnlockState[COF_UNLOCK_NIGHTMARE] == 1 ? "unlocked" : "locked", rows );
++	}
 +}
 +
 +/*
@@ -4801,6 +4908,36 @@ index 21f6b98..36ee0e2 100644
 +	return UI_CoFUnlockableStatus( COF_UNLOCK_NIGHTMARE );
 +}
 +
++// page row -> table index, over the entries that are not hidden
++static int UI_CoFUnlockableRowIndex( int row )
++{
++	int i;
++
++	for( i = 0; i < COF_NUM_UNLOCKABLES; i++ )
++	{
++		if( s_cofUnlockables[i].hidden )
++			continue;
++
++		if( row-- == 0 )
++			return i;
++	}
++
++	return -1;
++}
++
++static int UI_CoFUnlockableRowCount( void )
++{
++	int i, n = 0;
++
++	for( i = 0; i < COF_NUM_UNLOCKABLES; i++ )
++	{
++		if( !s_cofUnlockables[i].hidden )
++			n++;
++	}
++
++	return n;
++}
++
 +class CMenuCoFUnlockables;
 +
 +class CMenuCoFUnlockablesModel : public CMenuBaseModel
@@ -4808,9 +4945,11 @@ index 21f6b98..36ee0e2 100644
 +public:
 +	void Update() override { }
 +	int GetColumns() const override { return 3; }
-+	int GetRows() const override { return COF_NUM_UNLOCKABLES; }
-+	const char *GetCellText( int line, int column ) override
++	int GetRows() const override { return UI_CoFUnlockableRowCount(); }
++	const char *GetCellText( int row, int column ) override
 +	{
++		const int line = UI_CoFUnlockableRowIndex( row );
++
 +		if( line < 0 || line >= COF_NUM_UNLOCKABLES )
 +			return NULL;
 +
@@ -4832,8 +4971,10 @@ index 21f6b98..36ee0e2 100644
 +	// The status column carries the theme's one accent when a flag is set and
 +	// the dim body colour when it is not, so the page reads at a glance. Every
 +	// other column keeps the table's own row colour.
-+	bool GetCellColors( int line, int column, unsigned int &textColor, bool &force ) const override
++	bool GetCellColors( int row, int column, unsigned int &textColor, bool &force ) const override
 +	{
++		const int line = UI_CoFUnlockableRowIndex( row );
++
 +		if( column != 2 || !UI_ThemeActive( ) ||
 +			line < 0 || line >= COF_NUM_UNLOCKABLES )
 +			return false;
@@ -4893,7 +5034,7 @@ index 21f6b98..36ee0e2 100644
 +	hint.iFlags = QMF_INACTIVE;
 +	hint.colorBase = uiColorHelp;
 +	hint.SetCharSize( QM_SMALLFONT );
-+	hint.szName = "Status comes from cryoffear/scriptsettings.dat: each flag is one 20-byte line, compared to the two tokens client.dll carries for it. \"?\" means the file is missing or the line matches neither. Seven flags have no known name.";
++	hint.szName = "Status comes from cryoffear/scriptsettings.dat: each flag is one 20-byte line, compared to the two tokens client.dll carries for it. \"?\" means the file is missing or the line matches neither.";
 +
 +	gallery.szName = L( "Open original gallery" );
 +	gallery.SetPicture( PC_VIEW_GAME_INFO );
@@ -5379,10 +5520,24 @@ index 53138ba..4580d0f 100644
  }
  
 diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
-index a99e669..8e9a67e 100644
+index a99e669..4c0277d 100644
 --- a/3rdparty/mainui/menus/Main.cpp
 +++ b/3rdparty/mainui/menus/Main.cpp
-@@ -39,6 +39,62 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+@@ -32,6 +32,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ #include "MovieBanner.h"
+ #include "CryOfFear.h"
+ 
++// the Game options page switch "Pause menu saves" (menus/AdvancedControls.cpp,
++// archived cvar registered by menus/LoadGame.cpp)
++static bool CoFPauseSavesEnabled( void )
++{
++	return EngFuncs::GetCvarFloat( "cof_pause_menu_saves" ) != 0.0f;
++}
++
+ #define ART_MINIMIZE_N	"gfx/shell/min_n"
+ #define ART_MINIMIZE_F	"gfx/shell/min_f"
+ #define ART_MINIMIZE_D	"gfx/shell/min_d"
+@@ -39,6 +46,62 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  #define ART_CLOSEBTN_F	"gfx/shell/cls_f"
  #define ART_CLOSEBTN_D	"gfx/shell/cls_d"
  
@@ -5445,7 +5600,7 @@ index a99e669..8e9a67e 100644
  class CMenuMain: public CMenuFramework
  {
  public:
-@@ -48,6 +104,17 @@ public:
+@@ -48,6 +111,17 @@ public:
  
  	void QuitDialogCb();
  
@@ -5463,7 +5618,7 @@ index a99e669..8e9a67e 100644
  private:
  	void _Init() override;
  	void _VidInit( ) override;
-@@ -58,6 +125,11 @@ private:
+@@ -58,6 +132,11 @@ private:
  	// Cry of Fear replaces the stock item set with its own, see InitCoF().
  	void InitCoF();
  	void VidInitCoF( bool connected );
@@ -5475,7 +5630,7 @@ index a99e669..8e9a67e 100644
  
  	void DisconnectCb();
  	void DisconnectDialogCb();
-@@ -86,7 +158,11 @@ private:
+@@ -86,7 +165,14 @@ private:
  	CMenuPicButton	cofLanguage;
  	CMenuPicButton	cofUnlockables;
  	CMenuPicButton	cofExtras;
@@ -5483,11 +5638,14 @@ index a99e669..8e9a67e 100644
 +	CMenuPicButton	cofCredits;
 +	CMenuPicButton	cofBack;
  	CMenuPicButton	cofQuitToMenu;
++	// pause list: "Save Game" of its own, shown only while pause-menu saves
++	// are enabled (cof_pause_menu_saves); saveRestore is "Load Game" there
++	CMenuPicButton	cofSaveGame;
 +	CMenuCoFLogo	cofLogo;
  
  	// buttons on top right. Maybe should be drawn if fullscreen == 1?
  	CMenuBitmap	minimizeBtn;
-@@ -100,8 +176,14 @@ private:
+@@ -100,8 +186,14 @@ private:
  	bool bCoF;
  	bool bCoFWantBackgroundMap;
  	int  iCoFBackgroundMapDelay;
@@ -5502,7 +5660,7 @@ index a99e669..8e9a67e 100644
  // Frames the engine has to look completely idle before Quit to menu is allowed
  // to bring the background map back. A level change that is only queued is not
  // visible in any cvar yet, so wait a moment instead of racing it.
-@@ -114,6 +196,9 @@ void CMenuMain::QuitDialogCb()
+@@ -114,6 +206,9 @@ void CMenuMain::QuitDialogCb()
  	else
  		dialog.SetMessage( L( "GameUI_QuitConfirmationText" ) );
  
@@ -5512,7 +5670,7 @@ index a99e669..8e9a67e 100644
  	dialog.onPositive.SetCommand( false, "quit \"menu dialog\"\n" );
  	dialog.Show();
  }
-@@ -135,6 +220,7 @@ void CMenuMain::DisconnectCb()
+@@ -135,6 +230,7 @@ void CMenuMain::DisconnectCb()
  
  void CMenuMain::DisconnectDialogCb()
  {
@@ -5520,7 +5678,7 @@ index a99e669..8e9a67e 100644
  	dialog.onPositive = VoidCb( &CMenuMain::DisconnectCb );
  	dialog.SetMessage( L( "Really disconnect?" ) );
  	dialog.Show();
-@@ -156,6 +242,15 @@ bool CMenuMain::KeyDown( int key )
+@@ -156,6 +252,15 @@ bool CMenuMain::KeyDown( int key )
  {
  	if( UI::Key::IsEscape( key ) )
  	{
@@ -5536,7 +5694,7 @@ index a99e669..8e9a67e 100644
  		if ( CL_IsActive( ))
  		{
  			if( !dialog.IsVisible() )
-@@ -197,6 +292,7 @@ void CMenuMain::_Init( void )
+@@ -197,6 +302,7 @@ void CMenuMain::_Init( void )
  	bCoF = UI_IsCryOfFear();
  	bCoFWantBackgroundMap = false;
  	iCoFBackgroundMapDelay = COF_BACKGROUND_RESTART_DELAY;
@@ -5544,7 +5702,7 @@ index a99e669..8e9a67e 100644
  
  	if( gMenu.m_gameinfo.trainmap[0] && stricmp( gMenu.m_gameinfo.trainmap, gMenu.m_gameinfo.startmap ) != 0 )
  		bTrainMap = true;
-@@ -301,14 +397,19 @@ void CMenuMain::_Init( void )
+@@ -301,14 +407,19 @@ void CMenuMain::_Init( void )
  		newGame.SetGrayed( true );
  	}
  
@@ -5571,7 +5729,18 @@ index a99e669..8e9a67e 100644
  	}
  
  	dialog.Link( this );
-@@ -386,39 +487,117 @@ void CMenuMain::InitCoF( void )
+@@ -352,7 +463,9 @@ Cry of Fear's own main menu is
+ 
+ and in game
+ 
+-    Resume, Save\Load Game, Options, Quit to menu, Quit
++    Resume, Save Game, Load Game, Options, Quit to menu, Quit
++
++(Save Game only while pause-menu saves are enabled, milestone 5b)
+ 
+ so the stock Console, Training Room, Multiplayer, Previews and Change Game
+ items are not added at all. Neither are minimizeBtn and quitButton: they are
+@@ -386,39 +499,128 @@ void CMenuMain::InitCoF( void )
  	cofHostServer.iFlags |= QMF_NOTIFY;
  	cofHostServer.onReleased = UI_CreateGame_Menu;
  
@@ -5626,6 +5795,16 @@ index a99e669..8e9a67e 100644
  	cofQuitToMenu.onReleased = VoidCb( &CMenuMain::DisconnectDialogCb );
  
 -	AddItem( banner );
++	// Pause list, milestone 5b (user request 2026-09-22): Save Game and Load
++	// Game are two items instead of one "Save\Load Game" page. Both open the
++	// shared save/load page; UI_SaveGame_Menu / UI_LoadGame_Menu apply the
++	// mode with SetSaveMode() BEFORE Show() (menus/LoadGame.cpp). Save Game is
++	// only on the list while pause-menu saves are enabled, see VidInitCoF.
++	cofSaveGame.SetNameAndStatus( L( "GameUI_SaveGame" ), L( "Save into one of the five shared Cry of Fear slots" ) );
++	cofSaveGame.SetPicture( PC_SAVE_GAME );
++	cofSaveGame.iFlags |= QMF_NOTIFY;
++	cofSaveGame.onReleased = UI_SaveGame_Menu;
++
 +	if( UI_ThemeActive( ))
 +		AddItem( cofLogo );
 +	else
@@ -5636,6 +5815,7 @@ index a99e669..8e9a67e 100644
 +	// two levels are added in the order each is drawn and never interleaved.
  	AddItem( resumeGame );
  	AddItem( newGame );
++	AddItem( cofSaveGame );
  	AddItem( saveRestore );
  	AddItem( cofCampaign );
 +	AddItem( cofExtras );
@@ -5699,7 +5879,7 @@ index a99e669..8e9a67e 100644
  }
  
  /*
-@@ -440,15 +619,30 @@ void CMenuMain::VidInitCoF( bool connected )
+@@ -440,21 +642,41 @@ void CMenuMain::VidInitCoF( bool connected )
  	const int hoffset = ( 70 / 640.0 ) * 1024.0;
  	const int ygap = (( 404 - 373 ) / 480.0 ) * 768.0;
  
@@ -5734,10 +5914,24 @@ index a99e669..8e9a67e 100644
 +	cofBack.SetVisibility( lvlExtras );
 +	// Language left the main list; the Game options page owns it now.
 +	cofLanguage.SetVisibility( false );
++	// Save Game only in game and only with pause-menu saves on; Think() lays
++	// the list out again when the option is switched while this menu is open
++	cofSaveGame.SetVisibility( connected && CoFPauseSavesEnabled( ));
  
  	if( connected )
  	{
-@@ -463,15 +657,82 @@ void CMenuMain::VidInitCoF( bool connected )
+-		saveRestore.SetNameAndStatus( L( "Save\\Load Game" ), L( "StringsList_192" ) );
+-		saveRestore.SetPicture( PC_SAVE_LOAD_GAME );
+-		saveRestore.onReleased = UI_SaveLoad_Menu;
++		// the pause list's Load Game: the shared page in load mode, the
++		// same page Save Game opens in save mode
++		saveRestore.SetNameAndStatus( L( "GameUI_LoadGame" ), L( "StringsList_191" ) );
++		saveRestore.SetPicture( PC_LOAD_GAME );
++		saveRestore.onReleased = UI_LoadGame_Menu;
+ 	}
+ 	else
+ 	{
+@@ -463,15 +685,82 @@ void CMenuMain::VidInitCoF( bool connected )
  		saveRestore.onReleased = UI_LoadGame_Menu;
  	}
  
@@ -5751,7 +5945,7 @@ index a99e669..8e9a67e 100644
 -		&cofHostServer, &cofLanguage, &cofUnlockables, &cofExtras,
 -		&configuration, &cofQuitToMenu, &quit
 +		// pause list, and the first level of the main list
-+		&resumeGame, &newGame, &saveRestore, &cofCampaign, &cofExtras,
++		&resumeGame, &newGame, &cofSaveGame, &saveRestore, &cofCampaign, &cofExtras,
 +		&configuration, &cofQuitToMenu, &quit,
 +		// second level of the main list
 +		&cofJoinServer, &cofHostServer, &cofUnlockables, &cofLinks, &cofCredits,
@@ -5824,7 +6018,25 @@ index a99e669..8e9a67e 100644
  	{
  		if( !order[i]->IsVisible( ))
  			continue;
-@@ -617,6 +878,70 @@ void CMenuMain::Think()
+@@ -597,6 +886,17 @@ void CMenuMain::Think()
+ 			}
+ 		}
+ 
++		// the Game options page can switch pause-menu saves while the pause
++		// list is underneath it; when that changed what the list should
++		// hold, lay it out again (same four calls as CoFSetLevel)
++		if( CL_IsActive( ) && cofSaveGame.IsVisible( ) != CoFPauseSavesEnabled( ))
++		{
++			VidInit( true );
++			CalcPosition();
++			CalcSizes();
++			VidInitItems();
++		}
++
+ 		CMenuFramework::Think();
+ 		return;
+ 	}
+@@ -617,6 +917,70 @@ void CMenuMain::Think()
  
  ADD_MENU( menu_main, CMenuMain, UI_Main_Menu );
  

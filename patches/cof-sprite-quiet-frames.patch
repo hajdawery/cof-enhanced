@@ -1,0 +1,153 @@
+diff --git a/ref/gl/gl_local.h b/ref/gl/gl_local.h
+index ce5e3b2..f3ba70f 100644
+--- a/ref/gl/gl_local.h
++++ b/ref/gl/gl_local.h
+@@ -731,6 +731,8 @@ extern convar_t cof_skip_client_transparent_triangles;
+ extern convar_t cof_skip_client_normal_triangles;
+ extern convar_t cof_custom_renderfx_opaque;
+ extern convar_t cof_viewmodel_fov;
++extern convar_t cof_sprite_quiet_frames;
++extern convar_t cof_sprite_trace;
+ extern convar_t	gl_litwater_force;
+ 
+ extern convar_t	r_lighting_ambient;
+diff --git a/ref/gl/gl_opengl.c b/ref/gl/gl_opengl.c
+index 046e060..15b6843 100644
+--- a/ref/gl/gl_opengl.c
++++ b/ref/gl/gl_opengl.c
+@@ -1237,6 +1237,8 @@ static void GL_InitCommands( void )
+ 	gEngfuncs.Cvar_RegisterVariable( &cof_skip_client_normal_triangles );
+ 	gEngfuncs.Cvar_RegisterVariable( &cof_custom_renderfx_opaque );
+ 	gEngfuncs.Cvar_RegisterVariable( &cof_viewmodel_fov );
++	gEngfuncs.Cvar_RegisterVariable( &cof_sprite_quiet_frames );
++	gEngfuncs.Cvar_RegisterVariable( &cof_sprite_trace );
+ 	gEngfuncs.Cvar_RegisterVariable( &gl_litwater_force );
+ 
+ 	gEngfuncs.Cvar_RegisterVariable( &gl_polyoffset );
+diff --git a/ref/gl/gl_sprite.c b/ref/gl/gl_sprite.c
+index 5ae3bc3..30323ea 100644
+--- a/ref/gl/gl_sprite.c
++++ b/ref/gl/gl_sprite.c
+@@ -21,6 +21,104 @@ GNU General Public License for more details.
+ 
+ #define GLARE_FALLOFF	19000.0f
+ 
++/*
++==============================================================================
++
++	CRY OF FEAR: OUT-OF-RANGE SPRITE FRAMES  (cof_sprite_quiet_frames, cof_sprite_trace)
++
++The flood "R_GetSpriteFrame: no such frame 255 (sprites/glow01.spr)" is
++engine/client/cl_sprite.c's R_GetSpriteFrame, which logs with a plain
++Con_Printf on every call. Its caller is R_DrawSpriteModel below: a one-frame
++sprite never takes the lerp path (R_SpriteAllowLerping), so every frame of
++every visible glow asks the engine for frame curstate.frame.
++
++Where 255 comes from (hl.dll, measured by disassembly, see
++docs/cof-sprite-quiet-frames.md): CSprite::Animate (hl.dll 10092590) adds
++framerate * dt to pev->frame and wraps it with fmod( frame, m_maxFrame ) only
++when m_maxFrame > 0. For a one-frame sprite m_maxFrame is 0, so an animated
++glow's pev->frame climbs without bound for as long as it lives, and the 8-bit
++network field saturates at 255. glow01.spr is exactly that: one frame, used by
++the map's env_sprite lamp halos with a framerate, and by CTapeRecorder's blink
++(hl.dll 1007C440, framerate 10). Stock GoldSrc clamps the same way and says
++nothing; the frame shown is the only frame the sprite has either way.
++
++cof_sprite_quiet_frames 1 (default) clamps here, before the engine sees the
++value, so the draw is unchanged and the engine's per-call warning never fires;
++one line per sprite model is still printed at developer level.
++cof_sprite_trace 1 prints the attribution for each sprite model once: name,
++requested frame, numframes, entity index, render state and the calling path.
++cof_sprite_quiet_frames 0 is stock behaviour.
++
++==============================================================================
++*/
++CVAR_DEFINE_AUTO( cof_sprite_quiet_frames, "1", FCVAR_GLCONFIG, "Cry of Fear: clamp an out-of-range sprite frame (the game's one-frame glow sprites are animated past their only frame, up to 255) silently instead of logging it on every draw; one developer-level line per sprite. 0 = stock behaviour" );
++CVAR_DEFINE_AUTO( cof_sprite_trace, "0", 0, "developer: print sprite name, requested frame, numframes, entity index, render state and calling path once per sprite model that asks for an out-of-range frame" );
++
++#define COF_SPRITE_SEEN_MAX	64
++
++typedef struct
++{
++	const model_t	*models[COF_SPRITE_SEEN_MAX];
++	int		count;
++} cof_sprite_seen_t;
++
++static cof_sprite_seen_t	cof_sprite_trace_seen;
++static cof_sprite_seen_t	cof_sprite_warn_seen;
++
++// true when this model was already reported; otherwise remembers it
++static qboolean R_CoFSpriteSeen( cof_sprite_seen_t *table, const model_t *model )
++{
++	int	i;
++
++	for( i = 0; i < table->count; i++ )
++	{
++		if( table->models[i] == model )
++			return true;
++	}
++
++	if( table->count < COF_SPRITE_SEEN_MAX )
++		table->models[table->count++] = model;
++
++	return false;
++}
++
++/*
++================
++R_CoFSpriteFrame
++
++Returns the frame to hand on. With both cvars at 0 it is the raw request,
++untouched, which is the stock path.
++================
++*/
++static int R_CoFSpriteFrame( const cl_entity_t *ent, const msprite_t *psprite, const char *path )
++{
++	int	frame = (int)ent->curstate.frame;
++
++	if( frame >= 0 && frame < psprite->numframes )
++		return frame;
++
++	if( cof_sprite_trace.value && !R_CoFSpriteSeen( &cof_sprite_trace_seen, ent->model ))
++	{
++		gEngfuncs.Con_Printf( "[cof-sprite] %s requested frame %d numframes %d ent %d (%s) rendermode %d renderamt %d rendercolor %d,%d,%d scale %.3f framerate %.2f path %s\n",
++			ent->model->name, frame, psprite->numframes, ent->index,
++			ent->index > 0 ? "server entity" : "client entity",
++			ent->curstate.rendermode, ent->curstate.renderamt,
++			ent->curstate.rendercolor.r, ent->curstate.rendercolor.g, ent->curstate.rendercolor.b,
++			ent->curstate.scale, ent->curstate.framerate, path );
++	}
++
++	if( !cof_sprite_quiet_frames.value )
++		return frame;	// stock: whoever is called next clamps and logs
++
++	if( frame > 0 && !R_CoFSpriteSeen( &cof_sprite_warn_seen, ent->model ))
++	{
++		gEngfuncs.Con_DPrintf( S_WARN "no such frame %d (%s), clamped to %d; further out-of-range frames of this sprite are not logged (cof_sprite_quiet_frames 1)\n",
++			frame, ent->model->name, psprite->numframes - 1 );
++	}
++
++	return frame < 0 ? 0 : psprite->numframes - 1;
++}
++
+ /*
+ ================
+ R_GetSpriteFrameInterpolant
+@@ -32,7 +130,7 @@ between frames where are we lerping
+ static float R_GetSpriteFrameInterpolant( cl_entity_t *ent, mspriteframe_t **oldframe, mspriteframe_t **curframe )
+ {
+ 	msprite_t *psprite = ent->model->cache.data;
+-	int frame = (int)ent->curstate.frame;
++	int frame = R_CoFSpriteFrame( ent, psprite, "R_DrawSpriteModel -> R_GetSpriteFrameInterpolant (lerp)" );
+ 	float lerpFrac = 1.0f;
+ 
+ 	// misc info
+@@ -459,7 +557,7 @@ void R_DrawSpriteModel( cl_entity_t *e )
+ 	float lerp = 1.0f;
+ 	if( R_SpriteAllowLerping( e, psprite ))
+ 		lerp = R_GetSpriteFrameInterpolant( e, &oldframe, &frame );
+-	else frame = oldframe = gEngfuncs.R_GetSpriteFrame( model, e->curstate.frame, e->angles[YAW] );
++	else frame = oldframe = gEngfuncs.R_GetSpriteFrame( model, R_CoFSpriteFrame( e, psprite, "R_DrawSpriteModel -> engine R_GetSpriteFrame (direct)" ), e->angles[YAW] );
+ 
+ 	int type = psprite->type;
+ 

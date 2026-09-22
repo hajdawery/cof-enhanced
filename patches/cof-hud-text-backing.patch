@@ -208,7 +208,7 @@ index 4532513..7380a05 100644
  ================
  CofUI_SolvePanel
 diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/support.h b/3rdparty/freevgui/platform/xash3d-fwgs/support.h
-index 32848ed..1aed252 100644
+index 32848ed..4f58871 100644
 --- a/3rdparty/freevgui/platform/xash3d-fwgs/support.h
 +++ b/3rdparty/freevgui/platform/xash3d-fwgs/support.h
 @@ -33,6 +33,10 @@ public:
@@ -245,7 +245,7 @@ index 32848ed..1aed252 100644
  
  protected:
  	virtual void drawSetColor( int r, int g, int b, int a ) override;
-@@ -155,6 +168,91 @@ private:
+@@ -155,6 +168,98 @@ private:
  
  	PaintState paintStack[MAX_PAINT_STACK];
  	int paintStackPos;
@@ -334,11 +334,18 @@ index 32848ed..1aed252 100644
 +	bool runIsShortEnough( void ) const;
 +	// ...and sitting where the message strip sits, see MSG_BAND_*_PCT
 +	bool runIsMessage( void ) const;
++	// Cry of Fear, milestone 5b: a short run of a retargeted role that sits
++	// ABOVE the message band, i.e. CHUDControl's top hint bar. It keeps the
++	// client's own placement (runIsMessage is false for it) and the engine's
++	// SemiBold face, but it must NOT get a backing strip: that bar already
++	// paints a background of its own and a second strip over it reads as a
++	// black box around the hint.
++	bool runIsTopBand( void ) const;
  };
  }
  
 diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp
-index d3c416d..edecc81 100644
+index d3c416d..3cf3688 100644
 --- a/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp
 +++ b/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp
 @@ -4,6 +4,7 @@
@@ -360,7 +367,51 @@ index d3c416d..edecc81 100644
  {
  	// don't forget alpha is inverted in VGUI... 255 means fully transparent
  	for( int i = 0; i < 4; i++ )
-@@ -329,6 +332,27 @@ void XashSurface::drawSetTextFont( Font *font )
+@@ -154,6 +157,23 @@ void XashSurface::drawFilledRect( int x0, int y0, int x1, int y1 )
+ 	if( !g_scissor.clip( topLeft, bottomRight, clippedTopLeft, clippedBottomRight ))
+ 		return;
+ 
++	// Cry of Fear, milestone 5b: the same trace flag the text collector uses
++	// (cof_hud_text_trace), extended to the client's own filled rectangles.
++	// The chapter card's decorative rule is one of these and there was no
++	// other way to tell which draw produced the line through the title.
++	if( CofFont_TraceOn( ) && g_engine && g_engine->CofPrint )
++	{
++		char	msg[256];
++
++		snprintf( msg, sizeof( msg ),
++			"[cof-vguirect] role \"%s\" rect %i,%i..%i,%i translate %i,%i"
++			" device_y %i..%i colour %i,%i,%i,%i\n",
++			textRole ? textRole : "", x0, y0, x1, y1, translate[0], translate[1],
++			CofUI_ToDeviceY( y0 + translate[1] ), CofUI_ToDeviceY( y1 + translate[1] ),
++			drawColor[0], drawColor[1], drawColor[2], drawColor[3] );
++		g_engine->CofPrint( msg );
++	}
++
+ 	g_engine->SetupDrawingRect( drawColor );
+ 	g_engine->EnableTexture( false );
+ 	g_engine->DrawQuad( &clippedTopLeft, &clippedBottomRight );
+@@ -187,6 +207,19 @@ void XashSurface::drawTexturedRect( int x0, int y0, int x1, int y1 )
+ 	if( !g_scissor.clip( topLeft, bottomRight, clippedTopLeft, clippedBottomRight ))
+ 		return;
+ 
++	if( CofFont_TraceOn( ) && g_engine && g_engine->CofPrint )
++	{
++		char	msg[256];
++
++		snprintf( msg, sizeof( msg ),
++			"[cof-vguitex] role \"%s\" rect %i,%i..%i,%i translate %i,%i"
++			" device_y %i..%i colour %i,%i,%i,%i\n",
++			textRole ? textRole : "", x0, y0, x1, y1, translate[0], translate[1],
++			CofUI_ToDeviceY( y0 + translate[1] ), CofUI_ToDeviceY( y1 + translate[1] ),
++			drawColor[0], drawColor[1], drawColor[2], drawColor[3] );
++		g_engine->CofPrint( msg );
++	}
++
+ 	// the draw colour, not the text colour
+ 	g_engine->SetupDrawingImage( drawColor );
+ 	g_engine->DrawQuad( &clippedTopLeft, &clippedBottomRight );
+@@ -329,6 +362,27 @@ void XashSurface::drawSetTextFont( Font *font )
  	// when cof_ui_inter_fonts is 0 or the role is unknown
  	font = Font_Active( font );
  
@@ -388,7 +439,7 @@ index d3c416d..edecc81 100644
  	currentFont = font;
  	currentFontCache = nullptr;
  
-@@ -418,7 +442,13 @@ void XashSurface::drawPrintText( const char *text, int textLen )
+@@ -418,7 +472,13 @@ void XashSurface::drawPrintText( const char *text, int textLen )
  		currentFont->getCharABCwide( ch, a, b, c );
  		advance += a;
  
@@ -403,7 +454,7 @@ index d3c416d..edecc81 100644
  		{
  			vpoint_t topLeft, bottomRight, clippedTopLeft, clippedBottomRight;
  
-@@ -490,8 +520,295 @@ void XashSurface::pushMakeCurrent( Panel *panel, bool useInsets )
+@@ -490,8 +550,334 @@ void XashSurface::pushMakeCurrent( Panel *panel, bool useInsets )
  	makeCurrent( ps );
  }
  
@@ -530,6 +581,39 @@ index d3c416d..edecc81 100644
 +		deviceY <= screenTall * MSG_BAND_HIGH_PCT / 100;
 +}
 +
++/*
++====================
++XashSurface::runIsTopBand
++
++Cry of Fear, milestone 5b. The other half of the same distinction: a short
++"credits"-role run whose own row is ABOVE the message band is CHUDControl's top
++hint bar ("Press E to ...", "Using Gas Mask"). Milestone 5a already leaves it
++where the client put it; the user then reported that the backing strip under it
++looks wrong, and it does - that bar comes with the client's own painted
++background, so the strip draws a second, darker box inside it.
++
++So the hint bar keeps the SemiBold face and loses the strip. Asked BEFORE
++applyTextYTarget(), like runIsMessage(), for the same reason: after a move the
++run no longer sits where it was laid out.
++====================
++*/
++bool XashSurface::runIsTopBand( void ) const
++{
++	int	screenTall = 0, deviceY;
++
++	if( textYTarget < 0 || !runIsShortEnough( ))
++		return false;
++
++	CofUI_ScreenSize( nullptr, &screenTall );
++
++	if( screenTall <= 0 )
++		return false; // no transform to ask: behave as before
++
++	deviceY = CofUI_ToDeviceY( backingLines[0].y );
++
++	return deviceY < screenTall * MSG_BAND_LOW_PCT / 100;
++}
++
 +int XashSurface::applyTextYTarget( void )
 +{
 +	if( !runIsMessage( ))
@@ -572,6 +656,8 @@ index d3c416d..edecc81 100644
 +	// The clip has to travel with the text. Moving it rather than dropping it
 +	// keeps every other guarantee: the run is still clipped to its panel's
 +	// width and to a band of its panel's height, just at its new row.
++	// milestone 5b: asked before the move, see runIsTopBand()
++	const bool	topBand = runIsTopBand();
 +	int	yDelta = applyTextYTarget();
 +	int	savedClip[4];
 +	bool	clipMoved = false;
@@ -631,14 +717,18 @@ index d3c416d..edecc81 100644
 +			else vgui_dprintf( "%s", msg );
 +		}
 +
-+		// The strip asks the weaker question on purpose: a short "credits" run
-+		// the band test turned down - the hint bar - keeps the client's own
-+		// placement but is exactly as hard to read over a scene as the message
-+		// text was, so it still gets its strip (and, from the engine's role
-+		// table, its SemiBold face). What stays stripless is what always was:
-+		// a run longer than MAX_MESSAGE_LINES, i.e. the intro text card and the
-+		// credits roll.
-+		if( backingAlpha > 0 && ( textYTarget < 0 || runIsShortEnough( )))
++		// Which runs get a strip, milestone 5b:
++		//
++		//   pager (textYTarget < 0)     yes - the notes and document reader
++		//   message band, short         yes - the pickup lines and subtitles
++		//   TOP band, short             NO  - CHUDControl's hint bar already
++		//                                     paints its own background, and a
++		//                                     strip inside it reads as a black
++		//                                     box (user report, 2026-09-22).
++		//                                     It keeps the SemiBold face.
++		//   longer than MAX_MESSAGE_LINES  NO - the intro text card and the
++		//                                     credits roll, as before.
++		if( backingAlpha > 0 && !topBand && ( textYTarget < 0 || runIsShortEnough( )))
 +		{
 +			// padding from the glyph height, so it follows the display the
 +			// same way the rest of milestone 4 does, and the same shape the
@@ -700,7 +790,7 @@ index d3c416d..edecc81 100644
  	{
  		vgui_dprintf( "vgui: paint state stack underflow, broken panel tree?\n" );
 diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
-index 5e7a06e..8952ba7 100644
+index 884552d..3652c15 100644
 --- a/engine/client/cl_main.c
 +++ b/engine/client/cl_main.c
 @@ -105,6 +105,15 @@ CVAR_DEFINE_AUTO( cof_ui_inter_fonts, "1", FCVAR_ARCHIVE, "rasterise the client'
@@ -853,7 +943,7 @@ index 5e7a06e..8952ba7 100644
  	return true;
  }
  
-@@ -1640,6 +1737,98 @@ it emits the original panel's own "map c_game_menu1" instead, so the measured
+@@ -1685,6 +1782,98 @@ it emits the original panel's own "map c_game_menu1" instead, so the measured
  path is the one that runs.
  ====================
  */
@@ -952,7 +1042,7 @@ index 5e7a06e..8952ba7 100644
  static void CL_CoF_MenuReturn_f( void )
  {
  	CL_CoF_MenuMapReturn( "cof_ui_menu_return", "menu return command" );
-@@ -5440,6 +5629,12 @@ static void CL_InitLocal( void )
+@@ -5486,6 +5675,12 @@ static void CL_InitLocal( void )
  	Cvar_RegisterVariable( &cof_font_probe );
  	Cvar_RegisterVariable( &cof_ui_scale_sprites );
  	Cvar_RegisterVariable( &cof_hud_text_height_pct );
@@ -965,7 +1055,7 @@ index 5e7a06e..8952ba7 100644
  	Cvar_RegisterVariable( &cl_maxframetime );
  	Cvar_RegisterVariable( &cl_fixmodelinterpolationartifacts );
  
-@@ -5490,6 +5685,8 @@ static void CL_InitLocal( void )
+@@ -5536,6 +5731,8 @@ static void CL_InitLocal( void )
  	Cmd_AddCommand ("info", NULL, "collect info about local servers with specified protocol" );
  	Cmd_AddCommand ("escape", CL_Escape_f, "escape from game to menu" );
  	Cmd_AddCommand ("cof_ui_menu_return", CL_CoF_MenuReturn_f, "Cry of Fear unified UI: disconnect and re-arm the engine menu over its background map" );

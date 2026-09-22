@@ -1,7 +1,7 @@
 diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
 --- a/engine/client/cl_main.c
 +++ b/engine/client/cl_main.c
-@@ -93,6 +93,7 @@
+@@ -93,6 +93,7 @@ CVAR_DEFINE_AUTO( ui_renderworld, "0", FCVAR_ARCHIVE, "render world when UI is v
  static CVAR_DEFINE_AUTO( cof_ui_menu_map_redirect, "1", 0, "unified UI gate: turn a client- or server-issued \"map c_game_menu1\" into a return to the engine menu over the background map (0 = stock behaviour)" );
  static CVAR_DEFINE_AUTO( cof_ui_death_menu, "1", 0, "unified UI gate: open the engine menu's own death page when the game DLL sends the Cry of Fear GAME OVER screen (0 = stock behaviour, the client's own panel)" );
  static CVAR_DEFINE_AUTO( cof_mp3_stop_on_map, "1", 0, "run the client's \"stopmp3\" command before a fresh map, newgame, save load or disconnect, so the client's own MP3 player does not bleed across the transition (changelevel is deliberately untouched)" );
@@ -9,10 +9,12 @@ diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
  static CVAR_DEFINE_AUTO( cl_maxframetime, "0", 0, "set deadline timer for client rendering to catch freezes" );
  CVAR_DEFINE_AUTO( cl_fixmodelinterpolationartifacts, "1", 0, "try to fix up models interpolation on a moving platforms (monsters on trains for example)" );
  
-@@ -276,6 +277,142 @@
+@@ -280,6 +281,187 @@ void CL_CoF_StopMP3( const char *reason )
+ 	Cmd_ExecuteString( "stopmp3" );
+ }
  
- /*
- ====================
++/*
++====================
 +Cry of Fear sky reset (cof_sky_reset_per_map, default on)
 +
 +The bug, as reported: opening the Unlockables gallery logs
@@ -63,7 +65,27 @@ diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
 +through the fallback game directory; a standalone Cry of Fear gamedir has no
 +such fallback, so the load fails where it never did before.
 +
-+The fix, in two halves:
++A second, nastier failure follows from the same loader, and it is the one the
++user sees as "sometimes the sky is not re-enabled when changing maps"
++(measured, same disassembly):
++
++    10063639  if( cached_name[0] && !strcmp( cached_name, name ))
++    10063677      return;                 <- WITHOUT touching loaded_flag
++    1006367D  loaded_flag = 0;
++              ...six faces...
++    100636F6  cached_name = name;         <- only on success
++    10063713  loaded_flag = 1;
++
++cached_name is written only by a SUCCESSFUL load, loaded_flag is zeroed by
++every ATTEMPT. So a failed load leaves loaded_flag 0 with cached_name still
++naming the last skybox that did load, and the next map that asks for that same
++skybox takes the early return at 10063677 and never sets loaded_flag again. The
++draw pass at 100637C7 then returns on !loaded_flag: gl_customsky reads 1, the
++console is silent, and there is no sky. Cry of Fear ships 167 of its 235 maps
++with skyname "black", so the sequence black -> a map with no skyname -> black
++is ordinary play, and it is exactly the sequence that traps the client.
++
++The fix, in three parts:
 +
 +  * CL_CoF_SkyClientCvarSet is called from the client's own Cvar_SetValue
 +    engine callback (cl_game.c) and is the only place that can tell a *client*
@@ -71,22 +93,36 @@ diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
 +    into gl_customsky it remembers what the value was a moment earlier and lets
 +    the write through, so the map that actually has no sky faces still behaves
 +    exactly as it does today - no spam, no retry every frame;
-+  * CL_CoF_SkyResetPerMap runs from R_SetupSky, which is the engine's own
-+    per-map sky setup and is reached on a level start, on a skyname change and
-+    on the "skybox" command. It puts the remembered value back before the
-+    client's first sky draw of the new map, so the client re-reads sv_skyname
-+    and loads the new map's faces.
++  * CL_CoF_SkyResetPerMap puts the remembered value back at every level start.
++    It runs from R_SetupSky (ref_common.c), which CL_ParseServerData reaches
++    unconditionally on every level load, and from CL_ClearState, which covers
++    a disconnect, a map command and a save load. The pending restore is NOT
++    tied to the map it was armed on: it survives any number of level starts
++    until it is actually carried out, so two maps in a row that both fail, or
++    a level start that somehow misses R_SetupSky, cannot lose it;
++  * and the real cure for Cry of Fear, on the server side:
++    SV_CoF_ApplyDefaultSkyName (sv_main.c) replaces the stock "desert" default
++    of sv_skyname with cof_default_skyname ("black") on the 56 maps that carry
++    no skyname key, so the client's loader SUCCEEDS on them. Nothing fails,
++    nothing is turned off, and cached_name/loaded_flag never fall out of step -
++    which is the only way to keep the trap above from arming, since its state
++    lives inside the client and the engine cannot reach it.
 +
 +Nothing else about gl_customsky changes. A user who types "gl_customsky 0"
 +turns the pass off, so the loader never runs and never fails, so nothing is ever
-+remembered and nothing is ever restored; a user who types "gl_customsky 1" on a
-+map whose faces are missing gets the same error and the same shutdown as before,
-+confined to that map. cof_sky_reset_per_map 0 restores stock behaviour exactly.
++remembered; and a 0 the engine did not see the client write is never touched, so
++the user's own choice survives every level start. A user who types
++"gl_customsky 1" on a map whose faces are missing gets the same error and the
++same shutdown as before, confined to that map. cof_sky_reset_per_map 0 restores
++stock behaviour exactly.
 +====================
 +*/
 +#define COF_SKY_CVAR	"gl_customsky"
 +
-+static qboolean	cof_sky_client_disabled;	// the client turned it off on this map
++// The pending restore deliberately OUTLIVES the map it was armed on: it is
++// cleared when it is carried out, or when the cvar is seen to be on again,
++// and by nothing else.
++static qboolean	cof_sky_off_by_client;		// the 0 now in the cvar was written by the client
 +static char	cof_sky_saved_value[32];	// what it held a moment before that
 +
 +void CL_CoF_SkyClientCvarSet( const char *name, float value )
@@ -102,8 +138,8 @@ diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
 +	if( value != 0.0f )
 +		return; // the client only ever writes 0 here, but be explicit
 +
-+	if( cof_sky_client_disabled )
-+		return; // already remembered for this map; do not overwrite it with 0
++	if( cof_sky_off_by_client )
++		return; // already ours; keep the first saved value, never overwrite it with 0
 +
 +	var = Cvar_FindVar( COF_SKY_CVAR );
 +
@@ -111,9 +147,9 @@ diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
 +		return; // it was already off - the user's choice, nothing to restore
 +
 +	Q_strncpy( cof_sky_saved_value, var->string, sizeof( cof_sky_saved_value ));
-+	cof_sky_client_disabled = true;
++	cof_sky_off_by_client = true;
 +
-+	Con_Printf( "[cof-sky] the client turned \"%s\" off after a failed sky load on \"%s\"; \"%s\" will be restored on the next map load\n",
++	Con_Printf( "[cof-sky] the client turned \"%s\" off after a failed sky load on \"%s\"; \"%s\" will be restored at the next level start\n",
 +		COF_SKY_CVAR, COM_StringEmpty( clgame.mapname ) ? "?" : clgame.mapname, cof_sky_saved_value );
 +}
 +
@@ -121,38 +157,55 @@ diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
 +====================
 +CL_CoF_SkyResetPerMap
 +
-+Called from R_SetupSky (ref_common.c), the engine's per-map sky setup.
++Every level start, unconditionally: from R_SetupSky (ref_common.c), which
++CL_ParseServerData reaches on every level load whether or not the skyname
++changed, and from CL_ClearState, which covers a disconnect, a map command and a
++save load. Safe to call as often as one likes - it only ever puts back a value
++the engine watched the client take away.
 +====================
 +*/
 +void CL_CoF_SkyResetPerMap( void )
 +{
 +	convar_t	*var;
 +
-+	if( !cof_sky_client_disabled )
-+		return;
-+
-+	cof_sky_client_disabled = false;
-+
-+	if( !cof_sky_reset_per_map.value )
-+		return; // turned off in between; leave the cvar as the client left it
-+
 +	var = Cvar_FindVar( COF_SKY_CVAR );
 +
-+	if( !var || var->value != 0.0f )
-+		return; // gone, or somebody already turned it back on
++	if( !var )
++		return;
 +
-+	Cvar_DirectSet( var, cof_sky_saved_value );
++	if( var->value != 0.0f )
++	{
++		// the client's sky pass is on, so nothing is pending; anything the
++		// client turns off from here on is a fresh failure with a fresh value
++		cof_sky_off_by_client = false;
++		return;
++	}
 +
-+	Con_Printf( "[cof-sky] restored \"%s\" to \"%s\" for the new map (a failed sky load stays on the map that caused it)\n",
-+		COF_SKY_CVAR, cof_sky_saved_value );
++	if( !cof_sky_off_by_client )
++		return; // this 0 is the user's own - never override it
++
++	if( !cof_sky_reset_per_map.value )
++		return; // stock behaviour; keep the flag so turning the fix back on still works
++
++	Cvar_DirectSet( var, COM_StringEmptyOrNULL( cof_sky_saved_value ) ? "1" : cof_sky_saved_value );
++	cof_sky_off_by_client = false;
++
++	Con_Printf( "[cof-sky] restored \"%s\" to \"%s\" for the new level (a failed sky load stays on the map that caused it)\n",
++		COF_SKY_CVAR, var->string );
 +}
 +
-+/*
-+====================
+ /*
+ ====================
  CL_CoF_VidRestartForget
- 
- Drop a queued background-map restart. Called from CL_ClearState so a restart
-@@ -4518,6 +4655,7 @@
+@@ -2468,6 +2650,7 @@ void CL_ClearState( void )
+ 	clgame.mapname[0] = '\0';
+ 	CL_CoF_VidRestartForget();
+ 	CL_CoF_DeathForget();
++	CL_CoF_SkyResetPerMap();	// cof_sky_reset_per_map: a level start the R_SetupSky hook could miss
+ 	Cvar_DirectFullSet( &cl_background, "0", FCVAR_READ_ONLY );
+ 	cl.maxclients = 1; // allow to drawing player in menu
+ 	cl.mtime[0] = cl.mtime[1] = 1.0f; // because level starts from 1.0f second
+@@ -4605,6 +4788,7 @@ static void CL_InitLocal( void )
  	Cvar_RegisterVariable( &cof_ui_menu_map_redirect );
  	Cvar_RegisterVariable( &cof_ui_death_menu );
  	Cvar_RegisterVariable( &cof_mp3_stop_on_map );
@@ -163,7 +216,7 @@ diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
 diff --git a/engine/client/client.h b/engine/client/client.h
 --- a/engine/client/client.h
 +++ b/engine/client/client.h
-@@ -1287,6 +1287,12 @@
+@@ -1287,6 +1287,12 @@ extern convar_t cof_vid_restart_background;
  extern convar_t cof_vid_skip_redundant_vidinit;
  void CL_CoF_VidModeChanged( void );
  void CL_CoF_VidRestartForget( void );
@@ -179,10 +232,12 @@ diff --git a/engine/client/client.h b/engine/client/client.h
 diff --git a/engine/client/dll_int/cl_game.c b/engine/client/dll_int/cl_game.c
 --- a/engine/client/dll_int/cl_game.c
 +++ b/engine/client/dll_int/cl_game.c
-@@ -1935,6 +1935,24 @@
+@@ -1933,6 +1933,24 @@ static void GAME_EXPORT pfnPlaySoundByName( const char *szSound, float volume )
+ 	S_StartSound( NULL, cl.viewentity, CHAN_ITEM, hSound, volume, ATTN_NORM, PITCH_NORM, SND_STOP_LOOPING );
+ }
  
- /*
- =============
++/*
++=============
 +pfnCvarSetValue
 +
 +The client DLL's own Cvar_SetValue callback. Stock behaviour is the engine's
@@ -199,12 +254,10 @@ diff --git a/engine/client/dll_int/cl_game.c b/engine/client/dll_int/cl_game.c
 +	Cvar_SetValue( name, value );
 +}
 +
-+/*
-+=============
- pfnPlaySoundByIndex
- 
+ /*
  =============
-@@ -3839,7 +3857,7 @@
+ pfnPlaySoundByIndex
+@@ -3839,7 +3857,7 @@ static cl_enginefunc_t gEngfuncs =
  	pfnGetViewAngles,
  	pfnSetViewAngles,
  	CL_GetMaxClients,
@@ -216,7 +269,7 @@ diff --git a/engine/client/dll_int/cl_game.c b/engine/client/dll_int/cl_game.c
 diff --git a/engine/client/dll_int/ref_common.c b/engine/client/dll_int/ref_common.c
 --- a/engine/client/dll_int/ref_common.c
 +++ b/engine/client/dll_int/ref_common.c
-@@ -108,6 +108,14 @@
+@@ -108,6 +108,14 @@ void R_SetupSky( const char *name )
  	int skyboxTextures[SKYBOX_MAX_SIDES] = { 0 };
  	int i, len;
  
@@ -231,3 +284,95 @@ diff --git a/engine/client/dll_int/ref_common.c b/engine/client/dll_int/ref_comm
  	if( COM_StringEmptyOrNULL( name ))
  	{
  		ref.dllFuncs.R_SetupSky( NULL ); // unload skybox
+diff --git a/engine/server/server.h b/engine/server/server.h
+--- a/engine/server/server.h
++++ b/engine/server/server.h
+@@ -417,6 +417,10 @@ extern convar_t		sv_voice_singleplayer;
+ extern convar_t		sv_maxvelocity;
+ extern convar_t		sv_stepsize;
+ extern convar_t		sv_skyname;
++extern convar_t		cof_default_skyname;
++// Cry of Fear: put cof_default_skyname in place of the stock "desert" default
++// of sv_skyname before the entity lump is parsed. Defined in sv_main.c.
++void SV_CoF_ApplyDefaultSkyName( void );
+ extern convar_t		sv_skycolor_r;
+ extern convar_t		sv_skycolor_g;
+ extern convar_t		sv_skycolor_b;
+diff --git a/engine/server/sv_game.c b/engine/server/sv_game.c
+--- a/engine/server/sv_game.c
++++ b/engine/server/sv_game.c
+@@ -5145,6 +5145,7 @@ void SV_SpawnEntities( const char *mapname )
+ 	Cvar_Reset( "sv_skyvec_y" );
+ 	Cvar_Reset( "sv_skyvec_z" );
+ 	Cvar_Reset( "sv_skyname" );
++	SV_CoF_ApplyDefaultSkyName();	// Cry of Fear: "desert" does not ship (see sv_main.c)
+ 
+ 	ent = SV_EdictNum( 0 );
+ 	if( ent->free ) SV_InitEdict( ent );
+diff --git a/engine/server/sv_main.c b/engine/server/sv_main.c
+--- a/engine/server/sv_main.c
++++ b/engine/server/sv_main.c
+@@ -100,6 +100,7 @@ static CVAR_DEFINE_AUTO( sv_zmax, "4096", FCVAR_MOVEVARS|FCVAR_SPONLY, "maximum
+ CVAR_DEFINE_AUTO( sv_wateramp, "0", FCVAR_MOVEVARS|FCVAR_UNLOGGED, "world waveheight factor" );
+ static CVAR_DEFINE( sv_footsteps, "mp_footsteps", "1", FCVAR_SERVER|FCVAR_MOVEVARS, "play foot steps for players" );
+ CVAR_DEFINE_AUTO( sv_skyname, "desert", FCVAR_MOVEVARS|FCVAR_UNLOGGED, "skybox name (can be dynamically changed in-game)" );
++CVAR_DEFINE_AUTO( cof_default_skyname, "black", FCVAR_ARCHIVE, "Cry of Fear: skybox for a map whose worldspawn has no \"skyname\" key, replacing the stock engine default \"desert\", which the game does not ship (empty = stock behaviour)" );
+ static CVAR_DEFINE_AUTO( sv_rollangle, "0", FCVAR_MOVEVARS|FCVAR_UNLOGGED|FCVAR_ARCHIVE, "how much to tilt the view when strafing" );
+ static CVAR_DEFINE_AUTO( sv_rollspeed, "200", FCVAR_MOVEVARS|FCVAR_UNLOGGED, "how much strafing is necessary to tilt the view" );
+ CVAR_DEFINE_AUTO( sv_skycolor_r, "0", FCVAR_MOVEVARS|FCVAR_UNLOGGED, "skylight red component value" );
+@@ -177,6 +178,47 @@ static qboolean SV_HasActivePlayers( void )
+ 	return false;
+ }
+ 
++/*
++===================
++SV_CoF_ApplyDefaultSkyName
++
++Cry of Fear: 56 of the 235 shipped maps have no "skyname" key in worldspawn
++(measured from the entity lumps; c_unlockables, c_nightmare1..4, c_lobby,
++c_loadgame, c_difficulty_settings and 48 more). SV_SpawnEntities resets
++sv_skyname per map, so those maps ask for the stock engine default "desert" -
++and the game ships gfx/env/black*, gfx/env/blue22* and gfx/env/sorgard* and
++nothing called desert, loose or in any of its 22 WADs. Under real GoldSrc the
++fallback game directory valve/ supplied desert*.tga and the load succeeded; a
++standalone Cry of Fear gamedir has no such fallback.
++
++The consequence is not cosmetic. The client's own sky loader turns its sky pass
++off when a face is missing, and a failed load leaves its "loaded" flag at 0
++while its cached skybox name still names the last skybox that DID load, so the
++next map asking for that same skybox is early-returned and never draws a sky at
++all. See the long note in engine\client\cl_main.c.
++
++So the default is replaced, for Cry of Fear only, by cof_default_skyname
++("black" - the skybox 167 of the 235 maps use, and the one the client itself
++hardcodes for multiplayer). Called from SV_SpawnEntities right after
++Cvar_Reset( "sv_skyname" ) and therefore BEFORE the entity lump is parsed, so a
++map that does carry a skyname still wins. Set cof_default_skyname to the empty
++string for stock behaviour.
++===================
++*/
++void SV_CoF_ApplyDefaultSkyName( void )
++{
++	if( !GI || Q_stricmp( GI->gamefolder, "cryoffear" ))
++		return;
++
++	if( COM_StringEmptyOrNULL( cof_default_skyname.string ))
++		return; // stock behaviour on request
++
++	if( !Q_stricmp( sv_skyname.string, cof_default_skyname.string ))
++		return;
++
++	Cvar_DirectSet( &sv_skyname, cof_default_skyname.string );
++}
++
+ /*
+ ===================
+ SV_UpdateMovevars
+@@ -875,6 +917,7 @@ void SV_Init( void )
+ 	Cvar_RegisterVariable( &sv_skyvec_y );
+ 	Cvar_RegisterVariable( &sv_skyvec_z );
+ 	Cvar_RegisterVariable( &sv_skyname );
++	Cvar_RegisterVariable( &cof_default_skyname );
+ 	Cvar_RegisterVariable( &sv_footsteps );
+ 	Cvar_RegisterVariable( &sv_wateralpha );
+ 	Cvar_RegisterVariable( &sv_minupdaterate );
