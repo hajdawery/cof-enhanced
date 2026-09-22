@@ -161,6 +161,53 @@ not scale with resolution, so at 2560x1440 the panel is twice the size of the
 720p one but the text is the same number of pixels tall. `con_fontscale` is the
 existing lever for that and is untouched.
 
+## No slide, no fade (milestone 5a)
+
+The stock console is a GoldSrc drop-down: `Con_RunConsole()` walks
+`con.vislines` towards `Con_DestHeight()` at `scr_conspeed` lines per second,
+and `Con_DrawSolidConsole( con.vislines )` draws the sheet that far down the
+screen. The styled console is a **window** — its geometry comes from
+`cof_console_width` / `cof_console_height` and the panel is always in the same
+place — so `lines` never moved it. All the animation ever did here was drive
+the alpha in `Con_DrawStyledConsole()`:
+
+    frac  = lines / render_height
+    alpha = min( frac * 2, 1 ) * 255
+
+which made the window fade up over `scr_conspeed` on open and, more annoyingly,
+**linger on the way out**: the user reported a closed console still painted over
+the scene. `stage1\m5a-regression-20260922\evidence\con-old-styled-d-close-frame1.png`
+is that, one frame after `toggleconsole`.
+
+So `Con_RunConsole()` snaps while the style is on:
+
+```c
+if( Con_StyleEnabled( ))
+	con.vislines = con.showlines;
+else
+	...the stock lines_per_frame walk...
+```
+
+`Con_DestHeight()` returns either the full render height or half of it, so
+`frac` is 1.0 or 0.5 and the alpha expression is 255 either way: the window is
+fully drawn on the frame the toggle is pressed. On close `Con_DestHeight()`
+returns 0, `con.vislines` becomes 0, and `Con_DrawConsole()`'s own
+`if( con.vislines )` test drops the draw entirely — gone on the next frame.
+`scr_conspeed` is untouched and still drives the stock drop-down, which is the
+only thing it was ever for.
+
+Measured, in game on `c_forest3`, `scr_conspeed 600`, every command from the
+planted `maps\c_forest3_load.cfg` and one `wait` between the toggle and the
+screenshot:
+
+| run | one frame after open | one frame after close |
+| --- | --- | --- |
+| `con-old-styled-*` (before) | `b-open-frame1.png`, faded | `d-close-frame1.png`, **window still there** |
+| `con-fix-styled-*` (after) | `b-open-frame1.png`, **full window** | `d-close-frame1.png`, **gone** |
+| `con-fix-stock-*` (`cof_console_style 0`) | `b-open-frame1.png`, nothing yet — the stock sheet is 10 px down | — |
+
+The third row is the scoping control: the stock path still slides.
+
 ## The close button
 
 The `X` is clickable. `IN_MouseMove()` (`engine/client/input/input.c`) now calls

@@ -206,11 +206,9 @@ not its artwork:
 * `Think()` closes the page as soon as `ClientInGame()` goes false or
   `cl_background` goes on, so the redirect's `menu_main` never ends up drawn
   over a page that still holds the scrim suppression.
-* **Since 2026-09-22** it also stops Cry of Fear's death music: `stopmp3` in
-  `Show()`, and a one-shot repeat on the first `Think()` frame. See the
-  *Death-music round* in [the milestone 3 theme notes](cof-ui-m3-theme.md) —
-  that round is also where the current `menu.dll` hash lives, not the table in
-  §6a below.
+* ~~**Since 2026-09-22** it also stops Cry of Fear's death music: `stopmp3` in
+  `Show()`, and a one-shot repeat on the first `Think()` frame.~~ **REVERSED
+  2026-09-22 (milestone 4b), by the user's own play feedback.** See §8.
 
 ### What each button does
 
@@ -309,13 +307,11 @@ newest write `2026-09-18T20:33:58.9860178Z`.
    `CMenuCheckBox::LinkCvar` / `WriteCvar` pair every other checkbox on the page
    uses, and both cvar values were verified to be reflected and to take effect;
    the click itself is a manual test.
-3. **Death music.** ~~The client still plays `game_over.mp3` from its own
-   player; the page does not stop it.~~ **Done on 2026-09-22 (the user asked for
-   it):** the page issues the client's own `stopmp3` in `Show()` and once more
-   on its first `Think()` frame. The ordering argument, the runs and the
-   artefact hashes are the *Death-music round* in
-   [the milestone 3 theme notes](cof-ui-m3-theme.md); audibility is still a
-   one-click manual test, because every automated run passes `+volume 0`.
+3. **Death music.** Settled in §8: the page leaves the client's MP3 player
+   alone again, and the engine no longer pauses the world behind it, so
+   `game_over.mp3` plays exactly as it does in the original. Audibility is
+   still a one-click manual test, because every automated run passes
+   `+volume 0`.
 4. **Coop.** The page is single-player only by construction (`cl.maxclients > 1`
    returns early). Coop still gets the client's own panel, including its
    `RESTART` arm, which is the right behaviour until the coop bridge exists.
@@ -378,3 +374,84 @@ byte-identical to the pre-blur stack again.
 | `con_enable` | engine cvar, **archived** | `0` | unlocks the developer console; never locks one the command line unlocked |
 | `cof_ui_menu_return` | engine command | - | the redirect's disconnect + background-map sequence |
 | `menu_cofdeath` | menu command | - | opens `CMenuCoFDeath`; the engine runs it |
+
+---
+
+## 8. The world keeps running behind GAME OVER (`cof_ui_death_keep_running`)
+
+Milestone 4b, 2026-09-22, from the user's play feedback on the deployed build:
+
+> the world must keep sounding after death — the original keeps ambient sound
+> and e.g. a chainsaw running; now everything goes silent, which looks wrong.
+
+Two separate causes, both removed.
+
+### 8.1 The menu-side `stopmp3` is gone (decision reversed)
+
+`CMenuCoFDeath::Show()` used to issue the client's `stopmp3`, and `Think()`
+repeated it once on the first frame. The measured ordering argument that
+justified it still stands (§1.1: the client starts `game_over.mp3` while it
+handles the very `VGUIMenu` message the engine latched, so a stop issued from
+`Show()` always lands after it) — **the argument was right and the decision was
+wrong.** The original death screen is a panel over a still-running game, and
+its music is part of that. Both calls, the `m_bStopMusicAgain` latch and the
+`StopDeathMusic()` helper are removed from `menus/CryOfFear.cpp`; nothing
+replaces them. The Load Game and New Game pages keep their own `stopmp3`, which
+is the unrelated question of music bleeding across a transition
+(`cof_mp3_stop_on_map`).
+
+### 8.2 The engine was pausing the game, and that is the bigger half
+
+There is **no pause flag** involved, which is why this was not obvious:
+
+| gate | file | what it does when a menu owns input |
+| --- | --- | --- |
+| `CL_IsInGame()` | `engine/client/cl_main.c` | returns `cls.key_dest == key_game`, i.e. **false** |
+| `SV_IsSimulating()` | `engine/server/sv_main.c:582` | `!sv.paused && CL_IsInGame()` — so the world frame is not run and `sv.time` stops |
+| `S_MixNormalChannelsToRoombuffer` | `engine/client/sound/s_mix.c:342` | skips every non-`FL_CHAN_LOCAL_SOUND` channel in single player — ambience, the chainsaw, everything |
+| `S_StreamBackgroundTrack` | `engine/client/sound/s_stream.c:239` | pauses a track whose `source` is `key_game`, which is where the client's own `playmp3` ends up (`pfnMP3_InitStream` → `S_StartBackgroundTrack`) |
+
+That is correct for the pause menu and wrong for GAME OVER. `cof_ui_death_keep_running`
+(default `1`) makes the death page the one exception: `CL_CoF_DeathWorldLive()`
+is true between the `VGUIMenu` latch and the disconnect or save load that ends
+the session, `CL_IsInGame()` returns true while it is, and the two sound gates
+name it explicitly.
+
+**Input stays gated exactly as before.** `key_dest` is still `key_menu`, so the
+client DLL gets no keys (`cof_ui_input_gate`) and `IN_EngineAppendMove` returns
+early; and because `CL_IsInGame()` is now deliberately true, the movement gate
+in `SV_ExecuteClientMessage` (`engine/server/sv_client.c:3350`) had to name
+`CL_CoF_DeathWorldLive()` itself, so the player's commands are still zeroed.
+The world runs, the player does not. Every other menu keeps the stock pause.
+
+### 8.3 Verification
+
+`stage1/ui-m4b-fixture-20260922`, `run-m4b.ps1`, `+load cofsave1` then `kill`
+from `maps/c_forest3_load.cfg`, with the new `cof_world_probe` command printing
+`sv.time`, the physics frame counter (`sv.framecount`, which `SV_RunGameFrame`
+only ever advances while `sv.simulating`), and the three gates.
+
+| run | probe after the page opened |
+| --- | --- |
+| `d4-control.log`, **`cof_ui_death_keep_running 0`** | `sv.time 12.658 worldframes 546 simulating 0 ingame 0` — and **identical** 600 and 1200 frames later. The bug, reproduced. |
+| `d3-live.log`, default `1` | `sv.time 13.147 / 15.694 / 18.197`, `worldframes 670 / 1270 / 1870`, `simulating 1 ingame 1 deathpage 1` |
+| `f1-final.log`, the shipped binaries | `sv.time 13.821 → 15.904`, `worldframes 810 → 1310`, `deathpage 1` |
+
+No `stopmp3` appears anywhere near the death in any of those logs — the only
+two in the file are `cof_mp3_stop_on_map`'s own, before the save load and
+before the final disconnect.
+
+`d5-page-{a,b,c}.png` are the page itself at 1920x1080 over the live scene;
+the three differ, because the scene is still moving.
+
+### 8.4 Cvar and command
+
+| Name | Kind | Default | Notes |
+| --- | --- | --- | --- |
+| `cof_ui_death_keep_running` | engine cvar, not archived | `1` | `0` = the death page pauses the game like every other menu |
+| `cof_world_probe` | engine command | - | developer/cfg test hook: one line with `sv.time`, `sv.framecount` and the gates |
+
+Applied by `scripts/apply-cof-ui-death-live.ps1`
+(`patches/cof-ui-death-live.patch`), after the death flow itself and after
+`cof-mp3-stop-on-map`; the menu half rides in the regenerated
+`patches/cof-mainui-source-theme.patch`.

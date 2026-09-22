@@ -1,0 +1,194 @@
+diff --git a/ref/gl/gl_local.h b/ref/gl/gl_local.h
+index 4e41311..ce5e3b2 100644
+--- a/ref/gl/gl_local.h
++++ b/ref/gl/gl_local.h
+@@ -730,6 +730,7 @@ extern convar_t cof_skyline_trace;
+ extern convar_t cof_skip_client_transparent_triangles;
+ extern convar_t cof_skip_client_normal_triangles;
+ extern convar_t cof_custom_renderfx_opaque;
++extern convar_t cof_viewmodel_fov;
+ extern convar_t	gl_litwater_force;
+ 
+ extern convar_t	r_lighting_ambient;
+diff --git a/ref/gl/gl_opengl.c b/ref/gl/gl_opengl.c
+index 42b1fac..046e060 100644
+--- a/ref/gl/gl_opengl.c
++++ b/ref/gl/gl_opengl.c
+@@ -1236,6 +1236,7 @@ static void GL_InitCommands( void )
+ 	gEngfuncs.Cvar_RegisterVariable( &cof_skip_client_transparent_triangles );
+ 	gEngfuncs.Cvar_RegisterVariable( &cof_skip_client_normal_triangles );
+ 	gEngfuncs.Cvar_RegisterVariable( &cof_custom_renderfx_opaque );
++	gEngfuncs.Cvar_RegisterVariable( &cof_viewmodel_fov );
+ 	gEngfuncs.Cvar_RegisterVariable( &gl_litwater_force );
+ 
+ 	gEngfuncs.Cvar_RegisterVariable( &gl_polyoffset );
+diff --git a/ref/gl/gl_studio.c b/ref/gl/gl_studio.c
+index 11174e4..8682b9e 100644
+--- a/ref/gl/gl_studio.c
++++ b/ref/gl/gl_studio.c
+@@ -3393,6 +3393,117 @@ void R_RunViewmodelEvents( void )
+ 	R_StudioDrawModelInternal( RI.currententity, STUDIO_EVENTS );
+ }
+ 
++/*
++====================
++Cry of Fear viewmodel field of view (cof_viewmodel_fov)
++
++There is exactly one projection matrix in this renderer, built once per frame
++in R_SetupProjectionMatrix from RI.rvp.fov_x/fov_y, so the viewmodel has always
++scaled with the world FOV: raising the world FOV pushes the weapon away from
++the camera and shrinks it.
++
++R_DrawViewModel is the last thing in the scene and already brackets its draw
++with its own glDepthRange, so a second projection can be pushed for that one
++pass and popped again. The Cry of Fear client cannot notice: measured on
++client.dll D2A04641, it never calls glViewport, its only glFrustum call is
++issued under GL_TEXTURE for projected lights, its only GL_PROJECTION work is a
++balanced push / 0..1 glOrtho / pop inside one full-screen post-process, and it
++never reads a matrix back (no glGetDoublev, no GL_PROJECTION_MATRIX query).
++RI.projectionMatrix and RI.worldviewProjectionMatrix are swapped along with the
++GL state so that pfnWorldToScreen would agree with what is on screen.
++
++The cvar is the 4:3-equivalent base value, exactly like cof_fov and like the
++game's own 90, and it goes through the same V_CalcFov / V_AdjustFov chain the
++engine uses for the world, so Hor+ behaves the same way on a widescreen.
++0 means "follow the world FOV" and leaves the pass byte-identical to stock.
++====================
++*/
++CVAR_DEFINE_AUTO( cof_viewmodel_fov, "0", FCVAR_GLCONFIG, "field of view the viewmodel alone is drawn with, as the 4:3-equivalent base value (0 = follow the world field of view, 55-90 otherwise). Only the viewmodel pass is affected; the world keeps cof_fov" );
++
++// mirrors V_CalcFov, engine\client\cl_view.c
++static float R_CoFCalcFov( float *fov_x, float width, float height )
++{
++	float	x, half_fov_y;
++
++	if( *fov_x < 1.0f || *fov_x > 179.0f )
++		*fov_x = 90.0f; // default value
++
++	x = width / tan( DEG2RAD( *fov_x ) * 0.5f );
++	half_fov_y = atan( height / x );
++
++	return RAD2DEG( half_fov_y ) * 2;
++}
++
++// mirrors V_AdjustFov with lock_x false, engine\client\cl_view.c. It returns on
++// its own for 4:3 and 5:4, so the engine's wideScreen test is not needed here
++static void R_CoFAdjustFov( float *fov_x, float *fov_y, float width, float height )
++{
++	float	x, y;
++
++	if( width * 3 == 4 * height || width * 4 == height * 5 )
++		return;
++
++	y = R_CoFCalcFov( fov_x, 640, 480 );
++	x = *fov_x;
++
++	*fov_x = R_CoFCalcFov( &y, height, width );
++	if( *fov_x < x ) *fov_x = x;
++	else *fov_y = y;
++}
++
++static float cof_viewmodel_reported;
++
++static qboolean R_CoFViewModelProjection( matrix4x4 m )
++{
++	float	fov_x, fov_y, width, height;
++	GLfloat	zNear, zFar, xMax, xMin, yMax, yMin;
++
++	if( cof_viewmodel_fov.value <= 0.0f )
++	{
++		cof_viewmodel_reported = 0.0f;
++		return false;
++	}
++
++	// the overview pass is orthographic and never draws a viewmodel anyway
++	if( FBitSet( RI.rvp.flags, RF_DRAW_OVERVIEW ))
++		return false;
++
++	width = RI.rvp.viewport[2];
++	height = RI.rvp.viewport[3];
++	if( width <= 0.0f || height <= 0.0f )
++		return false;
++
++	fov_x = bound( 55.0f, cof_viewmodel_fov.value, 90.0f );
++	fov_y = R_CoFCalcFov( &fov_x, width, height );
++
++	if( gpGlobals->wideScreen && gEngfuncs.pfnGetCvarFloat( "r_adjust_fov" ) != 0.0f )
++		R_CoFAdjustFov( &fov_x, &fov_y, width, height );
++
++	// same near/far plane as the world pass, so the depth-range hack that
++	// keeps the viewmodel out of walls still lands where it used to
++	zNear = 4.0f;
++	zFar = Q_max( 256.0f, RI.farClip );
++
++	yMax = zNear * tan( fov_y * M_PI_F / 360.0f );
++	yMin = -yMax;
++	xMax = zNear * tan( fov_x * M_PI_F / 360.0f );
++	xMin = -xMax;
++
++	if( tr.rotation & 1 )
++		Matrix4x4_CreateProjection( m, yMax, yMin, xMax, xMin, zNear, zFar );
++	else Matrix4x4_CreateProjection( m, xMax, xMin, yMax, yMin, zNear, zFar );
++
++	// developer: say what this pass is actually rendering with, once per change
++	if( fabs( fov_x - cof_viewmodel_reported ) > 0.005f )
++	{
++		cof_viewmodel_reported = fov_x;
++		gEngfuncs.Con_Reportf( "[cof-fov] viewmodel pass fov_x %.2f fov_y %.2f (cof_viewmodel_fov %g, world fov_x %.2f, viewport %.0fx%.0f)\n",
++			fov_x, fov_y, cof_viewmodel_fov.value, RI.rvp.fov_x, width, height );
++	}
++
++	return true;
++}
++
+ /*
+ =================
+ R_DrawViewModel
+@@ -3401,6 +3512,8 @@ R_DrawViewModel
+ void R_DrawViewModel( void )
+ {
+ 	cl_entity_t	*view = tr.viewent;
++	matrix4x4	vm_projection, saved_projection, saved_worldviewprojection;
++	qboolean	vm_fov;
+ 
+ 	R_GatherPlayerLight( view );
+ 
+@@ -3427,6 +3540,21 @@ void R_DrawViewModel( void )
+ 	pglDepthRange( gldepthmin, gldepthmin + 0.3f * ( gldepthmax - gldepthmin ));
+ 	RI.currentmodel = RI.currententity->model;
+ 
++	// give this one pass its own projection, see R_CoFViewModelProjection
++	vm_fov = R_CoFViewModelProjection( vm_projection );
++	if( vm_fov )
++	{
++		Matrix4x4_Copy( saved_projection, RI.projectionMatrix );
++		Matrix4x4_Copy( saved_worldviewprojection, RI.worldviewProjectionMatrix );
++		Matrix4x4_Copy( RI.projectionMatrix, vm_projection );
++		Matrix4x4_Concat( RI.worldviewProjectionMatrix, RI.projectionMatrix, RI.worldviewMatrix );
++
++		pglMatrixMode( GL_PROJECTION );
++		pglPushMatrix();
++		GL_LoadMatrix( vm_projection );
++		pglMatrixMode( GL_MODELVIEW );
++	}
++
+ 	switch( RI.currententity->model->type )
+ 	{
+ 	case mod_alias:
+@@ -3438,6 +3566,16 @@ void R_DrawViewModel( void )
+ 		break;
+ 	}
+ 
++	if( vm_fov )
++	{
++		pglMatrixMode( GL_PROJECTION );
++		pglPopMatrix();
++		pglMatrixMode( GL_MODELVIEW );
++
++		Matrix4x4_Copy( RI.projectionMatrix, saved_projection );
++		Matrix4x4_Copy( RI.worldviewProjectionMatrix, saved_worldviewprojection );
++	}
++
+ 	// restore depth range
+ 	pglDepthRange( gldepthmin, gldepthmax );
+ }

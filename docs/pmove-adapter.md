@@ -12,6 +12,27 @@ With `-cof-pmove-legacy`, `engine/server/sv_pmove.c` keeps the engine's `svgame.
 
 This tests the first proven ABI discrepancy and supports PM_Init/PM_Move state exchange. It does not assert that the unknown field is semantically zero, that all later interfaces match, or that the original client renderer will work. It must remain opt-in until the tester records a new dump/log and validates movement.
 
+## Corrected shift boundary (2026-09-22)
+
+The boundary above is one field too late. Disassembly of the shipped
+`cl_dlls/hl.dll` shows it keeps `numtouch` at `pmove + 0x45490` and
+`touchindex` at `pmove + 0x45494` (`PM_AddToTouched` at `0x10003872`,
+`0x10003904`, `0x10003942`; `PM_PlayerMove` at `0x10008A1C`), while the current
+layout has them at `0x4548C` and `0x45490`. Everything before `numtouch`,
+`cmd` included, is at the same offset in both layouts; everything from
+`numtouch` on is `+4`. Inserting the four bytes before `physinfo` therefore
+leaves `numtouch` and `touchindex[600]` mismapped, and the engine's
+`SV_Impact` loop never sees a playermove touch.
+
+The separate, larger problem is that the engine's playermove callbacks keep
+reading the native object while the DLL mutates the shifted view, so every
+trace inside `PM_Move` uses the previous frame's `usehull`. That is what made
+crouching and crawling get the player stuck.
+
+Both are corrected by `patches/cof-pmove-callback-view.patch`; see
+[the callback view note](cof-pmove-callback-view.md) for the offsets table, the
+measured A/B and the limits.
+
 ## Build/test gate
 
 Build an x86 engine from the exact FWGS source with its recursive dependencies and the official SDL2 Visual Studio development package. Add `-cof-pmove-legacy -minidumps -log cof-adapter.log -game cryoffear` only in a copied test directory. A successful result must show the adapter warning, `Dll loaded for game "Cry of Fear"`, and progress beyond PM_Init; retain any dump. Do not deploy it over the original installation.

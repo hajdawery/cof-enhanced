@@ -73,6 +73,9 @@ whatever their `renderfx` is, behind the `cof_custom_renderfx_opaque` cvar
 (default `1`). See [custom renderfx opaque classification](docs/cof-custom-renderfx-opaque.md)
 for the root cause, the measured evidence, and the validation.
 
+One more `ref/gl` patch goes on top of this one, the viewmodel field of view;
+see the [field of view](#field-of-view) section below.
+
 Milestone 1 of the unified UI stack is the engine-side input and paint gate. It
 is applied after the engine save/menu patches above; it is independent of the
 `ref/gl` patches and may be applied before or after them:
@@ -191,8 +194,12 @@ pwsh -File .\scripts\apply-cof-ui-death-flow.ps1 -SourceRoot .\xash3d-fwgs-4857b
 > engine order is: input gate, video-mode restart, menu-map redirect, UI sound
 > volume, console variable-width font fallback, **styled console**, **death
 > flow**, levelshot guard, text autoscale, MP3 stop, sky reset, build stamp,
-> then the milestone 4 UI scaling pair. Reading the code blocks top to bottom
-> fails at the death flow.
+> then the milestone 4 UI scaling pair, the Inter VGUI fonts, and finally the
+> milestone 4b pair (`cof-ui-death-live`, `cof-hud-text-backing`). Reading the
+> code blocks top to bottom fails at the death flow. `cof-fov` is deliberately
+> outside this order: its hunks sit in `V_GetRefParams`, which nothing else
+> touches, and its one `cl_main.c` line is anchored on two stock registrations,
+> so it applies anywhere in the sequence.
 
 With `cof_ui_death_menu 1` (default) death brings up `GAME OVER` in the theme's
 wordmark over the untouched scene - no panel, no scrim - with `Load Game` (our
@@ -340,6 +347,21 @@ pwsh -File .\scripts\apply-cof-vgui-anchor.ps1 -SourceRoot .\xash3d-fwgs-4857b38
 python waf build -j8 --targets=xash,vgui
 ```
 
+The playermove adapter fix goes last in the engine stack, after the UI scale
+patch. The original DLLs mutate a shifted copy of the playermove object while
+every engine pmove callback reads the native one, so collision traces ran with
+the previous frame's hull and the player got stuck in crouch sections; the
+patch mirrors `usehull`, `origin` and `velocity` back at each callback and
+moves the four-byte shift boundary to `numtouch`, where the original DLLs
+actually expect it (this also restores pmove touch impacts):
+
+```powershell
+pwsh -File .\scripts\apply-cof-pmove-callback-view.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+```
+
+See [the pmove callback view](docs/cof-pmove-callback-view.md) for the measured
+A/B and the corrected offsets.
+
 This is the first milestone to change the VGUI support library, so `vgui.dll`
 has to be built and deployed alongside `xash.dll`. See
 [the in-game UI scaled from the display](docs/cof-ui-m4-scaling.md) for the
@@ -365,6 +387,80 @@ pwsh -File .\scripts\apply-cof-vgui-inter-fonts.ps1 -SourceRoot .\xash3d-fwgs-48
 ```
 
 See [the client's VGUI text rasterised from Inter](docs/cof-vgui-inter-fonts.md).
+
+Milestone 4b closes the user's two remaining in-game-text complaints. The death
+page no longer pauses the world behind it - the ambience, the rain and the death
+music keep going the way the original's own GAME OVER panel left them
+(`cof_ui_death_keep_running`), and the menu-side `stopmp3` that used to silence
+that music is gone. The engine HUD text (hints, `HudText` messages, the
+"Using Gas Mask" prompts) is drawn from a generated Inter SemiBold atlas instead
+of the game's thin one-size bitmap, on a translucent backing strip
+(`cof_hud_text_font`, `cof_hud_text_backing`), and the notes/document reader
+gets the same strip. `cof_hud_text_y` is there for a player who wants the line
+lower; its default is 0 because the engine text path was **measured** to sit at
+exactly 70 % of the screen height whatever the font size is.
+
+Milestone 4c adds the other half of the same complaint. The item pickups and
+the yellow cutscene dialogue lines are not that path at all - they are one
+child `Label` of the client's `CHUDControl`, and the milestone 4 surface
+transform was landing it at 79.7 % of the screen at 1080p and 71.8 % at 1440p,
+drifting further the larger the HUD scale. `cof_hud_msg_y_pct` (default 78)
+pins it to a fixed fraction at every resolution, gives it the same backing
+strip and the SemiBold face, and leaves the intro text card and the credits
+roll - which share its font role - exactly where they were. The two patches are
+applied last, after the whole scaling and font stack:
+
+```powershell
+pwsh -File .\scripts\apply-cof-ui-death-live.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+pwsh -File .\scripts\apply-cof-hud-text-backing.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+```
+
+The HUD text patch ships `gamedata/cryoffear/fonts/cof_hudtext{0,1}.fnt`, which
+have to be deployed into the runtime's `cryoffear/fonts/` beside the console
+atlases. See
+[the engine HUD text made readable](docs/cof-hud-text-legibility.md) and
+[the death flow](docs/cof-ui-death-flow.md) section 8.
+
+## Field of view
+
+Cry of Fear has no `default_fov`: the client hard-codes 90 at the hip, 60 for
+its "zoom 2" state and 30 for the cinematic camera zoom, and the only lever it
+exposes is the archived `cl_fovmultiplier`, which scales ironsights and
+scripted camera zooms along with the hip view. `cof_fov` is the engine's own
+option instead. It is the preferred **hip** field of view, stored - like the
+game's 90 and like Source's `fov_desired` - as the 4:3-equivalent base value,
+and it is added to whatever the client asked for in `V_GetRefParams`, tapering
+out as the request falls towards the authored zooms so those keep the framing
+their author chose. Only `rvp->fov_x` is written; `cl.local.scr_fov`, the
+client's own FOV, the mouse sensitivity derived from it and everything that
+gets saved never see it. Measured: base 70/90/110 render as 86.09 / 106.26 /
+124.60 degrees horizontal at 16:9, and the glock's ironsights are the *same
+frame* at all three. The patch has no ordering constraint inside the engine
+stack:
+
+```powershell
+pwsh -File .\scripts\apply-cof-fov.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+```
+
+`cof_viewmodel_fov` is the matching renderer option. `ref/gl` builds one
+projection per frame, so the viewmodel has always scaled with the world FOV;
+this pushes a second projection, built from the same `V_CalcFov`/`V_AdjustFov`
+chain, inside the depth-range bracket `R_DrawViewModel` already puts around its
+draw, and pops it again. `0` (the default) means "follow the world FOV" and
+leaves the pass byte-identical to stock. It is the **last** patch of the
+`ref/gl` stack, because it declares and registers its cvar next to
+`cof_custom_renderfx_opaque`:
+
+```powershell
+pwsh -File .\scripts\apply-cof-viewmodel-fov.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+```
+
+The renderer patch means `ref_gl.dll` has to be built and deployed alongside
+`xash.dll` for the viewmodel half. See
+[field of view](docs/cof-fov.md) for the formula, the disassembled FOV chain,
+the measured tables and the clamp evidence, and
+`stage1/fov-investigation-20260922/RESULTS.md` for the investigation the design
+came out of.
 
 The first milestone of the unified UI stack puts the engine menu on screen over
 the live Cry of Fear scene. It is one small MainUI change plus game-directory

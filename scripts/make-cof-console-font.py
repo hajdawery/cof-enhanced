@@ -41,6 +41,18 @@ Usage (defaults produce exactly what the patch ships):
     python scripts/make-cof-console-font.py \
         --ttf gamedata/cryoffear/gfx/fonts/Inter-Regular.ttf \
         --out gamedata/cryoffear/fonts
+
+Milestone 4b uses the same generator for the engine HUD font behind
+``pfnDrawCharacter`` (hints, ``HudText`` messages, prompts), from a heavier face
+and at its own base sizes -- see ``docs/cof-hud-text-legibility.md``:
+
+    python scripts/make-cof-console-font.py \
+        --ttf gamedata/cryoffear/gfx/fonts/Inter-SemiBold.ttf \
+        --out gamedata/cryoffear/fonts --name cof_hudtext --sizes 14,19
+
+The two base sizes are not a preference: ``startoffset`` caps the atlas at
+65536 pixels, and above a ~20 px base the packer starts dropping glyphs out of
+the 216-character cp1252 set the language packs need.
 """
 
 import argparse

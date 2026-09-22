@@ -1,0 +1,1638 @@
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp
+index f46512e..ca8fafe 100644
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp
+@@ -95,6 +95,11 @@ static void XashPaint( void )
+ 	// client has on screen
+ 	g_surface->cofDrawProbe();
+ 
++	// Cry of Fear, milestone 4b: nothing may be left in the backing-text
++	// collector when the frame ends. popMakeCurrent flushes what a panel drew;
++	// this closes out the probe above, which draws outside any push/pop pair
++	g_surface->flushBackingText();
++
+ 	g_scissor.disable();
+ }
+ 
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/clip.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/clip.cpp
+index 329f802..ab79961 100644
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/clip.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/clip.cpp
+@@ -34,6 +34,14 @@ void Scissor::setRect( int x0, int y0, int x1, int y1 )
+ 	rect[3] = Q_max( y0, y1 );
+ }
+ 
++void Scissor::getRect( int *out ) const
++{
++	out[0] = rect[0];
++	out[1] = rect[1];
++	out[2] = rect[2];
++	out[3] = rect[3];
++}
++
+ bool Scissor::clip( const vpoint_t &topLeft, const vpoint_t &bottomRight, vpoint_t &clippedTopLeft, vpoint_t &clippedBottomRight ) const
+ {
+ 	if( !enabled )
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/coffont.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/coffont.cpp
+index 86c2045..b20d3ee 100644
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/coffont.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/coffont.cpp
+@@ -358,6 +358,7 @@ struct CofEntry
+ {
+ 	char		role[64];
+ 	int		devicePx, logicalPx, codepage, semibold;
++	int		backing;	// milestone 4b, alpha of this role's backing strip
+ 	CofFont		*font;
+ };
+ 
+@@ -420,6 +421,7 @@ CofFont *CofFindOrCreate( const char *role, const cof_vgui_font_t &desc )
+ 	e.logicalPx = desc.logicalPx;
+ 	e.codepage = desc.codepage;
+ 	e.semibold = desc.semibold;
++	e.backing = desc.backing;
+ 	e.font = new CofFont( plat );
+ 
+ 	return e.font;
+@@ -510,6 +512,79 @@ vgui::Font *vgui::CofFont_ForRole( const char *role )
+ 	return (Font *)CofFindOrCreate( role, desc );
+ }
+ 
++// milestone 4b: the backing-strip alpha the engine assigns to this font's
++// role. Non-zero only for the notes/document reader, so nothing else in the
++// client's VGUI layer - not the inventory, not the boss bar - can grow a strip.
++//
++// Asked of the engine on every call rather than read out of the cache entry:
++// the fonts are built once per level load, and cof_hud_text_backing has to be
++// live the way its engine-side twin is. The entry's own copy is only the value
++// the font was created with, kept for the trace.
++bool vgui::CofFont_TraceOn( void )
++{
++	cof_vgui_font_t desc;
++
++	if( !g_engine || !g_engine->CofFontDesc )
++		return false;
++
++	memset( &desc, 0, sizeof( desc ));
++
++	// any role will do: the trace flag is global, it is carried on the
++	// descriptor only because that is the channel that already exists
++	if( !g_engine->CofFontDesc( "pager", &desc ))
++		return false;
++
++	return desc.trace != 0;
++}
++
++bool vgui::CofFont_Info( Font *font, int *backing, int *ytarget, int *trace, const char **role )
++{
++	if( backing ) *backing = 0;
++	if( ytarget ) *ytarget = -1;
++	if( trace )   *trace = 0;
++	if( role )    *role = "";
++
++	for( int i = 0; i < g_cacheCount; i++ )
++	{
++		if( (Font *)g_cache[i].font != font )
++			continue;
++
++		if( role )
++			*role = g_cache[i].role;
++
++		if( g_engine && g_engine->CofFontDesc )
++		{
++			cof_vgui_font_t desc;
++
++			memset( &desc, 0, sizeof( desc ));
++
++			if( g_engine->CofFontDesc( g_cache[i].role, &desc ))
++			{
++				if( backing ) *backing = desc.backing;
++				if( ytarget ) *ytarget = desc.ytarget;
++				if( trace )   *trace = desc.trace;
++				return true;
++			}
++		}
++
++		// the engine went quiet (cof_ui_inter_fonts 0 mid-session): fall back
++		// to what the font was built with, which is what is on screen anyway
++		if( backing ) *backing = g_cache[i].backing;
++		return true;
++	}
++
++	return false;
++}
++
++int vgui::CofFont_Backing( Font *font )
++{
++	int backing = 0;
++
++	CofFont_Info( font, &backing, nullptr, nullptr, nullptr );
++
++	return backing;
++}
++
+ vgui::CofFont *vgui::CofFont_Cast( Font *font )
+ {
+ 	for( int i = 0; i < g_cacheCount; i++ )
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/coffont.h b/3rdparty/freevgui/platform/xash3d-fwgs/coffont.h
+index 9c61919..3581de4 100644
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/coffont.h
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/coffont.h
+@@ -42,6 +42,28 @@ CofFont *CofFont_Cast( Font *font );
+ // an engine font for a role, with no client font involved: the cof_font_probe
+ // developer string draws with this
+ Font *CofFont_ForRole( const char *role );
++
++// milestone 4b/4c: everything the engine says about how this font's text is
++// to be placed and decorated, asked of the engine on every call so the cvars
++// behind it stay live (the client builds its fonts once per level load):
++//
++//   backing  alpha 0-255 of the translucent strip behind each line, 0 = none
++//   ytarget  device y the first line of a run belongs at, -1 = leave it
++//   trace    log this role's lines
++//   role     the scheme name, for the trace; never null, "" when unknown
++//
++// Any out pointer may be null. Returns false for a font the engine did not
++// supply, with every out left at its neutral value.
++bool CofFont_Info( Font *font, int *backing, int *ytarget, int *trace, const char **role );
++
++// developer: is cof_hud_text_trace on? Asked without a font, so text drawn with
++// a font the engine did NOT substitute is traced too - which is the only way to
++// see that it was not substituted.
++bool CofFont_TraceOn( void );
++
++// milestone 4b: alpha 0-255 of the translucent strip to draw behind each line
++// of text in this font, 0 for every role that does not want one
++int CofFont_Backing( Font *font );
+ }
+ 
+ #endif // VGUI_XASH3D_COFFONT_H
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/cofscale.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/cofscale.cpp
+index 4532513..7380a05 100644
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/cofscale.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/cofscale.cpp
+@@ -217,6 +217,36 @@ bool vgui::CofUI_RootSize( int &wide, int &tall )
+ 	return true;
+ }
+ 
++/*
++================
++CofUI_ScreenSize / CofUI_ToDeviceY
++
++Read-only views of the transform, for the cof_hud_text_trace log: where a line
++the library drew in layout pixels actually lands on the display.
++================
++*/
++void vgui::CofUI_ScreenSize( int *wide, int *tall )
++{
++	if( wide ) *wide = g_cof.active ? g_cof.screen[0] : 0;
++	if( tall ) *tall = g_cof.active ? g_cof.screen[1] : 0;
++}
++
++int vgui::CofUI_ToDeviceY( int layoutY )
++{
++	if( !g_cof.active )
++		return layoutY;
++
++	return CofRound( layoutY * g_cof.scale );
++}
++
++int vgui::CofUI_ToLayoutY( int deviceY )
++{
++	if( !g_cof.active || g_cof.scale <= 0.0f )
++		return deviceY;
++
++	return CofRound( deviceY / g_cof.scale );
++}
++
+ /*
+ ================
+ CofUI_SolvePanel
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/support.h b/3rdparty/freevgui/platform/xash3d-fwgs/support.h
+index 32848ed..1aed252 100644
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/support.h
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/support.h
+@@ -33,6 +33,10 @@ public:
+ 	void enable();
+ 	void disable();
+ 	void setRect( int x0, int y0, int x1, int y1 );
++	// Cry of Fear, milestone 5a: the in-game message run is deliberately moved
++	// off the row its panel put it on, so its clip rectangle has to move with
++	// it. Read the current one, move it, put it back.
++	void getRect( int *out ) const;
+ 
+ 	// intersects the quad with the current rectangle, interpolating the texture coordinates
+ 	// of the clipped corners. False means the quad is entirely outside and must not be drawn
+@@ -48,6 +52,11 @@ extern Scissor g_scissor;
+ // Cry of Fear in-game UI scaling (cofscale.cpp)
+ void CofUI_Refresh( void );
+ bool CofUI_RootSize( int &wide, int &tall );
++// milestone 4c, for the developer trace: the device render size the transform
++// was last refreshed with, and a layout y turned into a device y
++void CofUI_ScreenSize( int *wide, int *tall );
++int  CofUI_ToDeviceY( int layoutY );
++int  CofUI_ToLayoutY( int deviceY );
+ void CofUI_SolvePanel( Panel *panel );
+ 
+ // input entry points the engine calls (input.cpp)
+@@ -83,6 +92,10 @@ public:
+ 	// cof_font_probe: draw the developer string with an engine font, so a
+ 	// language pack's code page can be checked without a map or a mouse
+ 	void cofDrawProbe();
++	// Cry of Fear, milestone 4b: draw the collected backing text. Public
++	// because the paint pass also has to close out anything drawn outside a
++	// push/pop pair, such as the cof_font_probe developer string.
++	void flushBackingText( void );
+ 
+ protected:
+ 	virtual void drawSetColor( int r, int g, int b, int a ) override;
+@@ -155,6 +168,91 @@ private:
+ 
+ 	PaintState paintStack[MAX_PAINT_STACK];
+ 	int paintStackPos;
++
++	// -------------------------------------------------------------------
++	// Cry of Fear, milestone 4b: the translucent backing strip behind the
++	// notes / document reader text.
++	//
++	// The same problem the engine HUD text has: a line's extent is only
++	// known once its last glyph has been emitted, and by then a strip would
++	// paint over the text. So the glyphs of a backing font are collected
++	// instead of drawn, grouped by their baseline y, and flushed - strip
++	// first, glyphs second - when the panel that drew them pops its paint
++	// state, which is the last moment its translate and scissor are still
++	// current. TextImage, the layout path behind every client label, calls
++	// drawPrintText once PER CHARACTER, so nothing smaller than a whole
++	// panel could group a line.
++	//
++	// Only fonts whose role the engine gave a non-zero backing alpha take
++	// this path (CofFont_Backing), which today is the "pager" role alone.
++	// -------------------------------------------------------------------
++	enum
++	{
++		MAX_TEXT_BACKING_GLYPHS = 2048,
++		MAX_TEXT_BACKING_LINES  = 96,
++		// Cry of Fear, milestone 4c: how many lines a run may have and still
++		// count as in-game message text. The role a client font gets is the
++		// scheme strip it loaded first, and "credits" is shared by the message
++		// strip, the intro text card and the credits roll - so the role alone
++		// cannot tell a one-line pickup notification from a seven-line card.
++		// A run longer than this keeps the client's own placement and gets no
++		// backing strip, which is what leaves those two untouched.
++		MAX_MESSAGE_LINES       = 3,
++		// Cry of Fear, milestone 5a: WHERE a run has to already be to count as
++		// the in-game message strip, as a percentage of the render height,
++		// measured before it is moved.
++		//
++		// The role is not enough on its own. CHUDControl carries TWO full-width
++		// 64 px "credits" Labels: the message strip, which the client puts at
++		// ScreenHeight - 3*G, and a second one pinned to the top of the screen
++		// which is where the hints and "Press E" prompts appear. Retargeting by
++		// role alone dragged the hint bar down onto the message row as well.
++		//
++		// Measured device rows of the message strip, HUD scale 150 %:
++		// 79.7 % at 1080p, 71.8 % at 1440p, 56.0 % at 2160p (it climbs because
++		// the client's cinematic-bar unit G is computed once from the real
++		// screen height and then used against the transformed one). The top
++		// Label sits at 0 %. The band is generous on both sides of the first
++		// group and excludes the second outright.
++		MSG_BAND_LOW_PCT        = 35,
++		MSG_BAND_HIGH_PCT       = 90,
++	};
++
++	struct BackingGlyph
++	{
++		int        ch;
++		int        x, y;      // already translated, pre-clip
++		int        w, tall;
++		int        color[4];
++		FontCache *cache;
++	};
++
++	struct BackingLine
++	{
++		int y, tall, minx, maxx, first, count;
++	};
++
++	BackingGlyph backingGlyphs[MAX_TEXT_BACKING_GLYPHS];
++	BackingLine  backingLines[MAX_TEXT_BACKING_LINES];
++	int          backingGlyphCount;
++	int          backingLineCount;
++	int          backingAlpha;
++	// milestone 4c: the device y this font's text belongs at (-1 for every
++	// role that keeps the client's own placement), whether to log it, and the
++	// role name the log prints
++	int          textYTarget;
++	int          textTrace;
++	const char  *textRole;
++
++	bool deferBackingGlyph( int ch, int x, int y, int w, int tall, const int *color );
++	// returns how far the run was moved, so flushBackingText() can move the
++	// clip rectangle the same distance
++	int  applyTextYTarget( void );
++	// short enough to be a message rather than the intro card or the credits
++	// roll, which share the "credits" role with it
++	bool runIsShortEnough( void ) const;
++	// ...and sitting where the message strip sits, see MSG_BAND_*_PCT
++	bool runIsMessage( void ) const;
+ };
+ }
+ 
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp
+index d3c416d..edecc81 100644
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp
+@@ -4,6 +4,7 @@
+ #include "vgui_internal.h"
+ #include "font.h"
+ #include "support.h"
++#include "coffont.h"
+ 
+ using namespace vgui;
+ 
+@@ -18,7 +19,9 @@ static bool Q_isspace( int ch ) // locale independent
+ XashSurface::XashSurface( Panel *embeddedPanel ) :
+ 	SurfaceBase( embeddedPanel ),
+ 	currentFont( nullptr ), currentFontCache( nullptr ),
+-	sawCaret( false ), colorIndex( DEFAULT_COLOR ), paintStackPos( 0 )
++	sawCaret( false ), colorIndex( DEFAULT_COLOR ), paintStackPos( 0 ),
++	backingGlyphCount( 0 ), backingLineCount( 0 ), backingAlpha( 0 ),
++	textYTarget( -1 ), textTrace( 0 ), textRole( "" )
+ {
+ 	// don't forget alpha is inverted in VGUI... 255 means fully transparent
+ 	for( int i = 0; i < 4; i++ )
+@@ -329,6 +332,27 @@ void XashSurface::drawSetTextFont( Font *font )
+ 	// when cof_ui_inter_fonts is 0 or the role is unknown
+ 	font = Font_Active( font );
+ 
++	// Cry of Fear, milestone 4b/4c: a change of font can change whether the
++	// text gets a backing strip and where it is placed, so anything already
++	// collected under the old answers has to be drawn before they change
++	int wantBacking = 0, wantTarget = -1, wantTrace = 0;
++	const char *wantRole = "";
++
++	if( !CofFont_Info( font, &wantBacking, &wantTarget, &wantTrace, &wantRole ))
++		wantRole = "(client font)";	// not substituted: the trace should say so
++
++	// the trace flag is global, not per font, so text the engine did not
++	// substitute is traced too
++	wantTrace = CofFont_TraceOn() ? 1 : 0;
++
++	if( wantBacking != backingAlpha || wantTarget != textYTarget || wantTrace != textTrace )
++		flushBackingText();
++
++	backingAlpha = wantBacking;
++	textYTarget = wantTarget;
++	textTrace = wantTrace;
++	textRole = wantRole;
++
+ 	currentFont = font;
+ 	currentFontCache = nullptr;
+ 
+@@ -418,7 +442,13 @@ void XashSurface::drawPrintText( const char *text, int textLen )
+ 		currentFont->getCharABCwide( ch, a, b, c );
+ 		advance += a;
+ 
+-		if( !Q_isspace( ch )) // no glyph was rasterised for whitespace
++		if( !Q_isspace( ch ) && ( backingAlpha > 0 || textTrace || textYTarget >= 0 ) &&
++			deferBackingGlyph( ch, x + advance, y, b, tall, color ))
++		{
++			// Cry of Fear, milestone 4b: collected, drawn in flushBackingText()
++			// after this line's backing strip
++		}
++		else if( !Q_isspace( ch )) // no glyph was rasterised for whitespace
+ 		{
+ 			vpoint_t topLeft, bottomRight, clippedTopLeft, clippedBottomRight;
+ 
+@@ -490,8 +520,295 @@ void XashSurface::pushMakeCurrent( Panel *panel, bool useInsets )
+ 	makeCurrent( ps );
+ }
+ 
++/*
++====================
++XashSurface::deferBackingGlyph
++
++Collect one glyph of a backing-strip font. Returns false when the caller has
++to draw it itself after all (no room left).
++====================
++*/
++bool XashSurface::deferBackingGlyph( int ch, int x, int y, int w, int tall, const int *color )
++{
++	BackingLine *line = nullptr;
++
++	if( backingGlyphCount >= MAX_TEXT_BACKING_GLYPHS )
++		return false;
++
++	// the line this glyph belongs to: same baseline y. Searched from the end,
++	// because a text block is laid out one line at a time
++	for( int i = backingLineCount - 1; i >= 0; i-- )
++	{
++		if( backingLines[i].y == y && backingLines[i].tall == tall )
++		{
++			line = &backingLines[i];
++			break;
++		}
++	}
++
++	if( !line )
++	{
++		if( backingLineCount >= MAX_TEXT_BACKING_LINES )
++			return false;
++
++		line = &backingLines[backingLineCount++];
++		line->y = y;
++		line->tall = tall;
++		line->minx = x;
++		line->maxx = x + w;
++		line->first = backingGlyphCount;
++		line->count = 0;
++	}
++	else
++	{
++		// the slices have to stay contiguous
++		if( line->first + line->count != backingGlyphCount )
++			return false;
++
++		if( x < line->minx ) line->minx = x;
++		if( x + w > line->maxx ) line->maxx = x + w;
++	}
++
++	BackingGlyph &g = backingGlyphs[backingGlyphCount++];
++
++	g.ch = ch;
++	g.x = x;
++	g.y = y;
++	g.w = w;
++	g.tall = tall;
++	g.color[0] = color[0];
++	g.color[1] = color[1];
++	g.color[2] = color[2];
++	g.color[3] = color[3];
++	g.cache = currentFontCache;
++	line->count++;
++
++	return true;
++}
++
++/*
++====================
++XashSurface::flushBackingText
++
++One strip per collected line, then that line's glyphs over it. Runs while the
++drawing panel's translate and scissor are still current, so both the strip and
++the glyphs are clipped exactly as the glyphs would have been.
++
++VGUI alpha is inverted - 0 is opaque - so the strip's alpha is 255 minus the
++value the engine gave, and 0 from the engine means "no strip" rather than
++"opaque".
++====================
++*/
++/*
++====================
++XashSurface::applyTextYTarget
++
++Cry of Fear, milestone 4c: move the collected run so its first line lands on
++the device row the engine named, keeping the spacing of the rest.
++
++Applied to the collected text rather than to the panel on purpose. The panel
++that carries this text also carries the health bar, the stamina bar and the
++hint bar, and those must stay exactly where the client put them; and the text
++is the only part of it whose place the player actually cares about.
++====================
++*/
++bool XashSurface::runIsShortEnough( void ) const
++{
++	return backingLineCount > 0 && backingLineCount <= MAX_MESSAGE_LINES;
++}
++
++bool XashSurface::runIsMessage( void ) const
++{
++	int	screenTall = 0, deviceY;
++
++	if( textYTarget < 0 || !runIsShortEnough( ))
++		return false;
++
++	// Cry of Fear, milestone 5a: and it has to be WHERE the message strip is.
++	// CHUDControl's other full-width "credits" Label is the hint bar, pinned to
++	// the top of the screen, and moving that onto the message row was wrong in
++	// exactly the way the message text being left on its own row was.
++	//
++	// The test is on the run's own position BEFORE the move. Once the move has
++	// happened the run sits on textYTarget, which is inside the band by
++	// construction, so the answer does not change between the two calls.
++	CofUI_ScreenSize( nullptr, &screenTall );
++
++	if( screenTall <= 0 )
++		return true; // no transform to ask: behave as before
++
++	deviceY = CofUI_ToDeviceY( backingLines[0].y );
++
++	return deviceY >= screenTall * MSG_BAND_LOW_PCT / 100 &&
++		deviceY <= screenTall * MSG_BAND_HIGH_PCT / 100;
++}
++
++int XashSurface::applyTextYTarget( void )
++{
++	if( !runIsMessage( ))
++		return 0;
++
++	int delta = CofUI_ToLayoutY( textYTarget ) - backingLines[0].y;
++
++	if( delta == 0 )
++		return 0;
++
++	for( int i = 0; i < backingLineCount; i++ )
++		backingLines[i].y += delta;
++
++	for( int i = 0; i < backingGlyphCount; i++ )
++		backingGlyphs[i].y += delta;
++
++	return delta;
++}
++
++void XashSurface::flushBackingText( void )
++{
++	if( backingGlyphCount == 0 )
++	{
++		backingLineCount = 0;
++		return;
++	}
++
++	// Cry of Fear, milestone 5a. The run is moved off the row its own panel
++	// put it on, but the clip rectangle in force is still that panel's - and
++	// the panel that carries this text is a 64 px bar. So as soon as the move
++	// is bigger than the few pixels of slack inside that bar, every glyph AND
++	// the backing strip are scissored away and the text simply does not
++	// appear. That is exactly what happened at 3840x2160: the client places
++	// the strip at layout y 381 (its cinematic-bar unit is computed once from
++	// the real screen height and then used against the transformed one, so the
++	// bar climbs as the display grows - 574 at 1080p, 517 at 1440p, 403 at
++	// 2160p), the target row is layout y 562, and a 159 px move out of a 64 px
++	// band left nothing on screen.
++	//
++	// The clip has to travel with the text. Moving it rather than dropping it
++	// keeps every other guarantee: the run is still clipped to its panel's
++	// width and to a band of its panel's height, just at its new row.
++	int	yDelta = applyTextYTarget();
++	int	savedClip[4];
++	bool	clipMoved = false;
++
++	if( yDelta != 0 )
++	{
++		g_scissor.getRect( savedClip );
++		g_scissor.setRect( savedClip[0], savedClip[1] + yDelta,
++			savedClip[2], savedClip[3] + yDelta );
++		clipMoved = true;
++	}
++
++	for( int i = 0; i < backingLineCount; i++ )
++	{
++		const BackingLine &line = backingLines[i];
++
++		if( line.count <= 0 )
++			continue;
++
++		if( textTrace )
++		{
++			char	text[128];
++			int	n = line.count < (int)sizeof( text ) - 1 ? line.count : (int)sizeof( text ) - 1;
++			int	screenTall = 0;
++
++			for( int j = 0; j < n; j++ )
++			{
++				int ch = backingGlyphs[line.first + j].ch;
++
++				text[j] = ( ch >= 32 && ch < 127 ) ? (char)ch : '.';
++			}
++			text[n] = '\0';
++
++			CofUI_ScreenSize( nullptr, &screenTall );
++
++			// vgui_dprintf goes to stderr, which the game log never sees, so
++			// the one line the trace wants goes out through the engine
++			char	msg[384];
++			int	deviceY = CofUI_ToDeviceY( line.y );
++			int	panelClip[4];
++
++			// milestone 5a: the clip rectangle the run is drawn under, which
++			// is what decided whether it appeared at all before the move above
++			g_scissor.getRect( panelClip );
++
++			snprintf( msg, sizeof( msg ),
++				"[cof-vguitext] role \"%s\" line y=%i tall=%i x=%i..%i"
++				" device_y=%i (%.2f%% of %i) moved=%i clip=%i,%i,%i,%i \"%s\"\n",
++				textRole ? textRole : "", line.y, line.tall, line.minx, line.maxx,
++				deviceY,
++				screenTall > 0 ? deviceY * 100.0f / screenTall : 0.0f,
++				screenTall, yDelta,
++				panelClip[0], panelClip[1], panelClip[2], panelClip[3], text );
++
++			if( g_engine && g_engine->CofPrint )
++				g_engine->CofPrint( msg );
++			else vgui_dprintf( "%s", msg );
++		}
++
++		// The strip asks the weaker question on purpose: a short "credits" run
++		// the band test turned down - the hint bar - keeps the client's own
++		// placement but is exactly as hard to read over a scene as the message
++		// text was, so it still gets its strip (and, from the engine's role
++		// table, its SemiBold face). What stays stripless is what always was:
++		// a run longer than MAX_MESSAGE_LINES, i.e. the intro text card and the
++		// credits roll.
++		if( backingAlpha > 0 && ( textYTarget < 0 || runIsShortEnough( )))
++		{
++			// padding from the glyph height, so it follows the display the
++			// same way the rest of milestone 4 does, and the same shape the
++			// engine HUD text and the menu's GAME OVER backing use
++			int padx = line.tall / 2;
++			int pady = line.tall / 6;
++
++			if( padx < 2 ) padx = 2;
++			if( pady < 1 ) pady = 1;
++
++			int saved[4] = { drawColor[0], drawColor[1], drawColor[2], drawColor[3] };
++
++			drawSetColor( 0, 0, 0, 255 - backingAlpha );
++			drawFilledRect( line.minx - translate[0] - padx, line.y - translate[1] - pady,
++				line.maxx - translate[0] + padx, line.y - translate[1] + line.tall + pady );
++			drawSetColor( saved[0], saved[1], saved[2], saved[3] );
++		}
++
++		for( int j = 0; j < line.count; j++ )
++		{
++			const BackingGlyph &g = backingGlyphs[line.first + j];
++			vpoint_t topLeft, bottomRight, clippedTopLeft, clippedBottomRight;
++
++			if( !g.cache )
++				continue;
++
++			topLeft.point[0] = g.x;
++			topLeft.point[1] = g.y;
++			bottomRight.point[0] = g.x + g.w;
++			bottomRight.point[1] = g.y + g.tall;
++			topLeft.coord[0] = g.cache->coord[g.ch][0];
++			topLeft.coord[1] = g.cache->coord[g.ch][1];
++			bottomRight.coord[0] = g.cache->coord[g.ch][2];
++			bottomRight.coord[1] = g.cache->coord[g.ch][3];
++
++			if( g_scissor.clip( topLeft, bottomRight, clippedTopLeft, clippedBottomRight ))
++			{
++				g_engine->BindTexture( g.cache->texture[g.cache->page[g.ch]] );
++				g_engine->SetupDrawingImage( (int *)g.color );
++				g_engine->DrawQuad( &clippedTopLeft, &clippedBottomRight );
++			}
++		}
++	}
++
++	if( clipMoved )
++		g_scissor.setRect( savedClip[0], savedClip[1], savedClip[2], savedClip[3] );
++
++	backingGlyphCount = 0;
++	backingLineCount = 0;
++}
++
+ void XashSurface::popMakeCurrent( Panel *panel )
+ {
++	// Cry of Fear, milestone 4b: draw whatever this panel collected before its
++	// translate and scissor are replaced by the parent's
++	flushBackingText();
++
+ 	if( paintStackPos <= 0 )
+ 	{
+ 		vgui_dprintf( "vgui: paint state stack underflow, broken panel tree?\n" );
+diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
+index 5e7a06e..8952ba7 100644
+--- a/engine/client/cl_main.c
++++ b/engine/client/cl_main.c
+@@ -105,6 +105,15 @@ CVAR_DEFINE_AUTO( cof_ui_inter_fonts, "1", FCVAR_ARCHIVE, "rasterise the client'
+ CVAR_DEFINE_AUTO( cof_font_probe, "", 0, "developer: draw this string in the top-left corner with an engine-rasterised VGUI font, to check a code page without loading a map. Prefix with \"<role> \" to pick a scheme, e.g. \"chaptertitle Hello\"" );
+ CVAR_DEFINE_AUTO( cof_text_codepage, "1252", FCVAR_ARCHIVE, "code page the engine-rasterised VGUI fonts decode text bytes with: 1252 (Western), 1250 (Central European, Polish) or 1251 (Cyrillic). Language packs set this" );
+ CVAR_DEFINE_AUTO( cof_hud_text_height_pct, "1.76", FCVAR_ARCHIVE, "target height of the engine HUD font (hints, subtitles, pickup text) as a percentage of the render height, never below the shipped size; 0 = stock fixed bitmap size" );
++// Milestone 4b, the engine HUD text legibility round. All archived: they are
++// display preferences. cof_hud_text_font needs a font reload, the other two are
++// pure draw-time state and take effect on the next frame.
++CVAR_DEFINE_AUTO( cof_hud_text_font, "1", FCVAR_ARCHIVE, "draw the engine HUD text (hints, subtitles, pickup notifications) from the generated Inter SemiBold atlas fonts/cof_hudtext*.fnt instead of the game's own thin gfx/creditsfont.fnt; 0 = the game's font" );
++CVAR_DEFINE_AUTO( cof_hud_text_backing, "120", FCVAR_ARCHIVE, "alpha, 0-255, of the translucent dark strip drawn behind each line of engine HUD text; 0 = no strip" );
++CVAR_DEFINE_AUTO( cof_hud_text_y, "0", FCVAR_ARCHIVE, "extra vertical offset for the engine HUD text, as a percentage of the render height; positive moves it down. Added on top of the automatic correction, see cof_hud_text_y_shift" );
++CVAR_DEFINE_AUTO( cof_hud_text_y_shift, "0", 0, "correction for the engine HUD text position, in glyph-growth units: how many extra glyph heights the client's own vertical formula would have taken off the anchor. MEASURED 0 for Cry of Fear, whose messages use an absolute screen fraction and ignore the block height (see docs/cof-hud-text-legibility.md); 0.5 would be a centred block, 1.0 a bottom-aligned one" );
++CVAR_DEFINE_AUTO( cof_hud_msg_y_pct, "78", FCVAR_ARCHIVE, "where the client's in-game message text (item pickups, cutscene subtitles) sits, as a percentage of the render height. The client centres that panel on the screen, so 50 restores its own placement and 78 puts the text in the lower quarter, where the original game had it" );
++CVAR_DEFINE_AUTO( cof_hud_text_trace, "0", 0, "developer: log every line of engine HUD text with its position, extent and colour, once per frame" );
+ static CVAR_DEFINE_AUTO( cl_maxframetime, "0", 0, "set deadline timer for client rendering to catch freezes" );
+ CVAR_DEFINE_AUTO( cl_fixmodelinterpolationartifacts, "1", 0, "try to fix up models interpolation on a moving platforms (monsters on trains for example)" );
+ 
+@@ -416,12 +425,15 @@ void CL_CoF_CheckUIScaleChanged( void )
+ {
+ 	if( !FBitSet( cof_ui_scale.flags, FCVAR_CHANGED ) &&
+ 		!FBitSet( cof_ui_scale_user.flags, FCVAR_CHANGED ) &&
++		!FBitSet( cof_hud_text_font.flags, FCVAR_CHANGED ) &&
+ 		!FBitSet( cof_hud_text_height_pct.flags, FCVAR_CHANGED ))
+ 		return;
+ 
+ 	ClearBits( cof_ui_scale.flags, FCVAR_CHANGED );
+ 	ClearBits( cof_ui_scale_user.flags, FCVAR_CHANGED );
+ 	ClearBits( cof_hud_text_height_pct.flags, FCVAR_CHANGED );
++	// cof_hud_text_font is deliberately NOT cleared here: SCR_VidInit() below
++	// reads it to decide whether the atlas has to be reloaded, and clears it
+ 
+ 	if( !GI || Q_stricmp( GI->gamefolder, "cryoffear" ))
+ 		return;
+@@ -661,6 +673,19 @@ records it (from the engfunc wrapper in cl_game.c) and the support library
+ consumes it in the Font constructor.
+ */
+ #define COF_FONT_REFERENCE_HEIGHT	768.0f	// the 1024x768 bucket the sizes come from
++// Milestone 4c: the VGUI font roles that carry the client's transient in-game
++// message text - the item pickups and the cutscene dialogue lines, which are
++// the same panel (CHUDControl's child Label at +0x3A8, disassembly in
++// docs/cof-hud-text-legibility.md section 9). MEASURED with cof_hud_text_trace,
++// not guessed: the role a client font gets is the scheme strip it loaded first,
++// and CHUDControl asks CSchemeManager for "credits" in its constructor.
++//
++// CSubtitle is NOT in this list. It builds its font from "Default Text" (or
++// from a leading "@<scheme>" token in the line), and it is unreachable with the
++// shipped data anyway: MessageAdd only routes to it on the "$effect 3" branch,
++// and the shipped titles.txt is the stock Half-Life file with no such entry.
++// The dialogue the player actually sees goes through the Label below.
++#define COF_FONT_MESSAGE_ROLES	{ "credits" }
+ 
+ static struct
+ {
+@@ -719,6 +744,39 @@ strip at any resolution and therefore render nothing today ("Default Text" and
+ "impact") - gets the body size, which is how they start working at all.
+ ====================
+ */
++/*
++====================
++CL_CoF_FontRoleIsMessage
++
++Cry of Fear in-game message text (milestone 4c).
++
++The one place that decides which VGUI font roles carry the transient in-game
++messages the player reads mid-action - the item pickups ("You got the Lantern",
++"Picked up a glock magazine with 15 rounds", both of which land in the client's
++CHUDControl message strip) and the cutscene subtitles. Those two get the
++vertical target, the backing strip and the heavier face; nothing else does.
++
++Kept here, next to the size table, because that is already the file that owns
++"what does this role mean"; the support library only carries out what this
++returns.
++====================
++*/
++static qboolean CL_CoF_FontRoleIsMessage( const char *role )
++{
++	static const char *const roles[] = COF_FONT_MESSAGE_ROLES;
++
++	if( COM_StringEmptyOrNULL( role ))
++		return false;
++
++	for( int i = 0; i < (int)ARRAYSIZE( roles ); i++ )
++	{
++		if( !Q_stricmp( role, roles[i] ))
++			return true;
++	}
++
++	return false;
++}
++
+ static float CL_CoF_FontRoleFraction( const char *role, qboolean *semibold )
+ {
+ 	float	points = 14.0f;
+@@ -728,9 +786,12 @@ static float CL_CoF_FontRoleFraction( const char *role, qboolean *semibold )
+ 	else if( !Q_stricmp( role, "chaptertitle" ))
+ 		points = 30.0f;
+ 
+-	// "arial bold" in the game's own font info.txt is every *title* scheme
++	// "arial bold" in the game's own font info.txt is every *title* scheme.
++	// Milestone 4c: the in-game message roles join them, for the same reason
++	// the engine HUD text did - a Regular face over an arbitrary scene is
++	// what "too light to read" meant.
+ 	if( semibold )
+-		*semibold = ( Q_stristr( role, "title" ) != NULL );
++		*semibold = ( Q_stristr( role, "title" ) != NULL ) || CL_CoF_FontRoleIsMessage( role );
+ 
+ 	return points / COF_FONT_REFERENCE_HEIGHT;
+ }
+@@ -784,6 +845,42 @@ qboolean CL_CoF_FontDesc( const char *role, cof_vgui_font_t *out )
+ 	out->codepage = codepage;
+ 	out->semibold = semibold ? 1 : 0;
+ 
++	// milestone 4b: the same translucent strip the engine HUD text gets, for
++	// the notes and document reader, and (4c) for the in-game message text.
++	// Named here, in the engine, rather than in the support library, so there
++	// is exactly one place that decides which text gets a backing.
++	out->backing = 0;
++	out->ytarget = -1;
++	out->trace = ( cof_hud_text_trace.value != 0.0f ) ? 1 : 0;
++
++	if( !Q_stricmp( role, "pager" ) || CL_CoF_FontRoleIsMessage( role ))
++		out->backing = bound( 0, (int)cof_hud_text_backing.value, 255 );
++
++	// milestone 4c: where the in-game message text belongs.
++	//
++	// MEASURED, with cof_hud_text_trace: the client draws that text at layout
++	// y 776 in its own 1080-tall layout - 71.9 % of the screen, the lower
++	// third, which is where the original game had it. But the surface
++	// transform scales about the panel's anchor, so at the HUD scale the user
++	// plays with (cof_ui_scale_user 1.5) that line lands at 776 * 1.5 = 1164
++	// device pixels on a 1080 px screen: completely off the bottom. The same
++	// panel's other slot sits at layout y 224, which the transform pulls to
++	// 31 % - high over the scene and over a full-screen view like the
++	// map/timetable screen.
++	//
++	// So the fix is not an offset from where the client put it: it is an
++	// absolute place on the display, which is stable in the render height, in
++	// cof_ui_scale and in cof_ui_scale_user alike. The support library shifts
++	// a whole run so its first line lands here and keeps the rest's spacing.
++	//
++	// 0 turns the repositioning off and leaves the client's own placement.
++	if( CL_CoF_FontRoleIsMessage( role ) && cof_hud_msg_y_pct.value > 0.0f )
++	{
++		float	pct = bound( 1.0f, cof_hud_msg_y_pct.value, 100.0f );
++
++		out->ytarget = Q_rint( refState.height * pct * 0.01f );
++	}
++
+ 	return true;
+ }
+ 
+@@ -1640,6 +1737,98 @@ it emits the original panel's own "map c_game_menu1" instead, so the measured
+ path is the one that runs.
+ ====================
+ */
++/*
++====================
++CL_CoF_HudTextProbe_f
++
++cfg-only test hook (Cry of Fear, milestone 4b).
++
++The engine HUD text path - pfnDrawCharacter through cls.creditsFont - is
++reached only when the game DLL sends a "HudText" user message, which in Cry of
++Fear means an item pickup, a scripted line or a prompt. None of those can be
++made to happen from a cfg, and "impulse 101" emits no such message (measured,
++stage1/ui-m4-scaling-20260922), so the path had no repeatable test at all.
++
++This sends one, through the engine's own CL_HudMessage() - the same call the
++TE_TEXTMESSAGE temp entity uses - so the client's CHudMessage runs its real
++layout and the result on screen is the real thing, not a mock-up.
++
++    cof_hud_text_probe "You got the Lantern"
++====================
++*/
++static void CL_CoF_HudTextProbe_f( void )
++{
++	if( Cmd_Argc() < 2 )
++	{
++		Con_Printf( S_USAGE "cof_hud_text_probe <text>\n" );
++		return;
++	}
++
++	if( cls.state != ca_active )
++	{
++		Con_Printf( S_WARN "cof_hud_text_probe: not in a level\n" );
++		return;
++	}
++
++	Con_Printf( "[cof-hudtext] probe: \"%s\"\n", Cmd_Argv( 1 ));
++	CL_HudMessage( Cmd_Argv( 1 ));
++}
++
++/*
++====================
++CL_CoF_MsgProbe_f
++
++cfg-only test hook (Cry of Fear, milestone 4c).
++
++The item-pickup notification is a server-sent user message: hl.dll formats
++"Picked up a %s magazine with %i rounds" and sends it as "ProFont", and the
++client's hook copies the string into its CHUDControl message strip. Nothing a
++cfg can run produces one - "impulse 101" emits no such message (measured) and a
++real pickup means walking to an item. This synthesises one, so the panel, its
++placement and its font can be seen on demand:
++
++    cof_hud_msg_probe "You got the Lantern" [colour]
++
++The payload is the one the client reads: a colour index byte, then the string
++(hl.dll's sender is pfnWriteByte + pfnWriteString at VA 10119810, and the
++client's handler at 100712A0 is one READ_BYTE and one READ_STRING). The colour
++index picks the Label's foreground: 0/3 yellow, 1 azure, 2/6 red, 4 green,
++5 grey - 5 is the default and what the item pickups use; 7 and above leave the
++previous colour.
++
++Do not put the substring "DEADNOTIFY" in the text: the client's own handler
++replaces any message containing it with the coop respawn prompt.
++
++The payload is the one the client reads: a leading byte, then the string.
++====================
++*/
++static void CL_CoF_MsgProbe_f( void )
++{
++	byte	buf[256];
++	int	len;
++
++	if( Cmd_Argc() < 2 )
++	{
++		Con_Printf( S_USAGE "cof_hud_msg_probe <text>\n" );
++		return;
++	}
++
++	if( cls.state != ca_active )
++	{
++		Con_Printf( S_WARN "cof_hud_msg_probe: not in a level\n" );
++		return;
++	}
++
++	buf[0] = (byte)( Cmd_Argc() > 2 ? Q_atoi( Cmd_Argv( 2 )) : 5 );
++	len = Q_strncpy( (char *)buf + 1, Cmd_Argv( 1 ), sizeof( buf ) - 2 );
++	len = 1 + Q_strlen( (char *)buf + 1 ) + 1;
++
++	Con_Printf( "[cof-msg] probe: \"%s\" as ProFont, %i bytes\n", Cmd_Argv( 1 ), len );
++
++	if( !CL_DispatchUserMessage( "ProFont", len, buf ))
++		Con_Printf( S_WARN "cof_hud_msg_probe: the client has no \"ProFont\" hook\n" );
++}
++
+ static void CL_CoF_MenuReturn_f( void )
+ {
+ 	CL_CoF_MenuMapReturn( "cof_ui_menu_return", "menu return command" );
+@@ -5440,6 +5629,12 @@ static void CL_InitLocal( void )
+ 	Cvar_RegisterVariable( &cof_font_probe );
+ 	Cvar_RegisterVariable( &cof_ui_scale_sprites );
+ 	Cvar_RegisterVariable( &cof_hud_text_height_pct );
++	Cvar_RegisterVariable( &cof_hud_text_font );
++	Cvar_RegisterVariable( &cof_hud_text_backing );
++	Cvar_RegisterVariable( &cof_hud_text_y );
++	Cvar_RegisterVariable( &cof_hud_text_y_shift );
++	Cvar_RegisterVariable( &cof_hud_msg_y_pct );
++	Cvar_RegisterVariable( &cof_hud_text_trace );
+ 	Cvar_RegisterVariable( &cl_maxframetime );
+ 	Cvar_RegisterVariable( &cl_fixmodelinterpolationartifacts );
+ 
+@@ -5490,6 +5685,8 @@ static void CL_InitLocal( void )
+ 	Cmd_AddCommand ("info", NULL, "collect info about local servers with specified protocol" );
+ 	Cmd_AddCommand ("escape", CL_Escape_f, "escape from game to menu" );
+ 	Cmd_AddCommand ("cof_ui_menu_return", CL_CoF_MenuReturn_f, "Cry of Fear unified UI: disconnect and re-arm the engine menu over its background map" );
++	Cmd_AddCommand ("cof_hud_msg_probe", CL_CoF_MsgProbe_f, "developer: send the client one \"ProFont\" message, so the in-game message strip can be seen from a cfg" );
++	Cmd_AddCommand ("cof_hud_text_probe", CL_CoF_HudTextProbe_f, "developer: send the client one \"HudText\" message, so the engine HUD text path can be seen from a cfg" );
+ 	Cmd_AddCommand ("togglemenu", CL_Escape_f, "toggle between game and menu" );
+ 	Cmd_AddCommand ("pointfile", CL_ReadPointFile_f, "show leaks on a map (if present of course)" );
+ 	Cmd_AddCommand ("linefile", CL_ReadLineFile_f, "show leaks on a map (if present of course)" );
+diff --git a/engine/client/cl_scrn.c b/engine/client/cl_scrn.c
+index 6bcec3c..acaf7b5 100644
+--- a/engine/client/cl_scrn.c
++++ b/engine/client/cl_scrn.c
+@@ -762,6 +762,44 @@ INTERNAL RESOURCE
+ // first VidInit always loads.
+ static float scr_hud_text_target = -1.0f;
+ 
++// Cry of Fear engine HUD text legibility (cof_hud_text_font, milestone 4b).
++// The game's own gfx/creditsfont.fnt is a thin, aliased, one-size bitmap: at
++// 1440p and 2160p it is magnified 1.3x and 2x and the stems fall apart, which
++// is half of "the subtitles are too light" in the user's feedback. These are
++// the base heights of the generated Inter SemiBold atlases shipped as
++// gamedata/cryoffear/fonts/cof_hudtext<N>.fnt, produced by
++// scripts/make-cof-console-font.py. Two sizes, not more: the .fnt container
++// addresses glyphs with a 16-bit linear pixel offset, so the whole atlas has
++// to fit in 65536 pixels and a base above ~20 px starts dropping glyphs out of
++// the 216-character cp1252 set - which the language packs need.
++static const int scr_hud_text_atlas_base[] = { 14, 19 };
++static qboolean scr_hud_text_atlas_warned;
++
++// the height the game's own HUD font has on this display, before any resizing.
++// The vertical correction in cl_game.c needs it to know how far the client's
++// own centring has drifted; 0 means "not known yet".
++float cls_cof_hud_text_shipped;
++
++/*
++================
++SCR_HudTextUseAtlas
++
++Gated on the Cry of Fear client like the rest of the cof_* stack, so no other
++game's HUD font is touched, and on cof_hud_text_font so the game's own font is
++always one cvar away.
++================
++*/
++static qboolean SCR_HudTextUseAtlas( void )
++{
++	if( cof_hud_text_font.value == 0.0f )
++		return false;
++
++	if( !GI || Q_stricmp( GI->gamefolder, "cryoffear" ))
++		return false;
++
++	return true;
++}
++
+ /*
+ ================
+ SCR_HudTextTargetHeight
+@@ -816,14 +854,36 @@ font->scale is exactly what loading at that scale would have produced -
+ CL_DrawCharacter() multiplies both the glyph rectangle and the advance by it.
+ ================
+ */
+-static void SCR_ScaleCreditsFont( cl_font_t *font, float base_scale )
++static void SCR_ScaleCreditsFont( cl_font_t *font, float base_scale, float shipped )
+ {
+ 	float	target = SCR_HudTextTargetHeight();
+ 	float	base, scale;
+ 
+-	if( !font->valid || target <= 0.0f )
++	if( !font->valid )
+ 		return;
+ 
++	if( target <= 0.0f )
++	{
++		// stock sizing asked for. With the game's own font that means "leave it
++		// exactly as loaded", which is what the early return does. With the
++		// generated atlas there is nothing to leave alone - its base height is
++		// an arbitrary 14 or 19 px - so bring it to the height the game's own
++		// font would have had.
++		if( !SCR_HudTextUseAtlas( ))
++			return;
++
++		target = shipped;
++	}
++
++	// never smaller than the font the game shipped, for the same reason
++	// cof_ui_scale never goes below 1: the shipped font is already small at
++	// 1080p and shrinking it at 720p would be a regression, not a feature. The
++	// floor used to be expressed as "glyph scale never below 1", which is the
++	// same thing only while the atlas IS the shipped font; with a generated
++	// atlas of its own base height it has to be said in pixels.
++	if( shipped > 0.0f && target < shipped )
++		target = shipped;
++
+ 	if( base_scale <= 0.0f )
+ 		base_scale = 1.0f;
+ 
+@@ -834,11 +894,8 @@ static void SCR_ScaleCreditsFont( cl_font_t *font, float base_scale )
+ 
+ 	scale = target / base;
+ 
+-	// never below 1, for the same reason cof_ui_scale never is: the shipped
+-	// font is already small at 1080p and shrinking it at 720p would be a
+-	// regression, not a feature. So the target is a floor, not an equality
+-	if( scale < 1.0f )
+-		scale = 1.0f;
++	if( scale <= 0.0f )
++		return;
+ 
+ 	font->scale = scale;
+ 	font->charHeight = Q_max( 1, Q_rint( base * scale ));
+@@ -849,11 +906,11 @@ static void SCR_ScaleCreditsFont( cl_font_t *font, float base_scale )
+ 			font->charWidths[i] = Q_max( 1, Q_rint(( font->charWidths[i] / base_scale ) * scale ));
+ 	}
+ 
+-	scr_hud_text_target = target;
++	scr_hud_text_target = SCR_HudTextTargetHeight();
+ 
+-	Con_Reportf( "[cof-hudtext] %ix%i: target %.1f px (cof_hud_text_height_pct %.2f, hud_fontscale %.2f) -> base %.0f px, glyph scale %.3f, charH %i px\n",
++	Con_Reportf( "[cof-hudtext] %ix%i: target %.1f px (cof_hud_text_height_pct %.2f, hud_fontscale %.2f, shipped %.0f px) -> base %.0f px, glyph scale %.3f, charH %i px\n",
+ 		refState.width, refState.height, target, cof_hud_text_height_pct.value,
+-		hud_fontscale.value, base, scale, font->charHeight );
++		hud_fontscale.value, shipped, base, scale, font->charHeight );
+ }
+ 
+ void SCR_LoadCreditsFont( void )
+@@ -861,6 +918,7 @@ void SCR_LoadCreditsFont( void )
+ 	cl_font_t *const font = &cls.creditsFont;
+ 	qboolean success = false;
+ 	float scale = hud_fontscale.value;
++	float shipped = 0.0f;
+ 	dword crc = 0;
+ 
+ 	// Cry of Fear engine HUD text sizing: SCR_ScaleCreditsFont() below rewrites
+@@ -889,9 +947,61 @@ void SCR_LoadCreditsFont( void )
+ 	if( !success )
+ 		success = Con_LoadFixedWidthFont( "gfx/conchars", font, scale, &hud_fontrender, TF_FONT|TF_NEAREST|TF_KEEP_SOURCE );
+ 
++	// the height the game's own font has on this display, before any resizing.
++	// It is the floor the target is never allowed below, and with the generated
++	// atlas in play it is the only way left to know what "the shipped size" was.
++	shipped = success ? ( font->charHeight / ( scale > 0.0f ? scale : 1.0f )) : 0.0f;
++	cls_cof_hud_text_shipped = shipped;
++
++	// Cry of Fear engine HUD text legibility (cof_hud_text_font): swap the
++	// game's thin one-size bitmap for the generated Inter SemiBold atlas whose
++	// base height is nearest below what this display wants, so the glyphs are
++	// magnified as little as possible instead of 2x at 2160p. Loaded into a
++	// scratch font first: a missing or corrupt atlas then leaves the font the
++	// stock chain already produced completely untouched.
++	if( SCR_HudTextUseAtlas( ))
++	{
++		float want = SCR_HudTextTargetHeight();
++		cl_font_t atlas;
++		string path;
++		int page;
++
++		if( want < shipped ) want = shipped;
++		if( want <= 0.0f ) want = (float)scr_hud_text_atlas_base[0];
++
++		for( page = (int)ARRAYSIZE( scr_hud_text_atlas_base ) - 1; page > 0; page-- )
++		{
++			if( want >= (float)scr_hud_text_atlas_base[page] )
++				break;
++		}
++
++		memset( &atlas, 0, sizeof( atlas ));
++		Q_snprintf( path, sizeof( path ), "fonts/cof_hudtext%i.fnt", page );
++
++		if( Con_LoadVariableWidthFont( path, &atlas, scale, &hud_fontrender, TF_FONT ))
++		{
++			CL_FreeFont( font );
++			*font = atlas;
++			success = true;
++
++			Con_Reportf( "[cof-hudtext] %s (base %i px) replaces the game font (%.0f px) for a %.1f px target\n",
++				path, scr_hud_text_atlas_base[page], shipped, want );
++		}
++		else
++		{
++			CL_FreeFont( &atlas );
++
++			if( !scr_hud_text_atlas_warned )
++			{
++				scr_hud_text_atlas_warned = true;
++				Con_Printf( S_WARN "cof_hud_text_font: %s is missing, keeping the game's own HUD font\n", path );
++			}
++		}
++	}
++
+ 	// Cry of Fear engine HUD text sizing: resize BEFORE the metrics are copied
+ 	// out, so the client lays its hints and subtitles out at the new size
+-	SCR_ScaleCreditsFont( font, scale );
++	SCR_ScaleCreditsFont( font, scale, shipped );
+ 
+ 	// copy font size for client.dll
+ 	if( success )
+@@ -1049,8 +1159,11 @@ void SCR_VidInit( void )
+ 	// height, so a mode change has to reload the font at the new size. The
+ 	// client re-reads charWidths[]/iCharHeight from pfnGetScreenInfo in its own
+ 	// VidInit, which runs below, so the new metrics are in place in time
+-	if( scr_hud_text_target != SCR_HudTextTargetHeight( ))
++	// which atlas is loaded is not a function of the target height, so
++	// cof_hud_text_font has to force the reload on its own
++	if( scr_hud_text_target != SCR_HudTextTargetHeight( ) || FBitSet( cof_hud_text_font.flags, FCVAR_CHANGED ))
+ 	{
++		ClearBits( cof_hud_text_font.flags, FCVAR_CHANGED );
+ 		CL_FreeFont( &cls.creditsFont );
+ 		SCR_LoadCreditsFont();
+ 	}
+diff --git a/engine/client/client.h b/engine/client/client.h
+index 1a8008e..39d0630 100644
+--- a/engine/client/client.h
++++ b/engine/client/client.h
+@@ -724,6 +724,20 @@ extern convar_t cof_ui_scale_user;
+ extern convar_t cof_ui_inter_fonts;
+ extern convar_t cof_text_codepage;
+ extern convar_t cof_hud_text_height_pct;
++extern convar_t cof_hud_text_font;
++extern convar_t cof_hud_text_backing;
++extern convar_t cof_hud_text_y;
++extern convar_t cof_hud_text_y_shift;
++extern convar_t cof_hud_text_trace;
++extern convar_t cof_hud_msg_y_pct;
++// Cry of Fear engine HUD text (milestone 4b): the per-line backing strip and
++// the vertical correction, both in engine/client/dll_int/cl_game.c
++int  CL_CoF_HudTextYOffset( void );
++void CL_CoF_HudTextReset( void );
++void CL_CoF_HudTextFlush( void );
++// the shipped glyph height of the game's own HUD font on this display, 0 when
++// unknown; written by SCR_LoadCreditsFont, read by the vertical correction
++extern float cls_cof_hud_text_shipped;
+ extern convar_t	r_showtextures;
+ extern convar_t	r_showtextures_zoom;
+ extern convar_t	cl_bmodelinterp;
+diff --git a/engine/client/dll_int/cl_game.c b/engine/client/dll_int/cl_game.c
+index 2992662..9af2952 100644
+--- a/engine/client/dll_int/cl_game.c
++++ b/engine/client/dll_int/cl_game.c
+@@ -960,6 +960,11 @@ void CL_DrawHUD( int state )
+ 	// Cry of Fear in-game UI scaling: the HUD scale control is live
+ 	CL_CoF_CheckUIScaleChanged();
+ 
++	// Cry of Fear engine HUD text: the collect list is per frame. Cleared here
++	// rather than only in the flush, so a frame in which the client was gated
++	// off cannot leave anything behind for the next one.
++	CL_CoF_HudTextReset();
++
+ 	if( state == CL_ACTIVE && !cl.video_prepped )
+ 		state = CL_LOADING;
+ 
+@@ -1001,6 +1006,11 @@ void CL_DrawHUD( int state )
+ 		}
+ 		break;
+ 	}
++
++	// Cry of Fear engine HUD text: everything the client asked to draw through
++	// pfnDrawCharacter this frame, one backing strip per line and then its
++	// glyphs. Last, so the strip cannot land on top of the text it is under.
++	CL_CoF_HudTextFlush();
+ }
+ 
+ static void CL_ClearUserMessage( char *pszName, int svc_num )
+@@ -2122,6 +2132,306 @@ client_textmessage_t *CL_TextMessageGet( const char *pName )
+ 	return NULL; // found nothing
+ }
+ 
++/*
++====================
++Cry of Fear engine HUD text, milestone 4b
++
++Two problems the user reported about the text the client draws through
++pfnDrawCharacter - the cutscene subtitles, the "You got the Lantern" and
++"Picked up a glock magazine" pickup notifications, the yellow SIMON: / MAN:
++dialogue lines: it sits too high, and it is too light to read over the scene.
++
++The height half is cof_hud_text_font plus cof_hud_text_backing (below); the
++position half is CL_CoF_HudTextYOffset().
++
++None of this is a client-side layout change. The client measures and positions
++its own text from gHUD.m_scrinfo.charWidths[] / iCharHeight, which the engine
++fills in from cls.creditsFont, and it emits one pfnDrawCharacter per glyph at
++an absolute screen position. So the engine's only lever at this boundary is
++the stream of glyph draws itself, and that is exactly what this works on.
++
++THE BACKING STRIP. A strip cannot be drawn when the first glyph of a line
++arrives, because the line's extent is not known until its last glyph has been
++drawn - and by then drawing a strip would paint over the text. So the glyphs
++are not drawn when they arrive: they are collected into a per-frame list,
++grouped by their baseline y (one group per line, which is what a client that
++lays out a paragraph produces), and the whole list is flushed at the end of
++CL_DrawHUD - strip first, glyphs second, one group at a time.
++
++DRAW ORDER. The flush is the last thing CL_DrawHUD does, so this text ends up
++above the rest of the client's HUD instead of wherever in pfnRedraw's own
++sequence it happened to be emitted. That is the intended order for overlay
++text and it is the only order in which a backing strip can work at all. It
++changes nothing for the VGUI layer, which the engine paints in a separate pass
++(VGui_Paint), so the notes, the pager, the inventory and the boss bar are
++untouched by everything here.
++
++NOT DEFERRED: UTF-8 mode. Con_UtfProcessChar is a state machine over the byte
++stream, so resolving a glyph at collect time and again at flush time would
++decode the sequence twice. hud_utf8 is off for this game - the whole Cry of
++Fear text pipeline is 8-bit, which is why cof_text_codepage exists - so the
++deferral simply steps aside when it is on, and tab stops are drawn directly
++too, because their advance depends on the pen position at draw time.
++====================
++*/
++#define COF_HUDTEXT_MAX_GLYPHS	1024
++#define COF_HUDTEXT_MAX_LINES	48
++
++typedef struct
++{
++	int	x, y;
++	int	number;
++	rgba_t	color;
++} cof_hudtext_glyph_t;
++
++typedef struct
++{
++	int	y;			// the baseline the whole line shares
++	int	minx, maxx;		// ink extent, for the strip
++	int	first, count;		// slice of cof_hudtext.glyphs
++} cof_hudtext_line_t;
++
++static struct
++{
++	cof_hudtext_glyph_t	glyphs[COF_HUDTEXT_MAX_GLYPHS];
++	cof_hudtext_line_t	lines[COF_HUDTEXT_MAX_LINES];
++	int			numGlyphs;
++	int			numLines;
++	qboolean		reported_full;
++} cof_hudtext;
++
++/*
++====================
++CL_CoF_HudTextBackingActive
++====================
++*/
++static qboolean CL_CoF_HudTextDeferActive( void )
++{
++	// the trace reconstructs whole lines out of the same list, so it needs the
++	// collection even when no strip is wanted
++	if( cof_hud_text_backing.value <= 0.0f && cof_hud_text_trace.value == 0.0f )
++		return false;
++
++	if( hud_utf8.value != 0.0f )
++		return false;
++
++	if( !GI || Q_stricmp( GI->gamefolder, "cryoffear" ))
++		return false;
++
++	return cls.creditsFont.valid;
++}
++
++/*
++====================
++CL_CoF_HudTextYOffset
++
++How far down to push everything the client draws through pfnDrawCharacter.
++
++WHY ANY OFFSET IS NEEDED. The client positions this text itself, and its
++formula is a function of the font metrics the engine handed it. Growing the
++HUD font for a 1440p or 2160p display therefore moves the text as a side
++effect - upward, because the client subtracts the block height from a screen
++fraction. cof_hud_text_height_pct is what makes the text readable; this is what
++keeps it where it was while doing so.
++
++    correction = ( charHeight - shippedHeight ) * cof_hud_text_y_shift
++
++where shippedHeight is the height the game's own gfx/creditsfont.fnt has on
++this display (cls_cof_hud_text_shipped, written by SCR_LoadCreditsFont) and
++cof_hud_text_y_shift is how many line heights of the block sit above the
++anchor in the client's own formula. At the shipped size the correction is
++exactly zero, which is what keeps 1920x1080 with the stock metrics a no-op.
++
++cof_hud_text_y is a plain user offset in percent of the render height on top,
++so a player who wants the subtitles lower still does not need a rebuild.
++====================
++*/
++int CL_CoF_HudTextYOffset( void )
++{
++	float	off = 0.0f;
++
++	if( !GI || Q_stricmp( GI->gamefolder, "cryoffear" ))
++		return 0;
++
++	if( cof_hud_text_y_shift.value != 0.0f && cls_cof_hud_text_shipped > 0.0f && cls.creditsFont.valid )
++	{
++		float grown = (float)cls.creditsFont.charHeight - cls_cof_hud_text_shipped;
++
++		if( grown > 0.0f )
++			off += grown * bound( 0.0f, cof_hud_text_y_shift.value, 8.0f );
++	}
++
++	if( cof_hud_text_y.value != 0.0f && ref.initialized && refState.height > 0 )
++		off += refState.height * bound( -50.0f, cof_hud_text_y.value, 50.0f ) * 0.01f;
++
++	return (int)( off + ( off >= 0.0f ? 0.5f : -0.5f ));
++}
++
++/*
++====================
++CL_CoF_HudTextDefer
++
++Collect one glyph instead of drawing it. Returns false when the caller has to
++draw it itself after all (feature off, tab stop, list full).
++====================
++*/
++static qboolean CL_CoF_HudTextDefer( int x, int y, int number, const rgba_t color )
++{
++	cof_hudtext_line_t	*line = NULL;
++	cof_hudtext_glyph_t	*glyph;
++	cl_font_t		*font = &cls.creditsFont;
++	int			w, i;
++
++	if( number == '\t' )
++		return false;	// advance depends on the pen position, see the header
++
++	number &= 255;
++
++	if( number <= 32 || !font->charWidths[number] )
++		return true;	// nothing to draw, and the caller returns the advance
++
++	if( cof_hudtext.numGlyphs >= COF_HUDTEXT_MAX_GLYPHS )
++	{
++		if( !cof_hudtext.reported_full )
++		{
++			cof_hudtext.reported_full = true;
++			Con_Reportf( S_WARN "[cof-hudtext] more than %i glyphs in one frame, drawing the rest without a backing strip\n",
++				COF_HUDTEXT_MAX_GLYPHS );
++		}
++		return false;
++	}
++
++	w = font->charWidths[number];
++
++	// the line this glyph belongs to: same baseline y. Searched from the end
++	// because a client lays a paragraph out one line at a time
++	for( i = cof_hudtext.numLines - 1; i >= 0; i-- )
++	{
++		if( cof_hudtext.lines[i].y == y )
++		{
++			line = &cof_hudtext.lines[i];
++			break;
++		}
++	}
++
++	if( line == NULL )
++	{
++		if( cof_hudtext.numLines >= COF_HUDTEXT_MAX_LINES )
++			return false;
++
++		line = &cof_hudtext.lines[cof_hudtext.numLines++];
++		line->y = y;
++		line->minx = x;
++		line->maxx = x + w;
++		line->first = cof_hudtext.numGlyphs;
++		line->count = 0;
++	}
++	else
++	{
++		// the slices have to stay contiguous: a glyph for an older line after
++		// a newer line has started cannot be appended to it
++		if( line->first + line->count != cof_hudtext.numGlyphs )
++			return false;
++
++		if( x < line->minx ) line->minx = x;
++		if( x + w > line->maxx ) line->maxx = x + w;
++	}
++
++	glyph = &cof_hudtext.glyphs[cof_hudtext.numGlyphs++];
++	glyph->x = x;
++	glyph->y = y;
++	glyph->number = number;
++	Vector4Copy( color, glyph->color );
++	line->count++;
++
++	return true;
++}
++
++/*
++====================
++CL_CoF_HudTextFlush
++
++Called at the end of CL_DrawHUD: one strip per collected line, then that
++line's glyphs over it. The padding is derived from the glyph height so it
++tracks the display the same way everything else in milestone 4 does, and it is
++the same shape the menu's own GAME OVER backing uses (a plain translucent
++black rectangle, UI_ThemeDeathBacking in the menu library).
++====================
++*/
++void CL_CoF_HudTextReset( void )
++{
++	cof_hudtext.numGlyphs = 0;
++	cof_hudtext.numLines = 0;
++}
++
++void CL_CoF_HudTextFlush( void )
++{
++	cl_font_t	*font = &cls.creditsFont;
++	rgba_t		backing;
++	int		padx, pady, i, j;
++
++	if( cof_hudtext.numGlyphs == 0 )
++	{
++		cof_hudtext.numLines = 0;
++		return;
++	}
++
++	padx = Q_max( 2, font->charHeight / 2 );
++	pady = Q_max( 1, font->charHeight / 6 );
++
++	backing[0] = backing[1] = backing[2] = 0;
++	backing[3] = (byte)bound( 0, (int)cof_hud_text_backing.value, 255 );
++
++	for( i = 0; i < cof_hudtext.numLines; i++ )
++	{
++		const cof_hudtext_line_t *line = &cof_hudtext.lines[i];
++
++		if( line->count <= 0 )
++			continue;
++
++		if( cof_hud_text_trace.value != 0.0f )
++		{
++			char	text[COF_HUDTEXT_MAX_GLYPHS + 1];
++			int	n = Q_min( line->count, (int)sizeof( text ) - 1 );
++
++			for( j = 0; j < n; j++ )
++			{
++				int ch = cof_hudtext.glyphs[line->first + j].number;
++
++				text[j] = ( ch >= 32 && ch < 127 ) ? (char)ch : '.';
++			}
++			text[n] = '\0';
++
++			Con_Printf( "[cof-hudtext] line y=%i (%.2f%% of %i) x=%i..%i charH=%i rgb=%i,%i,%i \"%s\"\n",
++				line->y, refState.height > 0 ? line->y * 100.0f / refState.height : 0.0f,
++				refState.height, line->minx, line->maxx, font->charHeight,
++				cof_hudtext.glyphs[line->first].color[0],
++				cof_hudtext.glyphs[line->first].color[1],
++				cof_hudtext.glyphs[line->first].color[2], text );
++		}
++
++		if( backing[3] != 0 )
++		{
++			ref.dllFuncs.FillRGBA( kRenderTransTexture,
++				line->minx - padx, line->y - pady,
++				( line->maxx - line->minx ) + padx * 2,
++				font->charHeight + pady * 2,
++				backing[0], backing[1], backing[2], backing[3] );
++		}
++
++		for( j = 0; j < line->count; j++ )
++		{
++			const cof_hudtext_glyph_t *glyph = &cof_hudtext.glyphs[line->first + j];
++
++			CL_DrawCharacter( glyph->x, glyph->y, glyph->number, glyph->color,
++				font, FONT_DRAW_HUD );
++		}
++	}
++
++	cof_hudtext.numGlyphs = 0;
++	cof_hudtext.numLines = 0;
++}
++
+ /*
+ =============
+ pfnDrawCharacter
+@@ -2137,6 +2447,24 @@ static int GAME_EXPORT pfnDrawCharacter( int x, int y, int number, int r, int g,
+ 	if( hud_utf8.value )
+ 		flags |= FONT_DRAW_UTF8;
+ 
++	// Cry of Fear engine HUD text: put it back where the shipped font size
++	// would have put it, before anything else looks at the coordinate
++	y += CL_CoF_HudTextYOffset();
++
++	// ... and collect it, so the backing strip can be drawn under the line
++	if( CL_CoF_HudTextDeferActive( ) && CL_CoF_HudTextDefer( x, y, number, color ))
++	{
++		cl_font_t *font = &cls.creditsFont;
++		int idx = number & 255;
++
++		if( idx == ' ' )
++			return font->charWidths[' '];
++		if( idx <= 32 || !font->valid )
++			return 0;
++
++		return font->charWidths[idx];
++	}
++
+ 	return CL_DrawCharacter( x, y, number, color, &cls.creditsFont, flags );
+ }
+ 
+diff --git a/engine/client/vgui/vgui_draw.c b/engine/client/vgui/vgui_draw.c
+index 8644f01..aaa5371 100644
+--- a/engine/client/vgui/vgui_draw.c
++++ b/engine/client/vgui/vgui_draw.c
+@@ -301,6 +301,28 @@ static const unsigned char *GAME_EXPORT VGUI_CofFontFile( int semibold, int *siz
+ 	return CL_CoF_FontFile( semibold, size );
+ }
+ 
++/*
++================
++VGUI_CofPrint
++
++milestone 4c: the support library's developer trace, into the engine console.
++================
++*/
++static void GAME_EXPORT VGUI_CofPrint( const char *text )
++{
++	if( COM_StringEmptyOrNULL( text ))
++		return;
++
++	// Con_Printf is gated on host.allow_console, and an unlocked console is
++	// also the configuration in which the client's own VGUI layer does NOT
++	// paint (it owns key_dest, and XashPaint returns early) - so the one
++	// configuration this trace exists for is the one Con_Printf drops. Write
++	// straight to the log file when the console is locked.
++	if( host.allow_console )
++		Con_Printf( "%s", text );
++	else Sys_PrintLog( text );
++}
++
+ static int GAME_EXPORT VGUI_CofFontProbe( char *text, int size, char *role, int roleSize )
+ {
+ 	return CL_CoF_FontProbe( text, size, role, roleSize );
+@@ -420,6 +442,7 @@ static const vguiapi_t gEngfuncs =
+ 	VGUI_CofFontDesc,
+ 	VGUI_CofFontFile,
+ 	VGUI_CofFontProbe,
++	VGUI_CofPrint,
+ };
+ 
+ qboolean VGui_LoadProgs( HINSTANCE hInstance )
+diff --git a/engine/vgui_api.h b/engine/vgui_api.h
+index e88c80e..a06d055 100644
+--- a/engine/vgui_api.h
++++ b/engine/vgui_api.h
+@@ -184,6 +184,18 @@ typedef struct
+ 				// exactly the device pixels it was rasterised for
+ 	int	codepage;	// 1250, 1251 or 1252: how a text byte becomes a glyph
+ 	int	semibold;	// use the SemiBold face rather than Regular
++	int	ytarget;	// milestone 4c: where this role's text belongs, as a
++				// DEVICE y for the first line of a run; the support
++				// library shifts the whole run so that line lands
++				// there and keeps the spacing of the rest. -1 leaves
++				// the client's own placement alone, which is every
++				// role but the in-game message text
++	int	trace;		// developer: log this role's text lines
++	int	backing;	// milestone 4b: alpha 0-255 of the translucent strip to
++				// draw behind each line of this role's text, 0 = none.
++				// Only the notes/document reader ("pager") asks for one,
++				// so no other client label, and not the boss bar or the
++				// inventory, is touched by it
+ } cof_vgui_font_t;
+ 
+ typedef struct  vguiapi_s
+@@ -262,5 +274,11 @@ typedef struct  vguiapi_s
+ 	// font for `role`, so a language pack's code page can be checked without a
+ 	// map, a save, or a mouse. Returns 0 when the cvar is empty.
+ 	int	(*CofFontProbe)( char *text, int size, char *role, int roleSize );
++
++	// milestone 4c: the support library's own developer trace, routed into the
++	// engine console and the log. vgui_dprintf goes to stderr, which the game
++	// log never sees, so the one line cof_hud_text_trace wants needs its own
++	// way out.
++	void	(*CofPrint)( const char *text );
+ } vguiapi_t;
+ #endif // VGUI_API_H

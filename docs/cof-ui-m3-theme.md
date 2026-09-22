@@ -233,6 +233,36 @@ instead of a hover-only status string. Button: `Close`.
 the five Cry of Fear slots on the left, the save thumbnail in a 16:9 box on the
 right. Buttons: `Delete` (hidden for Cry of Fear) `Cancel` `Load`.
 
+#### The mode has to be set before the page is shown (milestone 5a)
+
+`CMenuLoadGame::_VidInit()` is the only place that reads `m_fSaveMode`, and it
+reads it twice: for `szPanelTitle`, and to pick which of `load` / `save` is the
+primary button `LayoutButtonRow()` places. `UI_LoadSaveGame_Menu()` called
+
+```cpp
+menu_loadgame->Show();            // Init() + VidInit()  <- reads m_fSaveMode
+menu_loadgame->SetSaveMode( saveMode );   // ...and only now writes it
+```
+
+so every open laid the page out for the PREVIOUS mode, and the very first open
+of a session laid it out for an **uninitialised** one (the constructor never
+set it). What the user saw, and what
+`stage1\m5a-regression-20260922\evidence\biA-menu-m1-loadpage.png` captures:
+the first `Load Game` opens titled **SAVE GAME**, with `Save` laid into the
+button row; `SetSaveMode( false )` then hides `Save` and shows `Load`, which
+nothing had positioned, so it drew as a bare left-aligned label at its
+WON-layout coordinate `SetCoord( 72, 230 )` — outside the panel, at the left
+edge, at about a third of the screen height. The second open looked right only
+because by then the stale mode happened to match, and the dedicated `SAVE GAME`
+page showed the same stranded button for the same reason.
+
+The fix is the call order plus `m_fSaveMode( false )` in the constructor.
+`CMenuBaseWindow::Show()` runs `VidInit()` on **every** open, so with the mode
+already written the title, the visibility and the button row are recomputed
+correctly each time. Verified at 1920x1080 and 3840x2160 —
+`ver-menu-1080-m1-load-first.png`, `ver-menu-2160-m1-load-first.png`,
+`…-m2-load-second.png`, `…-m3-save.png` in the same evidence folder.
+
 ### Save / load hub — `m3p-saveload.png` `7F6E9F88…`
 
 480x300, `SAVE / LOAD`, two rows plus the pause-save checkbox and the hint
@@ -513,6 +543,11 @@ keeps the old hub for the non-theme path only and forwards
 `UI_Video_Menu()` straight to this page in theme mode; `menus/VideoOptions.cpp`
 is untouched and still serves the WON look. `evidence/m3fb-pages-video.png`,
 `m3fb-720-pages-video.png`.
+
+**Extended twice since:** the *Options audit* round below rebound gamma and
+brightness and added Contrast, and the *Field of view and viewmodel FOV* round
+at the end of this document added the two view sliders under the image
+settings.
 
 ### 7. Extras: Cry of Fear: Enhanced
 
@@ -1521,3 +1556,148 @@ mainui files there then compare identical to the working tree
 | `sv2-1920.log`, `sv2-1920-audio.png` | the deferred default firing once, the four `[cof-ui] menu sound … volume 0.50` lines, and the Audio page with the new slider at half travel |
 | `sv2-control.log` | the marker already at `2`: no re-default, and `volume 0.50 / 1.00 / 0.25` tracking the cvar |
 | `dm1-console-disconnect*`, `dm2-quit-to-menu*`, `dm3-control-off*`, `dm4-redirect-latch*` | the disconnect-return cases, which also exercise `menu_cof_quit_to_menu` |
+
+## Field of view and viewmodel FOV on the Video page, 2026-09-22
+
+The engine round of the FOV work
+(`stage1/fov-investigation-20260922/RESULTS.md`,
+`stage1/fov-impl-20260922/RESULTS.md`, `docs/cof-fov.md`) adds two archived
+cvars; this is the menu half. One MainUI file changed, `menus/VideoModes.cpp`,
+and `patches/cof-mainui-source-theme.patch` is regenerated in place.
+
+| cvar | Binary | Flags | Default | Range |
+| --- | --- | --- | ---: | --- |
+| `cof_fov` | `xash.dll`, `V_GetRefParams` | `FCVAR_ARCHIVE` | 90 | 70..110 |
+| `cof_viewmodel_fov` | `ref_gl.dll`, `R_DrawViewModel` | `FCVAR_GLCONFIG` | 0 | 0 = follow world, else 55..90 |
+
+**Nothing is registered in the menu library.** Both are read by name with
+`EngFuncs::GetCvarString` / `GetCvarFloat` and written by name with
+`EngFuncs::CvarSetValue`, the way every other page here does it.
+
+### Where they are on the page
+
+Under the image settings, at the bottom of the **right** column of the merged
+`VIDEO` panel - not in a column of their own. The panel is 940x620 virtual
+units, which is 494 units of content height (`ContentRect()`: 620 less the
+34-unit title band, the 20 + 20 padding and the 32 + 20 button row). For Cry of
+Fear the image block is three sliders and three checkboxes and ends at 318, so
+the two view sliders and their labels end at 444 and there is room to spare -
+and the left column, whose resolution table stretches to the bottom, stays
+balanced. A third column at 940 units would have given every column about 295
+units and squeezed the resolution list; a taller panel would not fit 1280x720,
+where 620 units is already 581 px of a 720 px screen.
+
+`LayoutVideoOptions()` places them after the checkbox loop, with a 14-unit
+break plus one label line (`THEME_LABEL_TALL + 8`) before the first, then
+`THEME_CTRL_PITCH` between the two. Both are added to the framework **last**, so
+the keyboard cursor reaches them in the order they are drawn, and both are
+`SetVisibility( m_bCoF )`: they are hidden, and their slot in the layout is
+skipped, for every other game and in `ui_theme 0`.
+
+### `CMenuReadoutSlider`
+
+A local subclass of `CMenuSlider` in `menus/VideoModes.cpp`. It calls the base
+`Draw()` and then prints the current value right-aligned on the label line the
+base has just drawn - the first sliders on this page whose *number* is the
+point, where `Gamma 0.62` would mean nothing but `Field of view 90` means
+everything. Only the readout is added; track, knob, cursor mapping and key
+handling are the theme slider's, and outside theme mode the class behaves
+exactly like its base.
+
+`szFollowText` is how *Viewmodel FOV* spells its zero. A slider cannot hold a
+gap, so the "follow the world FOV" state is the bottom step of the track,
+`COF_VMFOV_FOLLOW` = 54, drawn as **Follow FOV** and written as `0`; steps 55 to
+90 are written as themselves. Reading back, `0` - and anything outside 55..90 -
+lands on that bottom step.
+
+`Field of view` is the plain case: slider 70..110 in steps of 1, written as the
+integer, and the value is the **4:3 base** (Source's `fov_desired` convention).
+FWGS Hor+-corrects it, so 90 renders as 106.26 degrees horizontally at 16:9;
+`r_adjust_fov` stays 1 and is deliberately not exposed.
+
+### Live, and missing-cvar tolerant
+
+Both write on change, like the gamma group above them - there is no Apply step
+and no restart, because the engine and the renderer read their cvar per frame.
+Neither is written by `WriteVideoOptions()`, for the same reason the gamma
+group is not: a page the user only looked at writes nothing.
+
+`UI_CoFViewCvar( name, default )` is the missing-cvar guard.
+`EngFuncs::GetCvarString` returns an empty string for a name the engine never
+registered, which is the one reliable existence test, so a build whose engine or
+renderer half of the FOV round is not deployed shows the documented default
+rather than a bogus `0`. Writing to such a name is harmless: `Cvar_Set` logs
+*variable not found* and returns (`engine/common/cvar.c`).
+
+### Evidence
+
+Fixture `stage1/fovmenu-fixture-20260922` (its own copy of the milestone-1 menu
+recipe; `make-fixture.ps1` there is a wrapper around it), driven by
+`run-fv.ps1`. Windowed, `+volume 0`, every command from
+`maps/c_game_menu1_load.cfg`, **no input injected**, each run ends in `quit`
+and exits by itself. Binaries under test: engine `FC18FED5...` and renderer
+`73E6F5E3...` from `stage1/releases/fov-20260922`, `vgui.dll` `9AE2AB29...` from
+`stage1/releases/m4b-20260922` (the build the FOV engine sits on top of), and
+this round's `menu.dll`.
+
+| File | Shows |
+| --- | --- |
+| `fvf-1920-video-default.png`, `fvf-1280-video-default.png` | the page at 1080p and 720p with `Field of view 90` and `Viewmodel FOV  Follow FOV`, knob on the bottom step |
+| `fvf-1920-video-set.png`, `fvf-1280-video-set.png` | after `cof_fov 110` / `cof_viewmodel_fov 70`: both readouts and both knobs follow |
+| `fvf-1920-video-min.png`, `fvf-1280-video-min.png` | after `cof_fov 70` / `cof_viewmodel_fov 55`: 70 at the far left, 55 one step up from Follow |
+| `fvf-1920.log`, `fvf-1280.log` | the engine's own read-back at each step - `"cof_fov" is "90" ( "90" )`, `"110"`, `"70"`, back to `"90"`, and the same for `cof_viewmodel_fov` |
+| `fv-nocvar-video.png`, `fv-nocvar.log` | the same menu against the milestone-4c engine and the baseline renderer, which register neither cvar: the page still reads `90` and `Follow FOV` |
+| `canonical-manifest-before.txt`, `-after.txt` | byte-identical, 6 197 files, 4 702 274 797 bytes |
+
+The `fv-1920-*` / `fv-1280-*` runs in the same folder are the identical cases on
+the pre-final build and are kept only as history; the `fvf-` set is the one
+taken with the staged binary.
+
+**Still manual, because no input may be injected:** dragging either slider,
+arrow-keying them, and watching the world and the weapon actually change while
+the menu is open.
+
+### Artefacts
+
+| Artefact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `patches/cof-mainui-source-theme.patch` | 233 327 | `167AD615DEE1206E20ABE2CDFAD27C41DD0D50AFA9014DD89A5076FBC50AF609` |
+| `menu.dll` (`build-cof-fovmenu-20260922`) | 1 440 768 | `82A9D3B67B7E4837EE7B611834C169E95D7D5CF0E6C4A5F3FD4CB4270BE2ED16` |
+| `menu.pdb` | 14 585 856 | `05434EE73D8DAC8B13A7503BD47A9937CF517DE3CF3042E4BD111BAB174450F6` |
+
+Staged in `stage1/releases/fovmenu-20260922/cl_dlls/`;
+`stage1/deploy-ui-m3-20260921.ps1` points `$menuBuild` there and carries the new
+hash. The engine, `vgui.dll` and the data files in that script are untouched -
+they still come from `stage1/releases/m4c-20260922`, and the FOV round's own
+`xash.dll` / `ref_gl.dll` are the engine worker's to stage.
+
+Build (out dir and lock are this round's own, so a concurrent build in the same
+checkout is not disturbed; note the MSVC selection this machine now needs):
+
+```
+set WAFLOCK=.lock-waf-cof-fovmenu-20260922
+python waf configure -4 --out=build-cof-fovmenu-20260922 \
+  --sdl2=..\prereq\sdl2-2.30.9-vc\SDL2-2.30.9 \
+  -T release --notests --disable-mbedtls --enable-cof-entvars-legacy \
+  --enable-stbtt --msvc_version="msvc 17.14" --msvc_targets=x86
+python waf build -j8 --targets=menu
+```
+
+`menu.dll` is **not** bit-reproducible across links on this toolchain: two
+builds of identical sources differ, because MSVC stamps a fresh PDB signature
+into the image. The hash above is the staged binary and the one every `fvf-`
+capture was taken with.
+
+**Patch safety, re-verified.** Regenerated in place, still **41 files**, 5 231
+insertions and 189 deletions; only the `menus/VideoModes.cpp` section and its
+`index` line differ from the previous revision - checked by regenerating the
+whole patch against the same baseline and diffing it against the shipped file,
+which came out byte-identical everywhere else. The baseline was rebuilt from
+scratch in `cof-fix/pristine-ui-m1-scratch`: the pinned MainUI commit
+`61263995592e93a278d764807243d043d3b97c54` plus the three earlier MainUI patches
+applied by their own scripts. Then, through the apply script: forward,
+duplicate-apply refusal, reverse (with the scrim, menu-save and CoF-menu markers
+still in place and `Theme.cpp` gone), forward again - and after both forward
+applies all **167** mainui `.c`/`.cpp`/`.h` files compared identical to the
+working tree (line-ending-insensitive; the `core.autocrlf=true` caveat above
+still applies, which is why the patch is generated LF-normalised).

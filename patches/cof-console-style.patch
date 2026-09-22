@@ -1,4 +1,17 @@
+diff --git a/engine/client/client.h b/engine/client/client.h
+index 256b125..34d90c4 100644
+--- a/engine/client/client.h
++++ b/engine/client/client.h
+@@ -1128,6 +1128,7 @@ void Con_ClearNotify( void );
+ void Con_DrawDebug( void );
+ void Con_RunConsole( void );
+ qboolean Con_GetInputRect( int *x, int *y, int *w, int *h );
++void Con_MouseMove( int x, int y ); // CoF milestone 3b: styled console close button hover/click
+ void Con_DrawConsole( void );
+ void Con_DrawVersion( void );
+ int Con_UtfProcessChar( int in );
 diff --git a/engine/client/console.c b/engine/client/console.c
+index 5b82940..7da84fe 100644
 --- a/engine/client/console.c
 +++ b/engine/client/console.c
 @@ -35,6 +35,30 @@ static CVAR_DEFINE_AUTO( scr_drawversion, "1", FCVAR_ARCHIVE, "draw version in m
@@ -139,7 +152,7 @@ diff --git a/engine/client/console.c b/engine/client/console.c
  	// ctrl-L clears screen
  	if( key == 'l' && Key_IsDown( K_CTRL ))
  	{
-@@ -1897,6 +1959,482 @@ static void Con_LastVisibleLine( int *lastline )
+@@ -1897,6 +1959,486 @@ static void Con_LastVisibleLine( int *lastline )
  	con.backscroll = lines_seen - 1;
  }
  
@@ -491,8 +504,12 @@ diff --git a/engine/client/console.c b/engine/client/console.c
 +================
 +Con_DrawStyledConsole
 +
-+lines is the stock slide-in height; here it only drives the fade, so
-+scr_conspeed still governs how long the window takes to appear.
++lines is the stock slide-in height. The styled path does not slide and does not
++fade: Con_RunConsole() snaps con.vislines to Con_DestHeight() while this style
++is on, so lines is either the full render height or half of it and the alpha
++below is always 255. The expression is kept because it is what makes the window
++vanish on the frame the console is closed - lines becomes 0, alpha becomes 0,
++and nothing is drawn.
 +================
 +*/
 +static qboolean Con_DrawStyledConsole( int lines )
@@ -622,7 +639,7 @@ diff --git a/engine/client/console.c b/engine/client/console.c
  /*
  ================
  Con_DrawConsole
-@@ -1915,6 +2453,11 @@ static void Con_DrawSolidConsole( int lines )
+@@ -1915,6 +2457,11 @@ static void Con_DrawSolidConsole( int lines )
  
  	if( lines <= 0 ) return;
  
@@ -634,7 +651,7 @@ diff --git a/engine/client/console.c b/engine/client/console.c
  	// draw the background
  	ref.dllFuncs.GL_SetRenderMode( kRenderNormal );
  	ref.dllFuncs.Color4ub( 255, 255, 255, 255 ); // to prevent grab color from screenfade
-@@ -1995,6 +2538,31 @@ void Con_DrawConsole( void )
+@@ -1995,6 +2542,31 @@ void Con_DrawConsole( void )
  	if( cls.state != ca_disconnected && ( cls.changelevel || cls.changedemo ))
  		return;
  
@@ -666,7 +683,7 @@ diff --git a/engine/client/console.c b/engine/client/console.c
  	// check for console width changes from a vid mode change
  	Con_CheckResize ();
  
-@@ -2130,10 +2698,23 @@ qboolean Con_GetInputRect( int *x, int *y, int *w, int *h )
+@@ -2130,10 +2702,23 @@ qboolean Con_GetInputRect( int *x, int *y, int *w, int *h )
  	if( cls.key_dest == key_console )
  	{
  		int lines = Con_DestHeight();
@@ -690,18 +707,52 @@ diff --git a/engine/client/console.c b/engine/client/console.c
  		*x = con.curFont->charWidths[' '];
  		*y = lines - con.curFont->charHeight * 2;
  		*w = refState.width - *x;
-diff --git a/engine/client/client.h b/engine/client/client.h
---- a/engine/client/client.h
-+++ b/engine/client/client.h
-@@ -1128,6 +1128,7 @@ void Con_ClearNotify( void );
- void Con_DrawDebug( void );
- void Con_RunConsole( void );
- qboolean Con_GetInputRect( int *x, int *y, int *w, int *h );
-+void Con_MouseMove( int x, int y ); // CoF milestone 3b: styled console close button hover/click
- void Con_DrawConsole( void );
- void Con_DrawVersion( void );
- int Con_UtfProcessChar( int in );
+@@ -2177,19 +2762,34 @@ void Con_RunConsole( void )
+ 
+ 	con.showlines = Con_DestHeight();
+ 
+-	float lines_per_frame = fabs( scr_conspeed.value ) * host.realframetime;
+-
+-	if( con.showlines < con.vislines )
++	// The styled console is a WINDOW, not a GoldSrc drop-down: it does not
++	// slide, and con.vislines only ever reached it as the fade alpha
++	// (Con_DrawStyledConsole). Animating it meant the panel faded up over
++	// scr_conspeed on open and, worse, lingered on the way out - the user asked
++	// for both edges to be instant. So the styled path snaps: the window is
++	// there on the frame the toggle is pressed and gone on the frame it is
++	// pressed again. scr_conspeed keeps driving the stock drop-down exactly as
++	// before, which is the only thing it was ever for.
++	if( Con_StyleEnabled( ))
+ 	{
+-		con.vislines -= lines_per_frame;
+-		if( con.showlines > con.vislines )
+-			con.vislines = con.showlines;
++		con.vislines = con.showlines;
+ 	}
+-	else if( con.showlines > con.vislines )
++	else
+ 	{
+-		con.vislines += lines_per_frame;
++		float lines_per_frame = fabs( scr_conspeed.value ) * host.realframetime;
++
+ 		if( con.showlines < con.vislines )
+-			con.vislines = con.showlines;
++		{
++			con.vislines -= lines_per_frame;
++			if( con.showlines > con.vislines )
++				con.vislines = con.showlines;
++		}
++		else if( con.showlines > con.vislines )
++		{
++			con.vislines += lines_per_frame;
++			if( con.showlines < con.vislines )
++				con.vislines = con.showlines;
++		}
+ 	}
+ 
+ 	if( FBitSet( con_charset.flags|con_fontscale.flags|con_fontnum.flags|cl_charset.flags|con_oldfont.flags, FCVAR_CHANGED ))
 diff --git a/engine/client/input/input.c b/engine/client/input/input.c
+index 11c10b4..914640f 100644
 --- a/engine/client/input/input.c
 +++ b/engine/client/input/input.c
 @@ -365,6 +365,10 @@ static void IN_MouseMove( void )

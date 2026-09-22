@@ -1,7 +1,8 @@
 diff --git a/3rdparty/mainui/BaseMenu.cpp b/3rdparty/mainui/BaseMenu.cpp
+index 5f8eb42..c7f0c5b 100644
 --- a/3rdparty/mainui/BaseMenu.cpp
 +++ b/3rdparty/mainui/BaseMenu.cpp
-@@ -20,6 +20,7 @@
+@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  
  */
  #include "extdll_menu.h"
@@ -9,12 +10,10 @@ diff --git a/3rdparty/mainui/BaseMenu.cpp b/3rdparty/mainui/BaseMenu.cpp
  #include "BaseMenu.h"
  #include "PicButton.h"
  #include "keydefs.h"
-@@ -55,6 +56,46 @@
- 	"media/launch_deny1.wav",
- 	"",
+@@ -57,6 +58,46 @@ const char	*uiSounds[] = {
  	""
-+};
-+
+ };
+ 
 +/*
 +=================
 +uiSoundsCoF
@@ -53,10 +52,12 @@ diff --git a/3rdparty/mainui/BaseMenu.cpp b/3rdparty/mainui/BaseMenu.cpp
 +	"common/wpn_denyselect.wav",	// SND_REMOVEKEY
 +	"ui/3d_rollover.wav",		// SND_MOVE
 +	""				// SND_NULL
- };
- 
++};
++
  // they match default WON colors.lst now, except alpha
-@@ -627,6 +668,9 @@
+ // a1ba: made uiColorHelp brighter so it's easier to read
+ unsigned int uiColorHelp        = 0xFFA0A0A0; // 160, 160, 160, 255 // hint letters color
+@@ -627,6 +668,9 @@ void UI_UpdateMenu( float flTime )
  		// load scr
  		UI_LoadScriptConfig();
  
@@ -66,7 +67,7 @@ diff --git a/3rdparty/mainui/BaseMenu.cpp b/3rdparty/mainui/BaseMenu.cpp
  		loadStuff = false;
  	}
  
-@@ -996,6 +1040,10 @@
+@@ -996,6 +1040,10 @@ static void UI_LoadBackgroundMapList( void )
  
  static void UI_LoadSounds( void )
  {
@@ -77,7 +78,7 @@ diff --git a/3rdparty/mainui/BaseMenu.cpp b/3rdparty/mainui/BaseMenu.cpp
  	memset( uiStatic.sounds, 0, sizeof( uiStatic.sounds ) );
  
  	if ( uiStatic.lowmemory )
-@@ -1003,18 +1051,32 @@
+@@ -1003,18 +1051,32 @@ static void UI_LoadSounds( void )
  
  	for ( int i = 0; i < SND_COUNT; i++ )
  	{
@@ -115,21 +116,21 @@ diff --git a/3rdparty/mainui/BaseMenu.cpp b/3rdparty/mainui/BaseMenu.cpp
  	}
  }
  
-@@ -1059,6 +1121,13 @@
- 	uiStatic.outlineWidth = 4;
+@@ -1060,6 +1122,13 @@ int UI_VidInit( void )
  
  	UI_ScaleCoords( NULL, NULL, &uiStatic.outlineWidth, NULL );
-+
+ 
 +	// The stock 4 virtual units scale to ~5.6 px at 1080p and ~11 px at 2160p,
 +	// which is what makes every control read as a heavy WON frame. The Source
 +	// look wants a hairline, so make the library-wide default one physical
 +	// pixel per 768 units; every UI_DrawRectangle call site follows.
 +	if( UI_ThemeActive( ))
 +		uiStatic.outlineWidth = UI_ThemeHairline();
- 
++
  	// trying to load chapterbackgrounds.txt
  	UI_LoadBackgroundMapList ();
-@@ -1179,6 +1248,10 @@
+ 
+@@ -1179,6 +1248,10 @@ void UI_Init( void )
  
  	uiStatic.renderPicbuttonText = gMenu.m_gameinfo.flags & GFL_RENDER_PICBUTTON_TEXT;
  
@@ -141,9 +142,10 @@ diff --git a/3rdparty/mainui/BaseMenu.cpp b/3rdparty/mainui/BaseMenu.cpp
  	UI_ApplyCustomColors ();
  }
 diff --git a/3rdparty/mainui/BaseMenu.h b/3rdparty/mainui/BaseMenu.h
+index bd3c25d..85d150b 100644
 --- a/3rdparty/mainui/BaseMenu.h
 +++ b/3rdparty/mainui/BaseMenu.h
-@@ -25,6 +25,7 @@
+@@ -25,6 +25,7 @@ GNU General Public License for more details.
  #include "WindowSystem.h"
  #include "Image.h"
  #include "utlstring.h"
@@ -151,11 +153,10 @@ diff --git a/3rdparty/mainui/BaseMenu.h b/3rdparty/mainui/BaseMenu.h
  
  #define UI_PULSE_DIVISOR		75.0f
  
-@@ -97,6 +98,18 @@
- 	HFont hBoldFont;
+@@ -98,6 +99,18 @@ typedef struct
  	HFont hLightBlur;
  	HFont hHeavyBlur;
-+
+ 
 +	// Source-style theme handles. On Windows the menu uses the GDI backend and
 +	// CBaseFont::DrawCharacter ignores the charH argument (SCALE_FONTS is not
 +	// defined for win32), so a new text size needs a new HFont, not a new
@@ -167,11 +168,13 @@ diff --git a/3rdparty/mainui/BaseMenu.h b/3rdparty/mainui/BaseMenu.h
 +	HFont hThemeItem;
 +	HFont hThemeLogo;
 +	HFont hThemeLogoSub;
- 
++
  	bool	m_fDemosPlayed;
  	bool	m_fNoOldBackground;
+ 	int 	m_iOldMenuDepth;
 diff --git a/3rdparty/mainui/Theme.cpp b/3rdparty/mainui/Theme.cpp
 new file mode 100644
+index 0000000..33f3a01
 --- /dev/null
 +++ b/3rdparty/mainui/Theme.cpp
 @@ -0,0 +1,515 @@
@@ -692,6 +695,7 @@ new file mode 100644
 +}
 diff --git a/3rdparty/mainui/Theme.h b/3rdparty/mainui/Theme.h
 new file mode 100644
+index 0000000..63aeb54
 --- /dev/null
 +++ b/3rdparty/mainui/Theme.h
 @@ -0,0 +1,204 @@
@@ -900,9 +904,10 @@ new file mode 100644
 +
 +#endif // MAINUI_THEME_H
 diff --git a/3rdparty/mainui/controls/Action.cpp b/3rdparty/mainui/controls/Action.cpp
+index 067b43a..6de7a27 100644
 --- a/3rdparty/mainui/controls/Action.cpp
 +++ b/3rdparty/mainui/controls/Action.cpp
-@@ -34,6 +34,24 @@
+@@ -34,6 +34,24 @@ CMenuAction::Init
  */
  void CMenuAction::VidInit( )
  {
@@ -927,7 +932,7 @@ diff --git a/3rdparty/mainui/controls/Action.cpp b/3rdparty/mainui/controls/Acti
  	m_iBackcolor.SetDefault( 0 );
  
  	if( !forceCalcW )
-@@ -143,7 +161,8 @@
+@@ -143,7 +161,8 @@ void CMenuAction::Draw( )
  		}
  	}
  
@@ -938,9 +943,10 @@ diff --git a/3rdparty/mainui/controls/Action.cpp b/3rdparty/mainui/controls/Acti
  		Point coord;
  
 diff --git a/3rdparty/mainui/controls/BackgroundBitmap.cpp b/3rdparty/mainui/controls/BackgroundBitmap.cpp
+index 5c86f39..218b4f7 100644
 --- a/3rdparty/mainui/controls/BackgroundBitmap.cpp
 +++ b/3rdparty/mainui/controls/BackgroundBitmap.cpp
-@@ -19,6 +19,7 @@
+@@ -19,6 +19,7 @@ GNU General Public License for more details.
  #include "BackgroundBitmap.h"
  #include "Utils.h"
  #include "BaseWindow.h"
@@ -948,7 +954,7 @@ diff --git a/3rdparty/mainui/controls/BackgroundBitmap.cpp b/3rdparty/mainui/con
  
  bool CMenuBackgroundBitmap::s_bEnableLogoMovie = false;
  bool CMenuBackgroundBitmap::s_bGameHasSteamBackground = false;
-@@ -73,6 +74,12 @@
+@@ -73,6 +74,12 @@ void CMenuBackgroundBitmap::DrawInGameBackground()
  	// otherwise, so that case keeps the original fill.
  	if( EngFuncs::GetCvarFloat( "ui_renderworld" ) != 0.0f )
  	{
@@ -962,9 +968,10 @@ diff --git a/3rdparty/mainui/controls/BackgroundBitmap.cpp b/3rdparty/mainui/con
  
  		if( alpha < 0 ) alpha = 0;
 diff --git a/3rdparty/mainui/controls/CheckBox.cpp b/3rdparty/mainui/controls/CheckBox.cpp
+index 77d013b..61684c2 100644
 --- a/3rdparty/mainui/controls/CheckBox.cpp
 +++ b/3rdparty/mainui/controls/CheckBox.cpp
-@@ -45,10 +45,32 @@
+@@ -45,10 +45,32 @@ CMenuCheckBox::Init
  */
  void CMenuCheckBox::VidInit( void )
  {
@@ -999,11 +1006,10 @@ diff --git a/3rdparty/mainui/controls/CheckBox.cpp b/3rdparty/mainui/controls/Ch
  
  	m_scTextSize.w = g_FontMgr->GetTextWideScaled( font, szName, m_scChSize );
  	m_scTextSize.h = m_scChSize;
-@@ -111,6 +133,33 @@
- void CMenuCheckBox::Draw( void )
+@@ -112,6 +134,33 @@ void CMenuCheckBox::Draw( void )
  {
  	uint textflags = ( iFlags & QMF_DROPSHADOW ? ETF_SHADOW : 0 ) | ETF_NOSIZELIMIT | ETF_FORCECOL;
-+
+ 
 +	if( UI_ThemeActive( ))
 +	{
 +		// Cry of Fear ships no gfx/shell/cb_* artwork, and UI_DrawPic silently
@@ -1030,13 +1036,15 @@ diff --git a/3rdparty/mainui/controls/CheckBox.cpp b/3rdparty/mainui/controls/Ch
 +		}
 +		return;
 +	}
- 
++
  	UI_DrawString( font, m_scTextPos, m_scTextSize, szName, colorText, m_scChSize, eTextAlignment, textflags );
  
+ 	if( szStatusText && iFlags & QMF_NOTIFY )
 diff --git a/3rdparty/mainui/controls/DropDown.cpp b/3rdparty/mainui/controls/DropDown.cpp
+index df9a835..4dc9813 100644
 --- a/3rdparty/mainui/controls/DropDown.cpp
 +++ b/3rdparty/mainui/controls/DropDown.cpp
-@@ -37,6 +37,17 @@
+@@ -37,6 +37,17 @@ CMenuDropDown::CMenuDropDown() : BaseClass()
  
  void CMenuDropDown::VidInit()
  {
@@ -1054,7 +1062,7 @@ diff --git a/3rdparty/mainui/controls/DropDown.cpp b/3rdparty/mainui/controls/Dr
  	iBackgroundColor.SetDefault( uiColorBlack );
  	iFgTextColor.SetDefault( uiInputFgColor );
  	iBgTextColor.SetDefault( uiPromptTextColor );
-@@ -56,6 +67,12 @@
+@@ -56,6 +67,12 @@ void CMenuDropDown::VidInit()
  		m_ArrowOpened.Load(UI_DOWNARROWFOCUS);
  	}
  	m_ArrowSize = EngFuncs::PIC_Size( m_ArrowClosed );
@@ -1067,7 +1075,7 @@ diff --git a/3rdparty/mainui/controls/DropDown.cpp b/3rdparty/mainui/controls/Dr
  }
  
  int CMenuDropDown::IsNewStateByMouseClick()
-@@ -168,7 +185,8 @@
+@@ -168,7 +185,8 @@ void CMenuDropDown::Draw()
  			pt.y += m_scItemSize.h;
  
  		// all other items
@@ -1077,7 +1085,7 @@ diff --git a/3rdparty/mainui/controls/DropDown.cpp b/3rdparty/mainui/controls/Dr
  		for( int i = 0; i < m_szNames.Count(); i++ )
  		{
  			uint textColor = iBgTextColor;
-@@ -208,11 +226,25 @@
+@@ -208,11 +226,25 @@ void CMenuDropDown::Draw()
  
  	// arrow background
  	uint arrowX = selectedPos.x + selectedSize.w;
@@ -1108,9 +1116,10 @@ diff --git a/3rdparty/mainui/controls/DropDown.cpp b/3rdparty/mainui/controls/Dr
  
  void CMenuDropDownStr::UpdateEditable()
 diff --git a/3rdparty/mainui/controls/Field.cpp b/3rdparty/mainui/controls/Field.cpp
+index d602be0..5f2f615 100644
 --- a/3rdparty/mainui/controls/Field.cpp
 +++ b/3rdparty/mainui/controls/Field.cpp
-@@ -54,6 +54,13 @@
+@@ -54,6 +54,13 @@ CMenuField::Init
  */
  void CMenuField::VidInit( void )
  {
@@ -1124,7 +1133,7 @@ diff --git a/3rdparty/mainui/controls/Field.cpp b/3rdparty/mainui/controls/Field
  	BaseClass::VidInit();
  
  	iCursor = strlen( szBuffer );
-@@ -374,7 +381,8 @@
+@@ -374,7 +381,8 @@ void CMenuField::Draw( void )
  
  	textflags |= ETF_NOSIZELIMIT;
  
@@ -1134,7 +1143,7 @@ diff --git a/3rdparty/mainui/controls/Field.cpp b/3rdparty/mainui/controls/Field
  	{
  		int	x;
  
-@@ -462,8 +470,19 @@
+@@ -462,8 +470,19 @@ void CMenuField::Draw( void )
  		UI_DrawRectangle( newPos, m_scSize, uiInputFgColor );
  	}
  
@@ -1157,9 +1166,10 @@ diff --git a/3rdparty/mainui/controls/Field.cpp b/3rdparty/mainui/controls/Field
  	if( iFlags & QMF_GRAYED )
  	{
 diff --git a/3rdparty/mainui/controls/Framework.cpp b/3rdparty/mainui/controls/Framework.cpp
+index 12d2a29..617d03a 100644
 --- a/3rdparty/mainui/controls/Framework.cpp
 +++ b/3rdparty/mainui/controls/Framework.cpp
-@@ -26,6 +26,156 @@
+@@ -26,6 +26,156 @@ CMenuFramework::CMenuFramework( const char *name ) : BaseClass( name )
  	memset( m_apBtns, 0, sizeof( m_apBtns ) );
  	m_iBtnsNum = 0;
  	bannerAnimDirection = ANIM_NO;
@@ -1316,7 +1326,7 @@ diff --git a/3rdparty/mainui/controls/Framework.cpp b/3rdparty/mainui/controls/F
  }
  
  CMenuFramework::~CMenuFramework()
-@@ -49,6 +199,9 @@
+@@ -49,6 +199,9 @@ void CMenuFramework::Draw()
  	static CMenuBaseItem *lastItem;
  	CMenuBaseItem *item;
  
@@ -1326,7 +1336,7 @@ diff --git a/3rdparty/mainui/controls/Framework.cpp b/3rdparty/mainui/controls/F
  	BaseClass::Draw();
  
  	item = ItemAtCursor();
-@@ -64,20 +217,80 @@
+@@ -64,22 +217,82 @@ void CMenuFramework::Draw()
  	// draw status text if status text isn't rendered at right side of an item
  	// ideally, framework shouldn't even know about this but since everything
  	// WON-styled goes here, let's leave it here...
@@ -1343,21 +1353,19 @@ diff --git a/3rdparty/mainui/controls/Framework.cpp b/3rdparty/mainui/controls/F
  		int r, g, b, x, len;
  
 -		EngFuncs::ConsoleStringLen( item->szStatusText, &len, NULL );
--
--		UnpackRGB( r, g, b, uiColorHelp );
--		EngFuncs::DrawSetTextColor( r, g, b, alpha * 255 );
--		x = ( ScreenWidth - len ) * 0.5f; // centering
--
--		EngFuncs::DrawConsoleString( x, uiStatic.yOffset + 720 * uiStatic.scaleY, item->szStatusText );
 +		if( themeStatus )
 +		{
 +			Point pt;
 +			Size sz;
-+
+ 
+-		UnpackRGB( r, g, b, uiColorHelp );
+-		EngFuncs::DrawSetTextColor( r, g, b, alpha * 255 );
+-		x = ( ScreenWidth - len ) * 0.5f; // centering
 +			if( IsPanel( ))
 +			{
 +				Rect c = ContentRect();
-+
+ 
+-		EngFuncs::DrawConsoleString( x, uiStatic.yOffset + 720 * uiStatic.scaleY, item->szStatusText );
 +				pt = Point( c.pt.x, ButtonRowY() + ( THEME_BTNROW_H - THEME_LABEL_TALL ) / 2 ).Scale();
 +				sz = Size( c.sz.w - THEME_BTN_MIN_W, THEME_LABEL_TALL ).Scale();
 +			}
@@ -1386,8 +1394,8 @@ diff --git a/3rdparty/mainui/controls/Framework.cpp b/3rdparty/mainui/controls/F
 +		}
  	}
  	else statusFadeTime = uiStatic.realTime;
-+}
-+
+ }
+ 
 +/*
 +=================
 +CMenuFramework::DrawPanelChrome
@@ -1412,10 +1420,12 @@ diff --git a/3rdparty/mainui/controls/Framework.cpp b/3rdparty/mainui/controls/F
 +	UI_ThemeSeparator( p.x + (int)( THEME_PAD_X * uiStatic.scaleX ),
 +		(int)(( ButtonRowY() - THEME_BTNROW_GAP / 2 ) * uiStatic.scaleY ) + m_scPos.y,
 +		s.w - (int)( THEME_PAD_X * 2 * uiStatic.scaleX ), THEME_SEPARATOR );
- }
- 
++}
++
  void CMenuFramework::Hide()
-@@ -92,6 +305,15 @@
+ {
+ 	BaseClass::Hide();
+@@ -92,6 +305,15 @@ void CMenuFramework::Init()
  	pos.y = uiStatic.yOffset;
  	size.w = uiStatic.width;
  	size.h = 768;
@@ -1431,7 +1441,7 @@ diff --git a/3rdparty/mainui/controls/Framework.cpp b/3rdparty/mainui/controls/F
  }
  
  void CMenuFramework::VidInit()
-@@ -100,7 +322,23 @@
+@@ -100,7 +322,23 @@ void CMenuFramework::VidInit()
  	pos.y = uiStatic.yOffset;
  	size.w = uiStatic.width;
  	size.h = 768;
@@ -1455,7 +1465,7 @@ diff --git a/3rdparty/mainui/controls/Framework.cpp b/3rdparty/mainui/controls/F
  }
  
  CMenuPicButton * CMenuFramework::AddButton(const char *szName, const char *szStatus, EDefaultBtns buttonPicId, CEventCallback onReleased, int iFlags)
-@@ -149,6 +387,21 @@
+@@ -149,6 +387,21 @@ CMenuPicButton * CMenuFramework::AddButton( const char *szName, const char *szSt
  
  void CMenuFramework::RealignButtons( void )
  {
@@ -1477,7 +1487,7 @@ diff --git a/3rdparty/mainui/controls/Framework.cpp b/3rdparty/mainui/controls/F
  	for( int i = 0, j = 0; i < m_iBtnsNum; i++ )
  	{
  		if( !m_apBtns[i]->IsVisible())
-@@ -179,6 +432,11 @@
+@@ -179,6 +432,11 @@ bool CMenuFramework::KeyDown( int key )
  
  void CMenuFramework::PrepareBannerAnimation( EAnimation direction, CMenuPicButton *initiator )
  {
@@ -1489,7 +1499,7 @@ diff --git a/3rdparty/mainui/controls/Framework.cpp b/3rdparty/mainui/controls/F
  	// banner is not present, ignore
  	if( banner.Parent() != this )
  		return;
-@@ -255,6 +513,11 @@
+@@ -255,6 +513,11 @@ void CMenuFramework::CMenuBannerBitmap::Draw()
  {
  	CMenuFramework *pParent = (CMenuFramework *)Parent();
  
@@ -1502,9 +1512,10 @@ diff --git a/3rdparty/mainui/controls/Framework.cpp b/3rdparty/mainui/controls/F
  		return;
  
 diff --git a/3rdparty/mainui/controls/Framework.h b/3rdparty/mainui/controls/Framework.h
+index f1db70e..49a2e66 100644
 --- a/3rdparty/mainui/controls/Framework.h
 +++ b/3rdparty/mainui/controls/Framework.h
-@@ -53,6 +53,47 @@
+@@ -53,6 +53,47 @@ public:
  
  	void PrepareBannerAnimation( EAnimation direction, CMenuPicButton *initiator );
  
@@ -1552,7 +1563,7 @@ diff --git a/3rdparty/mainui/controls/Framework.h b/3rdparty/mainui/controls/Fra
  	class CMenuBannerBitmap : public CMenuBaseItem
  	{
  	public:
-@@ -72,6 +113,11 @@
+@@ -72,6 +113,11 @@ protected:
  
  	CMenuPicButton *m_apBtns[MAX_FRAMEWORK_PICBUTTONS];
  	int m_iBtnsNum;
@@ -1565,9 +1576,10 @@ diff --git a/3rdparty/mainui/controls/Framework.h b/3rdparty/mainui/controls/Fra
  
  #endif // FRAMEWORK_H
 diff --git a/3rdparty/mainui/controls/MessageBox.cpp b/3rdparty/mainui/controls/MessageBox.cpp
+index b1c7b65..1f549d3 100644
 --- a/3rdparty/mainui/controls/MessageBox.cpp
 +++ b/3rdparty/mainui/controls/MessageBox.cpp
-@@ -22,6 +22,7 @@
+@@ -22,6 +22,7 @@ GNU General Public License for more details.
  CMenuMessageBox::CMenuMessageBox(const char *name) : BaseClass( name )
  {
  	iFlags |= QMF_INACTIVE;
@@ -1575,7 +1587,7 @@ diff --git a/3rdparty/mainui/controls/MessageBox.cpp b/3rdparty/mainui/controls/
  }
  
  void CMenuMessageBox::_Init()
-@@ -31,11 +32,65 @@
+@@ -31,11 +32,65 @@ void CMenuMessageBox::_Init()
  	dlgMessage.SetCoord( 0, 0 );
  	dlgMessage.size = size;
  
@@ -1589,8 +1601,8 @@ diff --git a/3rdparty/mainui/controls/MessageBox.cpp b/3rdparty/mainui/controls/
 +	}
 +
  	AddItem( dlgMessage );
-+}
-+
+ }
+ 
 +/*
 +==============
 +CMenuMessageBox::_VidInit
@@ -1627,8 +1639,8 @@ diff --git a/3rdparty/mainui/controls/MessageBox.cpp b/3rdparty/mainui/controls/
 +		w - THEME_PAD_X * 2, h - THEME_TITLE_BAND_H - THEME_PAD_TOP - THEME_PAD_BOTTOM );
 +	dlgMessage.font = uiStatic.hThemeBody;
 +	dlgMessage.charSize = THEME_BODY_TALL;
- }
- 
++}
++
  void CMenuMessageBox::Draw()
  {
 +	if( UI_ThemeActive( ))
@@ -1642,9 +1654,10 @@ diff --git a/3rdparty/mainui/controls/MessageBox.cpp b/3rdparty/mainui/controls/
  	UI_DrawRectangle( m_scPos, m_scSize, uiInputFgColor );
  	BaseClass::Draw();
 diff --git a/3rdparty/mainui/controls/MessageBox.h b/3rdparty/mainui/controls/MessageBox.h
+index 02aeaef..53080a4 100644
 --- a/3rdparty/mainui/controls/MessageBox.h
 +++ b/3rdparty/mainui/controls/MessageBox.h
-@@ -26,8 +26,12 @@
+@@ -26,8 +26,12 @@ public:
  	CMenuMessageBox( const char *name = "Unnamed MessageBox" );
  
  	void SetMessage( const char *sz );
@@ -1658,9 +1671,10 @@ diff --git a/3rdparty/mainui/controls/MessageBox.h b/3rdparty/mainui/controls/Me
  
  	CMenuAction dlgMessage;
 diff --git a/3rdparty/mainui/controls/PicButton.cpp b/3rdparty/mainui/controls/PicButton.cpp
+index ef9e268..a83fdff 100644
 --- a/3rdparty/mainui/controls/PicButton.cpp
 +++ b/3rdparty/mainui/controls/PicButton.cpp
-@@ -118,7 +118,52 @@
+@@ -118,7 +118,52 @@ CMenuPicButton::CMenuPicButton() : BaseClass()
  
  	size = uiStatic.buttons_draw_size;
  
@@ -1713,10 +1727,12 @@ diff --git a/3rdparty/mainui/controls/PicButton.cpp b/3rdparty/mainui/controls/P
  }
  
  /*
-@@ -221,6 +266,79 @@
+@@ -219,6 +264,79 @@ void CMenuPicButton::DrawButton( int r, int g, int b, int a, wrect_t *rects, int
+ 	EngFuncs::PIC_DrawAdditive( m_scPos, uiStatic.buttons_draw_size.Scale(), &rects[state] );
+ }
  
- /*
- =================
++/*
++=================
 +CMenuPicButton::DrawTheme
 +
 +The Source-style path. No glow, no 512 ms decay, no colour pulse, no motion:
@@ -1788,29 +1804,28 @@ diff --git a/3rdparty/mainui/controls/PicButton.cpp b/3rdparty/mainui/controls/P
 +	UI_DrawString( font, pt, sz, szName, color, m_scChSize, eTextAlignment, textflags );
 +}
 +
-+/*
-+=================
- CMenuPicButton::Draw
+ /*
  =================
- */
-@@ -239,6 +357,13 @@
- 
+ CMenuPicButton::Draw
+@@ -240,6 +358,13 @@ void CMenuPicButton::Draw( )
  	if( iOldState == BUTTON_NOFOCUS && state != BUTTON_NOFOCUS )
  		iFocusStartTime = uiStatic.realTime;
-+
+ 
 +	if( UI_ThemeActive( ))
 +	{
 +		DrawTheme( state );
 +		iOldState = state;
 +		return;
 +	}
- 
++
  	if( szStatusText && FBitSet( iFlags, QMF_NOTIFY ) && !FBitSet( gMenu.m_gameinfo.flags, GFL_NOSKILLS ))
  	{
+ 		Point coord;
 diff --git a/3rdparty/mainui/controls/PicButton.h b/3rdparty/mainui/controls/PicButton.h
+index abd475f..879a5f8 100644
 --- a/3rdparty/mainui/controls/PicButton.h
 +++ b/3rdparty/mainui/controls/PicButton.h
-@@ -36,6 +36,7 @@
+@@ -36,6 +36,7 @@ public:
  	CMenuPicButton();
  	bool KeyUp( int key ) override;
  	bool KeyDown( int key ) override;
@@ -1818,7 +1833,7 @@ diff --git a/3rdparty/mainui/controls/PicButton.h b/3rdparty/mainui/controls/Pic
  	void Draw( void ) override;
  	bool HotKey( int key ) override;
  
-@@ -44,6 +45,18 @@
+@@ -44,6 +45,18 @@ public:
  
  	bool bEnableTransitions;
  	bool bPulse;
@@ -1837,7 +1852,7 @@ diff --git a/3rdparty/mainui/controls/PicButton.h b/3rdparty/mainui/controls/Pic
  private:
  	bool bRollOver;
  
-@@ -51,6 +64,7 @@
+@@ -51,6 +64,7 @@ private:
  	void _Event( int ev ) override;
  
  	void DrawButton( int r, int g, int b, int a, wrect_t *rects, int state );
@@ -1846,9 +1861,10 @@ diff --git a/3rdparty/mainui/controls/PicButton.h b/3rdparty/mainui/controls/Pic
  	HIMAGE hPic;
  	int hotkey;
 diff --git a/3rdparty/mainui/controls/Slider.cpp b/3rdparty/mainui/controls/Slider.cpp
+index 1159ec9..43a2bae 100644
 --- a/3rdparty/mainui/controls/Slider.cpp
 +++ b/3rdparty/mainui/controls/Slider.cpp
-@@ -51,6 +51,17 @@
+@@ -51,6 +51,17 @@ void CMenuSlider::VidInit(  )
  	colorBase.SetDefault( uiColorWhite );
  	colorFocus.SetDefault( uiColorWhite );
  
@@ -1866,7 +1882,7 @@ diff --git a/3rdparty/mainui/controls/Slider.cpp b/3rdparty/mainui/controls/Slid
  	BaseClass::VidInit();
  
  	// scale the center box
-@@ -153,7 +164,8 @@
+@@ -153,7 +164,8 @@ void CMenuSlider::Draw( void )
  	int	textHeight, sliderX;
  	uint textflags = ( iFlags & QMF_DROPSHADOW ) ? ETF_SHADOW : 0;
  
@@ -1876,7 +1892,7 @@ diff --git a/3rdparty/mainui/controls/Slider.cpp b/3rdparty/mainui/controls/Slid
  	{
  		Point coord;
  
-@@ -175,9 +187,23 @@
+@@ -175,9 +187,23 @@ void CMenuSlider::Draw( void )
  		{
  			int	dist, numSteps;
  
@@ -1903,11 +1919,10 @@ diff --git a/3rdparty/mainui/controls/Slider.cpp b/3rdparty/mainui/controls/Slid
  			m_flCurValue = bound( m_flMinValue, numSteps * m_flRange + m_flMinValue, m_flMaxValue );
  
  			// tell menu about changes
-@@ -194,6 +220,28 @@
- 		+ ( ( m_flCurValue - m_flMinValue ) / ( m_flMaxValue - m_flMinValue ) )  // calc fractional part
+@@ -195,6 +221,28 @@ void CMenuSlider::Draw( void )
  		* ( m_scSize.w - m_iSliderOutlineWidth - (m_scCenterBox.w) );
  
-+
+ 
 +	if( UI_ThemeActive( ))
 +	{
 +		// UI_SLIDER_MAIN is gfx/shell artwork this game does not ship, so the
@@ -1929,13 +1944,15 @@ diff --git a/3rdparty/mainui/controls/Slider.cpp b/3rdparty/mainui/controls/Slid
 +			THEME_TEXT_DIM, m_scChSize, eTextAlignment, ETF_FORCECOL );
 +		return;
 +	}
- 
++
  	UI_DrawRectangleExt( m_scPos.x + m_iSliderOutlineWidth / 2, m_scPos.y + m_iSliderOutlineWidth, m_scSize.w - m_iSliderOutlineWidth, m_scCenterBox.h, uiInputBgColor, m_iSliderOutlineWidth );
  	if( eFocusAnimation == QM_HIGHLIGHTIFFOCUS && this == m_pParent->ItemAtCursor())
+ 		UI_DrawPic( sliderX, m_scPos.y, m_scCenterBox.w, m_scSize.h, uiColorHelp, imgSlider );
 diff --git a/3rdparty/mainui/controls/SpinControl.cpp b/3rdparty/mainui/controls/SpinControl.cpp
+index 79bd960..dbf4097 100644
 --- a/3rdparty/mainui/controls/SpinControl.cpp
 +++ b/3rdparty/mainui/controls/SpinControl.cpp
-@@ -44,9 +44,63 @@
+@@ -44,11 +44,65 @@ CMenuSpinControl::Init
  */
  void CMenuSpinControl::VidInit( void )
  {
@@ -1950,8 +1967,8 @@ diff --git a/3rdparty/mainui/controls/SpinControl.cpp b/3rdparty/mainui/controls
  	colorBase.SetDefault( uiColorHelp );
  
  	BaseClass::VidInit();
-+}
-+
+ }
+ 
 +/*
 +=================
 +CMenuSpinControl::DrawTheme
@@ -1996,10 +2013,12 @@ diff --git a/3rdparty/mainui/controls/SpinControl.cpp b/3rdparty/mainui/controls
 +		grayed ? THEME_DISABLED : ( focus ? THEME_TEXT_HI : colorBase ),
 +		m_scChSize, eTextAlignment, ETF_FORCECOL | ETF_NO_WRAP );
 +	UI::Scissor::PopScissor();
- }
- 
++}
++
  bool CMenuSpinControl::KeyDown( int key )
-@@ -127,7 +181,8 @@
+ {
+ 	const char *sound = 0;
+@@ -127,7 +181,8 @@ void CMenuSpinControl::Draw( void )
  	Size scCenterBox;
  	uint textflags = ( iFlags & QMF_DROPSHADOW ) ? ETF_SHADOW : 0;
  
@@ -2009,23 +2028,24 @@ diff --git a/3rdparty/mainui/controls/SpinControl.cpp b/3rdparty/mainui/controls
  	{
  		Point coord;
  
-@@ -139,6 +194,12 @@
- 		UnpackRGB( r, g, b, uiColorHelp );
- 		EngFuncs::DrawSetTextColor( r, g, b );
+@@ -141,6 +196,12 @@ void CMenuSpinControl::Draw( void )
  		EngFuncs::DrawConsoleString( coord, szStatusText );
-+	}
-+
+ 	}
+ 
 +	if( UI_ThemeActive( ))
 +	{
 +		DrawTheme();
 +		return;
- 	}
- 
++	}
++
  	int textHeight = m_scPos.y - (m_scChSize * 1.5f);
+ 	UI_DrawString( font, m_scPos.x - UI_OUTLINE_WIDTH, textHeight, m_scSize.w + UI_OUTLINE_WIDTH * 2, m_scChSize, szName, uiColorHelp, m_scChSize, QM_LEFT, textflags | ETF_FORCECOL | ETF_NOSIZELIMIT );
+ 
 diff --git a/3rdparty/mainui/controls/SpinControl.h b/3rdparty/mainui/controls/SpinControl.h
+index 1829837..623c69c 100644
 --- a/3rdparty/mainui/controls/SpinControl.h
 +++ b/3rdparty/mainui/controls/SpinControl.h
-@@ -47,6 +47,7 @@
+@@ -47,6 +47,7 @@ public:
  	void ForceDisplayString( const char *display );
  
  private:
@@ -2034,9 +2054,10 @@ diff --git a/3rdparty/mainui/controls/SpinControl.h b/3rdparty/mainui/controls/S
  	const char *MoveRight();
  	void Display();
 diff --git a/3rdparty/mainui/controls/Switch.cpp b/3rdparty/mainui/controls/Switch.cpp
+index e3e0063..364fe70 100644
 --- a/3rdparty/mainui/controls/Switch.cpp
 +++ b/3rdparty/mainui/controls/Switch.cpp
-@@ -87,6 +87,20 @@
+@@ -87,6 +87,20 @@ int CMenuSwitch::IsNewStateByMouseClick()
  
  void CMenuSwitch::VidInit()
  {
@@ -2057,7 +2078,7 @@ diff --git a/3rdparty/mainui/controls/Switch.cpp b/3rdparty/mainui/controls/Swit
  	iSelectColor.SetDefault( uiPromptTextColor );
  	iBackgroundColor.SetDefault( uiColorBlack );
  	iFgTextColor.SetDefault( uiInputFgColor );
-@@ -207,7 +221,8 @@
+@@ -207,7 +221,8 @@ void CMenuSwitch::Draw( void )
  	uint selectColor = iSelectColor;
  	UI_DrawString( font, m_scTextPos, m_scTextSize, szName, uiColorHelp, m_scChSize, eTextAlignment, textflags | ETF_FORCECOL );
  
@@ -2068,9 +2089,10 @@ diff --git a/3rdparty/mainui/controls/Switch.cpp b/3rdparty/mainui/controls/Swit
  		Point coord;
  
 diff --git a/3rdparty/mainui/controls/Table.cpp b/3rdparty/mainui/controls/Table.cpp
+index 902da98..1acf14e 100644
 --- a/3rdparty/mainui/controls/Table.cpp
 +++ b/3rdparty/mainui/controls/Table.cpp
-@@ -45,6 +45,13 @@
+@@ -45,6 +45,13 @@ CMenuTable::CMenuTable() : BaseClass(),
  
  void CMenuTable::VidInit()
  {
@@ -2084,7 +2106,7 @@ diff --git a/3rdparty/mainui/controls/Table.cpp b/3rdparty/mainui/controls/Table
  	BaseClass::VidInit();
  
  	iBackgroundColor.SetDefault( uiColorBlack );
-@@ -202,24 +209,57 @@
+@@ -202,25 +209,58 @@ bool CMenuTable::MoveView(int delta )
  
  bool CMenuTable::MoveCursor(int delta)
  {
@@ -2135,14 +2157,15 @@ diff --git a/3rdparty/mainui/controls/Table.cpp b/3rdparty/mainui/controls/Table
  void CMenuTable::SetCurrentIndex( int idx )
  {
  	iCurItem = bound( 0, idx, m_pModel->GetRows() );
-+
+ 
 +	// never land on a section caption
 +	if( m_pModel->GetRows() > 0 && m_pModel->IsLineSectionHeader( iCurItem ))
 +		SkipSectionHeaders( 1 );
- 
++
  	if( iCurItem < iTopItem )
  		iTopItem = iCurItem;
-@@ -282,7 +322,7 @@
+ 	if( iNumRows ) // check if already vidinit
+@@ -282,7 +322,7 @@ bool CMenuTable::KeyUp( int key )
  					int offsety = uiStatic.cursorY - starty;
  					int newCur = iTopItem + offsety / m_scChSize;
  
@@ -2151,7 +2174,7 @@ diff --git a/3rdparty/mainui/controls/Table.cpp b/3rdparty/mainui/controls/Table
  					{
  						if( newCur == iCurItem )
  						{
-@@ -517,6 +557,11 @@
+@@ -517,6 +557,11 @@ void CMenuTable::DrawLine( Point p, int line, uint textColor, bool forceCol, uin
  
  		textflags |= iFlags & QMF_DROPSHADOW ? ETF_SHADOW : 0;
  
@@ -2163,7 +2186,7 @@ diff --git a/3rdparty/mainui/controls/Table.cpp b/3rdparty/mainui/controls/Table
  		if( columns[i].fStaticWidth )
  			sz.w = columns[i].flWidth * uiStatic.scaleX;
  		else
-@@ -605,7 +650,11 @@
+@@ -605,7 +650,11 @@ void CMenuTable::DrawLine( Point p, int line, uint textColor, bool forceCol, uin
  void CMenuTable::Draw()
  {
  	int i, y;
@@ -2176,7 +2199,7 @@ diff --git a/3rdparty/mainui/controls/Table.cpp b/3rdparty/mainui/controls/Table
  	int upFocus, downFocus, scrollbarFocus;
  
  	// HACKHACK: recalc iNumRows, to be not greater than iNumItems
-@@ -685,7 +734,7 @@
+@@ -685,7 +734,7 @@ void CMenuTable::Draw()
  
  	// draw the arrows base
  	UI_FillRect( upArrow.x, upArrow.y + arrow.h,
@@ -2185,7 +2208,7 @@ diff --git a/3rdparty/mainui/controls/Table.cpp b/3rdparty/mainui/controls/Table
  
  	// ADAMIX
  	if( iScrollBarSliding )
-@@ -696,7 +745,27 @@
+@@ -696,7 +745,27 @@ void CMenuTable::Draw()
  
  	// ADAMIX END
  	// draw the arrows
@@ -2214,7 +2237,7 @@ diff --git a/3rdparty/mainui/controls/Table.cpp b/3rdparty/mainui/controls/Table
  	{
  		UI_DrawPic( upArrow, arrow, uiColorDkGrey, szUpArrow );
  		UI_DrawPic( downArrow, arrow, uiColorDkGrey, szDownArrow );
-@@ -747,8 +816,32 @@
+@@ -747,9 +816,33 @@ void CMenuTable::Draw()
  	for( i = iTopItem; i < m_pModel->GetRows() && i < iNumRows + iTopItem; i++, y += m_scChSize )
  	{
  		int color = colorBase; // predict state
@@ -2224,7 +2247,7 @@ diff --git a/3rdparty/mainui/controls/Table.cpp b/3rdparty/mainui/controls/Table
 +		// otherwise paint the list in WON amber and cyan
 +		bool forceCol = theme;
  		int fillColor = 0;
-+
+ 
 +		// a section boundary, not a row: a small uppercase caption with a
 +		// hairline under it instead of the list file's row of '=' characters
 +		if( theme && m_pModel->IsLineSectionHeader( i ))
@@ -2245,10 +2268,11 @@ diff --git a/3rdparty/mainui/controls/Table.cpp b/3rdparty/mainui/controls/Table
 +				boxSize.w, THEME_SEPARATOR );
 +			continue;
 +		}
- 
++
  		if( iFlags & QMF_GRAYED )
  		{
-@@ -768,7 +861,7 @@
+ 			color = uiColorDkGrey;
+@@ -768,7 +861,7 @@ void CMenuTable::Draw()
  			}
  			else if( i == iHighlight )
  			{
@@ -2258,9 +2282,10 @@ diff --git a/3rdparty/mainui/controls/Table.cpp b/3rdparty/mainui/controls/Table
  		}
  
 diff --git a/3rdparty/mainui/controls/Table.h b/3rdparty/mainui/controls/Table.h
+index e38f09d..244cc68 100644
 --- a/3rdparty/mainui/controls/Table.h
 +++ b/3rdparty/mainui/controls/Table.h
-@@ -57,6 +57,7 @@
+@@ -57,6 +57,7 @@ public:
  	bool MouseMove( int x, int y ) override;
  	bool MoveView( int delta );
  	bool MoveCursor( int delta );
@@ -2269,9 +2294,10 @@ diff --git a/3rdparty/mainui/controls/Table.h b/3rdparty/mainui/controls/Table.h
  	void SetCurrentIndex( int idx );
  	int GetSortingColumn( void ) { return m_iSortingColumn; }
 diff --git a/3rdparty/mainui/controls/YesNoMessageBox.cpp b/3rdparty/mainui/controls/YesNoMessageBox.cpp
+index 9d78f05..587d09e 100644
 --- a/3rdparty/mainui/controls/YesNoMessageBox.cpp
 +++ b/3rdparty/mainui/controls/YesNoMessageBox.cpp
-@@ -27,6 +27,7 @@
+@@ -27,6 +27,7 @@ CMenuYesNoMessageBox::CMenuYesNoMessageBox( bool alert ) : BaseClass( "YesNoMess
  	bAutoHide = true;
  	m_bIsAlert = alert;
  	iFlags |= QMF_DIALOG;
@@ -2279,7 +2305,7 @@ diff --git a/3rdparty/mainui/controls/YesNoMessageBox.cpp b/3rdparty/mainui/cont
  
  	dlgMessage1.iFlags = QMF_INACTIVE|QMF_DROPSHADOW;
  	dlgMessage1.eTextAlignment = QM_TOP;
-@@ -105,6 +106,52 @@
+@@ -105,6 +106,52 @@ CMenuYesNoMessageBox::VidInit
  */
  void CMenuYesNoMessageBox::_VidInit()
  {
@@ -2332,10 +2358,12 @@ diff --git a/3rdparty/mainui/controls/YesNoMessageBox.cpp b/3rdparty/mainui/cont
  	SetRect( DLG_X + 192, 256, 640, 256 );
  	pos.x += uiStatic.xOffset;
  	pos.y += uiStatic.yOffset;
-@@ -114,11 +161,40 @@
+@@ -112,6 +159,23 @@ void CMenuYesNoMessageBox::_VidInit()
+ 	CalcSizes();
+ }
  
- /*
- ==============
++/*
++==============
 +CMenuYesNoMessageBox::Show
 +
 +The message is set immediately before the box is shown (the quit dialog alone
@@ -2351,10 +2379,10 @@ diff --git a/3rdparty/mainui/controls/YesNoMessageBox.cpp b/3rdparty/mainui/cont
 +		VidInit();
 +}
 +
-+/*
-+==============
- CMenuYesNoMessageBox::Draw
+ /*
  ==============
+ CMenuYesNoMessageBox::Draw
+@@ -119,6 +183,18 @@ CMenuYesNoMessageBox::Draw
  */
  void CMenuYesNoMessageBox::Draw()
  {
@@ -2374,9 +2402,10 @@ diff --git a/3rdparty/mainui/controls/YesNoMessageBox.cpp b/3rdparty/mainui/cont
  
  	EngFuncs::FillRGBA( m_scPos.x, m_scPos.y, m_scSize.w, m_scSize.h, 20, 20, 20, 235 );
 diff --git a/3rdparty/mainui/controls/YesNoMessageBox.h b/3rdparty/mainui/controls/YesNoMessageBox.h
+index eb94222..94df055 100644
 --- a/3rdparty/mainui/controls/YesNoMessageBox.h
 +++ b/3rdparty/mainui/controls/YesNoMessageBox.h
-@@ -29,6 +29,7 @@
+@@ -29,6 +29,7 @@ public:
  
  	void _Init() override;
  	void _VidInit() override;
@@ -2384,7 +2413,7 @@ diff --git a/3rdparty/mainui/controls/YesNoMessageBox.h b/3rdparty/mainui/contro
  	void Draw() override;
  	bool KeyDown( int key ) override;
  	void SetMessage( const char *msg );
-@@ -49,6 +50,10 @@
+@@ -49,6 +50,10 @@ public:
  	CEventCallback onNegative;
  
  	bool bAutoHide;
@@ -2396,9 +2425,10 @@ diff --git a/3rdparty/mainui/controls/YesNoMessageBox.h b/3rdparty/mainui/contro
  	CMenuPicButton	yes;
  	CMenuPicButton	no;
 diff --git a/3rdparty/mainui/font/FontManager.cpp b/3rdparty/mainui/font/FontManager.cpp
+index e319369..da79b71 100644
 --- a/3rdparty/mainui/font/FontManager.cpp
 +++ b/3rdparty/mainui/font/FontManager.cpp
-@@ -21,9 +21,13 @@
+@@ -21,9 +21,13 @@ GNU General Public License for more details.
  
  #if defined(MAINUI_USE_FREETYPE)
  #include "FreeTypeFont.h"
@@ -2414,11 +2444,10 @@ diff --git a/3rdparty/mainui/font/FontManager.cpp b/3rdparty/mainui/font/FontMan
  #include "WinAPIFont.h"
  #endif
  
-@@ -33,6 +37,43 @@
- #define DEFAULT_MENUFONT "Trebuchet MS"
+@@ -34,6 +38,43 @@ GNU General Public License for more details.
  #define DEFAULT_CONFONT  "Tahoma"
  #define DEFAULT_WEIGHT   500
-+
+ 
 +// the three shipped Inter statics, picked by the requested weight
 +#define THEME_FONT_WEIGHT_REGULAR  400
 +#define THEME_FONT_WEIGHT_MEDIUM   500
@@ -2455,10 +2484,11 @@ diff --git a/3rdparty/mainui/font/FontManager.cpp b/3rdparty/mainui/font/FontMan
 +	return NULL;
 +#endif
 +}
- 
++
  CFontManager *g_FontMgr;
  
-@@ -74,27 +115,39 @@
+ CFontManager::CFontManager()
+@@ -74,27 +115,39 @@ void CFontManager::VidInit( void )
  #endif
  	)
  	{
@@ -2484,10 +2514,9 @@ diff --git a/3rdparty/mainui/font/FontManager.cpp b/3rdparty/mainui/font/FontMan
  			.Create();
  
 -		if( !uiStatic.lowmemory )
--		{
--			uiStatic.hLightBlur = CFontBuilder( DEFAULT_MENUFONT, UI_MED_CHAR_HEIGHT * scale, DEFAULT_WEIGHT )
 +		if( theme )
-+		{
+ 		{
+-			uiStatic.hLightBlur = CFontBuilder( DEFAULT_MENUFONT, UI_MED_CHAR_HEIGHT * scale, DEFAULT_WEIGHT )
 +			// The two Gaussian blur passes only exist for the WON pic-button
 +			// glow, which the theme drops. Not building them also takes the two
 +			// 8*scale rasterisations out of every resolution change. Point the
@@ -2506,7 +2535,7 @@ diff --git a/3rdparty/mainui/font/FontManager.cpp b/3rdparty/mainui/font/FontMan
  				.SetBlurParams( 8 * scale, 2.0f )
  				.Create();
  		}
-@@ -102,6 +155,26 @@
+@@ -102,6 +155,26 @@ void CFontManager::VidInit( void )
  		uiStatic.hConsoleFont = CFontBuilder( DEFAULT_CONFONT, UI_CONSOLE_CHAR_HEIGHT * scale, 500 )
  			.SetOutlineSize()
  			.Create();
@@ -2533,7 +2562,7 @@ diff --git a/3rdparty/mainui/font/FontManager.cpp b/3rdparty/mainui/font/FontMan
  		prevScale = scale;
  	}
  }
-@@ -487,30 +560,58 @@
+@@ -487,30 +560,58 @@ HFont CFontBuilder::Create()
  		}
  	}
  
@@ -2553,19 +2582,14 @@ diff --git a/3rdparty/mainui/font/FontManager.cpp b/3rdparty/mainui/font/FontMan
  	if( !font->Create( m_szName, m_iTall, m_iWeight, m_iBlur, m_fBrighten, m_iOutlineSize, m_iScanlineOffset, m_fScanlineScale, m_iFlags ) )
  	{
 -		delete font;
--
--		// fallback to bitmap font
--		font = new CBitmapFont();
--
--		// should never fail
--		if( !font->Create( "Bitmap Font", m_iTall, m_iWeight, m_iBlur, m_fBrighten, m_iOutlineSize, m_iScanlineOffset, m_fScanlineScale, m_iFlags ) )
--		{
 +		// The shipped TTF may be missing (stb_truetype), or the family may not
 +		// be installed (CWinAPIFont::Create -> EnumFontFamiliesExA). Dropping
 +		// straight to the bitmap font is a visible catastrophe, so walk a chain
 +		// of families through the system backend before giving up.
 +		bool created = false;
-+
+ 
+-		// fallback to bitmap font
+-		font = new CBitmapFont();
 +		for( int i = 0; !created; i++ )
 +		{
 +			const char *name = UI_ThemeFontFallback( i );
@@ -2583,10 +2607,11 @@ diff --git a/3rdparty/mainui/font/FontManager.cpp b/3rdparty/mainui/font/FontMan
 +				next = AllocPrimaryFont();
 +			}
 +
- 			delete font;
--			return -1;
++			delete font;
 +			font = next;
-+
+ 
+-		// should never fail
+-		if( !font->Create( "Bitmap Font", m_iTall, m_iWeight, m_iBlur, m_fBrighten, m_iOutlineSize, m_iScanlineOffset, m_fScanlineScale, m_iFlags ) )
 +			created = font->Create( name, m_iTall, m_iWeight, m_iBlur, m_fBrighten,
 +				m_iOutlineSize, m_iScanlineOffset, m_fScanlineScale, m_iFlags );
 +
@@ -2595,8 +2620,9 @@ diff --git a/3rdparty/mainui/font/FontManager.cpp b/3rdparty/mainui/font/FontMan
 +		}
 +
 +		if( !created )
-+		{
-+			delete font;
+ 		{
+ 			delete font;
+-			return -1;
 +
 +			// fallback to bitmap font
 +			font = new CBitmapFont();
@@ -2610,7 +2636,7 @@ diff --git a/3rdparty/mainui/font/FontManager.cpp b/3rdparty/mainui/font/FontMan
  		}
  	}
  
-@@ -534,6 +635,20 @@
+@@ -534,6 +635,20 @@ HFont CFontBuilder::Create()
  
  bool CFontManager::FindFontDataFile( const char *name, int tall, int weight, int flags, char *dataFile, size_t dataFileChars )
  {
@@ -2632,9 +2658,10 @@ diff --git a/3rdparty/mainui/font/FontManager.cpp b/3rdparty/mainui/font/FontMan
  	{
  		Q_strncpy( dataFile, "gfx/fonts/FiraSans-Regular.ttf", dataFileChars );
 diff --git a/3rdparty/mainui/font/WinAPIFont.cpp b/3rdparty/mainui/font/WinAPIFont.cpp
+index 7073e5c..6d03c4b 100644
 --- a/3rdparty/mainui/font/WinAPIFont.cpp
 +++ b/3rdparty/mainui/font/WinAPIFont.cpp
-@@ -13,7 +13,10 @@
+@@ -13,7 +13,10 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  GNU General Public License for more details.
  */
  
@@ -2647,14 +2674,13 @@ diff --git a/3rdparty/mainui/font/WinAPIFont.cpp b/3rdparty/mainui/font/WinAPIFo
  #include <malloc.h>
  
 diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/AdvancedControls.cpp
+index 3424ce3..c39071a 100644
 --- a/3rdparty/mainui/menus/AdvancedControls.cpp
 +++ b/3rdparty/mainui/menus/AdvancedControls.cpp
-@@ -16,6 +16,17 @@
- along with this program; if not, write to the Free Software
- Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+@@ -18,6 +18,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  
-+*/
-+
+ */
+ 
 +/*
 +------------------------------------------------------------------------------
 +
@@ -2664,10 +2690,12 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
 +used to live in the Save/Load menu and the subtitle language selector. Without
 +the theme it is still the stock Advanced Controls dialog reached from Controls,
 +so the WON path is unchanged.
- */
- 
++*/
++
  #include "q_client.h"
-@@ -25,14 +36,55 @@
+ #include "Framework.h"
+ #include "MenuStrings.h"
+@@ -25,14 +36,55 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  #include "PicButton.h"
  #include "CheckBox.h"
  #include "Slider.h"
@@ -2676,7 +2704,7 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
 +#include "CryOfFear.h"
  
  #define ART_BANNER			"gfx/shell/head_advanced"
-+
+ 
 +// the subtitle languages, wrapped as a spin-control model
 +class CMenuCoFLanguageModel : public CMenuBaseArrayModel
 +{
@@ -2714,7 +2742,7 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
 +	int GetRows() const override { return (int)( sizeof( g_cofHudScales ) / sizeof( g_cofHudScales[0] )); }
 +	const char *GetText( int line ) override { return g_cofHudScales[line].label; }
 +};
- 
++
  class CAdvancedControls : public CMenuFramework
  {
  public:
@@ -2724,7 +2752,7 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
  
  	void ToggleLookCheckboxes( bool write );
  
-@@ -43,6 +95,10 @@
+@@ -43,6 +95,10 @@ private:
  
  	void GetConfig( void );
  	void PitchInvert( void );
@@ -2735,7 +2763,7 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
  
  	CMenuPicButton done, inputDev;
  
-@@ -55,6 +111,23 @@
+@@ -55,6 +111,23 @@ private:
  	CMenuCheckBox	autoaim;
  	CMenuCheckBox	rawinput;
  	CMenuSlider	sensitivity;
@@ -2759,7 +2787,7 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
  };
  
  /*
-@@ -92,7 +165,92 @@
+@@ -92,9 +165,94 @@ void CAdvancedControls::GetConfig( )
  	rawinput.LinkCvar( "m_rawinput" );
  	sensitivity.LinkCvar( "sensitivity" );
  
@@ -2797,8 +2825,8 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
 +	}
 +
  	ToggleLookCheckboxes( false );
-+}
-+
+ }
+ 
 +/*
 +=================
 +CAdvancedControls::MenuSavesChanged
@@ -2849,10 +2877,12 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
 +
 +	EngFuncs::CvarSetValue( "cof_ui_scale", g_cofHudScales[row].scale );
 +	EngFuncs::CvarSetValue( "cof_ui_scale_user", g_cofHudScales[row].user );
- }
- 
++}
++
  void CAdvancedControls::PitchInvert()
-@@ -131,6 +289,8 @@
+ {
+ 	bool invert = invertMouse.bChecked;
+@@ -131,6 +289,8 @@ void CAdvancedControls::SaveAndPopMenu()
  	autoaim.WriteCvar();
  	rawinput.WriteCvar();
  	sensitivity.WriteCvar();
@@ -2861,19 +2891,19 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
  
  	ToggleLookCheckboxes( true );
  
-@@ -145,6 +305,11 @@
- void CAdvancedControls::_Init( void )
+@@ -146,6 +306,11 @@ void CAdvancedControls::_Init( void )
  {
  	banner.SetPicture( ART_BANNER );
-+
+ 
 +	m_bCoF = UI_ThemeActive() && UI_IsCryOfFear();
 +
 +	if( UI_ThemeActive( ))
 +		SetPanel( "GAME", 760, 520 );
- 
++
  	done.szName = L( "Done" );
  	done.SetPicture( PC_DONE );
-@@ -197,7 +362,32 @@
+ 	done.onReleased = VoidCb( &CAdvancedControls::SaveAndPopMenu );
+@@ -197,7 +362,32 @@ void CAdvancedControls::_Init( void )
  		inputDev.SetGrayed( true );
  	inputDev.SetCoord( 72, 210 );
  
@@ -2907,7 +2937,7 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
  	AddItem( done );
  	AddItem( inputDev );
  	AddItem( crosshair );
-@@ -209,11 +399,74 @@
+@@ -209,11 +399,74 @@ void CAdvancedControls::_Init( void )
  	AddItem( autoaim );
  	AddItem( rawinput );
  	AddItem( sensitivity );
@@ -2983,9 +3013,10 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
  }
  
 diff --git a/3rdparty/mainui/menus/Audio.cpp b/3rdparty/mainui/menus/Audio.cpp
+index 152fb47..5962e14 100644
 --- a/3rdparty/mainui/menus/Audio.cpp
 +++ b/3rdparty/mainui/menus/Audio.cpp
-@@ -25,6 +25,7 @@
+@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  #include "CheckBox.h"
  #include "SpinControl.h"
  #include "StringArrayModel.h"
@@ -2993,7 +3024,7 @@ diff --git a/3rdparty/mainui/menus/Audio.cpp b/3rdparty/mainui/menus/Audio.cpp
  
  #define ART_BANNER			"gfx/shell/head_audio"
  
-@@ -44,6 +45,7 @@
+@@ -44,6 +45,7 @@ private:
  
  	CMenuSlider	soundVolume;
  	CMenuSlider	musicVolume;
@@ -3001,7 +3032,7 @@ diff --git a/3rdparty/mainui/menus/Audio.cpp b/3rdparty/mainui/menus/Audio.cpp
  	CMenuSlider	suitVolume;
  	CMenuSlider	vibration;
  	CMenuCheckBox noDSP;
-@@ -63,6 +65,9 @@
+@@ -63,6 +65,9 @@ void CMenuAudio::GetConfig( void )
  {
  	soundVolume.LinkCvar( "volume" );
  	musicVolume.LinkCvar( "MP3Volume" );
@@ -3011,7 +3042,7 @@ diff --git a/3rdparty/mainui/menus/Audio.cpp b/3rdparty/mainui/menus/Audio.cpp
  	suitVolume.LinkCvar( "suitvolume" );
  	vibration.LinkCvar( "vibration_length" );
  
-@@ -98,6 +103,8 @@
+@@ -98,6 +103,8 @@ void CMenuAudio::SaveAndPopMenu()
  {
  	soundVolume.WriteCvar();
  	musicVolume.WriteCvar();
@@ -3020,7 +3051,7 @@ diff --git a/3rdparty/mainui/menus/Audio.cpp b/3rdparty/mainui/menus/Audio.cpp
  	suitVolume.WriteCvar();
  	vibration.WriteCvar();
  	noDSP.WriteCvar();
-@@ -117,6 +124,9 @@
+@@ -117,6 +124,9 @@ void CMenuAudio::_Init( void )
  {
  	banner.SetPicture(ART_BANNER);
  
@@ -3030,11 +3061,10 @@ diff --git a/3rdparty/mainui/menus/Audio.cpp b/3rdparty/mainui/menus/Audio.cpp
  	soundVolume.szName = L( "GameUI_SoundEffectVolume" );
  	soundVolume.Setup( 0.0, 1.0, 0.05f );
  	soundVolume.onChanged = CMenuEditable::WriteCvarCb;
-@@ -128,6 +138,17 @@
- 	musicVolume.onChanged = CMenuEditable::WriteCvarCb;
+@@ -129,6 +139,17 @@ void CMenuAudio::_Init( void )
  	musicVolume.SetCoord( 320, 340 );
  	musicVolume.size.w = 300;
-+
+ 
 +	// Menu sounds. Only in theme mode: the WON layout is a grid of fixed
 +	// coordinates and adding a row to it would move controls the ui_theme 0
 +	// path promises to leave exactly as they were.
@@ -3045,10 +3075,11 @@ diff --git a/3rdparty/mainui/menus/Audio.cpp b/3rdparty/mainui/menus/Audio.cpp
 +	menuVolume.SetCoord( 320, 400 );
 +	menuVolume.size.w = 300;
 +	menuVolume.SetVisibility( UI_ThemeActive( ));
- 
++
  	suitVolume.szName = L( "GameUI_HEVSuitVolume" );
  	suitVolume.Setup( 0.0, 1.0, 0.05f );
-@@ -159,10 +180,13 @@
+ 	suitVolume.onChanged = CMenuEditable::WriteCvarCb;
+@@ -159,10 +180,13 @@ void CMenuAudio::_Init( void )
  	vibration.onChanged = VoidCb( &CMenuAudio::VibrateChanged );
  	vibration.SetCoord( 700, 560 );
  
@@ -3064,7 +3095,7 @@ diff --git a/3rdparty/mainui/menus/Audio.cpp b/3rdparty/mainui/menus/Audio.cpp
  	AddItem( suitVolume );
  	AddItem( noDSP );
  	AddItem( useAlphaDSP );
-@@ -173,6 +197,44 @@
+@@ -173,6 +197,44 @@ void CMenuAudio::_Init( void )
  
  void CMenuAudio::_VidInit( )
  {
@@ -3110,9 +3141,10 @@ diff --git a/3rdparty/mainui/menus/Audio.cpp b/3rdparty/mainui/menus/Audio.cpp
  }
  
 diff --git a/3rdparty/mainui/menus/Configuration.cpp b/3rdparty/mainui/menus/Configuration.cpp
+index 6e0a981..78ee08d 100644
 --- a/3rdparty/mainui/menus/Configuration.cpp
 +++ b/3rdparty/mainui/menus/Configuration.cpp
-@@ -31,6 +31,10 @@
+@@ -31,6 +31,10 @@ class CMenuOptions: public CMenuFramework
  {
  private:
  	void _Init( void ) override;
@@ -3123,7 +3155,7 @@ diff --git a/3rdparty/mainui/menus/Configuration.cpp b/3rdparty/mainui/menus/Con
  
  public:
  	typedef CMenuFramework BaseClass;
-@@ -54,6 +58,46 @@
+@@ -54,6 +58,46 @@ void CMenuOptions::_Init( void )
  
  	msgBox.Link( this );
  
@@ -3170,7 +3202,7 @@ diff --git a/3rdparty/mainui/menus/Configuration.cpp b/3rdparty/mainui/menus/Con
  	AddItem( banner );
  	AddButton( L( "Controls" ), L( "Change keyboard and mouse settings" ),
  		PC_CONTROLS, UI_Controls_Menu, QMF_NOTIFY );
-@@ -71,4 +115,20 @@
+@@ -71,4 +115,20 @@ void CMenuOptions::_Init( void )
  		PC_DONE, VoidCb( &CMenuOptions::Hide ), QMF_NOTIFY );
  }
  
@@ -3192,9 +3224,10 @@ diff --git a/3rdparty/mainui/menus/Configuration.cpp b/3rdparty/mainui/menus/Con
 +
  ADD_MENU( menu_options, CMenuOptions, UI_Options_Menu );
 diff --git a/3rdparty/mainui/menus/Controls.cpp b/3rdparty/mainui/menus/Controls.cpp
+index b4f1aac..fe26190 100644
 --- a/3rdparty/mainui/menus/Controls.cpp
 +++ b/3rdparty/mainui/menus/Controls.cpp
-@@ -230,6 +230,9 @@
+@@ -230,6 +230,9 @@ void CMenuControls::_Init( void )
  {
  	banner.SetPicture( ART_BANNER );
  
@@ -3204,7 +3237,7 @@ diff --git a/3rdparty/mainui/menus/Controls.cpp b/3rdparty/mainui/menus/Controls
  	keysList.SetRect( 360, 230, -20, 465 );
  	keysList.SetModel( &keysListModel );
  	keysList.SetupColumn( 0, L( "GameUI_Action" ), 0.50f );
-@@ -243,21 +246,55 @@
+@@ -243,21 +246,55 @@ void CMenuControls::_Init( void )
  	msgBox2.onPositive = VoidCb( &CMenuControls::ResetKeysList );
  	msgBox2.Link( this );
  
@@ -3268,9 +3301,10 @@ diff --git a/3rdparty/mainui/menus/Controls.cpp b/3rdparty/mainui/menus/Controls
  
  ADD_MENU( menu_controls, CMenuControls, UI_Controls_Menu );
 diff --git a/3rdparty/mainui/menus/CreateGame.cpp b/3rdparty/mainui/menus/CreateGame.cpp
+index 00deec5..a745ba5 100644
 --- a/3rdparty/mainui/menus/CreateGame.cpp
 +++ b/3rdparty/mainui/menus/CreateGame.cpp
-@@ -222,13 +222,28 @@
+@@ -222,13 +222,28 @@ void CMenuCreateGame::_Init( void )
  	nat.bChecked = false;
  	nat.LinkCvar( "sv_nat" );
  
@@ -3302,7 +3336,7 @@ diff --git a/3rdparty/mainui/menus/CreateGame.cpp b/3rdparty/mainui/menus/Create
  
  	mapsList.SetCharSize( QM_SMALLFONT );
  	mapsList.SetupColumn( 0, L( "GameUI_Map" ), 0.5f );
-@@ -288,7 +303,8 @@
+@@ -288,7 +303,8 @@ void CMenuCreateGame::_Init( void )
  	msgBox.SetMessage( L( "Starting a new game will exit any current game, OK to exit?" ) );
  	msgBox.Link( this );
  
@@ -3312,7 +3346,7 @@ diff --git a/3rdparty/mainui/menus/CreateGame.cpp b/3rdparty/mainui/menus/Create
  	AddItem( hostName );
  	AddItem( maxClients );
  	AddItem( password );
-@@ -298,6 +314,25 @@
+@@ -298,6 +314,25 @@ void CMenuCreateGame::_Init( void )
  
  void CMenuCreateGame::_VidInit()
  {
@@ -3339,9 +3373,10 @@ diff --git a/3rdparty/mainui/menus/CreateGame.cpp b/3rdparty/mainui/menus/Create
  	nat.Hide();
  	// if( !EngFuncs::GetCvarFloat("public") )
 diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFear.cpp
+index 21f6b98..36ee0e2 100644
 --- a/3rdparty/mainui/menus/CryOfFear.cpp
 +++ b/3rdparty/mainui/menus/CryOfFear.cpp
-@@ -21,10 +21,12 @@
+@@ -21,10 +21,12 @@ so the game DLL (cl_dlls/hl.dll) keeps doing the work:
    custom campaign cmd campaign <firstmap>  sent before the skillset, exactly as
                                             the original CCampaignSlider does
    language        cmd subtitleset 1..7     (English + the six txtfiles/languages)
@@ -3358,7 +3393,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
    extras          ShellExecute(<url>)      the original used the Steam overlay,
                                             which never appears under FWGS
  
-@@ -43,6 +45,7 @@
+@@ -43,6 +45,7 @@ Nothing here is reachable unless the running game directory is "cryoffear".
  #include "Utils.h"
  #include "utlvector.h"
  #include "CryOfFear.h"
@@ -3366,7 +3401,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  
  // ---------------------------------------------------------------------------
  // game detection
-@@ -92,12 +95,57 @@
+@@ -92,12 +95,57 @@ static bool UI_CoFMapNameIsSane( const char *name )
  
  #define COF_NUM_SKILLSETS 4
  
@@ -3427,7 +3462,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  static const char *s_cofSkillName[COF_NUM_SKILLSETS] =
  {
  	"Easy", "Medium", "Difficult", "Nightmare"
-@@ -122,6 +170,7 @@
+@@ -122,6 +170,7 @@ public:
  	CMenuCoFDifficulty() : CMenuFramework( "CMenuCoFDifficulty" )
  	{
  		memset( skillBtn, 0, sizeof( skillBtn ));
@@ -3435,7 +3470,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  		m_szCampaign[0] = m_szTitle[0] = m_szLabel[0] = m_szCommentaryLabel[0] = 0;
  	}
  
-@@ -135,12 +184,21 @@
+@@ -135,12 +184,21 @@ private:
  	static void StartGameCb( CMenuBaseItem *pSelf, void *pExtra );
  	void StartGame( int skillset );
  	void DevCommentaryChanged();
@@ -3457,7 +3492,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  
  	char m_szCampaign[64];
  	char m_szTitle[128];
-@@ -148,6 +206,29 @@
+@@ -148,6 +206,29 @@ private:
  	char m_szCommentaryLabel[CS_SIZE];
  };
  
@@ -3487,7 +3522,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  void CMenuCoFDifficulty::SetCampaign( const char *firstmap, const char *title )
  {
  	if( firstmap && firstmap[0] )
-@@ -187,7 +268,8 @@
+@@ -187,7 +268,8 @@ void CMenuCoFDifficulty::StartGame( int skillset )
  	if( skillset < 1 || skillset > COF_NUM_SKILLSETS )
  		return;
  
@@ -3497,7 +3532,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  		return;
  
  	// Never emit a level change with an empty map name: the engine's own
-@@ -206,16 +288,43 @@
+@@ -206,16 +288,43 @@ void CMenuCoFDifficulty::StartGame( int skillset )
  	EngFuncs::CvarSetValue( "coop", 0.0f );
  	EngFuncs::PlayBackgroundTrack( NULL, NULL );
  
@@ -3544,7 +3579,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  	}
  
  	UI_CloseMenu();
-@@ -228,12 +337,30 @@
+@@ -228,12 +337,30 @@ void CMenuCoFDifficulty::StartGameCb( CMenuBaseItem *pSelf, void *pExtra )
  	ui->StartGame( (int)(size_t)pExtra );
  }
  
@@ -3578,7 +3613,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  }
  
  void CMenuCoFDifficulty::Refresh()
-@@ -251,20 +378,43 @@
+@@ -251,20 +378,43 @@ void CMenuCoFDifficulty::Refresh()
  		snprintf( m_szLabel, sizeof( m_szLabel ), "%s", L( "Cry of Fear" ));
  	campaignLabel.szName = m_szLabel;
  
@@ -3628,20 +3663,20 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  	// base Show() runs Init() the first time, so the items only exist after it
  	CMenuFramework::Show();
  	Refresh();
-@@ -272,18 +422,41 @@
+@@ -272,18 +422,41 @@ void CMenuCoFDifficulty::Show()
  
  void CMenuCoFDifficulty::_Init( void )
  {
 +	const bool theme = UI_ThemeActive();
 +
  	banner.szName = L( "Choose a difficulty" );
-+
+ 
 +	if( theme )
 +		// 440, not 400: the page grew a "Skip prologue" row in the
 +		// 2026-09-22 round and at 400 the framework's status line at the
 +		// bottom of the panel ran under the Cancel/Start row.
 +		SetPanel( "NEW GAME", 560, 440 );
- 
++
  	for( int i = 0; i < COF_NUM_SKILLSETS; i++ )
  	{
  		skillCallback[i] = StartGameCb;
@@ -3649,10 +3684,9 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
 -		skillBtn[i] = AddButton( s_cofSkillName[i], s_cofSkillStatus[i],
 -			s_cofSkillPic[i], skillCallback[i], QMF_NOTIFY );
 -	}
--
+ 
 -	AddButton( L( "GameUI_Cancel" ), L( "Go back to the Main menu" ), PC_CANCEL,
 -		VoidCb( &CMenuCoFDifficulty::Hide ), QMF_NOTIFY );
-+
 +		if( theme )
 +		{
 +			// the four difficulties are full-width selectable rows, not four
@@ -3676,7 +3710,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  
  	campaignLabel.iFlags = QMF_INACTIVE;
  	campaignLabel.colorBase = uiColorHelp;
-@@ -291,21 +464,78 @@
+@@ -291,21 +464,78 @@ void CMenuCoFDifficulty::_Init( void )
  	campaignLabel.szName = m_szLabel;
  	campaignLabel.SetCoord( 72, 200 );
  
@@ -3756,7 +3790,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  	Refresh();
  }
  
-@@ -316,8 +546,11 @@
+@@ -316,8 +546,11 @@ static CMenuCoFDifficulty *menu_cofdifficulty = NULL;
  static void UI_CoFDifficulty_Precache( void )
  {
  	menu_cofdifficulty = new CMenuCoFDifficulty();
@@ -3769,7 +3803,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  }
  
  static void UI_CoFDifficulty_Shutdown( void )
-@@ -388,18 +621,23 @@
+@@ -388,18 +621,23 @@ public:
  		// base Show() runs Init(), which is what creates play/list
  		CMenuFramework::Show();
  		model.Update();
@@ -3793,50 +3827,50 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  	CMenuCoFCampaignModel model;
  
  	friend class CMenuCoFCampaignModel;
-@@ -505,7 +743,18 @@
+@@ -505,13 +743,12 @@ void CMenuCoFCampaign::PlaySelected()
  
  void CMenuCoFCampaign::_Init( void )
  {
 +	const bool theme = UI_ThemeActive();
 +
  	banner.szName = L( "Custom Campaign" );
-+
+ 
+-	play.szName = L( "Play" );
+-	play.SetPicture( PC_NEW_GAME );
+-	play.iFlags |= QMF_NOTIFY;
+-	play.onReleased = VoidCb( &CMenuCoFCampaign::PlaySelected );
+-	play.SetCoord( 72, 230 );
 +	if( theme )
 +		SetPanel( "CUSTOM CAMPAIGN", 860, 520 );
+ 
+ 	cancel.szName = L( "GameUI_Cancel" );
+ 	cancel.SetPicture( PC_CANCEL );
+@@ -519,12 +756,24 @@ void CMenuCoFCampaign::_Init( void )
+ 	cancel.onReleased = VoidCb( &CMenuCoFCampaign::Hide );
+ 	cancel.SetCoord( 72, 280 );
+ 
++	play.szName = L( "Play" );
++	play.SetPicture( PC_NEW_GAME );
++	play.iFlags |= QMF_NOTIFY;
++	play.onReleased = VoidCb( &CMenuCoFCampaign::PlaySelected );
++	play.SetCoord( 72, 230 );
 +
-+	cancel.szName = L( "GameUI_Cancel" );
-+	cancel.SetPicture( PC_CANCEL );
-+	cancel.iFlags |= QMF_NOTIFY;
-+	cancel.onReleased = VoidCb( &CMenuCoFCampaign::Hide );
-+	cancel.SetCoord( 72, 280 );
- 
- 	play.szName = L( "Play" );
- 	play.SetPicture( PC_NEW_GAME );
-@@ -513,17 +762,17 @@
- 	play.onReleased = VoidCb( &CMenuCoFCampaign::PlaySelected );
- 	play.SetCoord( 72, 230 );
- 
--	cancel.szName = L( "GameUI_Cancel" );
--	cancel.SetPicture( PC_CANCEL );
--	cancel.iFlags |= QMF_NOTIFY;
--	cancel.onReleased = VoidCb( &CMenuCoFCampaign::Hide );
--	cancel.SetCoord( 72, 280 );
--
  	hint.iFlags = QMF_INACTIVE;
  	hint.colorBase = uiColorHelp;
  	hint.SetCharSize( QM_SMALLFONT );
  	hint.szName = L( "From maps/*.custom" );
  	hint.SetCoord( 72, 340 );
-+
+ 
 +	detail.iFlags = QMF_INACTIVE;
 +	detail.colorBase = uiColorHelp;
 +	detail.SetCharSize( QM_SMALLFONT );
 +	detail.szName = m_szDetail;
 +	m_szDetail[0] = 0;
- 
++
  	list.SetupColumn( 0, L( "Campaign" ), 0.45f );
  	list.SetupColumn( 1, L( "Author" ), 0.35f );
-@@ -532,6 +781,18 @@
+ 	list.SetupColumn( 2, L( "First map" ), 0.20f );
+@@ -532,6 +781,18 @@ void CMenuCoFCampaign::_Init( void )
  	list.SetCharSize( QM_SMALLFONT );
  	list.SetRect( 360, 230, -20, 465 );
  
@@ -3855,7 +3889,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  	AddItem( banner );
  	AddItem( play );
  	AddItem( cancel );
-@@ -539,6 +800,44 @@
+@@ -539,6 +800,44 @@ void CMenuCoFCampaign::_Init( void )
  	AddItem( list );
  }
  
@@ -3900,7 +3934,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  ADD_MENU( menu_cofcampaign, CMenuCoFCampaign, UI_CoFCampaign_Menu );
  
  // ---------------------------------------------------------------------------
-@@ -555,6 +854,48 @@
+@@ -555,6 +854,48 @@ static const char *s_cofLanguage[COF_NUM_LANGUAGES] =
  	"English", "Dutch", "French", "German", "Norwegian", "Spanish", "Swedish"
  };
  
@@ -3949,7 +3983,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  class CMenuCoFLanguage : public CMenuFramework
  {
  public:
-@@ -569,7 +910,22 @@
+@@ -569,7 +910,22 @@ public:
  
  private:
  	void _Init() override;
@@ -3973,7 +4007,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  	void Refresh();
  
  	static void SetLanguageCb( CMenuBaseItem *pSelf, void *pExtra );
-@@ -577,6 +933,8 @@
+@@ -577,6 +933,8 @@ private:
  
  	CEventCallback  langCallback[COF_NUM_LANGUAGES];
  	CMenuPicButton *langBtn[COF_NUM_LANGUAGES];
@@ -3982,7 +4016,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  	CMenuAction     current;
  	char            m_szCurrent[128];
  };
-@@ -593,11 +951,7 @@
+@@ -593,11 +951,7 @@ choice survives a restart (it is saved in cryoffear/config.cfg). Measured:
  */
  void CMenuCoFLanguage::SetLanguage( int index )
  {
@@ -3995,7 +4029,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  	Refresh();
  }
  
-@@ -610,29 +964,50 @@
+@@ -610,29 +964,50 @@ void CMenuCoFLanguage::SetLanguageCb( CMenuBaseItem *pSelf, void *pExtra )
  
  void CMenuCoFLanguage::Refresh()
  {
@@ -4022,10 +4056,10 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
 +	const bool theme = UI_ThemeActive();
 +
  	banner.szName = L( "Language" );
-+
+ 
 +	if( theme )
 +		SetPanel( "LANGUAGE", 420, 420 );
- 
++
  	for( int i = 0; i < COF_NUM_LANGUAGES; i++ )
  	{
  		langCallback[i] = SetLanguageCb;
@@ -4033,10 +4067,9 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
 -		langBtn[i] = AddButton( s_cofLanguage[i], L( "Set the subtitle and document language" ),
 -			PC_CUSTOMIZE, langCallback[i], QMF_NOTIFY );
 -	}
--
+ 
 -	AddButton( L( "Done" ), L( "Go back to the Main menu" ), PC_DONE,
 -		VoidCb( &CMenuCoFLanguage::Hide ), QMF_NOTIFY );
-+
 +		if( theme )
 +		{
 +			langRow[i].SetNameAndStatus( s_cofLanguage[i], L( "Set the subtitle and document language" ));
@@ -4056,7 +4089,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  
  	current.iFlags = QMF_INACTIVE;
  	current.colorBase = uiColorHelp;
-@@ -640,8 +1015,21 @@
+@@ -640,8 +1015,21 @@ void CMenuCoFLanguage::_Init( void )
  	current.szName = m_szCurrent;
  	current.SetCoord( 72, 200 );
  
@@ -4080,18 +4113,17 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  
  	Refresh();
  }
-@@ -652,14 +1040,16 @@
+@@ -652,14 +1040,16 @@ ADD_MENU( menu_coflanguage, CMenuCoFLanguage, UI_CoFLanguage_Menu );
  // extras
  // ---------------------------------------------------------------------------
  
 -#define COF_NUM_EXTRAS 6
--
++#define COF_NUM_EXTRAS 7
+ 
 -// The six links of the original Extras panel, in its own order. The original
 -// opened them with SteamFriends()->ActivateGameOverlayToWebPage and had no
 -// fallback, so under FWGS every one of them was a silent no-op; ShellExecute
 -// hands them to the system browser instead.
-+#define COF_NUM_EXTRAS 7
-+
 +// The six links of the original Extras panel, in its own order, with this
 +// project's own page added first. The original opened them with
 +// SteamFriends()->ActivateGameOverlayToWebPage and had no fallback, so under
@@ -4103,7 +4135,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  	"Donate",
  	"Soundtrack 1",
  	"Soundtrack 2",
-@@ -670,6 +1060,7 @@
+@@ -670,6 +1060,7 @@ static const char *s_cofExtraName[COF_NUM_EXTRAS] =
  
  static const char *s_cofExtraUrl[COF_NUM_EXTRAS] =
  {
@@ -4111,7 +4143,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  	"http://www.cry-of-fear.com/donate.php",
  	"http://www.cdbaby.com/cd/andreasronnberg",
  	"http://www.cdbaby.com/cd/andreasronnberg2",
-@@ -685,10 +1076,14 @@
+@@ -685,10 +1076,14 @@ public:
  
  private:
  	void _Init() override;
@@ -4126,17 +4158,17 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  };
  
  void CMenuCoFExtras::OpenCb( CMenuBaseItem *pSelf, void *pExtra )
-@@ -703,14 +1098,50 @@
+@@ -703,14 +1098,50 @@ void CMenuCoFExtras::OpenCb( CMenuBaseItem *pSelf, void *pExtra )
  
  void CMenuCoFExtras::_Init( void )
  {
 +	const bool theme = UI_ThemeActive();
 +
  	banner.szName = L( "Extras" );
-+
+ 
 +	if( theme )
 +		SetPanel( "EXTRAS", 560, 440 );
- 
++
  	for( int i = 0; i < COF_NUM_EXTRAS; i++ )
  	{
  		urlCallback[i] = OpenCb;
@@ -4179,7 +4211,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  	}
  
  	AddButton( L( "Done" ), L( "Go back to the Main menu" ), PC_DONE,
-@@ -719,7 +1150,248 @@
+@@ -719,8 +1150,249 @@ void CMenuCoFExtras::_Init( void )
  	AddItem( banner );
  }
  
@@ -4204,7 +4236,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
 +}
 +
  ADD_MENU( menu_cofextras, CMenuCoFExtras, UI_CoFExtras_Menu );
-+
+ 
 +// ---------------------------------------------------------------------------
 +// credits
 +// ---------------------------------------------------------------------------
@@ -4425,10 +4457,11 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
 +}
 +
 +ADD_MENU( menu_cofcredits, CMenuCoFCredits, UI_CoFCredits_Menu );
- 
++
  // ---------------------------------------------------------------------------
  // unlockables
-@@ -734,6 +1406,11 @@
+ // ---------------------------------------------------------------------------
+@@ -734,6 +1406,11 @@ obfuscated tokens compared against a table compiled into client.dll, so the
  menu library cannot render the gallery itself. Run the client's own entry
  command instead, which is what the original main menu did; it loads
  maps/c_unlockables.bsp, where the gallery entity draws the real state.
@@ -4440,7 +4473,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
  =================
  */
  void UI_CoFUnlockables( void )
-@@ -746,3 +1423,765 @@
+@@ -746,3 +1423,732 @@ void UI_CoFUnlockables( void )
  	EngFuncs::ClientCmd( false, "unlockablescmd\n" );
  	UI_CloseMenu();
  }
@@ -4990,7 +5023,7 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
 +class CMenuCoFDeath : public CMenuFramework
 +{
 +public:
-+	CMenuCoFDeath() : CMenuFramework( "CMenuCoFDeath" ), m_bStopMusicAgain( false ) { }
++	CMenuCoFDeath() : CMenuFramework( "CMenuCoFDeath" ) { }
 +
 +	void Show() override;
 +	void Hide() override;
@@ -5013,11 +5046,6 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
 +
 +	void LoadCb();
 +	void ExitCb();
-+	void StopDeathMusic( const char *when );
-+
-+	// one-shot: re-issue "stopmp3" on the first Think frame after Show, see
-+	// CMenuCoFDeath::Show
-+	bool m_bStopMusicAgain;
 +
 +	CMenuCoFDeathTitle title;
 +	CMenuCoFDeathItem  load;
@@ -5064,49 +5092,30 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
 +=================
 +CMenuCoFDeath::Show
 +
-+Measured ordering on death (docs/cof-ui-death-flow.md section 1.1, the
-+cl_trace_messages run): "PlayMP3" arrives before "VGUIMenu", and the client's
-+own CGameOver::setVisible (client.dll VA 10040E60) starts game_over.mp3 while
-+it handles that VGUIMenu message. The engine's hook runs before the client DLL
-+is handed that message and only latches it; the page is opened from
-+CL_CoF_DeathPump, which Host_ClientFrame calls after CL_ReadPackets - so the
-+client has already started both tracks by the time Show() runs, and the
-+"stopmp3" issued here is after all of them.
++REVERSED 2026-09-22, by the user's own play feedback. This page used to issue
++the client's "stopmp3" here and once more on its first Think frame, to silence
++game_over.mp3 - measured ordering, docs/cof-ui-death-flow.md section 1.1: the
++client's CGameOver::setVisible (client.dll VA 10040E60) starts that track while
++it handles the same "VGUIMenu" message the engine latched, so a stop issued from
++Show() always landed after it.
 +
-+The one-shot in Think() covers the opposite order: if anything on the client
-+side starts the death track a frame later than our page opens (a second
-+"VGUIMenu" index 35 is still delivered to the client even when the engine's
-+latch ignores it, and it re-shows CGameOver), the first Think frame stops that
-+too. It fires exactly once - "stopmp3" is unconditional, and nothing else on
-+this page has music of its own to lose.
++That was the wrong call. The original death screen is a panel over a still
++running game: the ambience, the rain, a chainsaw that was already running and
++the death music all keep playing while the player reads the screen. Silencing
++the music made our page feel like a freeze-frame, which is exactly what the
++user reported. Both calls are gone, and the engine half of the same fix
++(cof_ui_death_keep_running) stops the engine pausing the world and muting the
++mixer while this page owns input - see docs/cof-ui-death-flow.md section 6.
 +
-+"stopmp3" is the client's own console command (no arguments, unconditional
-+stop), the same one the Load Game and New Game pages already issue; it is a
-+different player from EngFuncs::StopBackgroundTrack. The panel we replace is
-+gated off but still exists, so its music is still ours to stop.
-+
-+Both calls go through the command buffer (pfnClientCmd -> Cbuf_AddText). In
-+play that buffer is empty and the command runs on the same frame; a cfg or an
-+alias that is mid-"wait" delays it, which is a property of the buffer, not of
-+this page.
++Nothing replaces them: the page now leaves the client's MP3 player alone. The
++Load Game and New Game pages still issue their own "stopmp3", which is a
++different question (music bleeding across a transition, cof_mp3_stop_on_map).
 +=================
 +*/
-+void CMenuCoFDeath::StopDeathMusic( const char *when )
-+{
-+	if( !UI_IsCryOfFear( ))
-+		return;
-+
-+	Con_DPrintf( "Cry of Fear: death page (%s), stopping the client MP3 player (stopmp3)\n", when );
-+	EngFuncs::ClientCmd( false, "stopmp3\n" );
-+}
-+
 +void CMenuCoFDeath::Show()
 +{
 +	// no scrim, no panel: the scene stays exactly as the player left it
 +	UI_ThemeSetSceneUnveiled( true );
-+
-+	StopDeathMusic( "show" );
-+	m_bStopMusicAgain = true;
 +
 +	CMenuFramework::Show();
 +}
@@ -5125,8 +5134,6 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
 +through UI_CloseMenu, which cleans the whole stack, but Exit only queues a
 +disconnect: the redirect's own "menu_main" then becomes the current window and
 +this one would sit behind it forever, still holding the scrim suppression.
-+
-+Also the one-shot second "stopmp3", see CMenuCoFDeath::Show.
 +=================
 +*/
 +void CMenuCoFDeath::Think()
@@ -5134,18 +5141,11 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
 +	if( !EngFuncs::ClientInGame( ) || EngFuncs::GetCvarFloat( "cl_background" ) != 0.0f )
 +	{
 +		UI_ThemeSetSceneUnveiled( false );
-+		m_bStopMusicAgain = false;
 +
 +		if( uiStatic.menu.Count() > 1 )
 +			Hide();
 +
 +		return;
-+	}
-+
-+	if( m_bStopMusicAgain )
-+	{
-+		m_bStopMusicAgain = false;
-+		StopDeathMusic( "first think frame" );
 +	}
 +
 +	CMenuFramework::Think();
@@ -5207,9 +5207,10 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.cpp b/3rdparty/mainui/menus/CryOfFe
 +
 +ADD_MENU( menu_cofdeath, CMenuCoFDeath, UI_CoFDeath_Menu );
 diff --git a/3rdparty/mainui/menus/CryOfFear.h b/3rdparty/mainui/menus/CryOfFear.h
+index 4cead8f..b7c0eb6 100644
 --- a/3rdparty/mainui/menus/CryOfFear.h
 +++ b/3rdparty/mainui/menus/CryOfFear.h
-@@ -29,8 +29,45 @@
+@@ -29,8 +29,45 @@ void UI_CoFCampaign_Menu( void );
  void UI_CoFLanguage_Menu( void );
  void UI_CoFExtras_Menu( void );
  
@@ -5258,9 +5259,25 @@ diff --git a/3rdparty/mainui/menus/CryOfFear.h b/3rdparty/mainui/menus/CryOfFear
 +
  #endif // MENU_CRYOFFEAR_H
 diff --git a/3rdparty/mainui/menus/LoadGame.cpp b/3rdparty/mainui/menus/LoadGame.cpp
+index 53138ba..4580d0f 100644
 --- a/3rdparty/mainui/menus/LoadGame.cpp
 +++ b/3rdparty/mainui/menus/LoadGame.cpp
-@@ -194,6 +194,7 @@
+@@ -185,7 +185,13 @@ private:
+ class CMenuLoadGame : public CMenuFramework
+ {
+ public:
+-	CMenuLoadGame() : CMenuFramework( "CMenuLoadGame" ), savesListModel( this ) { }
++	// m_fSaveMode decides the panel title, which of the two primary buttons is
++	// laid out into the bottom row and which of them is visible at all, and
++	// _VidInit() runs from Show() - so it must never be read before it has
++	// been written. It used to be left indeterminate here, which is half of
++	// the "first Load Game opens as SAVE GAME" bug; the other half is the call
++	// order in UI_LoadSaveGame_Menu() below.
++	CMenuLoadGame() : CMenuFramework( "CMenuLoadGame" ), m_fSaveMode( false ), savesListModel( this ) { }
+ 
+ 	// true to turn this menu into save mode, false to turn into load mode
+ 	void SetSaveMode( bool saveMode );
+@@ -194,6 +200,7 @@ public:
  
  private:
  	void _Init( void );
@@ -5268,11 +5285,13 @@ diff --git a/3rdparty/mainui/menus/LoadGame.cpp b/3rdparty/mainui/menus/LoadGame
  
  	void LoadGame();
  	void SaveGame();
-@@ -484,13 +485,51 @@
+@@ -484,13 +491,51 @@ void CMenuLoadGame::_Init( void )
  
  	levelShot.SetRect( LEVELSHOT_X, LEVELSHOT_Y, LEVELSHOT_W, LEVELSHOT_H );
  
 -	AddItem( banner );
+-	AddItem( load );
+-	AddItem( save );
 +	if( UI_ThemeActive( ))
 +	{
 +		SetPanel( "LOAD GAME", 860, 560 );
@@ -5286,14 +5305,12 @@ diff --git a/3rdparty/mainui/menus/LoadGame.cpp b/3rdparty/mainui/menus/LoadGame
 +
 +	AddItem( savesList );
 +	AddItem( levelShot );
-+	AddItem( remove );
-+	AddItem( cancel );
- 	AddItem( load );
- 	AddItem( save );
--	AddItem( remove );
--	AddItem( cancel );
+ 	AddItem( remove );
+ 	AddItem( cancel );
 -	AddItem( levelShot );
 -	AddItem( savesList );
++	AddItem( load );
++	AddItem( save );
 +}
 +
 +void CMenuLoadGame::_VidInit( void )
@@ -5325,7 +5342,7 @@ diff --git a/3rdparty/mainui/menus/LoadGame.cpp b/3rdparty/mainui/menus/LoadGame
  }
  
  void CMenuLoadGame::LoadGame()
-@@ -503,6 +542,15 @@
+@@ -503,6 +548,15 @@ void CMenuLoadGame::LoadGame()
  
  	snprintf( cmd, sizeof( cmd ), "load \"%s\"\n", name );
  	EngFuncs::StopBackgroundTrack( );
@@ -5341,10 +5358,31 @@ diff --git a/3rdparty/mainui/menus/LoadGame.cpp b/3rdparty/mainui/menus/LoadGame
  	EngFuncs::ClientCmd( false, cmd );
  	UI_CloseMenu();
  }
+@@ -656,8 +710,18 @@ void UI_LoadSaveGame_Menu( bool saveMode )
+ 
+ 	if( !EngFuncs::CheckGameDll( )) return;
+ 
+-	menu_loadgame->Show();
++	// The mode has to be applied BEFORE Show(), because Show() is
++	// Init() + VidInit() (controls/BaseWindow.cpp) and _VidInit() is where the
++	// panel title is chosen and where LayoutButtonRow() places whichever of
++	// Load / Save is the primary button for this mode. With the old order
++	// _VidInit() read the PREVIOUS mode: the first Load Game of a session came
++	// up titled SAVE GAME with Save laid out into the row, and then
++	// SetSaveMode() hid Save and showed Load - which nothing had positioned, so
++	// it kept its WON-layout coordinate (72, 230) and drew as a bare label at
++	// the left edge, outside the panel. Opening the page a second time looked
++	// right only because by then the stale mode happened to match.
+ 	menu_loadgame->SetSaveMode( saveMode );
++	menu_loadgame->Show();
+ 	menu_loadgame->UpdateList();
+ }
+ 
 diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
+index a99e669..8e9a67e 100644
 --- a/3rdparty/mainui/menus/Main.cpp
 +++ b/3rdparty/mainui/menus/Main.cpp
-@@ -39,6 +39,62 @@
+@@ -39,6 +39,62 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  #define ART_CLOSEBTN_F	"gfx/shell/cls_f"
  #define ART_CLOSEBTN_D	"gfx/shell/cls_d"
  
@@ -5407,11 +5445,10 @@ diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
  class CMenuMain: public CMenuFramework
  {
  public:
-@@ -47,6 +103,17 @@
- 	bool KeyDown( int key ) override;
+@@ -48,6 +104,17 @@ public:
  
  	void QuitDialogCb();
-+
+ 
 +	// console entry point for the second level of the Cry of Fear main list:
 +	// that list is switched by a mouse click or by Enter on the Extras item,
 +	// and this project may not inject either, so the level is also reachable
@@ -5422,10 +5459,11 @@ diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
 +	// in is a click on that item and then on the confirmation's positive
 +	// button. It runs exactly the callback the dialog runs.
 +	void CoFQuitToMenu() { DisconnectCb(); }
- 
++
  private:
  	void _Init() override;
-@@ -58,6 +125,11 @@
+ 	void _VidInit( ) override;
+@@ -58,6 +125,11 @@ private:
  	// Cry of Fear replaces the stock item set with its own, see InitCoF().
  	void InitCoF();
  	void VidInitCoF( bool connected );
@@ -5437,7 +5475,7 @@ diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
  
  	void DisconnectCb();
  	void DisconnectDialogCb();
-@@ -86,7 +158,11 @@
+@@ -86,7 +158,11 @@ private:
  	CMenuPicButton	cofLanguage;
  	CMenuPicButton	cofUnlockables;
  	CMenuPicButton	cofExtras;
@@ -5449,21 +5487,22 @@ diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
  
  	// buttons on top right. Maybe should be drawn if fullscreen == 1?
  	CMenuBitmap	minimizeBtn;
-@@ -100,7 +176,13 @@
+@@ -100,8 +176,14 @@ private:
  	bool bCoF;
  	bool bCoFWantBackgroundMap;
  	int  iCoFBackgroundMapDelay;
 +	// 0 = the main list, 1 = the Extras list. Pause menu always 0.
 +	int  iCoFLevel;
  };
-+
+ 
 +// Cry of Fear main list levels
 +#define COF_LEVEL_MAIN   0
 +#define COF_LEVEL_EXTRAS 1
- 
++
  // Frames the engine has to look completely idle before Quit to menu is allowed
  // to bring the background map back. A level change that is only queued is not
-@@ -114,6 +196,9 @@
+ // visible in any cvar yet, so wait a moment instead of racing it.
+@@ -114,6 +196,9 @@ void CMenuMain::QuitDialogCb()
  	else
  		dialog.SetMessage( L( "GameUI_QuitConfirmationText" ) );
  
@@ -5473,7 +5512,7 @@ diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
  	dialog.onPositive.SetCommand( false, "quit \"menu dialog\"\n" );
  	dialog.Show();
  }
-@@ -135,6 +220,7 @@
+@@ -135,6 +220,7 @@ void CMenuMain::DisconnectCb()
  
  void CMenuMain::DisconnectDialogCb()
  {
@@ -5481,7 +5520,7 @@ diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
  	dialog.onPositive = VoidCb( &CMenuMain::DisconnectCb );
  	dialog.SetMessage( L( "Really disconnect?" ) );
  	dialog.Show();
-@@ -156,6 +242,15 @@
+@@ -156,6 +242,15 @@ bool CMenuMain::KeyDown( int key )
  {
  	if( UI::Key::IsEscape( key ) )
  	{
@@ -5497,7 +5536,7 @@ diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
  		if ( CL_IsActive( ))
  		{
  			if( !dialog.IsVisible() )
-@@ -197,6 +292,7 @@
+@@ -197,6 +292,7 @@ void CMenuMain::_Init( void )
  	bCoF = UI_IsCryOfFear();
  	bCoFWantBackgroundMap = false;
  	iCoFBackgroundMapDelay = COF_BACKGROUND_RESTART_DELAY;
@@ -5505,22 +5544,21 @@ diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
  
  	if( gMenu.m_gameinfo.trainmap[0] && stricmp( gMenu.m_gameinfo.trainmap, gMenu.m_gameinfo.startmap ) != 0 )
  		bTrainMap = true;
-@@ -301,14 +397,19 @@
+@@ -301,14 +397,19 @@ void CMenuMain::_Init( void )
  		newGame.SetGrayed( true );
  	}
  
 -	if( FBitSet( gMenu.m_gameinfo.flags, GFL_ANIMATED_TITLE ))
--	{
++	// The theme has no banners at all: no animated title, no logo.avi movie
++	// banner, no WON banner bitmap.
++	if( !UI_ThemeActive( ))
+ 	{
 -		if( animatedBanner.TryLoad())
 -			AddItem( animatedBanner );
 -	}
 -	else
 -	{
 -		AddItem( movieBanner );
-+	// The theme has no banners at all: no animated title, no logo.avi movie
-+	// banner, no WON banner bitmap.
-+	if( !UI_ThemeActive( ))
-+	{
 +		if( FBitSet( gMenu.m_gameinfo.flags, GFL_ANIMATED_TITLE ))
 +		{
 +			if( animatedBanner.TryLoad())
@@ -5533,7 +5571,7 @@ diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
  	}
  
  	dialog.Link( this );
-@@ -386,39 +487,117 @@
+@@ -386,39 +487,117 @@ void CMenuMain::InitCoF( void )
  	cofHostServer.iFlags |= QMF_NOTIFY;
  	cofHostServer.onReleased = UI_CreateGame_Menu;
  
@@ -5554,10 +5592,9 @@ diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
  	cofUnlockables.SetPicture( PC_VIEW_GAME_INFO );
  	cofUnlockables.iFlags |= QMF_NOTIFY;
 -	cofUnlockables.onReleased = UI_CoFUnlockables;
--
--	cofExtras.SetNameAndStatus( L( "Extras" ), L( "Soundtrack, merchandise and community links" ) );
 +	cofUnlockables.onReleased = UI_CoFUnlockables_Menu;
-+
+ 
+-	cofExtras.SetNameAndStatus( L( "Extras" ), L( "Soundtrack, merchandise and community links" ) );
 +	// Extras is now a second level of the same list, not a page: pressing it
 +	// swaps the main list for Join Server / Host Server / Unlockables / Links /
 +	// Back, drawn in the same place and the same style with the wordmark left
@@ -5601,19 +5638,20 @@ diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
  	AddItem( newGame );
  	AddItem( saveRestore );
  	AddItem( cofCampaign );
--	AddItem( cofJoinServer );
--	AddItem( cofHostServer );
--	AddItem( cofLanguage );
--	AddItem( cofUnlockables );
- 	AddItem( cofExtras );
- 	AddItem( configuration );
- 	AddItem( cofQuitToMenu );
- 	AddItem( quit );
++	AddItem( cofExtras );
++	AddItem( configuration );
++	AddItem( cofQuitToMenu );
++	AddItem( quit );
 +
 +	// second level
-+	AddItem( cofJoinServer );
-+	AddItem( cofHostServer );
-+	AddItem( cofUnlockables );
+ 	AddItem( cofJoinServer );
+ 	AddItem( cofHostServer );
+-	AddItem( cofLanguage );
+ 	AddItem( cofUnlockables );
+-	AddItem( cofExtras );
+-	AddItem( configuration );
+-	AddItem( cofQuitToMenu );
+-	AddItem( quit );
 +	AddItem( cofLinks );
 +	AddItem( cofCredits );
 +	AddItem( cofBack );
@@ -5661,7 +5699,7 @@ diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
  }
  
  /*
-@@ -440,15 +619,30 @@
+@@ -440,15 +619,30 @@ void CMenuMain::VidInitCoF( bool connected )
  	const int hoffset = ( 70 / 640.0 ) * 1024.0;
  	const int ygap = (( 404 - 373 ) / 480.0 ) * 768.0;
  
@@ -5699,7 +5737,7 @@ diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
  
  	if( connected )
  	{
-@@ -463,15 +657,82 @@
+@@ -463,15 +657,82 @@ void CMenuMain::VidInitCoF( bool connected )
  		saveRestore.onReleased = UI_LoadGame_Menu;
  	}
  
@@ -5786,10 +5824,12 @@ diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
  	{
  		if( !order[i]->IsVisible( ))
  			continue;
-@@ -619,6 +880,70 @@
+@@ -617,6 +878,70 @@ void CMenuMain::Think()
  
- /*
- =================
+ ADD_MENU( menu_main, CMenuMain, UI_Main_Menu );
+ 
++/*
++=================
 +menu_cof_extras_list / menu_cof_main_list
 +
 +The two levels of the Cry of Fear main list, as console commands. The real way
@@ -5852,15 +5892,14 @@ diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
 +ADD_COMMAND( menu_cof_quit_to_menu, UI_CoFMainQuitToMenu );
 +ADD_COMMAND( menu_cof_sound_probe, UI_CoFSoundProbe );
 +
-+/*
-+=================
+ /*
+ =================
  UI_QuitDialog_f
- 
- called by the engine when the OS asks to quit (window close button, Cmd+Q on macOS...)
 diff --git a/3rdparty/mainui/menus/SaveLoad.cpp b/3rdparty/mainui/menus/SaveLoad.cpp
+index 4d34392..b280c29 100644
 --- a/3rdparty/mainui/menus/SaveLoad.cpp
 +++ b/3rdparty/mainui/menus/SaveLoad.cpp
-@@ -29,15 +29,33 @@
+@@ -29,15 +29,33 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  class CMenuSaveLoad : public CMenuFramework
  {
  public:
@@ -5895,7 +5934,7 @@ diff --git a/3rdparty/mainui/menus/SaveLoad.cpp b/3rdparty/mainui/menus/SaveLoad
  	char		cofMenuSavesLabel[CS_SIZE];
  	char		hintText[MAX_HINT_TEXT];
  };
-@@ -55,7 +73,11 @@
+@@ -55,7 +73,11 @@ void CMenuSaveLoad::_Init( void )
  	if( !base ) base = strrchr( gameDir, '\\' );
  	const bool cof = !stricmp( base ? base + 1 : gameDir, "cryoffear" );
  
@@ -5908,11 +5947,10 @@ diff --git a/3rdparty/mainui/menus/SaveLoad.cpp b/3rdparty/mainui/menus/SaveLoad
  		Q_strncpy( hintText, "Cry of Fear uses five shared save slots. Enable pause-menu saves to save from this menu.", sizeof( hintText ));
  	else
  		snprintf( hintText, sizeof( hintText ),
-@@ -70,6 +92,47 @@
- 	hintMessage.SetCharSize( QM_SMALLFONT );
+@@ -71,6 +93,47 @@ void CMenuSaveLoad::_Init( void )
  	hintMessage.szName = hintText;
  	hintMessage.SetCoord( 360, 480 );
-+
+ 
 +	if( UI_ThemeActive( ))
 +	{
 +		SetPanel( "SAVE / LOAD", 480, 300 );
@@ -5953,10 +5991,11 @@ diff --git a/3rdparty/mainui/menus/SaveLoad.cpp b/3rdparty/mainui/menus/SaveLoad
 +		AddItem( hintMessage );
 +		return;
 +	}
- 
++
  	AddItem( banner );
  	AddButton( L( "GameUI_LoadGame" ), L( "GameUI_LoadGameHelp" ), PC_LOAD_GAME, UI_LoadGame_Menu, QMF_NOTIFY );
-@@ -88,6 +151,22 @@
+ 	saveGame = AddButton( L( "GameUI_SaveGame" ), L( "GameUI_SaveGameHelp" ), PC_SAVE_GAME, UI_SaveGame_Menu, QMF_NOTIFY );
+@@ -88,6 +151,22 @@ void CMenuSaveLoad::_Init( void )
  	AddItem( hintMessage );
  }
  
@@ -5979,7 +6018,7 @@ diff --git a/3rdparty/mainui/menus/SaveLoad.cpp b/3rdparty/mainui/menus/SaveLoad
  void CMenuSaveLoad::CofMenuSavesChanged()
  {
  	// This is an opt-in feature, so make the change durable as soon as it is
-@@ -99,8 +178,15 @@
+@@ -99,8 +178,15 @@ void CMenuSaveLoad::CofMenuSavesChanged()
  
  void CMenuSaveLoad::UpdateCofMenuSavesLabel()
  {
@@ -5998,16 +6037,16 @@ diff --git a/3rdparty/mainui/menus/SaveLoad.cpp b/3rdparty/mainui/menus/SaveLoad
  }
  
 diff --git a/3rdparty/mainui/menus/ServerBrowser.cpp b/3rdparty/mainui/menus/ServerBrowser.cpp
+index f7644af..3f10d1c 100644
 --- a/3rdparty/mainui/menus/ServerBrowser.cpp
 +++ b/3rdparty/mainui/menus/ServerBrowser.cpp
-@@ -1147,8 +1147,39 @@
+@@ -1147,8 +1147,39 @@ CMenuServerBrowser::Init
  */
  void CMenuServerBrowser::_Init( void )
  {
 -	AddItem( banner );
--
 +	const bool theme = UI_ThemeActive();
-+
+ 
 +	if( theme )
 +		SetPanel( "JOIN SERVER", 960, 620 );
 +	else
@@ -6042,7 +6081,7 @@ diff --git a/3rdparty/mainui/menus/ServerBrowser.cpp b/3rdparty/mainui/menus/Ser
  	joinGame = AddButton( L( "Join game" ), nullptr, PC_JOIN_GAME, VoidCb( &CMenuServerBrowser::JoinGame ), QMF_GRAYED );
  	joinGame->onReleasedClActive = msgBox.MakeOpenEvent();
  
-@@ -1168,6 +1199,7 @@
+@@ -1168,6 +1199,7 @@ void CMenuServerBrowser::_Init( void )
  	addServer = AddButton( L( "Add server" ), nullptr, PC_ADD_SERVER, VoidCb( &CMenuServerBrowser::ShowAddServerBox ));
  
  	AddButton( L( "Done" ), nullptr, PC_DONE, VoidCb( &CMenuServerBrowser::Hide ) );
@@ -6050,7 +6089,7 @@ diff --git a/3rdparty/mainui/menus/ServerBrowser.cpp b/3rdparty/mainui/menus/Ser
  
  	msgBox.SetMessage( L( "Join a network game will exit any current game, OK to exit?" ) );
  	msgBox.SetPositiveButton( L( "GameUI_OK" ), PC_OK );
-@@ -1197,8 +1229,11 @@
+@@ -1197,8 +1229,11 @@ void CMenuServerBrowser::_Init( void )
  	tabSwitch.eTextAlignment = QM_CENTER;
  	tabSwitch.bMouseToggle = false;
  	tabSwitch.bKeepToggleWidth = true;
@@ -6064,7 +6103,7 @@ diff --git a/3rdparty/mainui/menus/ServerBrowser.cpp b/3rdparty/mainui/menus/Ser
  	tabSwitch.onChanged = VoidCb( &CMenuServerBrowser::OnTabSwitch );
  
  	// server.dll needs for reading savefiles or startup newgame
-@@ -1356,6 +1391,38 @@
+@@ -1356,6 +1391,38 @@ void CMenuServerBrowser::_VidInit()
  	refreshTime = uiStatic.realTime + 500; // delay before update 0.5 sec
  	refreshTime2 = uiStatic.realTime + 500;
  
@@ -6104,9 +6143,10 @@ diff --git a/3rdparty/mainui/menus/ServerBrowser.cpp b/3rdparty/mainui/menus/Ser
  	{
  		gameList.SetCoord( 360, 230 );
 diff --git a/3rdparty/mainui/menus/Video.cpp b/3rdparty/mainui/menus/Video.cpp
+index d5216cb..d868dbb 100644
 --- a/3rdparty/mainui/menus/Video.cpp
 +++ b/3rdparty/mainui/menus/Video.cpp
-@@ -28,6 +28,25 @@
+@@ -28,6 +28,25 @@ class CMenuVideo : public CMenuFramework
  {
  public:
  	CMenuVideo() : CMenuFramework( "CMenuVideo" ) { }
@@ -6132,7 +6172,7 @@ diff --git a/3rdparty/mainui/menus/Video.cpp b/3rdparty/mainui/menus/Video.cpp
  };
  
  ADD_MENU3( menu_video, CMenuVideo, UI_Video_Menu );
-@@ -39,6 +58,16 @@
+@@ -39,6 +58,16 @@ UI_Video_Menu
  */
  void UI_Video_Menu( void )
  {
@@ -6150,9 +6190,10 @@ diff --git a/3rdparty/mainui/menus/Video.cpp b/3rdparty/mainui/menus/Video.cpp
  	{
  		menu_video->banner.SetPicture( ART_BANNER );
 diff --git a/3rdparty/mainui/menus/VideoModes.cpp b/3rdparty/mainui/menus/VideoModes.cpp
+index 28f1ef6..573446e 100644
 --- a/3rdparty/mainui/menus/VideoModes.cpp
 +++ b/3rdparty/mainui/menus/VideoModes.cpp
-@@ -22,12 +22,16 @@
+@@ -22,12 +22,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  #include "MenuStrings.h"
  #include "Table.h"
  #include "CheckBox.h"
@@ -6169,7 +6210,61 @@ diff --git a/3rdparty/mainui/menus/VideoModes.cpp b/3rdparty/mainui/menus/VideoM
  
  // TODO:
  // - Get rid of vid mode strings, always compare the Width X Height of the window
-@@ -95,11 +99,13 @@
+@@ -91,15 +95,67 @@ private:
+ 	CUtlVector<refdll> m_refs;
+ };
+ 
++/*
++=================
++CMenuReadoutSlider
++
++A themed slider that prints its own current value at the right end of the label
++line the base class already draws, because the two view sliders are the first
++controls on this page whose *number* is the point - "Gamma 0.62" means nothing,
++"Field of view 90" means everything.
++
++Only the readout is added; the track, the knob, the cursor mapping and the key
++handling are CMenuSlider's, untouched. Without the theme the class behaves
++exactly like its base (the readout is drawn only in theme mode), so the WON
++path is unaffected.
++
++szFollowText, when set, replaces the number at flFollowValue - that is how
++"Viewmodel FOV" spells its zero: the slider's lowest step is one below the
++useful range and reads "Follow FOV" instead of "54".
++=================
++*/
++class CMenuReadoutSlider : public CMenuSlider
++{
++public:
++	CMenuReadoutSlider() : CMenuSlider(), szFollowText( NULL ), flFollowValue( 0.0f ) { }
++
++	void Draw() override
++	{
++		CMenuSlider::Draw();
++
++		if( !UI_ThemeActive( ))
++			return;
++
++		char text[64];
++		float value = GetCurrentValue();
++
++		if( szFollowText && value <= flFollowValue )
++			Q_strncpy( text, szFollowText, sizeof( text ));
++		else
++			snprintf( text, sizeof( text ), "%i", (int)( value + 0.5f ));
++
++		// the base draws szName at exactly this baseline, left-aligned
++		UI_DrawString( font, m_scPos.x, m_scPos.y - (int)( m_scChSize * 1.5f ),
++			m_scSize.w, m_scChSize, text,
++			FBitSet( iFlags, QMF_GRAYED ) ? THEME_DISABLED : THEME_TEXT, m_scChSize,
++			QM_TOPRIGHT, ETF_FORCECOL | ETF_NO_WRAP );
++	}
++
++	const char *szFollowText;	// drawn instead of the number at flFollowValue
++	float       flFollowValue;
++};
++
+ class CMenuVidModes : public CMenuFramework
  {
  private:
  	void _Init() override;
@@ -6184,11 +6279,10 @@ diff --git a/3rdparty/mainui/menus/VideoModes.cpp b/3rdparty/mainui/menus/VideoM
  
  	void SetMode( int mode );
  	void SetMode( int w, int h );
-@@ -125,6 +131,35 @@
- 	CMenuRenderersModel renderersModel;
+@@ -126,6 +182,46 @@ public:
  	CMenuSpinControl renderers;
  	CMenuSpinControl windowMode;
-+
+ 
 +	// ------------------------------------------------------------------
 +	// theme mode only: the former "Video options" page, merged in so there
 +	// is one Video page instead of a hub with two children. The upstream
@@ -6200,6 +6294,17 @@ diff --git a/3rdparty/mainui/menus/VideoModes.cpp b/3rdparty/mainui/menus/VideoM
 +	void WriteVideoOptions();
 +	void UpdateGamma();
 +	void GetGamma();
++
++	// Cry of Fear only: the two view sliders, bound to the engine's cof_fov
++	// (xash.dll, V_GetRefParams) and the renderer's cof_viewmodel_fov
++	// (ref_gl.dll, R_DrawViewModel). Both apply live, on drag.
++	void UpdateFov();
++	void GetFov();
++	void UpdateViewmodelFov();
++	void GetViewmodelFov();
++
++	CMenuReadoutSlider fov;
++	CMenuReadoutSlider viewmodelFov;
 +
 +	CMenuSlider	gammaIntensity;
 +	CMenuSlider	brightness;
@@ -6217,10 +6322,11 @@ diff --git a/3rdparty/mainui/menus/VideoModes.cpp b/3rdparty/mainui/menus/VideoM
 +	// own cvars, so several of the boxes above do nothing in this game and are
 +	// not shown; see the options audit in docs/cof-ui-m3-theme.md.
 +	bool		m_bCoF;
- 
++
  	int prevMode;
  	int prevModeX;
-@@ -214,6 +249,333 @@
+ 	int prevModeY;
+@@ -214,6 +310,475 @@ bool CMenuVidModes::IsRendererChanged()
  	return stricmp( renderersModel.GetShortName( i ), EngFuncs::GetCvarString( "r_refdll_loaded" )) != 0;
  }
  
@@ -6263,6 +6369,96 @@ diff --git a/3rdparty/mainui/menus/VideoModes.cpp b/3rdparty/mainui/menus/VideoM
 +#define COF_BRIGHTNESS_MAX 0.3f
 +#define COF_CONTRAST_MIN   0.2f
 +#define COF_CONTRAST_MAX   2.0f
++
++/*
++=================
++The Cry of Fear view cvars
++
++Both are added by the engine side of the FOV round
++(stage1/fov-investigation-20260922/RESULTS.md, stage1/fov-impl-20260922):
++
++  cof_fov            xash.dll,   FCVAR_ARCHIVE,  default 90, 70..110.
++                     Remapped in V_GetRefParams on rvp->fov_x only, tapering
++                     out towards the cinematic zoom, so ironsights and scripted
++                     cameras keep their authored FOV. The value is the 4:3 base
++                     (Source's fov_desired convention); FWGS Hor+-corrects it,
++                     90 -> 106.26 degrees at 16:9.
++  cof_viewmodel_fov  ref_gl.dll, FCVAR_GLCONFIG, default 0, 55..90.
++                     0 means "follow the world FOV", which is the stock look.
++
++Nothing is registered here. The menu library has no cvar of its own for either:
++it reads them by name and writes them by name, the way every other page does.
++A build whose engine or renderer does not carry the patch is handled instead of
++misreported - EngFuncs::GetCvarString returns an empty string for a name the
++engine never registered, which is the one reliable existence test, and the
++slider then shows the documented default rather than a bogus 0. Writing to a
++name that does not exist is harmless: Cvar_Set logs "variable not found" and
++returns (engine/common/cvar.c).
++
++The sliders apply live, on drag, like the gamma group above them - there is no
++restart and no Apply step, because both cvars are read per frame by the code
++that uses them.
++=================
++*/
++#define COF_FOV_MIN        70
++#define COF_FOV_MAX        110
++#define COF_FOV_DEFAULT    90
++#define COF_VMFOV_MIN      55
++#define COF_VMFOV_MAX      90
++// one step below the useful range, drawn as "Follow FOV" and written as 0.
++// A slider cannot hold a gap, so the zero lives at the bottom of the track
++// instead of in the middle of it.
++#define COF_VMFOV_FOLLOW   ( COF_VMFOV_MIN - 1 )
++
++// Reads a cvar that a not-yet-patched engine or renderer may not have.
++static float UI_CoFViewCvar( const char *name, float defValue )
++{
++	const char *str = EngFuncs::GetCvarString( name );
++
++	if( !str || !str[0] )
++		return defValue;
++
++	return EngFuncs::GetCvarFloat( name );
++}
++
++void CMenuVidModes::GetFov()
++{
++	float value = UI_CoFViewCvar( "cof_fov", COF_FOV_DEFAULT );
++
++	// anything the slider cannot represent - the engine cvar's own 0 "off"
++	// value, or a hand-edited config - reads as the shipped default, which is
++	// the neutral setting the remap does nothing at.
++	if( value < COF_FOV_MIN || value > COF_FOV_MAX )
++		value = COF_FOV_DEFAULT;
++
++	fov.SetCurrentValue( value );
++	fov.SetOriginalValue( value );
++}
++
++void CMenuVidModes::UpdateFov()
++{
++	EngFuncs::CvarSetValue( "cof_fov", (float)(int)( fov.GetCurrentValue() + 0.5f ));
++}
++
++void CMenuVidModes::GetViewmodelFov()
++{
++	float value = UI_CoFViewCvar( "cof_viewmodel_fov", 0.0f );
++
++	// 0 (follow the world FOV) and anything out of range sit on the bottom step
++	if( value < COF_VMFOV_MIN || value > COF_VMFOV_MAX )
++		value = COF_VMFOV_FOLLOW;
++
++	viewmodelFov.SetCurrentValue( value );
++	viewmodelFov.SetOriginalValue( value );
++}
++
++void CMenuVidModes::UpdateViewmodelFov()
++{
++	float value = viewmodelFov.GetCurrentValue();
++
++	EngFuncs::CvarSetValue( "cof_viewmodel_fov",
++		value <= COF_VMFOV_FOLLOW ? 0.0f : (float)(int)( value + 0.5f ));
++}
 +
 +void CMenuVidModes::UpdateGamma()
 +{
@@ -6350,6 +6546,20 @@ diff --git a/3rdparty/mainui/menus/VideoModes.cpp b/3rdparty/mainui/menus/VideoM
 +	contrast.onChanged = VoidCb( &CMenuVidModes::UpdateGamma );
 +	contrast.onCvarGet = VoidCb( &CMenuVidModes::GetGamma );
 +
++	fov.szName = L( "Field of view" );
++	fov.Setup( COF_FOV_MIN, COF_FOV_MAX, 1.0f );
++	fov.onChanged = VoidCb( &CMenuVidModes::UpdateFov );
++	fov.onCvarGet = VoidCb( &CMenuVidModes::GetFov );
++	fov.szStatusText = L( "The 4:3 base field of view; 90 is Cry of Fear's own. Ironsights and scripted cameras are not rescaled." );
++
++	viewmodelFov.szName = L( "Viewmodel FOV" );
++	viewmodelFov.Setup( COF_VMFOV_FOLLOW, COF_VMFOV_MAX, 1.0f );
++	viewmodelFov.szFollowText = L( "Follow FOV" );
++	viewmodelFov.flFollowValue = COF_VMFOV_FOLLOW;
++	viewmodelFov.onChanged = VoidCb( &CMenuVidModes::UpdateViewmodelFov );
++	viewmodelFov.onCvarGet = VoidCb( &CMenuVidModes::GetViewmodelFov );
++	viewmodelFov.szStatusText = L( "Field of view of the held weapon only. At the lowest step it follows the world field of view, which is the stock look." );
++
 +	detailtex.szName = L( "Detail textures" );
 +	vbo.szName = L( "Use VBO" );
 +	swwater.szName = L( "Water ripples" );
@@ -6403,6 +6613,9 @@ diff --git a/3rdparty/mainui/menus/VideoModes.cpp b/3rdparty/mainui/menus/VideoM
 +	AddItem( overbright );
 +	AddItem( filtering );
 +	AddItem( hudscale );
++	// last, so the keyboard cursor reaches them in the order they are drawn
++	AddItem( fov );
++	AddItem( viewmodelFov );
 +
 +	// Options audit, 2026-09-22 (docs/cof-ui-m3-theme.md). Every one of these
 +	// was measured in the fixture: same save, same camera, same frame count,
@@ -6434,6 +6647,16 @@ diff --git a/3rdparty/mainui/menus/VideoModes.cpp b/3rdparty/mainui/menus/VideoM
 +	// options page, which drives cof_ui_scale / cof_ui_scale_user instead.
 +	hudscale.SetVisibility( !m_bCoF );
 +
++	// The two view sliders are Cry of Fear's: cof_fov is remapped by the
++	// engine only for this game's client, and cof_viewmodel_fov overrides a
++	// projection the stock renderer has no reason to change. They sit under
++	// the image settings in the right column rather than in a column of their
++	// own - the page is 940x620 with 494 units of content height, the image
++	// block ends at 318, and two more sliders fit in the remainder with room
++	// to spare at every resolution down to 1280x720.
++	fov.SetVisibility( m_bCoF );
++	viewmodelFov.SetVisibility( m_bCoF );
++
 +	gammaIntensity.LinkCvar( m_bCoF ? "gl_gamma" : "gamma" );
 +	brightness.LinkCvar( m_bCoF ? "gl_brightness" : "brightness" );
 +	contrast.LinkCvar( "gl_contrast" );
@@ -6444,6 +6667,10 @@ diff --git a/3rdparty/mainui/menus/VideoModes.cpp b/3rdparty/mainui/menus/VideoM
 +	// filtering is linked in ReloadVideoOptions: the cvar name differs between
 +	// ref_gl and ref_soft
 +	hudscale.LinkCvar( "hud_scale" );
++
++	// LinkCvar runs onCvarGet, which is where the missing-cvar fallback lives
++	fov.LinkCvar( "cof_fov" );
++	viewmodelFov.LinkCvar( "cof_viewmodel_fov" );
 +}
 +
 +void CMenuVidModes::LayoutVideoOptions( const Rect &col )
@@ -6473,6 +6700,27 @@ diff --git a/3rdparty/mainui/menus/VideoModes.cpp b/3rdparty/mainui/menus/VideoM
 +
 +		boxes[i]->SetCoord( col.pt.x, y );
 +		y += THEME_ROW_PITCH;
++	}
++
++	// The view sliders close the column. The first one pays for its own label
++	// line (THEME_CTRL_PITCH only covers the gap *between* stacked sliders),
++	// plus a visual break from the checkbox block above it.
++	CMenuSlider *view[] = { &fov, &viewmodelFov };
++	bool firstView = true;
++
++	for( int i = 0; i < 2; i++ )
++	{
++		if( !view[i]->IsVisible( ))
++			continue;
++
++		if( firstView )
++		{
++			y += 14 + THEME_LABEL_TALL + 8;
++			firstView = false;
++		}
++
++		view[i]->SetRect( col.pt.x, y, col.sz.w, THEME_SLIDER_H );
++		y += THEME_CTRL_PITCH;
 +	}
 +}
 +
@@ -6554,33 +6802,34 @@ diff --git a/3rdparty/mainui/menus/VideoModes.cpp b/3rdparty/mainui/menus/VideoM
  void CMenuVidModes::GetConfig()
  {
  	float fullscreen = EngFuncs::GetCvarFloat( "fullscreen" );
-@@ -279,6 +641,10 @@
- 
+@@ -280,6 +845,10 @@ void CMenuVidModes::SetConfig( )
  	vsync.WriteCvar();
  	renderers.WriteCvar();
-+
+ 
 +	// the image settings share this page's one Apply row in theme mode
 +	if( UI_ThemeActive( ))
 +		WriteVideoOptions();
- 
++
  	if( isWindowedModeChanged )
  		EngFuncs::CvarSetValue( "fullscreen", currentWindowModeIndex );
-@@ -367,7 +733,14 @@
+ 
+@@ -367,8 +936,15 @@ void CMenuVidModes::_Init( void )
  	};
  	static CStringArrayModel windowModeModel( windowModeStr, V_ARRAYSIZE( windowModeStr ));
  
 +	m_bCoF = UI_ThemeActive() && UI_IsCryOfFear();
 +
  	banner.SetPicture( ART_BANNER );
-+
+ 
 +	// one Video page in theme mode: modes on the left, image settings on the
 +	// right. Without the theme this is still only the Video modes dialog.
 +	if( UI_ThemeActive( ))
 +		SetPanel( "VIDEO", 940, 620 );
- 
++
  	vidList.SetRect( 360, 230, -20, 365 );
  	vidList.SetupColumn( 0, L( "GameUI_Resolution" ), 1.0f );
-@@ -406,20 +779,61 @@
+ 	vidList.SetModel( &vidListModel );
+@@ -406,20 +982,61 @@ void CMenuVidModes::_Init( void )
  		parent->vidList.SetInactive( parent->windowMode.GetCurrentValue( ) == 2 );
  	});
  
@@ -6646,9 +6895,10 @@ diff --git a/3rdparty/mainui/menus/VideoModes.cpp b/3rdparty/mainui/menus/VideoM
  }
  
 diff --git a/3rdparty/mainui/menus/VideoOptions.cpp b/3rdparty/mainui/menus/VideoOptions.cpp
+index 69dd50a..b6ca2bd 100644
 --- a/3rdparty/mainui/menus/VideoOptions.cpp
 +++ b/3rdparty/mainui/menus/VideoOptions.cpp
-@@ -118,7 +118,7 @@
+@@ -118,7 +118,7 @@ CMenuVidOptions::Ownerdraw
  */
  void CMenuVidOptions::CMenuVidPreview::Draw( )
  {
@@ -6657,20 +6907,20 @@ diff --git a/3rdparty/mainui/menus/VideoOptions.cpp b/3rdparty/mainui/menus/Vide
  	int		viewport[4];
  	int		viewsize, size, sb_lines;
  
-@@ -164,6 +164,12 @@
- 	hTestImage = EngFuncs::PIC_Load( ART_GAMMA, PIC_KEEP_SOURCE | PIC_EXPAND_SOURCE );
+@@ -165,6 +165,12 @@ void CMenuVidOptions::_Init( void )
  
  	banner.SetPicture( ART_BANNER );
-+
+ 
 +	if( UI_ThemeActive( ))
 +	{
 +		SetPanel( "VIDEO OPTIONS", 860, 560 );
 +		done.szName = L( "GameUI_OK" );
 +	}
- 
++
  	testImage.iFlags = QMF_INACTIVE;
  	testImage.SetRect( 390, 225, 480, 450 );
-@@ -304,6 +310,43 @@
+ 	testImage.SetPicture( ART_GAMMA );
+@@ -304,6 +310,43 @@ void CMenuVidOptions::_VidInit()
  {
  	outlineWidth = 2;
  	UI_ScaleCoords( NULL, NULL, &outlineWidth, NULL );
@@ -6715,9 +6965,10 @@ diff --git a/3rdparty/mainui/menus/VideoOptions.cpp b/3rdparty/mainui/menus/Vide
  
  void CMenuVidOptions::Reload()
 diff --git a/3rdparty/mainui/model/BaseModel.h b/3rdparty/mainui/model/BaseModel.h
+index 5c58341..83d365a 100644
 --- a/3rdparty/mainui/model/BaseModel.h
 +++ b/3rdparty/mainui/model/BaseModel.h
-@@ -46,6 +46,13 @@
+@@ -46,6 +46,13 @@ public:
  	virtual bool GetLineColor( int line, unsigned int &fillColor, bool &force ) const { return false; }
  	virtual bool GetCellColors( int line, int column, unsigned int &textColor, bool &force ) const { return false; }
  	virtual bool IsCellTextWrapped( int line, int column ) { return true; }
@@ -6732,9 +6983,10 @@ diff --git a/3rdparty/mainui/model/BaseModel.h b/3rdparty/mainui/model/BaseModel
  
  	// sorting
 diff --git a/3rdparty/mainui/model/KbActListModel.h b/3rdparty/mainui/model/KbActListModel.h
+index 802936c..c35e486 100644
 --- a/3rdparty/mainui/model/KbActListModel.h
 +++ b/3rdparty/mainui/model/KbActListModel.h
-@@ -18,8 +18,10 @@
+@@ -18,8 +18,10 @@ GNU General Public License for more details.
  
  #include "BaseModel.h"
  #include "Utils.h"
@@ -6745,7 +6997,7 @@ diff --git a/3rdparty/mainui/model/KbActListModel.h b/3rdparty/mainui/model/KbAc
  
  // Shared model over gfx/shell/kb_act.lst, the list of game actions used
  // for the keyboard configuration screen and (read-only) the touch button
-@@ -44,6 +46,7 @@
+@@ -44,6 +46,7 @@ public:
  		char bind[64];     // empty when entry is a separator
  		char first[20];    // formatted first bound key  (VIEW_BINDINGS only)
  		char second[20];   // formatted second bound key (VIEW_BINDINGS only)
@@ -6753,7 +7005,7 @@ diff --git a/3rdparty/mainui/model/KbActListModel.h b/3rdparty/mainui/model/KbAc
  	};
  
  	void Update() override
-@@ -96,6 +99,72 @@
+@@ -96,6 +99,72 @@ public:
  		}
  
  		EngFuncs::COM_FreeFile( afile );
@@ -6826,15 +7078,15 @@ diff --git a/3rdparty/mainui/model/KbActListModel.h b/3rdparty/mainui/model/KbAc
  	}
  
  	int GetColumns() const override { return m_view == VIEW_BINDINGS ? 3 : 2; }
-@@ -124,6 +193,11 @@
- 	bool IsLineUsable( int line ) const
- 	{
+@@ -126,6 +195,11 @@ public:
  		return entries.IsValidIndex( line ) && entries[line].bind[0] != 0;
-+	}
-+
+ 	}
+ 
 +	bool IsLineSectionHeader( int line ) const override
 +	{
 +		return entries.IsValidIndex( line ) && entries[line].header;
- 	}
- 
++	}
++
  	// Walk all keys, return up to two bound to `command` (in input order, then swapped).
+ 	static void LookupBoundKeys( const char *command, int twoKeys[2] )
+ 	{

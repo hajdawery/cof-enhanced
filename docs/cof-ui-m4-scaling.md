@@ -203,6 +203,14 @@ a 1080p player sees no change at all.
 | `cof_ui_scale_sprites` | `1` | `FCVAR_ARCHIVE` | also scale the classic HUD sprite path; `0` = native size, `2` = trace every draw with its sprite name |
 | `cof_hud_text_height_pct` | `1.76` | `FCVAR_ARCHIVE` | engine HUD font height as a percentage of the render height, never below the shipped size; `0` = stock |
 
+Milestone 4b adds `cof_hud_text_font`, `cof_hud_text_backing`, `cof_hud_text_y`
+and `cof_hud_text_y_shift` on top of this one, and replaces the "glyph scale
+never below 1" floor with the equivalent floor in pixels, so a generated atlas
+of its own base height obeys it too. It also establishes, statically and at
+runtime, that this font's size **does not move** the client's messages: they sit
+at `0.70 * ScreenHeight` whatever `iCharHeight` is. See
+[the engine HUD text made readable](cof-hud-text-legibility.md).
+
 All four are live. `CL_CoF_CheckUIScaleChanged`, called once a frame from
 `CL_DrawHUD`, re-runs `SCR_VidInit` when any of them changes, which reloads the
 HUD font and makes the client re-read `charWidths[]`/`iCharHeight`. The client's

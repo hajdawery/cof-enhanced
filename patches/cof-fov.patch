@@ -1,0 +1,106 @@
+diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
+index fc7f3fd..9fe5694 100644
+--- a/engine/client/cl_main.c
++++ b/engine/client/cl_main.c
+@@ -5505,4 +5505,5 @@ static void CL_InitLocal( void )
+ 	Cvar_RegisterVariable( &cl_maxframetime );
+ 	Cvar_RegisterVariable( &cl_fixmodelinterpolationartifacts );
++	{ void V_CoF_RegisterFovCvars( void ); V_CoF_RegisterFovCvars(); } // cof_fov, cof_fov_zoom_knee; both live in engine\client\cl_view.c
+ 
+ 	// server commands
+diff --git a/engine/client/cl_view.c b/engine/client/cl_view.c
+index 5ec6c7d..d94a039 100644
+--- a/engine/client/cl_view.c
++++ b/engine/client/cl_view.c
+@@ -273,6 +273,80 @@ static void V_AdjustFov( float *fov_x, float *fov_y, float width, float height,
+ 	else *fov_y = y;
+ }
+ 
++/*
++====================
++Cry of Fear world field of view (cof_fov)
++
++Cry of Fear has no default_fov. Its client hard-codes the hip value 90 (an int
++at VA 1018FEC0, read seven times, never written), 60 for its "zoom 2" state and
++30 for the cinematic camera zoom, lerps gHUD.m_flFOV towards whichever of those
++the server asked for through the player's vuser2[0] field, multiplies the
++result by the archived cl_fovmultiplier in CHud::UpdateClientData and hands it
++to the engine as client_data_t.fov. That is the only client -> engine FOV
++channel, and it lands in cl.local.scr_fov. A slider bound straight to
++cl_fovmultiplier therefore rescales ironsights and scripted cameras as well:
++measured, the glock's ironsights base 50 becomes base 61 at multiplier 1.2222.
++
++cof_fov is instead the player's preferred *hip* field of view, stored - like
++the stock 90 and like Source's fov_desired - as the 4:3-equivalent base value.
++FWGS still Hor+-corrects it below (r_adjust_fov), so base 90 keeps rendering as
++106.26 degrees horizontal at 16:9.
++
++The engine adds the difference to whatever the client asked for and tapers that
++offset out as the request falls from the hip value towards the authored zoom
++states, so a zoom keeps the framing its author chose:
++
++	offset = bound( 70, cof_fov, 110 ) - COF_FOV_HIP
++	knee   = bound( 30, cof_fov_zoom_knee, COF_FOV_HIP )
++	t      = bound( 0, ( requested - knee ) / ( COF_FOV_HIP - knee ), 1 )
++	result = requested + offset * t
++
++With the default knee 60 - Cry of Fear's own "zoom 2" constant, and above every
++ironsights FOV measured so far (the glock's is base 50) - a request of 90 gets
++the whole offset, every request at or below 60 gets none at all, and the band
++between them is a straight ramp so the client's own lerp into and out of a zoom
++stays continuous. Set cof_fov_zoom_knee to 30 for the wider taper that also
++moves ironsights by a third of the offset.
++
++Only rvp->fov_x is touched. cl.local.scr_fov, the client's own m_flFOV and the
++mouse sensitivity it derives from it, and everything that gets saved, are left
++exactly as the game produced them.
++====================
++*/
++#define COF_FOV_HIP	90.0f
++
++static CVAR_DEFINE_AUTO( cof_fov, "90", FCVAR_ARCHIVE, "Cry of Fear world field of view at the hip, as the 4:3-equivalent base value the game itself uses (90 = stock). Widescreens are still Hor+-corrected by r_adjust_fov. Ironsights and scripted camera zooms keep their own framing, see cof_fov_zoom_knee" );
++static CVAR_DEFINE_AUTO( cof_fov_zoom_knee, "60", 0, "field of view the cof_fov offset has fully tapered out at, so zoomed views keep the framing the game asked for. 60 is Cry of Fear's own \"zoom 2\" constant and sits above its ironsights values; 30 is its cinematic camera zoom" );
++
++// registered from CL_InitLocal by the single line this patch adds to cl_main.c
++void V_CoF_RegisterFovCvars( void )
++{
++	Cvar_RegisterVariable( &cof_fov );
++	Cvar_RegisterVariable( &cof_fov_zoom_knee );
++}
++
++static float V_CoF_WorldFov( float requested )
++{
++	float	offset, knee, span, t;
++
++	// gated on the Cry of Fear client, like the rest of the cof_* stack
++	if( !GI || Q_stricmp( GI->gamefolder, "cryoffear" ))
++		return requested;
++
++	offset = bound( 70.0f, cof_fov.value, 110.0f ) - COF_FOV_HIP;
++	if( offset == 0.0f )
++		return requested; // stock: byte-identical output
++
++	knee = bound( 30.0f, cof_fov_zoom_knee.value, COF_FOV_HIP );
++	span = COF_FOV_HIP - knee;
++
++	if( span < 0.1f )
++		t = ( requested >= COF_FOV_HIP ) ? 1.0f : 0.0f;
++	else t = bound( 0.0f, ( requested - knee ) / span, 1.0f );
++
++	return requested + offset * t;
++}
++
+ /*
+ =============
+ V_GetRefParams
+@@ -302,7 +376,9 @@ static void V_GetRefParams( ref_params_t *fd, ref_viewpass_t *rvp )
+ 	rvp->viewentity = fd->viewentity;
+ 
+ 	// calc FOV
+-	rvp->fov_x = bound( 10.0f, cl.local.scr_fov, 150.0f ); // this is a final fov value
++	// the Cry of Fear world-FOV preference is applied here and here only, so
++	// the client keeps the FOV it asked for (see V_CoF_WorldFov above)
++	rvp->fov_x = bound( 10.0f, V_CoF_WorldFov( cl.local.scr_fov ), 150.0f ); // this is a final fov value
+ 
+ 	// first we need to compute FOV and other things that needs for frustum properly work
+ 	rvp->fov_y = V_CalcFov( &rvp->fov_x, clgame.viewport[2], clgame.viewport[3] );
