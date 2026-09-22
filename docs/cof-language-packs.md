@@ -1,6 +1,6 @@
-# Moved: ﻿# The engine HUD text, made readable (`cof_hud_text_font`, `cof_hud_text_backing`)
+# Moved: Language packs (`cof_language`)
 
-This page now lives at [`docs/patches/cof-hud-text-legibility.md`](patches/cof-hud-text-legibility.md).
+This page now lives at [`docs/design/language-packs.md`](design/language-packs.md).
 
 This stub stays at the old path because files this documentation round
 does not edit (patch comments, apply scripts, `languages/` or `gamedata/`

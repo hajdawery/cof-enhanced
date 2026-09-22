@@ -1,6 +1,6 @@
-# Moved: ﻿# The engine HUD text, made readable (`cof_hud_text_font`, `cof_hud_text_backing`)
+# Moved: Co-op bridge: Host co-op, Join co-op and the engine shims
 
-This page now lives at [`docs/patches/cof-hud-text-legibility.md`](patches/cof-hud-text-legibility.md).
+This page now lives at [`docs/design/coop-bridge.md`](design/coop-bridge.md).
 
 This stub stays at the old path because files this documentation round
 does not edit (patch comments, apply scripts, `languages/` or `gamedata/`

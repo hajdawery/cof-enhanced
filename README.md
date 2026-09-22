@@ -1,562 +1,267 @@
-# cof-fix
-
-<img src="assets/branding/coffix.png" alt="COF Fix emblem" width="180">
-
-This repository contains a bounded, opt-in experiment for the original Steam Cry of Fear server and client DLLs on FWGS Xash3D.
-
-The tested engine source is FWGS commit `4857b389e6ba32ddaa68582aedcbc950c138f46a`. The launch dump proves that the original DLL expects `physinfo` and the common playermove callbacks four bytes later than the current engine's `playermove_t`: the current table has `PM_Info_ValueForKey` at `+0x4F554`, while the original PM_Init helper reads its two-argument callback at `+0x4F558`. See [the adapter note](docs/pmove-adapter.md), which records the bounded runtime checkpoints and remaining ABI failure.
-
-`patches/cof-pmove-legacy.patch` adds an experimental `-cof-pmove-legacy` engine option. It copies the native playermove object into a persistent four-byte-shifted view for the original DLL's PM_Init and PM_Move calls, then copies state back. The matching client overlay in `patches/cof-client-pmove-legacy.patch` translates the client DLL's two playermove entrypoints. The entvars and edict overlays are separately opt-in and documented in [the dedicated profile report](docs/dedicated-profile-test.md) and [the stride proposal](docs/edict-stride-proposal.md). These are diagnostic candidates: the historical missing fields are not identified and this is not a release compatibility claim.
-
-The corrected client checkpoint initialized the renderer, menu, and VGUI, loaded `c_intro`, and completed bounded save/load smoke tests with no captured second-chance exception. The save preview was nonblank. This does not establish visual parity, human gameplay, campaign completeness, or Steam Play launch behavior; see [the client startup report](docs/client-pmove-adapter-test.md) and [the campaign/save-load report](docs/campaign-save-load-test.md).
-
-The repo intentionally contains no game files, Steam DLLs, runtime archives, dumps, or built binaries. Build output belongs in the ignored source/build directories.
-
-For reusable engine/game development lessons from this investigation, see the [Xash/GoldSrc developer notes](docs/xash-goldsrc-developer-notes.md).
-For the detailed custom CoF UI ownership, coordinate-space, and scaling research, see [the custom UI scaling note](docs/cof-custom-ui-scaling-research.md).
-For the disposable-runtime and per-run evidence policy used by isolated
-runtime checks, see the [launcher fixture workflow](docs/steam-launch-prototype.md#reusable-fixture-workflow).
-
-## Applying the patch
-
-Use a clean checkout or extracted archive of the pinned FWGS revision and run:
-
-```powershell
-pwsh -File .\scripts\apply-pmove-adapter.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-For the complete client profile, apply the server adapter first, then the client adapter, entvars profile, and edict stride overlay with their ordered helpers:
-
-```powershell
-pwsh -File .\scripts\apply-cof-client-pmove-profile.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-pwsh -File .\scripts\apply-cof-entvars-profile.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-pwsh -File .\scripts\apply-cof-edict-stride-profile.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-The source tree must be inside this repository because the scripts scope patch application to the project workspace. Each helper checks concrete source markers after applying and reverse-checks the patch; a successful process exit alone is not evidence that the source changed. They refuse duplicate application and leave generated build output in ignored source/build directories.
-
-The optional CoF save-menu checkpoint has a separate ordered application. Apply
-the existing menu-load trace prerequisite and root-save compatibility first,
-then the pause list/comment plumbing, server menu backend, client tape-command
-hook, and finally the nested MainUI files:
-
-```powershell
-pwsh -File .\scripts\apply-cof-menu-load-trace.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-pwsh -File .\scripts\apply-cof-save-root-compat.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-pwsh -File .\scripts\apply-cof-pause-save-plumbing.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-pwsh -File .\scripts\apply-cof-menu-save-backend.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-pwsh -File .\scripts\apply-cof-tape-save-command.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-pwsh -File .\scripts\apply-cof-mainui-menu-save.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-The menu backend and nested MainUI integration are both required for a GUI
-save action. `cof_save_root_compat` remains an explicit runtime enablement;
-`cof_pause_menu_saves` defaults to `0` and is the user's separate menu-save
-choice. The implementation shares the original five slots and keeps the tape
-save path separate. See [root-save compatibility](docs/cof-save-root-compat.md),
-[pause plumbing](docs/cof-pause-save-plumbing.md),
-[menu backend](docs/cof-menu-save-backend.md),
-[tape command](docs/cof-tape-save-command.md), and
-[MainUI integration](docs/cof-mainui-menu-save.md) for scope and validation
-limits. These checkpoints are source/apply experiments; runtime menu-save
-success and visual parity are not implied.
-
-The renderer fix for the missing Cry of Fear main-menu skyline is applied after
-the GL stage, solid-entity, and transparent-triangle trace patches:
-
-```powershell
-pwsh -File .\scripts\apply-cof-custom-renderfx-opaque.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-It restores GoldSrc's rule that `rendermode`-normal entities stay opaque
-whatever their `renderfx` is, behind the `cof_custom_renderfx_opaque` cvar
-(default `1`). See [custom renderfx opaque classification](docs/cof-custom-renderfx-opaque.md)
-for the root cause, the measured evidence, and the validation.
-
-One more `ref/gl` patch goes on top of this one, the viewmodel field of view;
-see the [field of view](#field-of-view) section below.
-
-Milestone 1 of the unified UI stack is the engine-side input and paint gate. It
-is applied after the engine save/menu patches above; it is independent of the
-`ref/gl` patches and may be applied before or after them:
-
-```powershell
-pwsh -File .\scripts\apply-cof-ui-input-gate.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-With `cof_ui_input_gate 1` (default) the Cry of Fear client neither paints its
-VGUI/HUD layer nor receives keyboard and mouse input while the engine menu, the
-console or the chat line has focus, and `Escape` always reaches `CL_Escape_f` so
-the engine menu opens even while a CoF VGUI panel is up. Game focus is
-unchanged. The patch also packages the previously untracked
-`cof_skip_client_hud_redraw` and `cof_skip_vgui_paint` diagnostics (both default
-`0`).
-
-The same patch carries the sibling cvar `cof_ui_deferred_cmd_guard` (default
-`1`). Cry of Fear's `HUD_Init` issues `map c_game_menu1` before the engine is
-initialised, so the engine parks it in `host.deferred_cmd` and replays it the
-first frame the engine menu becomes visible: from gameplay that threw the loaded
-save away, and on a plain boot it replaced MainUI's `map_background` with a real
-map. The guard drops that stale boot command instead and reports it once at
-developer level. Setting the cvar to `0` restores the stock path and reproduces
-both effects. See [unified UI input gate](docs/cof-ui-input-gate.md) for the
-design, the disassembly and log evidence, and the limits.
-
-A video mode change made from the menu used to strip the Cry of Fear background
-scene - custom sky, atmosphere and snow gone, the map's plain `blue22` skybox
-left behind - because FWGS keeps the GL context and only re-calls the client's
-`pfnVidInit`, which in this client is a per-level entry point whose one-shot
-setup nothing replays. The fix is applied after the input gate:
-
-```powershell
-pwsh -File .\scripts\apply-cof-vid-restart-background.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-With `cof_vid_restart_background 1` (default) a completed resolution change or
-windowed/fullscreen toggle restarts the menu background map through the command
-buffer, so the client's per-level init reruns and the scene comes back whole.
-A real game in progress is never reloaded: the engine prints a one-line
-developer notice instead, which is the hook for a later fix. The sibling cvar
-`cof_vid_skip_redundant_vidinit` (default `0`, off) skips the client
-`pfnVidInit` outright when the render size did not change, which is the cheaper
-repair for a pure fullscreen toggle; it is off because it has only been
-exercised on SDL2 + `ref_gl` on Windows. See
-[video mode changes and the menu scene](docs/cof-vid-restart-background.md) for
-the root cause, the measured A/B and the limits.
-
-Cry of Fear's main menu is a client VGUI panel that lives on the real map
-`c_game_menu1`, so "back to the main menu" is spelled `map c_game_menu1`
-everywhere in the game: by the client's `to3dmenu` command and by its
-Unlockables, difficulty and server-settings panels through `pfnClientCmd`, and
-by `hl.dll` after deaths, endings and the `closegame` teardown through
-`CLIENT_COMMAND`, which arrives as an `svc_stufftext`. Under the unified UI that
-brought the *old* Cry of Fear menu back - the reported symptom was the
-Unlockables gallery's MAIN MENU button. The redirect is applied after the input
-gate, the video-mode background restart and the menu-load trace, whose lines it
-uses as hunk context:
-
-```powershell
-pwsh -File .\scripts\apply-cof-ui-menu-map-redirect.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-With `cof_ui_menu_map_redirect 1` (default) the engine answers any of those with
-the sequence MainUI's own Quit-to-menu path produces - `disconnect`, then
-`menu_main`, then `map_background` of the scene from
-`scripts/chapterbackgrounds.txt` - and prints one developer line naming the
-producer. `map_background` itself is untouched, so the background map still
-works and the redirect cannot recurse. Setting the cvar to `0` restores the
-stock path and reproduces the old behaviour in the same binary. See
-[menu-map redirect](docs/cof-ui-menu-map-redirect.md) for the disassembly of
-every producer, the interception points, the measured runs and the limits.
-
-The same patch also makes a **`disconnect` from anywhere** land where Quit to
-menu lands. Quit to menu was never the disconnect doing that: the re-arm lived
-in MainUI's own `CMenuMain::Think`, so a typed `disconnect`, an alias or a cfg
-line left the engine menu standing over nothing. `CL_CoF_Disconnect_f` wraps the
-`disconnect` console command - the one thing every route shares - and queues
-`menu_main` plus `map_background` behind it, behind the same cvar and behind a
-one-shot latch so the redirect's own sequence and MainUI's Quit to menu cannot
-each start a background map of their own. The engine's internal
-`CL_Disconnect_f` callers (connection failure, host error) are untouched.
-
-The engine menu's own sounds are scaled by one archived cvar, `ui_sound_volume`
-(default `1.0`, so every other game is unchanged). It is applied in
-`pfnPlaySound`, the menu library's single entry into the mixer, so no game
-sound can be affected; Cry of Fear defaults it to `0.5` through the menu
-theme's deferred defaults, and the Audio page has a *Menu sounds* slider for it.
-Applied after the input gate, which is the other patch touching `cl_gameui.c`:
-
-```powershell
-pwsh -File .\scripts\apply-cof-ui-sound-volume.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-See [menu sound volume](docs/cof-ui-sound-volume.md) for the call-path
-measurement, the choice of where to scale and the evidence.
-
-Dying was the other place the old Cry of Fear UI came back: the game DLL puts up
-a `GAME OVER` panel with `LOAD GAME` and `EXIT` links, and `EXIT` then reached
-the old menu. Measured, that screen is not a command and not a level change at
-all - it is the user message `VGUIMenu` with a first byte of 35, which
-`client.dll`'s `CClientViewport::ShowVGUIMenu` turns into its `CGameOver` panel,
-and nothing follows it. The engine now catches that message and opens its own
-death page instead. The same patch adds `con_enable`, the archived cvar stock
-FWGS does not have, so "Enable console" can be a real checkbox rather than the
-one-way `ui_allowconsole` button. It is applied after the menu-map redirect, the
-input gate and the styled console:
-
-```powershell
-pwsh -File .\scripts\apply-cof-ui-death-flow.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-> **Apply order.** This section appears before the styled console below, but the
-> console has to be applied **first** - the death flow uses its `console.c`
-> lines as hunk context, and its apply script says so. On a fresh tree the
-> engine order is: input gate, video-mode restart, menu-map redirect, UI sound
-> volume, console variable-width font fallback, **styled console**, **death
-> flow**, levelshot guard, text autoscale, MP3 stop, sky reset, build stamp,
-> then the milestone 4 UI scaling pair, the Inter VGUI fonts, and finally the
-> milestone 4b pair (`cof-ui-death-live`, `cof-hud-text-backing`). Reading the
-> code blocks top to bottom fails at the death flow. `cof-fov` is deliberately
-> outside this order: its hunks sit in `V_GetRefParams`, which nothing else
-> touches, and its one `cl_main.c` line is anchored on two stock registrations,
-> so it applies anywhere in the sequence.
-
-With `cof_ui_death_menu 1` (default) death brings up `GAME OVER` in the theme's
-wordmark over the untouched scene - no panel, no scrim - with `Load Game` (our
-save list, whose Cancel comes back to it, as the original's did) and `Exit`
-(the original link's own `map c_game_menu1`, which the redirect turns into
-disconnect plus background map). The client's panel is still sent the message
-and is simply never painted, because `cof_ui_input_gate` owns the client layer
-while a menu page is up. `cof_ui_death_menu 0` reproduces the stock flow in the
-same binary. See [the death flow](docs/cof-ui-death-flow.md) for the
-disassembly, the measured message trace and timings, the button end states, and
-the console cvar.
-
-Milestone 3 part (b) of the unified UI stack turns the engine console into a
-Source-style window while keeping every bit of its GoldSrc behaviour. It is
-applied after the console variable-width font fallback, whose lines it uses as
-hunk context:
-
-```powershell
-pwsh -File .\scripts\apply-cof-console-style.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-With `cof_console_style 1` (default) the console is a centred translucent panel
-of `cof_console_width` x `cof_console_height` of the screen (0.70 x 0.60), with
-a hairline border, a title band carrying `CONSOLE` and the build string, a
-clickable close `X`, and a separate input box with its own border and caret.
-The geometry is derived from the render size and the font, with none of the
-stock path's hardcoded 4:3 math. The tilde toggle, key handling, history,
-completion, backscroll and the notify area are untouched code, and
-`cof_console_style 0` reaches the stock drawing unchanged. Panel colours follow
-the milestone-3a theme spec and are exposed as `cof_console_*_color` cvars.
-`cof_console_font_grayscale` (default `1`, only honoured while the style is on)
-loads the console font as luminance, because Cry of Fear's own `CONCHARS` atlas
-is orange and would otherwise tint every colour the console draws. See
-[the console as a Source-style window](docs/cof-console-style.md) for the
-measured colours, the geometry, the screenshot matrix and the limits.
-
-A separate one-function crash fix came out of the same work: `newgame` typed at
-the console while the menu background map runs shuts the server down, and the
-levelshot queued by the next level load then ran with no world and dereferenced
-a null path in `FS_FixFileCase`. It shares no hunk context with anything else
-and can be applied in any order:
-
-```powershell
-pwsh -File .\scripts\apply-cof-levelshot-guard.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-See [levelshot NULL-world guard](docs/cof-levelshot-guard.md) for the measured
-stack and the verification run.
-
-Milestone 4 of the unified UI stack starts with the size of the engine's own
-text. Console, notify lines and every engine-drawn corner overlay used to be a
-fixed number of pixels tall whatever the display was, which is unreadable at
-2560x1440 and worse at 3840x2160. The glyph height is now a plain fraction of
-the render height - `cof_text_height_pct`, default `1.7` percent, continuous,
-with no per-resolution cases - and the console draws out of an Inter bitmap
-atlas generated from the font the theme already ships. Apply it after the
-styled console **and** the death flow, whose console.c lines it uses as hunk
-context:
-
-```powershell
-pwsh -File .\scripts\apply-cof-text-autoscale.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-Measured: 12 px at 720p, 18 at 1080p, 24 at 1440p, 37 at 2160p, and everything
-that draws through a console font follows - the styled and the stock console,
-the input line, the notify area, `Con_DrawDebug`, `cl_showfps`, `r_speeds`,
-`net_speeds`, the net graph labels and the version string. The three atlases
-live in `gamedata/cryoffear/fonts/` and are regenerated byte-for-byte by
-`scripts/make-cof-console-font.py`; without them the scaling falls back to the
-game's own `CONCHARS`. `cof_text_autoscale 0` is the stock behaviour in the same
-binary. See [console and overlay text autoscale](docs/cof-text-autoscale.md) for
-the formula, the atlas container, the three hard-coded layout constants that had
-to be re-derived, and the screenshot matrix.
-
-A separate small engine fix from the same round: Cry of Fear plays its music
-through the client's own irrKlang player, which no engine path can see, so a
-track bled across every map change, save load and quit to menu.
-`cof_mp3_stop_on_map` (default `1`) runs the client's own `stopmp3` command
-before `COM_LoadLevel`, `COM_NewGame`, `COM_LoadGame` and `CL_Disconnect` -
-and deliberately **not** before `COM_ChangeLevel`, because Cry of Fear carries a
-track across an in-game level transition on purpose:
-
-```powershell
-pwsh -File .\scripts\apply-cof-mp3-stop-on-map.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-See [stop the client MP3 player on a session change](docs/cof-mp3-stop-on-map.md).
-
-A second small engine fix from 2026-09-22: one map with missing sky faces used
-to kill the sky for the rest of the session. Cry of Fear's client owns its own
-sky pass behind a cvar of its own, `gl_customsky`, which it registers with no
-flags at all and writes `0` into whenever a face fails to load - and nothing
-ever writes it back. `c_unlockables` has no `skyname` in its worldspawn, so
-`sv_skyname` falls back to Xash's default `desert`, which this game does not
-ship, so the Unlockables gallery disabled the sky and every map loaded
-afterwards had none. `cof_sky_reset_per_map` (default `1`) remembers the value
-the client overwrote and puts it back in `R_SetupSky`, the engine's own per-map
-sky setup, so a failed sky load stays on the map that caused it. Nothing else
-about `gl_customsky` changes and `cof_sky_reset_per_map 0` is stock behaviour in
-the same binary:
-
-```powershell
-pwsh -File .\scripts\apply-cof-sky-reset-per-map.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-See [a failed sky load must not outlive its map](docs/cof-sky-reset-per-map.md)
-for the disassembly, the map survey and the evidence.
-
-The engine also carries a build stamp of its own now: a second line under
-Xash3D's version line in the corner, and the same string appended in the styled
-console's title band, reading `cofenhanced <version> (<milestone>, <commit>)`.
-The three values come from `VERSION` in this repository and from its git short
-hash; `scripts\write-cof-version.ps1` writes them into a generated, uncommitted
-`engine/cof_version.h`, and the engine falls back to `dev` values when that file
-is absent, so a plain apply still compiles:
-
-```powershell
-pwsh -File .\scripts\apply-cof-cofenhanced-version.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-pwsh -File .\scripts\write-cof-version.ps1
-```
-
-See [the cofenhanced build stamp](docs/cof-cofenhanced-version.md).
-
-The in-game UI finally scales with the display. Every Cry of Fear surface — the
-inventory, the HUD bars, the ammo counter, the phone, the notes, the hint and
-subtitle text — was a fixed-pixel layout built once from the screen size the
-client is told about, so the fraction of the screen it covered fell off as
-`1/height` and at 4K the inventory was a postage stamp. The obvious lever,
-`hud_scale`, is **poison for this game**: the client builds its own renderer's
-viewport out of the same `gHUD.m_scrinfo` it lays its panels out from, so a
-virtual screen size zooms and shifts the 3D view. `hud_scale` is therefore
-ignored outright for Cry of Fear, and the scale is applied in the engine's VGUI
-surface layer instead, with each top-level client surface anchored to the screen
-edge it was laid out against so a magnified HUD stays in its corner and a
-magnified inventory stays centred. `cof_ui_scale 0` (the default) keeps the UI
-at exactly the fraction of the screen it occupies at 1080p, continuously in the
-render height, and the same change fixes the inventory-in-the-corner bug after a
-video mode change. `cof_ui_scale_user` is the menu's "HUD scale" control and
-multiplies the engine HUD text with it. Both halves are needed — the engine one
-alone scales the panels without re-anchoring them:
-
-```powershell
-pwsh -File .\scripts\apply-cof-ui-scale.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-pwsh -File .\scripts\apply-cof-vgui-anchor.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-python waf build -j8 --targets=xash,vgui
-```
-
-The playermove adapter fix goes last in the engine stack, after the UI scale
-patch. The original DLLs mutate a shifted copy of the playermove object while
-every engine pmove callback reads the native one, so collision traces ran with
-the previous frame's hull and the player got stuck in crouch sections; the
-patch mirrors `usehull`, `origin` and `velocity` back at each callback and
-moves the four-byte shift boundary to `numtouch`, where the original DLLs
-actually expect it (this also restores pmove touch impacts):
-
-```powershell
-pwsh -File .\scripts\apply-cof-pmove-callback-view.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-See [the pmove callback view](docs/cof-pmove-callback-view.md) for the measured
-A/B and the corrected offsets.
-
-This is the first milestone to change the VGUI support library, so `vgui.dll`
-has to be built and deployed alongside `xash.dll`. See
-[the in-game UI scaled from the display](docs/cof-ui-m4-scaling.md) for the
-transform, the measured panel tree the anchor rule comes from, the FOV
-measurement that rules out `hud_scale`, and the element coverage table.
-
-On top of that, the client's VGUI text is rasterised from the Inter faces the
-project already ships instead of from the game's bitmap strips, whose sizes
-stop changing at the 1024 resolution bucket and whose table caps at 1600.
-`cof_ui_inter_fonts 1` (the default) sizes each scheme from the render height,
-rasterises at device pixels and reports metrics in logical ones so the surface
-transform maps the atlas 1:1, and answers the glyph widths itself so the
-shipped `.chw` tables are bypassed. `cof_text_codepage` decodes each text byte
-through 1250, 1251 or 1252 immediately before the glyph lookup, which is what
-the Polish and Ukrainian packs need; `cof_font_probe` draws a developer test
-string so a pack's code page can be checked without a map or a mouse. Note
-that the inventory's own labels are **painted into
-`gfx/vgui/640_inventory.tga`** and are not text at all, so no font setting
-changes them:
-
-```powershell
-pwsh -File .\scripts\apply-cof-vgui-inter-fonts.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-See [the client's VGUI text rasterised from Inter](docs/cof-vgui-inter-fonts.md).
-
-Milestone 4b closes the user's two remaining in-game-text complaints. The death
-page no longer pauses the world behind it - the ambience, the rain and the death
-music keep going the way the original's own GAME OVER panel left them
-(`cof_ui_death_keep_running`), and the menu-side `stopmp3` that used to silence
-that music is gone. The engine HUD text (hints, `HudText` messages, the
-"Using Gas Mask" prompts) is drawn from a generated Inter SemiBold atlas instead
-of the game's thin one-size bitmap, on a translucent backing strip
-(`cof_hud_text_font`, `cof_hud_text_backing`), and the notes/document reader
-gets the same strip. `cof_hud_text_y` is there for a player who wants the line
-lower; its default is 0 because the engine text path was **measured** to sit at
-exactly 70 % of the screen height whatever the font size is.
-
-Milestone 4c adds the other half of the same complaint. The item pickups and
-the yellow cutscene dialogue lines are not that path at all - they are one
-child `Label` of the client's `CHUDControl`, and the milestone 4 surface
-transform was landing it at 79.7 % of the screen at 1080p and 71.8 % at 1440p,
-drifting further the larger the HUD scale. `cof_hud_msg_y_pct` (default 78)
-pins it to a fixed fraction at every resolution, gives it the same backing
-strip and the SemiBold face, and leaves the intro text card and the credits
-roll - which share its font role - exactly where they were. The two patches are
-applied last, after the whole scaling and font stack:
-
-```powershell
-pwsh -File .\scripts\apply-cof-ui-death-live.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-pwsh -File .\scripts\apply-cof-hud-text-backing.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-The HUD text patch ships `gamedata/cryoffear/fonts/cof_hudtext{0,1}.fnt`, which
-have to be deployed into the runtime's `cryoffear/fonts/` beside the console
-atlases. See
-[the engine HUD text made readable](docs/cof-hud-text-legibility.md) and
-[the death flow](docs/cof-ui-death-flow.md) section 8.
-
-## Field of view
-
-Cry of Fear has no `default_fov`: the client hard-codes 90 at the hip, 60 for
-its "zoom 2" state and 30 for the cinematic camera zoom, and the only lever it
-exposes is the archived `cl_fovmultiplier`, which scales ironsights and
-scripted camera zooms along with the hip view. `cof_fov` is the engine's own
-option instead. It is the preferred **hip** field of view, stored - like the
-game's 90 and like Source's `fov_desired` - as the 4:3-equivalent base value,
-and it is added to whatever the client asked for in `V_GetRefParams`, tapering
-out as the request falls towards the authored zooms so those keep the framing
-their author chose. Only `rvp->fov_x` is written; `cl.local.scr_fov`, the
-client's own FOV, the mouse sensitivity derived from it and everything that
-gets saved never see it. Measured: base 70/90/110 render as 86.09 / 106.26 /
-124.60 degrees horizontal at 16:9, and the glock's ironsights are the *same
-frame* at all three. The patch has no ordering constraint inside the engine
-stack:
-
-```powershell
-pwsh -File .\scripts\apply-cof-fov.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-`cof_viewmodel_fov` is the matching renderer option. `ref/gl` builds one
-projection per frame, so the viewmodel has always scaled with the world FOV;
-this pushes a second projection, built from the same `V_CalcFov`/`V_AdjustFov`
-chain, inside the depth-range bracket `R_DrawViewModel` already puts around its
-draw, and pops it again. `0` (the default) means "follow the world FOV" and
-leaves the pass byte-identical to stock. It is the **last** patch of the
-`ref/gl` stack, because it declares and registers its cvar next to
-`cof_custom_renderfx_opaque`:
-
-```powershell
-pwsh -File .\scripts\apply-cof-viewmodel-fov.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-The renderer patch means `ref_gl.dll` has to be built and deployed alongside
-`xash.dll` for the viewmodel half. See
-[field of view](docs/cof-fov.md) for the formula, the disassembled FOV chain,
-the measured tables and the clamp evidence, and
-`stage1/fov-investigation-20260922/RESULTS.md` for the investigation the design
-came out of.
-
-The first milestone of the unified UI stack puts the engine menu on screen over
-the live Cry of Fear scene. It is one small MainUI change plus game-directory
-data files:
-
-```powershell
-pwsh -File .\scripts\apply-cof-mainui-background-scrim.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-The patch makes the in-game menu background a translucent scrim instead of an
-opaque fill while `ui_renderworld` is on, behind the new `ui_scrim_alpha` cvar
-(default `150`, `255` reproduces the previous behaviour). The data files that
-go with it live in [`gamedata/`](gamedata/README.md), which is an overlay for a
-runtime's `cryoffear/` folder and contains no game assets. See
-[UI milestone 1 plumbing](docs/cof-ui-m1-plumbing.md) for what was verified,
-the Cry of Fear menu-map command table, and the font-backend finding.
-
-`languages/` is a deliberate, recorded exception to the no-game-assets policy
-above: it carries licensed fan-translation data (currently a Polish pack),
-incorporated with the originating team's permission, prepared as engine-agnostic
-data ahead of the runtime import hook, draw-time string table and code-page-aware
-rendering that will eventually consume it. See [languages/README.md](languages/README.md).
-
-The second milestone makes that engine menu *be* Cry of Fear's menu. It is one
-more MainUI patch, applied after the two above:
-
-```powershell
-pwsh -File .\scripts\apply-cof-mainui-cof-menu.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-The main menu becomes New Game, Load Game, Custom Campaign, Join Server, Host
-Server, Language, Unlockables, Extras, Options, Quit - and, in game, Resume,
-Save\Load Game, Options, Quit to menu, Quit. New Game opens a Cry of Fear
-difficulty page that forwards the game DLL's own `cmd skillset 1..4` to the
-live background-map server, so the original white fade and `c_intro` start
-happen for real; Custom Campaign lists `maps/*.custom` and prefixes
-`cmd campaign <firstmap>`; Language sends `cmd subtitleset 1..7`; Unlockables
-opens an engine-menu list of the 27 items with a button that still runs the
-client's `unlockablescmd` gallery; Extras opens the original links with
-`ShellExecute` instead of the Steam overlay the game used, with
-`Cry of Fear: Enhanced` (<https://cofenhanced.haej.pl>) added as its first
-entry. The two white
-squares that used to sit in the top-right corner were MainUI's minimize and
-close bitmaps with no `gfx/shell` artwork behind them; they are gone. Only the
-`cryoffear` game directory is affected - every other game keeps the stock menu.
-See [UI milestone 2](docs/cof-ui-m2-cof-menu.md) for the measured command
-table, the evidence and the open items.
-
-The third milestone gives that menu one minimalist Source-era look. It is one
-more MainUI patch, applied after the three above:
-
-```powershell
-pwsh -File .\scripts\apply-cof-mainui-source-theme.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
-```
-
-Dialogs become centred translucent dark-grey panels with a thin border, an
-uppercase title band, a close X and an OK/Cancel row bottom-right; the main
-menu becomes a centred plain-text list under a `CRY OF FEAR` / `ENHANCED` text
-wordmark, and the pause menu a lower-left list over the scrim. Checkboxes,
-sliders, spinner arrows, table arrows, drop-down arrows and the close X are
-drawn from primitives, so nothing depends on the `gfx/shell` artwork Cry of
-Fear does not ship, and the library-wide 4-unit scaled outline becomes a
-hairline. Type is Inter (SIL Open Font License 1.1) read from
-`cryoffear/gfx/fonts/` through stb_truetype - configure the menu with
-`--enable-stbtt` - with a GDI fallback chain so a missing file can never drop
-the menu to the bitmap font. The whole theme is behind the archived cvar
-`ui_theme` (default `1`; `0` restores the upstream WON look). The same patch
-carries one functional fix: the menu now issues the client's own `stopmp3`
-before a Cry of Fear save load or a new game, which the original client panels
-did and the engine menu did not. See
-[UI milestone 3a](docs/cof-ui-m3-theme.md) for the palette, the per-dialog
-layouts, the screenshots and the open items.
-
-A feedback round on that milestone (same patch, same apply script) reshapes the
-options tree and fixes what the first deployed build got wrong. Options is now
-**Game, Controls, Audio, Video**: *Game* is a new top-level page holding what
-used to be hidden behind Controls > Advanced, plus the pause-menu-saves switch
-that used to live in the Save/Load menu and a subtitle-language selector, and
-the *Adv. Controls* button is gone from Controls; *Video* is one page instead
-of a hub with two children, with renderer, window mode, V-sync and the
-resolution list on the left, gamma, brightness and the image checkboxes on the
-right and a single Cancel/Apply row that keeps FWGS's test-mode and
-restart-required semantics; *Audio* drops the HEV suit volume, which Cry of
-Fear has no suit for. Message boxes wrap their text and size the panel to it,
-the Controls list draws `kb_act.lst` section rules as real section captions
-instead of rows of `=`, hover follows the pointer rather than the list cursor,
-and the first Cry of Fear run of a build that knows about it turns
-`ui_renderworld` on once (recorded in the archived `ui_cof_scene_defaults`) so
-the paused scene shows through the pause scrim; a later change by the user is
-kept.
-
-A death-flow round (still the same patch and apply script) adds two more things:
-`CMenuCoFDeath`, the `GAME OVER` page the engine's `cof_ui_death_menu` hook
-opens - the one page drawn with no panel and no scrim, so the scene the player
-died in stays exactly as it was - and an **Enable console** checkbox on the Game
-page, bound to the new archived engine cvar `con_enable`. Both are documented in
-[the death flow](docs/cof-ui-death-flow.md).
-
-The upstream Windows build requires the recursive dependencies and an SDL2 Visual Studio development package for a client build. The isolated client build attempt used the official SDL2 `2.30.9-VC` package (SHA-256 `8C91D91E5BCB997D062EC2B553C53832EBF95654D4AA35E8C02A954D4CE752AE`). Visual Studio 2022 BuildTools with Win32 tools and Windows SDK 10.0.26100 are installed on the research host. A dedicated x86 compile of the patched source completed locally; this repository does not provide a dependency lockfile or reproducible build script, and that artifact is not committed.
+# Cry of Fear: Enhanced
+
+<img src="assets/branding/coffix.png" alt="Cry of Fear: Enhanced emblem" width="160" align="right">
+
+**Cry of Fear on a modern open-source engine: a clean new menu, a UI that
+scales to 1440p and 4K, readable text, proper widescreen options and a pile of
+fixes, applied on top of your own Steam copy of the game.**
+
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
+
+Project site: <https://cofenhanced.haej.pl>
+
+> **Cry of Fear: Enhanced is an unofficial community compatibility project.**
+> It is not affiliated with, endorsed by, or supported by Team Psykskallar,
+> the creators of Cry of Fear, nor by Valve Corporation. Cry of Fear and its
+> assets remain the property of Team Psykskallar. Cry of Fear: Enhanced is a
+> patcher applied on top of your own Steam installation: you need your own
+> copy of Cry of Fear from Steam. It contains no game assets of any kind,
+> with the single exception of the community translation packs (text,
+> subtitles, translated signage and interface graphics); everything else it
+> installs is the patched open-source engine, menu and UI libraries plus the
+> project's own configuration and font files.
+>
+> Built on [Xash3D FWGS](https://github.com/FWGS/xash3d-fwgs) (GPL-3.0-or-later)
+> with [mainui_cpp](https://github.com/FWGS/mainui_cpp) and
+> [FreeVGUI](https://github.com/FWGS/freevgui) (BSD-3-Clause). Our patches are
+> GPL-3.0-or-later; see [LICENSING.md](LICENSING.md),
+> [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) and
+> [DISCLAIMER.md](DISCLAIMER.md). Steam is a trademark of Valve Corporation.
+
+**Status:** version 0.4, pre-release. The whole game is playable from a build
+of this repository, and the first public release (with an installer) is being
+prepared. There is no download yet.
+
+## What it is
+
+Cry of Fear runs on Valve's old GoldSrc engine. Cry of Fear: Enhanced swaps
+that engine for [Xash3D FWGS](https://github.com/FWGS/xash3d-fwgs), an
+open-source GoldSrc-compatible engine, and teaches it everything this
+particular game needs. **The game itself is untouched**: its own `client.dll`
+and `hl.dll` from your Steam install run as they are; the work happens in the
+engine, the menu and the UI library around them.
+
+## What it fixes and adds
+
+**Runs the Steam game on Xash3D FWGS**
+- The Steam version's game code runs unmodified on a modern engine
+  (engine-side compatibility layers bridge the differences).
+- Your existing saves load; tape-recorder saves work as before, using the same
+  five save slots.
+- No more getting stuck in crouch and crawl sections.
+
+**Rendering and sound fixes**
+- The main-menu city skyline is back (and the texture flicker on the train is gone).
+- One map with a broken sky no longer kills the sky for the rest of the session.
+- Changing resolution or window mode no longer strips the menu's scene of its
+  sky, fog and snow.
+- Music no longer bleeds across loading a save, starting a new game or quitting
+  to the menu, but still carries across in-game level transitions as intended.
+- No console spam from the tape recorder's blinking light.
+
+**One unified, Source-style interface**
+- A minimalist menu drawn over the live, animated menu scene: New Game (with a
+  difficulty page and a *Skip prologue* option), Load Game, Custom Campaign,
+  Extras (co-op, Unlockables, Links, Credits), Options, Quit.
+- The pause menu is a translucent list over the paused game, with separate
+  Save Game and Load Game.
+- Options: Game, Controls, Audio, Video. Only settings that actually do
+  something in Cry of Fear; gamma, brightness and contrast drive the game's own
+  renderer.
+- The Unlockables page shows what you have really unlocked, and Nightmare mode
+  is offered only once you have.
+- Death brings up a clean GAME OVER page (Load Game, Exit) while the world
+  keeps sounding behind it.
+- Every "back to main menu" in the game lands on the new menu.
+- Optional saving from the pause menu (off by default) into the same five
+  slots, with overwrite confirmation.
+- Extras links open in your web browser.
+
+**Scaling and readable text**
+- The whole in-game UI scales with your resolution: inventory, HUD, ammo,
+  phone, notes, subtitles, pickup messages, boss bars. HUD scale option: Auto,
+  100, 125, 150, 200 %.
+- Fonts: the menu, notes, subtitles, chapter titles and credits use the
+  [Inter](https://rsms.me/inter/) typeface, sized for your display.
+- Hints, subtitles and pickup messages get a subtle backing strip and a fixed,
+  comfortable height on screen.
+- The console is a Source-style window that opens and closes instantly, scales
+  with the display, and can be switched on from Options > Game (*Enable console*).
+
+**Controls and view**
+- Field of view slider (70-110) that leaves iron sights and cutscene zooms
+  exactly as the game framed them, plus a separate viewmodel FOV (55-90 or
+  "follow").
+- Aim down sights: Hold or Toggle. (The game's own hold mode is broken; this
+  one works.) Right mouse button aims by default.
+- The stray line through the chapter title cards is gone.
+
+**Languages** - one *Language* option in Options > Game:
+- **Polski** - the full Polish fan translation *Cry of Fear: Spolszczenie*
+  (text, subtitles, notes, signs), built into the game with its authors'
+  permission.
+- **Deutsch, Español, Français, Nederlands, Norsk, Svenska** - the game's own
+  subtitles in those languages, plus a translated menu.
+- The menu switches language instantly; signs change on the next map.
+
+**Co-op**
+- *Host co-op* and *Join co-op* pages (Story co-op, Manhunt, Survival 1-4) that
+  replace the old buttons, which did nothing outside the original engine.
+- Leaving or losing a co-op session puts you back on the main menu.
+
+**Cheats are back**
+- `noclip`, `fly`, `notarget`, `give`, infinite ammo and stamina, no damage,
+  night vision, ending select and more, for the Steam version's game files. See
+  **[CHEATS.md](CHEATS.md)**.
+
+## Requirements
+
+- **Cry of Fear from Steam**, installed (the current Steam version, 1.6).
+- **Windows.** Developed and tested on Windows 11. Linux (Wine / Proton) and
+  macOS are untested.
+- A graphics card with working OpenGL drivers.
+
+## Install and uninstall
+
+> **Coming with the first public release.** The installer does not exist yet;
+> this is how it is meant to work.
+
+1. Download the release from the project site or the GitHub releases page.
+2. Run the patcher. It finds your Steam copy of Cry of Fear and checks that it
+   is the Steam version.
+3. It backs up the three game files it replaces (`CoFLaunchApp.exe`,
+   `vgui.dll`, `FileSystem_Stdio.dll`), copies in the new engine, menu, fonts
+   and language packs, and creates two small files from your own install.
+4. Start Cry of Fear from Steam as usual.
+
+To uninstall, run the uninstaller the patcher leaves behind: it restores the
+three backed-up files and removes everything it added. Your saves are never
+touched either way (backing them up first is still a good idea).
+
+Want it before then? You can [build it yourself](docs/dev/building.md).
+
+## Known issues
+
+- **Menu translations are machine-drafted.** The menus in all seven languages
+  are waiting for review by native speakers (the Polish in-game text is the
+  fan translation). Corrections are welcome.
+- Polish: notes, phone messages and the credits have not been checked in game
+  yet. After switching language in a running game, some of the game's own
+  interface art stays in the old language until you restart.
+- Co-op has only been tested with two copies on one PC. LAN discovery, a second
+  machine and internet play are untested.
+- Some water surfaces may look different from the original game.
+- A viewmodel FOV different from the world FOV moves the iron sights off
+  centre.
+- The dynamic crosshair does not scale. Changing the aspect ratio in the middle
+  of a game stretches the in-game UI.
+- The inventory's headings (BAG, POCKETS, ...) are part of the game's artwork,
+  so they keep the original font.
+- `god` does nothing in Cry of Fear (the game never checks it); use
+  `cof_nodamage 1`. See [CHEATS.md](CHEATS.md).
+- Not available yet: chapter select, controller support.
+
+## FAQ
+
+**Is this a recompile or a decompile of Cry of Fear?**
+No. The game's own code (`client.dll`, `hl.dll`) runs exactly as Steam installed
+it. What is replaced is the engine underneath (with open-source Xash3D FWGS),
+the menu and the UI library, all built from public source code plus this
+project's patches.
+
+**Does it change my game files?**
+It adds files and replaces three: `CoFLaunchApp.exe` (so Steam's Play button
+starts the new engine), `vgui.dll` and `FileSystem_Stdio.dll`. All three are
+backed up first and restored when you uninstall. The game's DLLs, maps and
+saves are never modified.
+
+**Will my saves work?**
+Yes: existing saves load, and tape-recorder saves still use the game's five
+slots.
+
+**Do Steam achievements and the Steam overlay work?**
+Not tested, so assume they may not. The new engine does not load the Steam API
+(which is why the original menu's Steam-overlay links did nothing and now open
+in your browser instead).
+
+**What if Steam verifies or updates the game?**
+Steam will probably put its own versions of the three replaced files back; run
+the patcher again. (Unverified, since there is no patcher yet.)
+
+**Do I need the old "cheats restored" DLL pack?**
+No, and please don't use it: the cheats are built into Cry of Fear: Enhanced
+and work with the original game files. See [CHEATS.md](CHEATS.md).
+
+**Can I play co-op with someone on the original game?**
+Untested. Co-op has only been tried between two copies of Cry of Fear: Enhanced.
+
+**Do custom campaigns work?**
+Custom campaigns installed in the game's `maps` folder show up under Custom
+Campaign. Playing through them has not been tested widely.
+
+## Reporting bugs
+
+Open an issue at <https://github.com/hajdawery/cof-fix/issues>. Please include
+the version line from the bottom-right corner of the main menu
+(`cofenhanced ...`), your resolution and HUD scale, what you did and what
+happened, and a screenshot if it is visual. More in
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Building and contributing
+
+This repository holds the patches, scripts and data, not the engine itself.
+Start with the [documentation index](docs/README.md): building, the
+[patch stack](docs/dev/patch-stack.md), testing rules and the design notes.
+[CONTRIBUTING.md](CONTRIBUTING.md) explains how contributions are licensed.
+
+## Credits
+
+- **Cry of Fear** by **Team Psykskallar**. Cry of Fear: Enhanced is not
+  affiliated with or endorsed by them; buy the game on Steam.
+- **Cry of Fear: Enhanced** by **haej** (<https://cofenhanced.haej.pl>).
+- **Polish translation** *Cry of Fear: Spolszczenie* by **Avioo**
+  (translation, graphics, testing), **Mixdedemon** (translation), **hexag0n**
+  (technical work, testing) and **Izonka** (testing), included with their
+  permission ([Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3164091802)).
+  The game's own Dutch, French, German, Norwegian, Spanish and Swedish text is
+  Team Psykskallar's.
+- **[Xash3D FWGS](https://github.com/FWGS/xash3d-fwgs)** by the Xash3D FWGS
+  contributors: the engine, renderer and filesystem.
+- **[mainui_cpp](https://github.com/FWGS/mainui_cpp)**: the menu library, with
+  **[MiniUTL](https://github.com/FWGS/miniutl)**.
+- **[FreeVGUI](https://github.com/FWGS/freevgui)** by Alibek Omarov: the
+  in-game UI library.
+- **[Inter](https://github.com/rsms/inter)** by The Inter Project Authors: the
+  typeface.
+- **[SDL 2](https://www.libsdl.org/)** by Sam Lantinga and contributors.
+- **[stb_truetype](https://github.com/nothings/stb)** by Sean Barrett.
+- Built into the engine as well: [Opus](https://github.com/xiph/opus),
+  [opusfile](https://github.com/xiph/opusfile), [libogg](https://github.com/xiph/ogg)
+  and [libvorbis](https://github.com/xiph/vorbis) (Xiph.Org Foundation),
+  [bzip2](https://gitlab.com/bzip2/bzip2) (Julian Seward),
+  [MultiEmulator](https://github.com/FWGS/MultiEmulator) (Alexander Belkin,
+  with SHA code by George Anescu), [library-suffix](https://github.com/FWGS/library-suffix),
+  miniz (Rich Geldreich, RAD Game Tools and Valve), the mpg123 decoder (the
+  mpg123 project), [whereami](https://github.com/gpakosz/whereami) (Gregory
+  Pakosz), getopt (University of California), `vgui_api.h` (Mittorn), and
+  Valve's Half-Life SDK headers.
+
+The full copyright notices for all of these are in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+## Licences
+
+- Our code (patches, scripts, launcher, tests, docs): **GPL-3.0-or-later**,
+  see [LICENSE](LICENSE). Our changes to FreeVGUI stay **BSD-3-Clause**.
+- Fonts (Inter and the atlases generated from it): **SIL Open Font License 1.1**.
+- Language packs: not GPL; translation data shared with the translators'
+  permission, for use with a legally owned copy of Cry of Fear (each pack's
+  README and `LICENSE-NOTE.md`).
+- The emblem: original artwork by haej, redistributable unmodified with the
+  project.
+- Cry of Fear itself belongs to Team Psykskallar and is not in this repository.
+
+Details, the source-code offer and what every release must contain:
+[LICENSING.md](LICENSING.md). Third-party notices:
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) and [licenses/](licenses/).
+Disclaimer: [DISCLAIMER.md](DISCLAIMER.md).

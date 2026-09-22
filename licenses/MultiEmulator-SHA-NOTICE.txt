@@ -1,0 +1,5 @@
+//Typical DISCLAIMER: 
+//The code in this project is Copyright (C) 2003 by George Anescu. You have the right to 
+//use and distribute the code in any way you see fit as long as this paragraph is included 
+//with the distribution. No warranties or claims are made as to the validity of the 
+//information and code contained herein, so use it at your own risk.

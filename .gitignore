@@ -15,3 +15,14 @@
 *.pdb
 *.lib
 *.obj
+
+# Python, waf and workspace leftovers (repository clean-up 2026-09-22).
+# Note: scripts/polish/__pycache__/langpack_common.cpython-314.pyc is still
+# tracked; untrack it with `git rm --cached` at commit time.
+__pycache__/
+*.pyc
+.waf*
+.lock-waf*
+artifacts/
+pristine*/
+build-*/
