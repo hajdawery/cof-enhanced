@@ -62,7 +62,8 @@ try {
     $ok = $after.Contains('#define COFE_BUILD_STRING "cofenhanced " COFE_VERSION " (" COFE_MILESTONE ", " COFE_COMMIT ")"') -and
           $after.Contains('__has_include( "cof_version.h" )') -and
           $after.Contains('#define COFE_VERSION   "dev"') -and
-          $after.Contains('Con_DrawString( refState.width - cofLen * 1.05f,')
+          $after.Contains('Con_DrawString( refState.width - cofLen * 1.05f, cofY, COFE_BUILD_STRING, color );') -and
+          $after.Contains('cofY = 4 + fpsH + cofH * 0.05f;')
     if (-not $ok) { throw 'Patch command completed without the expected cofenhanced markers.' }
 
     & git @('apply','--ignore-whitespace','--reverse','--check',"--directory=$relativeSource", '--', $patch)

@@ -1760,6 +1760,36 @@ the panel is 760x580 for Cry of Fear. It is its own patch,
 `patches/cof-mainui-language-selector.patch`, applied after this one; see
 `docs/design/language-packs.md` section 7.
 
+### "Show console notifications" on the Game page (m7)
+
+`patches/cof-notify-option.patch` (engine + MainUI, applied by
+`scripts/apply-cof-notify-option.ps1` after the co-op pages and before the
+cheats; [patch stack](../dev/patch-stack.md) step 47):
+
+* **Engine** (`engine/client/console.c`): the archived cvar **`cof_notify`**
+  (default 1). With 0, `Con_DrawNotify` draws no notify lines - the newest
+  console lines the engine otherwise prints over the top-left corner while
+  playing. Only the drawing is skipped: the lines still go into the console
+  (switching back to 1 shows the ones still inside `con_notifytime`), and the
+  console itself, the chat input line and the developer overlays
+  (`Con_DrawDebug`, fps, `r_speeds`) are unaffected. Read every frame, so a
+  change applies at once.
+* **Menu** (`menus/AdvancedControls.cpp`): a **Show console notifications**
+  checkbox, Cry of Fear with the theme only, linked to `cof_notify` and written
+  the moment it is clicked (like *Pause menu saves*). It is the third of the
+  extra switches, so it opens a new row in the left column under *Enable
+  console*; the panel grows by one checkbox row (`580 + THEME_ROW_PITCH`, 614
+  units). Its label and status line go through `L()` and the draw-time menu
+  string layer, so every pack translates them: both strings are in all seven
+  `languages/<code>/strings/menu-strings.tsv` (plain translations,
+  machine-drafted like the rest; `extract-menu-strings.ps1 -Pack` reports
+  474 of 474 keys covered for each pack).
+
+Measured in the m7 round (`stage1/m7-integration-20260923`, 1920x1080
+windowed): the page in English and German (*Konsolenmeldungen anzeigen*), the
+checkbox unchecked after `cof_notify 0`; in game `cof_notify 0` -> no lines in
+the top-left corner, `1` -> the lines back, `0` -> gone again.
+
 ### Deferred defaults generation 4: MOUSE2 aims
 
 `Theme.cpp`: swaps MOUSE2/MOUSE3 once, only when they still hold the shipped

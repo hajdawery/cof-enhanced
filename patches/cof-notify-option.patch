@@ -1,0 +1,130 @@
+diff --git a/engine/client/console.c b/engine/client/console.c
+--- a/engine/client/console.c
++++ b/engine/client/console.c
+@@ -45,6 +45,11 @@
+ 
+ static CVAR_DEFINE_AUTO( scr_conspeed, "600", FCVAR_ARCHIVE, "console moving speed" );
+ static CVAR_DEFINE_AUTO( con_notifytime, "3", FCVAR_ARCHIVE, "notify time to live" );
++// Cry of Fear: Enhanced, Options > Game > "Show console notifications": 0
++// hides the notify lines (the newest console lines drawn over the top-left
++// corner during play, Con_DrawNotify). The console itself, the chat input
++// line and the developer overlays are unaffected. Saved in config.cfg.
++static CVAR_DEFINE_AUTO( cof_notify, "1", FCVAR_ARCHIVE, "draw the console's notify lines in the top-left corner during play (0 = hide them; the console itself is unaffected)" );
+ CVAR_DEFINE_AUTO( con_fontsize, "1", FCVAR_ARCHIVE, "console font number (0, 1 or 2)" );
+ static CVAR_DEFINE_AUTO( con_fontrender, "2", FCVAR_ARCHIVE, "console font render mode (0: additive, 1: holes, 2: trans)" );
+ static CVAR_DEFINE_AUTO( con_charset, "cp1251", FCVAR_ARCHIVE, "console font charset (only cp1251 supported now)" );
+@@ -1126,6 +1131,7 @@
+ 	// must be init before startup video subsystem
+ 	Cvar_RegisterVariable( &scr_conspeed );
+ 	Cvar_RegisterVariable( &con_notifytime );
++	Cvar_RegisterVariable( &cof_notify );
+ 	Cvar_RegisterVariable( &con_fontsize );
+ 	Cvar_RegisterVariable( &con_charset );
+ 	Cvar_RegisterVariable( &con_fontscale );
+@@ -2180,7 +2186,8 @@
+ 
+ 	int x = con.curFont->charWidths[' ']; // offset one space at left screen side
+ 
+-	if( host.allow_console && !Con_BackgroundMapActive( ))
++	// cof_notify 0: no notify lines (the chat input below still draws)
++	if( host.allow_console && !Con_BackgroundMapActive( ) && cof_notify.value != 0.0f )
+ 	{
+ 		for( int i = Q_max( 0, CON_LINES_COUNT - con.num_times ); i < CON_LINES_COUNT; i++ )
+ 		{
+diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/AdvancedControls.cpp
+--- a/3rdparty/mainui/menus/AdvancedControls.cpp
++++ b/3rdparty/mainui/menus/AdvancedControls.cpp
+@@ -321,6 +321,7 @@
+ 	void HudScaleChanged( void );
+ 	void AdsModeChanged( void );
+ 	void LangPackChanged( void );
++	void NotifyChanged( void );
+ 
+ 	CMenuPicButton done, inputDev;
+ 
+@@ -345,6 +346,9 @@
+ 
+ 	// Cry of Fear game options
+ 	CMenuCheckBox	menuSaves;
++	// "Show console notifications": the engine's archived cof_notify, whether
++	// the newest console lines are drawn over the top-left corner during play
++	CMenuCheckBox	notifyLines;
+ 	CMenuSpinControl	language;
+ 	CMenuSpinControl	hudScale;
+ 	CMenuSpinControl	adsMode;
+@@ -402,6 +406,8 @@
+ 	{
+ 		menuSaves.LinkCvar( "cof_pause_menu_saves" );
+ 		menuSaves.UpdateEditable();
++		notifyLines.LinkCvar( "cof_notify" );
++		notifyLines.UpdateEditable();
+ 		// the client's own "Subtitle language" control is not on the page any
+ 		// more (the Language row sets that slot); moving a spinner that has
+ 		// no parent would raise its change event on no page at all
+@@ -450,6 +456,20 @@
+ void CAdvancedControls::MenuSavesChanged()
+ {
+ 	menuSaves.WriteCvar();
++}
++
++/*
++=================
++CAdvancedControls::NotifyChanged
++
++Written at once, like the two switches above: the engine reads cof_notify
++every frame (Con_DrawNotify), so the top-left lines go or come back while the
++page is still open, and the archived value survives a restart.
++=================
++*/
++void CAdvancedControls::NotifyChanged()
++{
++	notifyLines.WriteCvar();
+ }
+ 
+ /*
+@@ -619,7 +639,7 @@
+ 	m_bCoF = UI_ThemeActive() && UI_IsCryOfFear();
+ 
+ 	if( UI_ThemeActive( ))
+-		SetPanel( "GAME", 760, m_bCoF ? 580 : 520 );
++		SetPanel( "GAME", 760, m_bCoF ? 580 + THEME_ROW_PITCH : 520 );	// + the notifications row
+ 
+ 	done.szName = L( "Done" );
+ 	done.SetPicture( PC_DONE );
+@@ -681,6 +701,11 @@
+ 		L( "Allow saving from the pause menu into the five shared Cry of Fear slots" ));
+ 	menuSaves.iFlags |= QMF_NOTIFY;
+ 	menuSaves.onChanged = VoidCb( &CAdvancedControls::MenuSavesChanged );
++
++	notifyLines.SetNameAndStatus( L( "Show console notifications" ),
++		L( "Show the newest console lines in the top-left corner during play" ));
++	notifyLines.iFlags |= QMF_NOTIFY;
++	notifyLines.onChanged = VoidCb( &CAdvancedControls::NotifyChanged );
+ 
+ 	language.szName = L( "Subtitle language" );
+ 	language.Setup( &languageModel );
+@@ -737,6 +762,7 @@
+ 		// the client's own "Subtitle language" row ("language") is not added:
+ 		// the Language row sets that slot too, one option for both
+ 		AddItem( menuSaves );
++		AddItem( notifyLines );
+ 		AddItem( hudScale );
+ 		AddItem( adsMode );
+ 		AddItem( langPack );
+@@ -763,12 +789,15 @@
+ 		}
+ 
+ 		// the extra game switches keep the two checkbox columns going
+-		CMenuCheckBox *extra[2];
++		CMenuCheckBox *extra[3];
+ 		int n = 0;
+ 
+ 		extra[n++] = &conEnable;
+ 		if( m_bCoF )
++		{
+ 			extra[n++] = &menuSaves;
++			extra[n++] = &notifyLines;
++		}
+ 
+ 		for( int i = 0; i < n; i++ )
+ 		{

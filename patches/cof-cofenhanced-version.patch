@@ -1,7 +1,7 @@
 diff --git a/engine/client/console.c b/engine/client/console.c
 --- a/engine/client/console.c
 +++ b/engine/client/console.c
-@@ -23,6 +23,26 @@
+@@ -23,6 +23,26 @@ GNU General Public License for more details.
  #include "input.h"
  #include "utflib.h"
  
@@ -28,7 +28,7 @@ diff --git a/engine/client/console.c b/engine/client/console.c
  static CVAR_DEFINE_AUTO( scr_conspeed, "600", FCVAR_ARCHIVE, "console moving speed" );
  static CVAR_DEFINE_AUTO( con_notifytime, "3", FCVAR_ARCHIVE, "notify time to live" );
  CVAR_DEFINE_AUTO( con_fontsize, "1", FCVAR_ARCHIVE, "console font number (0, 1 or 2)" );
-@@ -2672,9 +2692,10 @@
+@@ -2676,9 +2696,10 @@ static qboolean Con_DrawStyledConsole( int lines )
  	tx = r.x + r.padx;
  	Con_DrawStringClipped( tx, r.y + r.pady, r.w - r.padx * 2, titleText, title );
  
@@ -42,22 +42,36 @@ diff --git a/engine/client/console.c b/engine/client/console.c
  	Con_DrawStringLen( curbuild, &stringLen, &charH );
  
  	{
-@@ -2987,6 +3008,20 @@
+@@ -2991,6 +3012,34 @@ void Con_DrawVersion( void )
  	int start = refState.width - stringLen * 1.05f;
  	int height = refState.height - charH * 1.05f;
  
-+	// cofenhanced build stamp: a second line under the engine's own, same
-+	// autoscaled font (Con_DrawString/Con_DrawStringLen already carry the
-+	// cof_text_autoscale sizing), same colour and alpha, right-aligned the same
-+	// way. The engine line moves up by one row so both fit on screen.
++	// cofenhanced build stamp, for bug reports: the TOP-right corner, so it
++	// never covers the HUD at the bottom of the screen. Same autoscaled font
++	// (Con_DrawString/Con_DrawStringLen already carry the cof_text_autoscale
++	// sizing), same colour and alpha as the engine line, and the same inset
++	// from the two edges as that line keeps in the bottom-right corner (a
++	// twentieth of its own width and height). It is drawn exactly when the
++	// engine line is (scr_drawversion, the menu, a screenshot, a few seconds
++	// after a window event); there is no switch for the stamp alone. While the
++	// fps counter is up (cl_showfps in a running game: SCR_DrawFPS, y 4,
++	// right-aligned) the stamp moves down below it.
 +	{
 +		int	cofLen, cofH = 0;
++		int	cofY;
 +
 +		Con_DrawStringLen( COFE_BUILD_STRING, &cofLen, &cofH );
 +
-+		height -= cofH;
-+		Con_DrawString( refState.width - cofLen * 1.05f,
-+			refState.height - cofH * 1.05f, COFE_BUILD_STRING, color );
++		cofY = cofH * 0.05f;
++		if( cls.state == ca_active && !cl.background && Cvar_VariableValue( "cl_showfps" ) != 0.0f )
++		{
++			int	fpsLen, fpsH = 0;
++
++			Con_DrawStringLen( "0 fps", &fpsLen, &fpsH );
++			cofY = 4 + fpsH + cofH * 0.05f;
++		}
++
++		Con_DrawString( refState.width - cofLen * 1.05f, cofY, COFE_BUILD_STRING, color );
 +	}
 +
  	Con_DrawString( start, height, curbuild, color );

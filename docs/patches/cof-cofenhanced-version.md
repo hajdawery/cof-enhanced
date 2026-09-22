@@ -8,10 +8,10 @@
 The engine draws Xash3D's own version line in the bottom-right corner
 (`Con_DrawVersion`, `engine/client/console.c`) and, with the styled console on,
 repeats the build string in the console's title band. Neither says anything
-about *this* project's build. This adds a second line for it:
+about *this* project's build. This adds a line for it, in the top-right corner
+(see Drawing):
 
 ```
-Xash3D FWGS v49/0.21 (win32-i386 build -1)
 cofenhanced 0.3 (m3, f105554+)
 ```
 
@@ -70,10 +70,23 @@ wscript change.
 Both sites reuse what is already there, so the stamp inherits the milestone-4
 text autoscale for free:
 
-* `Con_DrawVersion` measures the new string with `Con_DrawStringLen`, draws it
-  on the bottom line with the same colour and alpha as the engine line, and
-  moves the engine line up by exactly one measured row so both fit. Both are
-  right-aligned with the same `* 1.05f` inset the engine line already used.
+* `Con_DrawVersion` measures the new string with `Con_DrawStringLen` and draws
+  it in the **top-right corner** (since m7, 2026-09-23; before that it sat
+  under the engine line in the bottom-right corner, where it covered the HUD),
+  with the same colour and alpha as the engine line and the same inset from
+  the two edges that line keeps in its corner: right-aligned at
+  `width - len * 1.05f`, top at `height * 0.05f` of its own measured row. The
+  engine line stays alone at its stock bottom-right place. While the fps
+  counter is on screen (`cl_showfps` in a running game, not on the background
+  map: `SCR_DrawFPS` draws it at y 4, right-aligned) the stamp moves down to
+  `4 + <fps row height> + <its inset>`, so the two never overlap (the
+  position counter of `cl_showpos` is centred and does not reach the corner).
+  The stamp is drawn exactly when the engine line is - the menu, screenshot
+  frames and a few seconds after a window event, all under the stock
+  `scr_drawversion` - and there is deliberately no switch for the stamp
+  alone (it is there for bug reports). Measured in m7: menu, and in game with
+  `cl_showfps 1` (`stage1/m7-integration-20260923/evidence/notify-a-main.png`,
+  `notify-d-fps.png`).
 * `Con_StyleDrawConsole` formats the band string with `"%s  %s"` instead of
   `"%s"`. The band already clips and already re-measures, so nothing else
   changed.
