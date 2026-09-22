@@ -117,6 +117,10 @@ a name the game does not know prints `no such entity`.
 | `sledgeshovel` | `switchblade` | `syringe` | `tmp` |
 | `vp70` | | | |
 
+> Known limit: `mp5` (mapper-only) and `tmp` (donator-only) are given but
+> cannot be picked up yet, because the game checks who you are. Removing
+> those locks is on the to-do list.
+
 **Ammo** (`give ammo_<name>`): `glock`, `g43`, `m16`, `revolver`, `rifle`,
 `shells`, `tmp`.
 
