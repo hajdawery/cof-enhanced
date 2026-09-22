@@ -180,9 +180,9 @@ Yes: existing saves load, and tape-recorder saves still use the game's five
 slots.
 
 **Do Steam achievements and the Steam overlay work?**
-Not tested, so assume they may not. The new engine does not load the Steam API
-(which is why the original menu's Steam-overlay links did nothing and now open
-in your browser instead).
+The Steam overlay works. Cry of Fear has no Steam achievements, so there is
+nothing to lose there. The engine itself does not load the Steam API, which is
+why the original menu's Steam-overlay links now open in your browser instead.
 
 **What if Steam verifies or updates the game?**
 Steam will probably put its own versions of the three replaced files back; run
