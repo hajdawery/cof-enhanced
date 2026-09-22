@@ -1,0 +1,44 @@
+"nice_name"
+{
+	data	"MP9"
+}
+
+"classname"
+{
+	data	"weapon_tmp"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/weapons/mp9/640_mp9_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/weapons/mp9/640_mp9_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/weapons/mp9/640_mp9_check.tga"
+}
+
+"ironsight_forward"
+{
+	data	"0"
+}
+
+"ironsight_right"
+{
+	data	"-4.75"
+}
+
+"ironsight_up"
+{
+	data	"3"
+}
+
+"ironsight_zoom"
+{
+	data	"50"
+}

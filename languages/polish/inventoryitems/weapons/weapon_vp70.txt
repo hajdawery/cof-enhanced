@@ -1,0 +1,44 @@
+"nice_name"
+{
+	data	"VP70"
+}
+
+"classname"
+{
+	data	"weapon_vp70"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/weapons/vp70/640_vp70_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/weapons/vp70/640_vp70_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/weapons/vp70/640_vp70_check.tga"
+}
+
+"ironsight_forward"
+{
+	data	"0.05"
+}
+
+"ironsight_right"
+{
+	data	"-3.6"
+}
+
+"ironsight_up"
+{
+	data	"3.1"
+}
+
+"ironsight_zoom"
+{
+	data	"50"
+}

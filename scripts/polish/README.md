@@ -131,16 +131,48 @@ filename (the engine only replaces a leading `*` with `!`, never touches
 
 ## Regeneration
 
-Run order (each step only depends on the read-only source trees and
-`langpack_common.py`, not on the others' output, except the final two):
+Run `build_all.py`, which runs every step below in order for one language:
 
 ```
-python scripts/polish/build_txt_pack.py --lang polish
-python scripts/polish/build_maps_ent.py --lang polish
-python scripts/polish/extract_sign_textures.py --lang polish
-python scripts/polish/copy_overlay_assets.py --lang polish
-python scripts/polish/build_dll_strings_tsv.py --lang polish
-python scripts/polish/build_manifest.py --lang polish   # manifest.txt (per-language) + pack/MANIFEST.tsv + pack/README.md
+python scripts/polish/build_all.py --lang polish
 ```
 
-<!-- TOTALS-AND-EXCLUSIONS: filled in after generation -->
+Equivalent to running each generator individually (parts 1-5 are mutually
+independent and only read the two source trees + `langpack_common.py`; part
+6 must run last since it reads every other part's output):
+
+```
+python scripts/polish/build_txt_pack.py         --lang polish   # txt/ + inventoryitems/
+python scripts/polish/build_maps_ent.py         --lang polish   # maps/*.ent
+python scripts/polish/extract_sign_textures.py  --lang polish   # textures/*.tga
+python scripts/polish/copy_overlay_assets.py    --lang polish   # overlay/...
+python scripts/polish/build_dll_strings_tsv.py  --lang polish   # strings/dll-strings.tsv
+python scripts/polish/build_manifest.py         --lang polish   # manifest.txt + pack/MANIFEST.tsv + pack/README.md
+```
+
+Every script is idempotent: re-running any of them overwrites its slice of
+`pack/languages/<lang>/` in place from the read-only source trees, so the
+whole pack can always be regenerated from scratch with `build_all.py`.
+
+To add a future language (e.g. Ukrainian): add its `mod_root`, `codepage`,
+`display_name` etc. to `LANGUAGES` in `langpack_common.py` (a disabled
+`ukrainian`/cp1251 stub already exists there), then run
+`build_all.py --lang ukrainian` once a source translation tree exists. No
+generator script needs to change.
+
+## Totals (Polish, generated 2026-09-22)
+
+| Part | Folder | Files |
+|---|---|---:|
+| 1a | `txt/` | 17 (9 txtfiles + 8 notes; `credits.txt` has no slot, excluded) |
+| 1b | `inventoryitems/` | 88 (2 encoding anomalies fixed) |
+| 2 | `maps/` | 100 `.ent` files (4 of 1345 changed pairs excluded as asset paths) |
+| 3 | `textures/` | 110 TGAs (3 alpha-masked) |
+| 4 | `overlay/` | 225 (202 TGA + 23 MDL) |
+| 5 | `strings/dll-strings.tsv` | 216 data rows (16 of 232 raw pairs excluded) |
+| 6 | `manifest.txt`, `MANIFEST.tsv`, `README.md` | pack-level metadata, 543-row file manifest |
+
+Full narrative (exclusions, data-quality notes, per-row detail) is in the
+generated `pack/README.md` — regenerate it any time with `build_manifest.py`
+rather than editing it by hand, since it re-derives every number from the
+files on disk instead of trusting prior reports.

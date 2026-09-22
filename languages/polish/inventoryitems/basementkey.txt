@@ -1,0 +1,46 @@
+"map_name"
+{
+	data	"basementkey"
+}
+
+
+"nice_name"
+{
+	data	"Klucz do piwnicy"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/basementkey/640_basementkey_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/basementkey/640_basementkey_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/nyckel3.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/basementkey/640_basementkey_check.tga"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

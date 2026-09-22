@@ -1,0 +1,67 @@
+"map_name"
+{
+	data	"mobilebattery"
+}
+
+
+"nice_name"
+{
+	data	"Bateria do telefonu"
+}
+
+
+"classname"
+{
+	data	"item_phonebattery"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/phone_battery/640_pbattery_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/phone_battery/640_pbattery_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/phone_battery.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/phone_battery/640_pbattery_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/button5.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}
+
+"combined_sound"
+{
+	data	"buttons/lighterpickup.wav"
+}
+
+"combined_with"
+{
+	data	"Mobile Phone"
+}
+
+"combined_result"
+{
+	data	"phonewithbattery"
+}

@@ -1,0 +1,44 @@
+"nice_name"
+{
+	data	"Remington 870"
+}
+
+"classname"
+{
+	data	"weapon_shotgun"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/weapons/shotgun/640_shotgun_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/weapons/shotgun/640_shotgun_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/weapons/shotgun/640_shotgun_check.tga"
+}
+
+"ironsight_forward"
+{
+	data	"0.05"
+}
+
+"ironsight_right"
+{
+	data	"-3.5"
+}
+
+"ironsight_up"
+{
+	data	"2.75"
+}
+
+"ironsight_zoom"
+{
+	data	"50"
+}

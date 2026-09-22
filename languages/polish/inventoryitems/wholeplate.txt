@@ -1,0 +1,44 @@
+"map_name"
+{
+	data	"plate"
+}
+
+"nice_name"
+{
+	data	"Tabliczka z cyframi"
+}
+
+"classname"
+{
+	data	"item_key"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/plate/640_plate_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/plate/640_plate_slot.tga"
+}
+
+"3dmdl"
+{
+	data	"models/items/numeral_plate.mdl"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/items/plate/640_plate_check.tga"
+}
+
+"pickup_sound"
+{
+	data	"buttons/lighterpickup.wav"
+}
+
+"droppable"
+{
+	data	"1"
+}

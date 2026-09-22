@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"doorknob"
+}
+
+
+"nice_name"
+{
+	data	"Klamka"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/doorknob/640_doorknob_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/doorknob/640_doorknob_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/doorknob_i.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/doorknob/640_doorknob_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/lighterpickup.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

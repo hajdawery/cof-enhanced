@@ -1,0 +1,24 @@
+"nice_name"
+{
+	data	"Latarenka"
+}
+
+"classname"
+{
+	data	"weapon_lantern"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/weapons/lantern/640_lantern_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/weapons/lantern/640_lantern_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/weapons/lantern/640_lantern_check.tga"
+}

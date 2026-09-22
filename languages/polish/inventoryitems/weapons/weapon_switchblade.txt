@@ -1,0 +1,24 @@
+"nice_name"
+{
+	data	"Nó¿ sprê¿ynowy"
+}
+
+"classname"
+{
+	data	"weapon_switchblade"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/weapons/switchblade/640_switchblade_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/weapons/switchblade/640_switchblade_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/weapons/switchblade/640_switchblade_check.tga"
+}

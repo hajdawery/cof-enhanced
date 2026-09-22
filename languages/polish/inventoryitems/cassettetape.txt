@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"cassettetape"
+}
+
+
+"nice_name"
+{
+	data	"Kaseta magnetofonowa"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/tapes/640_tape_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/tapes/640_tape_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/cassette_tape.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/tapes/640_tape_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/button5.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

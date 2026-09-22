@@ -1,0 +1,46 @@
+"map_name"
+{
+	data	"firekey"
+}
+
+
+"nice_name"
+{
+	data	"Klucz wyjœcia po¿arowego"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/firekey/640_firekey_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/firekey/640_firekey_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/firekey.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/firekey/640_firekey_check.tga"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

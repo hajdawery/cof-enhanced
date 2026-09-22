@@ -185,6 +185,15 @@ input gate and the styled console:
 pwsh -File .\scripts\apply-cof-ui-death-flow.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
 ```
 
+> **Apply order.** This section appears before the styled console below, but the
+> console has to be applied **first** - the death flow uses its `console.c`
+> lines as hunk context, and its apply script says so. On a fresh tree the
+> engine order is: input gate, video-mode restart, menu-map redirect, UI sound
+> volume, console variable-width font fallback, **styled console**, **death
+> flow**, levelshot guard, text autoscale, MP3 stop, sky reset, build stamp,
+> then the milestone 4 UI scaling pair. Reading the code blocks top to bottom
+> fails at the death flow.
+
 With `cof_ui_death_menu 1` (default) death brings up `GAME OVER` in the theme's
 wordmark over the untouched scene - no panel, no scrim - with `Load Game` (our
 save list, whose Cancel comes back to it, as the original's did) and `Exit`
@@ -307,6 +316,56 @@ pwsh -File .\scripts\write-cof-version.ps1
 
 See [the cofenhanced build stamp](docs/cof-cofenhanced-version.md).
 
+The in-game UI finally scales with the display. Every Cry of Fear surface — the
+inventory, the HUD bars, the ammo counter, the phone, the notes, the hint and
+subtitle text — was a fixed-pixel layout built once from the screen size the
+client is told about, so the fraction of the screen it covered fell off as
+`1/height` and at 4K the inventory was a postage stamp. The obvious lever,
+`hud_scale`, is **poison for this game**: the client builds its own renderer's
+viewport out of the same `gHUD.m_scrinfo` it lays its panels out from, so a
+virtual screen size zooms and shifts the 3D view. `hud_scale` is therefore
+ignored outright for Cry of Fear, and the scale is applied in the engine's VGUI
+surface layer instead, with each top-level client surface anchored to the screen
+edge it was laid out against so a magnified HUD stays in its corner and a
+magnified inventory stays centred. `cof_ui_scale 0` (the default) keeps the UI
+at exactly the fraction of the screen it occupies at 1080p, continuously in the
+render height, and the same change fixes the inventory-in-the-corner bug after a
+video mode change. `cof_ui_scale_user` is the menu's "HUD scale" control and
+multiplies the engine HUD text with it. Both halves are needed — the engine one
+alone scales the panels without re-anchoring them:
+
+```powershell
+pwsh -File .\scripts\apply-cof-ui-scale.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+pwsh -File .\scripts\apply-cof-vgui-anchor.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+python waf build -j8 --targets=xash,vgui
+```
+
+This is the first milestone to change the VGUI support library, so `vgui.dll`
+has to be built and deployed alongside `xash.dll`. See
+[the in-game UI scaled from the display](docs/cof-ui-m4-scaling.md) for the
+transform, the measured panel tree the anchor rule comes from, the FOV
+measurement that rules out `hud_scale`, and the element coverage table.
+
+On top of that, the client's VGUI text is rasterised from the Inter faces the
+project already ships instead of from the game's bitmap strips, whose sizes
+stop changing at the 1024 resolution bucket and whose table caps at 1600.
+`cof_ui_inter_fonts 1` (the default) sizes each scheme from the render height,
+rasterises at device pixels and reports metrics in logical ones so the surface
+transform maps the atlas 1:1, and answers the glyph widths itself so the
+shipped `.chw` tables are bypassed. `cof_text_codepage` decodes each text byte
+through 1250, 1251 or 1252 immediately before the glyph lookup, which is what
+the Polish and Ukrainian packs need; `cof_font_probe` draws a developer test
+string so a pack's code page can be checked without a map or a mouse. Note
+that the inventory's own labels are **painted into
+`gfx/vgui/640_inventory.tga`** and are not text at all, so no font setting
+changes them:
+
+```powershell
+pwsh -File .\scripts\apply-cof-vgui-inter-fonts.ps1 -SourceRoot .\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a
+```
+
+See [the client's VGUI text rasterised from Inter](docs/cof-vgui-inter-fonts.md).
+
 The first milestone of the unified UI stack puts the engine menu on screen over
 the live Cry of Fear scene. It is one small MainUI change plus game-directory
 data files:
@@ -322,6 +381,12 @@ go with it live in [`gamedata/`](gamedata/README.md), which is an overlay for a
 runtime's `cryoffear/` folder and contains no game assets. See
 [UI milestone 1 plumbing](docs/cof-ui-m1-plumbing.md) for what was verified,
 the Cry of Fear menu-map command table, and the font-backend finding.
+
+`languages/` is a deliberate, recorded exception to the no-game-assets policy
+above: it carries licensed fan-translation data (currently a Polish pack),
+incorporated with the originating team's permission, prepared as engine-agnostic
+data ahead of the runtime import hook, draw-time string table and code-page-aware
+rendering that will eventually consume it. See [languages/README.md](languages/README.md).
 
 The second milestone makes that engine menu *be* Cry of Fear's menu. It is one
 more MainUI patch, applied after the two above:

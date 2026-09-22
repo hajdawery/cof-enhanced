@@ -1,0 +1,39 @@
+"nice_name"
+{
+	data	"Telefon"
+}
+
+"classname"
+{
+	data	"weapon_mobile"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/weapons/mobile/640_mobile_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/weapons/mobile/640_mobile_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/weapons/mobile/640_mobile_check.tga"
+}
+
+"combined_sound"
+{
+	data	"buttons/lighterpickup.wav"
+}
+
+"combined_with"
+{
+	data	"Mobile Phone Battery"
+}
+
+"combined_result"
+{
+	data	"phonewithbattery"
+}

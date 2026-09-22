@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"valve"
+}
+
+
+"nice_name"
+{
+	data	"Zawór"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/valve/640_valve_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/valve/640_valve_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/valve.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/valve/640_valve_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/lighterpickup.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

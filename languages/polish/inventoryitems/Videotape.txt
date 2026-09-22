@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"Videotape"
+}
+
+
+"nice_name"
+{
+	data	"Kaseta wideo"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/videotape/640_videotape_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/videotape/640_videotape_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/video_tape.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/videotape/640_videotape_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/tape_pickup.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

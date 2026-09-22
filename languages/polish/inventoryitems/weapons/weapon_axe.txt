@@ -1,0 +1,24 @@
+"nice_name"
+{
+	data	"Topór"
+}
+
+"classname"
+{
+	data	"weapon_axe"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/weapons/axe/640_axe_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/weapons/axe/640_axe_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/weapons/axe/640_axe_check.tga"
+}

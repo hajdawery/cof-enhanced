@@ -1,0 +1,44 @@
+"nice_name"
+{
+	data	"G43 pó³-auto"
+}
+
+"classname"
+{
+	data	"weapon_g43"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/weapons/g43/640_g43_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/weapons/g43/640_g43_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/weapons/g43/640_g43_check.tga"
+}
+
+"ironsight_forward"
+{
+	data	"0.00"
+}
+
+"ironsight_right"
+{
+	data	"-4.25"
+}
+
+"ironsight_up"
+{
+	data	"2.00"
+}
+
+"ironsight_zoom"
+{
+	data	"50"
+}

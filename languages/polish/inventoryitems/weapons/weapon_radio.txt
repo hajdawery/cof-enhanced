@@ -1,0 +1,24 @@
+"nice_name"
+{
+	data	"Radio policyjne"
+}
+
+"classname"
+{
+	data	"weapon_radio"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/weapons/radio/640_radio_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/weapons/radio/640_radio_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/weapons/radio/640_radio_check.tga"
+}

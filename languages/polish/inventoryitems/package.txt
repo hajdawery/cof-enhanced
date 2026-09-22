@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"package"
+}
+
+
+"nice_name"
+{
+	data	"Sekretna paczka"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/package/640_package_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/package/640_package_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/package.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/package/640_package_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/package_pick.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

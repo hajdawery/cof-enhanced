@@ -1,0 +1,24 @@
+"nice_name"
+{
+	data	"Stara latarka"
+}
+
+"classname"
+{
+	data	"weapon_flashlight"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/weapons/oldflashlight/640_oldflashlight_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/weapons/oldflashlight/640_oldflashlight_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/weapons/oldflashlight/640_oldflashlight_check.tga"
+}

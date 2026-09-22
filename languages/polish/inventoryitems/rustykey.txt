@@ -1,0 +1,46 @@
+"map_name"
+{
+	data	"rustykey"
+}
+
+
+"nice_name"
+{
+	data	"Zardzewia³y klucz"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/rustykey/640_rustykey_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/rustykey/640_rustykey_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/nyckel2.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/rustykey/640_rustykey_check.tga"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

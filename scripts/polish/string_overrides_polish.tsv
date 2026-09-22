@@ -1,0 +1,11 @@
+file_offset	source_dll	english	polish	note
+0x0014D8CC	client	Simon's Book	Książka Simona	retranslated by the project (haej) 2026-09-22: mod bytes used the repainted-font byte mapping
+0x001AD090	hl	Your message is too long. Rewrite it!	Twoja wiadomość jest za długa. Skróć ją!	retranslated by the project (haej) 2026-09-22
+0x001B0990	hl	What the... The door is jammed!	Co do... Drzwi się zacięły.	retranslated by the project (haej) 2026-09-22
+0x001C3ECF	hl	Inventory full	Brak miejsca w ekwipunku	retranslated by the project (haej) 2026-09-22; leading control byte preserved by the builder
+0x001DBC9C	hl	Saved	Zapisano grę	retranslated by the project (haej) 2026-09-22
+0x001E3700	hl	Nothing to look at!	Nic ciekawego!	retranslated by the project (haej) 2026-09-22
+0x001E5154	hl	Shotgun	Strzelba	retranslated by the project (haej) 2026-09-22
+0x001E520C	hl	Axe	Siekiera	retranslated by the project (haej) 2026-09-22
+0x001B85E0	hl	buckshot	buckshot	kept English by decision 2026-09-22: ammo registration name; translating it broke pickups in the fan mod
+0x001B66D8	hl	revolver	revolver	kept English by decision 2026-09-22: identifier-like weapon/ammo name

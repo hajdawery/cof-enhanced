@@ -1,0 +1,19 @@
+"nice_name"
+{
+	data	"Amunicja do Shotguna"
+}
+
+"classname"
+{
+	data	"ammo_shells"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/ammo/shotgun_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/ammo/shotgun_check.tga"
+}

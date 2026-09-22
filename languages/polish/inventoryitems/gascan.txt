@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"gascan"
+}
+
+
+"nice_name"
+{
+	data	"Kanister z paliwem"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/gascan/640_gascan_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/gascan/640_gascan_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/props/fpsc/5litreoil.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/gascan/640_gascan_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/lighterpickup.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

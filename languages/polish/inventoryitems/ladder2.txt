@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"ladder2"
+}
+
+
+"nice_name"
+{
+	data	"Drabina"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/ladder/640_ladder_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/ladder/640_ladder_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/ladder_45.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/ladder/640_ladder_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/lighter.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

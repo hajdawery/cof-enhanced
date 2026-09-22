@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"foot"
+}
+
+
+"nice_name"
+{
+	data	"Stopa"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/foot/640_foot_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/foot/640_foot_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/foot.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/foot/640_foot_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"ambience/takefoot.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

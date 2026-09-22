@@ -1,0 +1,67 @@
+"map_name"
+{
+	data	"taclight"
+}
+
+
+"nice_name"
+{
+	data	"Latarka taktyczna do Glocka"
+}
+
+
+"classname"
+{
+	data	"item_glocktaclight"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/taclight/640_taclight_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/taclight/640_taclight_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/weapons/glock/glock_taclight.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/taclight/640_taclight_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/button5.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}
+
+"combined_sound"
+{
+	data	"buttons/lighterpickup.wav"
+}
+
+"combined_with"
+{
+	data	"Glock 19 9mm"
+}
+
+"combined_result"
+{
+	data	"glockwithtaclight"
+}

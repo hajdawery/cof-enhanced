@@ -1,0 +1,24 @@
+"nice_name"
+{
+	data	"Ksi¹¿ka Simona"
+}
+
+"classname"
+{
+	data	"weapon_booklaser"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/weapons/booklaser/640_booklaser_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/weapons/booklaser/640_booklaser_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/weapons/booklaser/640_booklaser_check.tga"
+}

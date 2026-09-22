@@ -1,0 +1,46 @@
+"map_name"
+{
+	data	"lockerkey"
+}
+
+
+"nice_name"
+{
+	data	"Klucz do szafki"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/lockerkey/640_lockerkey_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/lockerkey/640_lockerkey_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/nyckel6.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/lockerkey/640_lockerkey_check.tga"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

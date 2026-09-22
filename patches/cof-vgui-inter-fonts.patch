@@ -1,0 +1,1498 @@
+diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
+--- a/engine/client/cl_main.c
++++ b/engine/client/cl_main.c
+@@ -100,6 +100,9 @@
+ CVAR_DEFINE_AUTO( cof_ui_scale, "0", FCVAR_ARCHIVE, "Cry of Fear in-game UI scale, in percent of the client's own pixel layout (0 = automatic from the render height, 100 = stock size)" );
+ CVAR_DEFINE_AUTO( cof_ui_scale_user, "1.0", FCVAR_ARCHIVE, "user multiplier on top of cof_ui_scale, applied to the whole in-game UI and to the engine HUD text together (1.0 = automatic size, 1.5 = half again as large). This is the menu's \"HUD scale\" control" );
+ CVAR_DEFINE_AUTO( cof_ui_scale_sprites, "1", FCVAR_ARCHIVE, "let cof_ui_scale also scale the client's classic HUD sprites (ammo counter, icons); 0 leaves the engine sprite path at native size" );
++CVAR_DEFINE_AUTO( cof_ui_inter_fonts, "1", FCVAR_ARCHIVE, "rasterise the client's VGUI text from the shipped Inter faces at a size derived from the render height; 0 restores the game's own fixed-size bitmap font strips, 2 also traces every scheme latch and size decision" );
++CVAR_DEFINE_AUTO( cof_font_probe, "", 0, "developer: draw this string in the top-left corner with an engine-rasterised VGUI font, to check a code page without loading a map. Prefix with \"<role> \" to pick a scheme, e.g. \"chaptertitle Hello\"" );
++CVAR_DEFINE_AUTO( cof_text_codepage, "1252", FCVAR_ARCHIVE, "code page the engine-rasterised VGUI fonts decode text bytes with: 1252 (Western), 1250 (Central European, Polish) or 1251 (Cyrillic). Language packs set this" );
+ CVAR_DEFINE_AUTO( cof_hud_text_height_pct, "1.76", FCVAR_ARCHIVE, "target height of the engine HUD font (hints, subtitles, pickup text) as a percentage of the render height, never below the shipped size; 0 = stock fixed bitmap size" );
+ static CVAR_DEFINE_AUTO( cl_maxframetime, "0", 0, "set deadline timer for client rendering to catch freezes" );
+ CVAR_DEFINE_AUTO( cl_fixmodelinterpolationartifacts, "1", 0, "try to fix up models interpolation on a moving platforms (monsters on trains for example)" );
+@@ -607,6 +610,268 @@
+ 
+ 	if( width ) *width = w;
+ 	if( height ) *height = h;
++}
++
++/*
++====================
++Cry of Fear engine-rasterised VGUI fonts (cof_ui_inter_fonts, milestone 4)
++====================
++
++The game's VGUI text comes from bitmap strips at
++gfx/vgui/fonts/<res>_<scheme>.tga. Its resolution table caps at 1600 and the
++strips are byte-identical from the 1024 bucket upwards, so above 1024 px wide
++the text has one fixed pixel size whatever the display is - the `inventory`
++scheme never scaled at all. The engine therefore rasterises its own font from
++the Inter faces the project already ships, at a size that is a fraction of the
++render height.
++
++The fractions are the shipped point sizes at the 1024 bucket, the last one the
++artists actually changed, read as a fraction of 768:
++
++	inventory      14 px -> 1.82 %
++	credits        14 px -> 1.82 %
++	creditstitle   24 px -> 3.13 %
++	chaptertitle   30 px -> 3.91 %
++
++Two sizes come out of that, and the difference between them is the whole
++device/logical split this feature turns on:
++
++	devicePx  = fraction * render_height * cof_ui_scale_user
++	logicalPx = devicePx / cof_ui_scale
++
++`devicePx` is what the glyphs are rasterised at. `logicalPx` is what every
++metric is reported at, because the client lays out in the frozen layout space
++and cof_ui_scale multiplies every VGUI quad by its scale on the way out. Report
++the device size instead and the text would be magnified twice; rasterise at the
++logical size instead and it would be a magnified bitmap again, which is exactly
++what this replaces. Reported logical, rasterised device, the atlas lands on the
++device pixels it was drawn for, 1:1.
++
++Which role a font is cannot be read off the font: the client builds every one
++of them as Font( "Arial", <tga bytes>, tall = 20, weight = 700 ). But it loads
++the strip through COM_LoadFile immediately before constructing the font, so the
++scheme name in that path identifies the next font built. CL_CoF_FontLatch()
++records it (from the engfunc wrapper in cl_game.c) and the support library
++consumes it in the Font constructor.
++*/
++#define COF_FONT_REFERENCE_HEIGHT	768.0f	// the 1024x768 bucket the sizes come from
++
++static struct
++{
++	string		latched_role;
++	byte		*ttf[2];		// 0 = Regular, 1 = SemiBold
++	int		ttf_size[2];
++	qboolean	ttf_tried[2];
++} cof_font;
++
++/*
++====================
++CL_CoF_FontLatch
++
++Remember the scheme name from a gfx/vgui/fonts/<res>_<scheme>.tga load.
++====================
++*/
++void CL_CoF_FontLatch( const char *scheme )
++{
++	if( COM_StringEmptyOrNULL( scheme ))
++		cof_font.latched_role[0] = '\0';
++	else Q_strncpy( cof_font.latched_role, scheme, sizeof( cof_font.latched_role ));
++
++	if( cof_ui_inter_fonts.value > 1.0f )
++		Con_Reportf( "[cof-font] latch \"%s\"\n", cof_font.latched_role );
++}
++
++/*
++====================
++CL_CoF_FontRoleLatch
++
++Consume it. One shot: a second font built without its own strip load gets
++nothing and falls back to the client's own bitmap.
++====================
++*/
++int CL_CoF_FontRoleLatch( char *buf, int size )
++{
++	if( !buf || size <= 0 || !cof_font.latched_role[0] )
++		return 0;
++
++	// deliberately NOT cleared: the client builds more than one font object per
++	// strip load, and the first one is not always the one it draws with. The
++	// role stays current until the next strip load replaces it, so every font
++	// built for a scheme gets that scheme's size
++	Q_strncpy( buf, cof_font.latched_role, size );
++
++	return 1;
++}
++
++/*
++====================
++CL_CoF_FontRoleFraction
++
++The share of the render height this role's glyphs should occupy. Anything the
++table does not name - the Half-Life leftovers, and the two schemes that have no
++strip at any resolution and therefore render nothing today ("Default Text" and
++"impact") - gets the body size, which is how they start working at all.
++====================
++*/
++static float CL_CoF_FontRoleFraction( const char *role, qboolean *semibold )
++{
++	float	points = 14.0f;
++
++	if( !Q_stricmp( role, "creditstitle" ))
++		points = 24.0f;
++	else if( !Q_stricmp( role, "chaptertitle" ))
++		points = 30.0f;
++
++	// "arial bold" in the game's own font info.txt is every *title* scheme
++	if( semibold )
++		*semibold = ( Q_stristr( role, "title" ) != NULL );
++
++	return points / COF_FONT_REFERENCE_HEIGHT;
++}
++
++/*
++====================
++CL_CoF_FontDesc
++
++Answer the size and code page for a role, or false to leave the client's own
++bitmap strip alone.
++====================
++*/
++qboolean CL_CoF_FontDesc( const char *role, cof_vgui_font_t *out )
++{
++	float		scale, fraction, device;
++	qboolean	semibold = false;
++	int		codepage;
++
++	if( !out || COM_StringEmptyOrNULL( role ))
++		return false;
++
++	if( cof_ui_inter_fonts.value == 0.0f )
++		return false;
++
++	if( !GI || Q_stricmp( GI->gamefolder, "cryoffear" ))
++		return false;
++
++	if( !ref.initialized || refState.height <= 0 )
++		return false;
++
++	scale = CL_CoF_UIScale();
++	fraction = CL_CoF_FontRoleFraction( role, &semibold );
++
++	device = fraction * refState.height * CL_CoF_UIScaleUser();
++	device = bound( 8.0f, device, 256.0f );
++
++	codepage = (int)cof_text_codepage.value;
++
++	if( codepage != 1250 && codepage != 1251 && codepage != 1252 )
++		codepage = 1252;
++
++	if( cof_ui_inter_fonts.value > 1.0f )
++	{
++		Con_Reportf( "[cof-font] role \"%s\" -> device %.1f px, logical %.1f px, cp %i, %s\n",
++			role, device, device / ( scale > 0.0f ? scale : 1.0f ), codepage,
++			semibold ? "SemiBold" : "Regular" );
++	}
++
++	out->devicePx = Q_rint( device );
++	out->logicalPx = Q_max( 6, Q_rint( device / ( scale > 0.0f ? scale : 1.0f )));
++	out->codepage = codepage;
++	out->semibold = semibold ? 1 : 0;
++
++	return true;
++}
++
++/*
++====================
++CL_CoF_FontFile
++
++The shipped Inter faces, loaded once and kept for the session. gamedata puts
++them in cryoffear/gfx/fonts, which is where the menu theme already reads them
++from.
++====================
++*/
++const byte *CL_CoF_FontFile( int semibold, int *size )
++{
++	int	slot = semibold ? 1 : 0;
++
++	if( size )
++		*size = 0;
++
++	if( !cof_font.ttf_tried[slot] )
++	{
++		fs_offset_t	length = 0;
++		const char	*path = semibold ? "gfx/fonts/Inter-SemiBold.ttf" : "gfx/fonts/Inter-Regular.ttf";
++
++		cof_font.ttf_tried[slot] = true;
++		cof_font.ttf[slot] = FS_LoadFile( path, &length, false );
++		cof_font.ttf_size[slot] = (int)length;
++
++		if( !cof_font.ttf[slot] )
++			Con_Printf( S_WARN "cof_ui_inter_fonts: %s not found, the client's own font strips stay in use\n", path );
++		else Con_Reportf( "[cof-font] loaded %s (%i bytes)\n", path, cof_font.ttf_size[slot] );
++	}
++
++	if( cof_ui_inter_fonts.value > 1.0f )
++		Con_Reportf( "[cof-font] file request slot %i -> %s\n", slot, cof_font.ttf[slot] ? "ok" : "MISSING" );
++
++	if( !cof_font.ttf[slot] )
++		return NULL;
++
++	if( size )
++		*size = cof_font.ttf_size[slot];
++
++	return cof_font.ttf[slot];
++}
++
++/*
++====================
++CL_CoF_FontProbe
++
++cof_font_probe: the string to draw, and the role to draw it with. The value is
++"<text>" or "<role> <text>" - a leading word that names a known scheme picks
++that size, so "chaptertitle Zazolc gesla jazn" is legible at a glance.
++
++This exists because there is no other way to see a code page working: the game
++draws only English, the inventory's labels turned out to be painted into
++gfx/vgui/640_inventory.tga rather than drawn as text, and every other VGUI text
++surface needs a map event or a mouse click to reach.
++====================
++*/
++int CL_CoF_FontProbe( char *text, int size, char *role, int roleSize )
++{
++	const char	*value = cof_font_probe.string;
++	const char	*space;
++
++	if( !text || size <= 0 || !role || roleSize <= 0 || COM_StringEmptyOrNULL( value ))
++		return 0;
++
++	Q_strncpy( role, "credits", roleSize );
++
++	space = Q_strchr( value, ' ' );
++
++	if( space && space != value )
++	{
++		string	first;
++		int	length = (int)( space - value );
++
++		if( length < (int)sizeof( first ))
++		{
++			memcpy( first, value, length );
++			first[length] = 0;
++
++			if( !Q_stricmp( first, "inventory" ) || !Q_stricmp( first, "credits" ) ||
++				!Q_stricmp( first, "creditstitle" ) || !Q_stricmp( first, "chaptertitle" ) ||
++				!Q_stricmp( first, "pager" ))
++			{
++				Q_strncpy( role, first, roleSize );
++				value = space + 1;
++			}
++		}
++	}
++
++	Q_strncpy( text, value, size );
++
++	return 1;
+ }
+ 
+ /*
+@@ -5130,6 +5395,9 @@
+ 	Cvar_RegisterVariable( &cof_sky_reset_per_map );
+ 	Cvar_RegisterVariable( &cof_ui_scale );
+ 	Cvar_RegisterVariable( &cof_ui_scale_user );
++	Cvar_RegisterVariable( &cof_ui_inter_fonts );
++	Cvar_RegisterVariable( &cof_text_codepage );
++	Cvar_RegisterVariable( &cof_font_probe );
+ 	Cvar_RegisterVariable( &cof_ui_scale_sprites );
+ 	Cvar_RegisterVariable( &cof_hud_text_height_pct );
+ 	Cvar_RegisterVariable( &cl_maxframetime );
+diff --git a/engine/client/client.h b/engine/client/client.h
+--- a/engine/client/client.h
++++ b/engine/client/client.h
+@@ -35,6 +35,7 @@
+ #include "world.h"
+ #include "ref_common.h"
+ #include "voice.h"
++#include "vgui_api.h"
+ #include "q_client.h"
+ 
+ //=============================================================================
+@@ -720,6 +721,8 @@
+ extern convar_t cof_ui_scale;
+ extern convar_t cof_ui_scale_sprites;
+ extern convar_t cof_ui_scale_user;
++extern convar_t cof_ui_inter_fonts;
++extern convar_t cof_text_codepage;
+ extern convar_t cof_hud_text_height_pct;
+ extern convar_t	r_showtextures;
+ extern convar_t	r_showtextures_zoom;
+@@ -1292,6 +1295,11 @@
+ qboolean CL_CoF_HudScaleBlocked( void );
+ float CL_CoF_UIScaleUser( void );
+ void CL_CoF_CheckUIScaleChanged( void );
++void CL_CoF_FontLatch( const char *scheme );
++int CL_CoF_FontRoleLatch( char *buf, int size );
++qboolean CL_CoF_FontDesc( const char *role, cof_vgui_font_t *out );
++const byte *CL_CoF_FontFile( int semibold, int *size );
++int CL_CoF_FontProbe( char *text, int size, char *role, int roleSize );
+ void CL_CoF_UIRootSize( int *width, int *height );
+ // Cry of Fear unified UI (cof_ui_death_menu): the GAME OVER user message hook,
+ // defined in cl_main.c and called from CL_ParseUserMessage
+diff --git a/engine/client/dll_int/cl_game.c b/engine/client/dll_int/cl_game.c
+--- a/engine/client/dll_int/cl_game.c
++++ b/engine/client/dll_int/cl_game.c
+@@ -1712,6 +1712,53 @@
+ 	SPR_AdjustSize( &x_, &y_, &w_, &h_ );
+ 
+ 	ref.dllFuncs.FillRGBA( kRenderTransAdd, x_, y_, w_, h_, r, g, b, a );
++}
++
++/*
++=============
++CL_CoF_LoadFile
++
++Cry of Fear engine-rasterised VGUI fonts: the engfunc the client loads its
++bitmap font strips through, wrapped so the scheme name in
++"gfx\vgui\fonts\<res>_<scheme>.tga" is latched for the font object the
++client builds a moment later. That is the only thing that tells one of its
++fonts from another - it constructs every single one of them as
++Font( "Arial", <tga bytes>, tall = 20, weight = 700 ). Everything else about
++this call is the stock engfunc.
++=============
++*/
++static byte *GAME_EXPORT CL_CoF_LoadFile( const char *filename, int usehunk, int *pLength )
++{
++	const char	*name;
++
++	if( !COM_StringEmptyOrNULL( filename ) && Q_stristr( filename, "vgui" ) &&
++		Q_stristr( filename, "fonts" ) &&
++		( name = COM_FileWithoutPath( filename )) != NULL &&
++		!Q_stricmp( COM_FileExtension( name ), "tga" ))
++	{
++		const char	*underscore = Q_strchr( name, '_' );
++		qboolean	bucket = ( underscore != NULL && underscore != name );
++
++		// "<res>_<scheme>.tga" and nothing else: the part before the underscore
++		// has to be the resolution bucket, or this is one of the game's many
++		// other vgui images and the role it would latch would be nonsense
++		for( const char *p = name; bucket && p < underscore; p++ )
++		{
++			if( *p < '0' || *p > '9' )
++				bucket = false;
++		}
++
++		if( bucket && underscore[1] )
++		{
++			string	scheme;
++
++			Q_strncpy( scheme, underscore + 1, sizeof( scheme ));
++			COM_StripExtension( scheme );
++			CL_CoF_FontLatch( scheme );
++		}
++	}
++
++	return COM_LoadFile( filename, usehunk, pLength );
+ }
+ 
+ /*
+@@ -3978,7 +4025,7 @@
+ 	pfnSetScreenFade,
+ 	VGui_GetPanel,
+ 	VGui_ViewportPaintBackground,
+-	COM_LoadFile,
++	CL_CoF_LoadFile,
+ 	pfnParseFile,
+ 	COM_FreeFile,
+ 	&gTriApi,
+diff --git a/engine/client/vgui/vgui_draw.c b/engine/client/vgui/vgui_draw.c
+--- a/engine/client/vgui/vgui_draw.c
++++ b/engine/client/vgui/vgui_draw.c
+@@ -284,6 +284,26 @@
+ static int GAME_EXPORT VGUI_CofUITransform( float *scale, int *layoutWide, int *layoutTall, int *screenWide, int *screenTall )
+ {
+ 	return CL_CoF_UITransform( scale, layoutWide, layoutTall, screenWide, screenTall ) ? 1 : 0;
++}
++
++static int GAME_EXPORT VGUI_CofFontRoleLatch( char *buf, int size )
++{
++	return CL_CoF_FontRoleLatch( buf, size );
++}
++
++static int GAME_EXPORT VGUI_CofFontDesc( const char *role, cof_vgui_font_t *out )
++{
++	return CL_CoF_FontDesc( role, out ) ? 1 : 0;
++}
++
++static const unsigned char *GAME_EXPORT VGUI_CofFontFile( int semibold, int *size )
++{
++	return CL_CoF_FontFile( semibold, size );
++}
++
++static int GAME_EXPORT VGUI_CofFontProbe( char *text, int size, char *role, int roleSize )
++{
++	return CL_CoF_FontProbe( text, size, role, roleSize );
+ }
+ 
+ static void GAME_EXPORT VGUI_SetPaintOffset( int x, int y )
+@@ -396,6 +416,10 @@
+ 	NULL, // TextInput
+ 	VGUI_SetPaintOffset,
+ 	VGUI_CofUITransform,
++	VGUI_CofFontRoleLatch,
++	VGUI_CofFontDesc,
++	VGUI_CofFontFile,
++	VGUI_CofFontProbe,
+ };
+ 
+ qboolean VGui_LoadProgs( HINSTANCE hInstance )
+diff --git a/engine/vgui_api.h b/engine/vgui_api.h
+--- a/engine/vgui_api.h
++++ b/engine/vgui_api.h
+@@ -174,6 +174,18 @@
+ 	MA_WHEEL
+ };
+ 
++// Cry of Fear engine-rasterised VGUI fonts (milestone 4): what the engine
++// tells the support library about one font role.
++typedef struct
++{
++	int	devicePx;	// rasterise the glyphs this many device pixels tall
++	int	logicalPx;	// and report every metric at this height, so that the
++				// cof_ui_scale surface transform maps the atlas onto
++				// exactly the device pixels it was rasterised for
++	int	codepage;	// 1250, 1251 or 1252: how a text byte becomes a glyph
++	int	semibold;	// use the SemiBold face rather than Regular
++} cof_vgui_font_t;
++
+ typedef struct  vguiapi_s
+ {
+ 	int	initialized;
+@@ -223,5 +235,32 @@
+ 	// against, which is what keeps a magnified HUD in its corner and a magnified
+ 	// inventory centred. See engine/client/cl_main.c.
+ 	int	(*CofUITransform)( float *scale, int *layoutWide, int *layoutTall, int *screenWide, int *screenTall );
++
++	// Cry of Fear engine-rasterised VGUI fonts (cof_ui_inter_fonts, milestone 4).
++	//
++	// The game's own VGUI text comes from bitmap strips whose sizes stopped
++	// changing at the 1024 resolution bucket, so the engine substitutes a font
++	// of its own, rasterised from Inter at a size derived from the render
++	// height. These three entries are everything the support library needs.
++	//
++	// CofFontRoleLatch consumes the scheme name the client last asked for
++	// through COM_LoadFile( "gfx/vgui/fonts/<res>/<scheme>.tga" ), which is how
++	// a font object built immediately afterwards is identified: the client
++	// constructs every one of them as Font( "Arial", ..., tall = 20 ), so
++	// neither the name nor the size tells them apart. Returns 0 when nothing
++	// is latched.
++	//
++	// CofFontDesc answers the size and code page for a role, and 0 when the
++	// client's own strip should be used instead.
++	//
++	// CofFontFile returns the engine-owned TTF bytes, valid until shutdown.
++	int	(*CofFontRoleLatch)( char *buf, int size );
++	int	(*CofFontDesc)( const char *role, cof_vgui_font_t *out );
++	const unsigned char *(*CofFontFile)( int semibold, int *size );
++
++	// cof_font_probe: draw this string in the top-left corner with the engine
++	// font for `role`, so a language pack's code page can be checked without a
++	// map, a save, or a mouse. Returns 0 when the cvar is empty.
++	int	(*CofFontProbe)( char *text, int size, char *role, int roleSize );
+ } vguiapi_t;
+ #endif // VGUI_API_H
+diff --git a/3rdparty/freevgui/font.h b/3rdparty/freevgui/font.h
+--- a/3rdparty/freevgui/font.h
++++ b/3rdparty/freevgui/font.h
+@@ -40,6 +40,30 @@
+ 
+ CHECK_STRUCT_SIZE( Font, 16, 32, 32 );
+ 
++// Cry of Fear engine-rasterised VGUI fonts (milestone 4). The platform layer
++// may install a substitute for the game's own bitmap fonts - see
++// platform/xash3d-fwgs/coffont.cpp - and everything inside this library that
++// measures or draws text has to go through Font_Active() to see it.
++//
++// The indirection is not optional: the game overwrites the vtable of the font
++// objects it builds, so a virtual call on one of them reaches ITS
++// getCharABCwide and its shipped .chw width table, not ours. Font_Active()
++// returns the engine's font when there is one, and the client's own font
++// otherwise, which is what makes cof_ui_inter_fonts 0 exactly stock.
++typedef Font *( *FontSubstituteFn )( Font *font );
++typedef void ( *FontCreatedFn )( Font *font, bool fromFile );
++
++// A font id nobody else will use. Font::init() only allocates one when it
++// actually builds a new platform font, and it reuses an existing one whenever
++// the constructor arguments match - so a family of fonts that differ in
++// something init() cannot see (an engine face's size or code page, say) would
++// otherwise all end up sharing id -1, and with it one atlas.
++int Font_AllocId( void );
++
++void Font_SetSubstituteHook( FontSubstituteFn fn );
++void Font_SetCreatedHook( FontCreatedFn fn );
++Font *Font_Active( Font *font );
++
+ }
+ 
+ #endif // VGUI_FONT_H
+diff --git a/3rdparty/freevgui/font.cpp b/3rdparty/freevgui/font.cpp
+--- a/3rdparty/freevgui/font.cpp
++++ b/3rdparty/freevgui/font.cpp
+@@ -152,6 +152,32 @@
+ 	int tall, scale, wide;
+ };
+ 
++static vgui::FontSubstituteFn g_fontSubstituteHook = nullptr;
++static vgui::FontCreatedFn g_fontCreatedHook = nullptr;
++
++int vgui::Font_AllocId( void )
++{
++	return staticFontId++;
++}
++
++void vgui::Font_SetSubstituteHook( FontSubstituteFn fn )
++{
++	g_fontSubstituteHook = fn;
++}
++
++void vgui::Font_SetCreatedHook( FontCreatedFn fn )
++{
++	g_fontCreatedHook = fn;
++}
++
++vgui::Font *vgui::Font_Active( Font *font )
++{
++	if( !font || !g_fontSubstituteHook )
++		return font;
++
++	return g_fontSubstituteHook( font );
++}
++
+ void vgui::Font_Reset( void )
+ {
+ 	staticFontPlatDar.setCount( 0 );
+@@ -207,6 +233,12 @@
+ 			id = staticFontId++;
+ 		}
+ 	}
++
++	// Cry of Fear engine-rasterised VGUI fonts: a font built from file data is
++	// one of the game's bitmap strips, and the engine has just latched which
++	// scheme that strip belonged to
++	if( g_fontCreatedHook )
++		g_fontCreatedHook( this, pFileData != nullptr );
+ }
+ 
+ void Font::getCharRGBA( int ch, int rgbaX, int rgbaY, int rgbaWide, int rgbaTall, unsigned char *rgba )
+@@ -227,7 +259,11 @@
+ 	if( !str )
+ 		return;
+ 
+-	tall = getTall();
++	// the engine may have substituted a font of its own for this one; every
++	// metric below has to come from whichever is really going to be drawn
++	Font *active = Font_Active( this );
++
++	tall = active->getTall();
+ 
+ 	for( int i = 0, xx = 0;; i++ )
+ 	{
+@@ -238,7 +274,7 @@
+ 
+ 		if( ch == '\n' )
+ 		{
+-			tall += getTall();
++			tall += active->getTall();
+ 			xx = 0;
+ 		}
+ 
+@@ -247,7 +283,7 @@
+ 		// negative int, and a font whose getCharABCwide() indexes a 256-entry
+ 		// table without masking would then read outside it. Harmless only as
+ 		// long as every font masks, which an engine-supplied one need not
+-		getCharABCwide( (unsigned char)ch, a, b, c );
++		active->getCharABCwide( (unsigned char)ch, a, b, c );
+ 		xx += a + b + c;
+ 
+ 		if( xx > wide )
+diff --git a/3rdparty/freevgui/image.cpp b/3rdparty/freevgui/image.cpp
+--- a/3rdparty/freevgui/image.cpp
++++ b/3rdparty/freevgui/image.cpp
+@@ -503,7 +503,8 @@
+ 	Font *f = getFont();
+ 	drawSetTextFont( f );
+ 
+-	int x = 0, y = 0, tall = f->getTall();
++	Font *af = Font_Active( f );
++	int x = 0, y = 0, tall = af->getTall();
+ 	for( int i = 0; ; i++ )
+ 	{
+ 		// the cast is load bearing: text is char*, so a byte in 0x80..0xFF
+@@ -512,7 +513,7 @@
+ 		int ch = (unsigned char)text[i];
+ 
+ 		int a, b, c;
+-		f->getCharABCwide( ch, a, b, c );
++		af->getCharABCwide( ch, a, b, c );
+ 		int len = a + b + c;
+ 
+ 		if( !ch )
+@@ -532,7 +533,7 @@
+ 		{
+ 			int ch2 = (unsigned char)text[i + 1];
+ 
+-			f->getCharABCwide( ' ', a, b, c );
++			af->getCharABCwide( ' ', a, b, c );
+ 
+ 			if( ch2 != '\0' && ch2 != '\n' && ch2 != '\r' )
+ 			{
+@@ -555,7 +556,7 @@
+ 			if( ch2 == '\0' || ch2 == '\n' || ch2 == '\r' || ch2 == ' ' )
+ 				break;
+ 
+-			f->getCharABCwide( ch2, a, b, c );
++			af->getCharABCwide( ch2, a, b, c );
+ 			len += a + b + c;
+ 		}
+ 
+@@ -569,7 +570,7 @@
+ 		{
+ 			ch = (unsigned char)text[i + j];
+ 
+-			f->getCharABCwide( ch, a, b, c );
++			af->getCharABCwide( ch, a, b, c );
+ 			drawPrintChar( x, y, ch );
+ 
+ 			x += a + b + c;
+@@ -611,7 +612,7 @@
+ 	if( f == nullptr )
+ 		return;
+ 
+-	f->getTextSize( text, w, h );
++	Font_Active( f )->getTextSize( text, w, h );
+ }
+ 
+ void TextImage::getTextSizeWrapped( int &wide, int &tall )
+@@ -628,14 +629,15 @@
+ 	getSize( wrapWide, wrapTall );
+ 
+ 	Font *f = getFont();
+-	int x = 0, y = 0, lineTall = f->getTall();
++	Font *af = Font_Active( f );
++	int x = 0, y = 0, lineTall = af->getTall();
+ 
+ 	for( int i = 0; ; i++ )
+ 	{
+ 		int ch = (unsigned char)text[i];
+ 
+ 		int a, b, c;
+-		f->getCharABCwide( ch, a, b, c );
++		af->getCharABCwide( ch, a, b, c );
+ 		int len = a + b + c;
+ 
+ 		if( !ch )
+@@ -655,7 +657,7 @@
+ 		{
+ 			int ch2 = (unsigned char)text[i + 1];
+ 
+-			f->getCharABCwide( ' ', a, b, c );
++			af->getCharABCwide( ' ', a, b, c );
+ 
+ 			if( ch2 != '\0' && ch2 != '\n' && ch2 != '\r' )
+ 			{
+@@ -678,7 +680,7 @@
+ 			if( ch2 == '\0' || ch2 == '\n' || ch2 == '\r' || ch2 == ' ' )
+ 				break;
+ 
+-			f->getCharABCwide( ch2, a, b, c );
++			af->getCharABCwide( ch2, a, b, c );
+ 			len += a + b + c;
+ 		}
+ 
+@@ -692,7 +694,7 @@
+ 		{
+ 			ch = (unsigned char)text[i + j];
+ 
+-			f->getCharABCwide( ch, a, b, c );
++			af->getCharABCwide( ch, a, b, c );
+ 
+ 			if( x + a + b + c > wide )
+ 				wide = x + a + b + c;
+diff --git a/3rdparty/freevgui/controls/text.cpp b/3rdparty/freevgui/controls/text.cpp
+--- a/3rdparty/freevgui/controls/text.cpp
++++ b/3rdparty/freevgui/controls/text.cpp
+@@ -201,7 +201,7 @@
+ void TextEntry::paintBackground()
+ {
+ 	Font *f = font ? font : getApp()->getScheme()->getFont( Scheme::SF_PRIMARY1 );
+-	int text_h = f->getTall();
++	int text_h = Font_Active( f )->getTall();
+ 
+ 	{
+ 		int x, y;
+@@ -295,7 +295,7 @@
+ 
+ int TextEntry::cursorToPixelSpace( int at )
+ {
+-	Font *f = font ? font : getApp()->getScheme()->getFont( Scheme::SF_PRIMARY1 );
++	Font *f = Font_Active( font ? font : getApp()->getScheme()->getFont( Scheme::SF_PRIMARY1 ));
+ 
+ 	int x = 0;
+ 	for( int i = 0; i < line.getCount(); i++ )
+@@ -546,9 +546,11 @@
+ 	Font *font = getApp()->getScheme()->getFont( Scheme::SF_PRIMARY2 );
+ 
+ 	int a, b, c;
+-	font->getCharABCwide( 'W', a, b, c );
++	Font *activeFont = Font_Active( font );
++
++	activeFont->getCharABCwide( 'W', a, b, c );
+ 	int w = a + b + c;
+-	int h = font->getTall();
++	int h = activeFont->getTall();
+ 	drawSetTextFont( Scheme::SF_PRIMARY2 );
+ 
+ 	int red, green, blue, alpha;
+diff --git a/3rdparty/freevgui/controls/edit.cpp b/3rdparty/freevgui/controls/edit.cpp
+--- a/3rdparty/freevgui/controls/edit.cpp
++++ b/3rdparty/freevgui/controls/edit.cpp
+@@ -252,7 +252,7 @@
+ 
+ 	Font *f = font ? font : getApp()->getScheme()->getFont( Scheme::SF_PRIMARY1 );
+ 
+-	return h / f->getTall();
++	return h / Font_Active( f )->getTall();
+ }
+ 
+ void EditPanel::setCursorBlink( bool state )
+@@ -301,7 +301,8 @@
+ void EditPanel::paint()
+ {
+ 	Font *f = font ? font : getApp()->getScheme()->getFont( Scheme::SF_PRIMARY1 );
+-	int lineHeight = f->getTall();
++	Font *af = Font_Active( f );
++	int lineHeight = af->getTall();
+ 	int y = 0;
+ 
+ 	drawSetTextFont( f );
+@@ -323,7 +324,7 @@
+ 				caretX = x;
+ 
+ 			// cast: see the note in Font::getTextSize()
+-			f->getCharABCwide( (unsigned char)ch, a, b, c );
++			af->getCharABCwide( (unsigned char)ch, a, b, c );
+ 			drawPrintChar( x, y, ch );
+ 			x += a + b + c;
+ 		}
+@@ -332,7 +333,7 @@
+ 		{
+ 			int a, b, c;
+ 
+-			f->getCharABCwide( ' ', a, b, c );
++			af->getCharABCwide( ' ', a, b, c );
+ 			caretX = x + ( cursorPos[0] - lineDar->getCount() ) * ( a + b + c );
+ 		}
+ 
+@@ -423,7 +424,7 @@
+ 	if( !src || !dst )
+ 		return x;
+ 
+-	Font *f = font ? font : getApp()->getScheme()->getFont( Scheme::SF_PRIMARY1 );
++	Font *f = Font_Active( font ? font : getApp()->getScheme()->getFont( Scheme::SF_PRIMARY1 ));
+ 
+ 	int pixelX = 0;
+ 
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/support.h b/3rdparty/freevgui/platform/xash3d-fwgs/support.h
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/support.h
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/support.h
+@@ -11,6 +11,7 @@
+ #include "surface.h"
+ 
+ #include "vgui_api.h"
++#include "coffont.h"
+ 
+ namespace vgui
+ {
+@@ -79,6 +80,10 @@
+ 	virtual int createNewTextureID() override;
+ 	virtual void GetMousePos( int &x, int &y ) override;
+ 
++	// cof_font_probe: draw the developer string with an engine font, so a
++	// language pack's code page can be checked without a map or a mouse
++	void cofDrawProbe();
++
+ protected:
+ 	virtual void drawSetColor( int r, int g, int b, int a ) override;
+ 	virtual void drawFilledRect( int x0, int y0, int x1, int y1 ) override;
+@@ -102,7 +107,12 @@
+ 	enum
+ 	{
+ 		FONT_PAGE_SIZE  = 512,
+-		MAX_FONT_PAGES  = 8, // per font
++		// Cry of Fear engine-rasterised fonts: the chapter title is 3.91 % of
++		// the render height, which at 2160p with the HUD scale at 200 % is a
++		// 169 px cell - about 18 glyphs to a page, so eight pages truncated the
++		// set. Pages are still only uploaded as they fill, so the usual case
++		// (four pages for a title font at 2160p) costs nothing extra
++		MAX_FONT_PAGES  = 16, // per font
+ 		MAX_PAINT_STACK = 16,
+ 		DEFAULT_COLOR   = 7,
+ 	};
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp
+@@ -222,6 +222,15 @@
+ 	memset( cache, 0, sizeof( *cache ));
+ 	memset( pixels, 0, pageBytes );
+ 
++	// Cry of Fear engine-rasterised fonts: the atlas is packed and rasterised
++	// in DEVICE pixels, while everything the client and drawPrintText() see is
++	// reported in logical ones. That split is what makes the glyph land on
++	// exactly the pixels it was drawn for once the engine scales the quad
++	CofFont *cof = CofFont_Cast( font );
++
++	if( cof )
++		tall = cof->deviceTall();
++
+ 	cache->id = font->getId();
+ 	cache->generation = fontGeneration;
+ 
+@@ -234,7 +243,12 @@
+ 		if( Q_isspace( ch ))
+ 			continue;
+ 
+-		font->getCharABCwide( ch, a, b, c );
++		if( cof )
++			cof->deviceABCwide( ch, a, b, c );
++		else font->getCharABCwide( ch, a, b, c );
++
++		if( b <= 0 ) // nothing in the face for this byte
++			continue;
+ 
+ 		if( x + b > FONT_PAGE_SIZE ) // doesn't fit in this row anymore
+ 		{
+@@ -281,8 +295,40 @@
+ 	return cache;
+ }
+ 
++void XashSurface::cofDrawProbe()
++{
++	char	text[256], role[64];
++
++	if( !g_engine || !g_engine->CofFontProbe )
++		return;
++
++	if( !g_engine->CofFontProbe( text, sizeof( text ), role, sizeof( role )))
++		return;
++
++	Font *font = CofFont_ForRole( role );
++
++	if( !font )
++		return;
++
++	int length = (int)strlen( text );
++
++	if( length <= 0 )
++		return;
++
++	drawSetTextFont( font );
++	drawSetTextColor( 255, 216, 0, 0 ); // alpha is inverted in VGUI: 0 is opaque
++	drawSetTextPos( 12, 12 );
++	drawPrintText( text, length );
++}
++
+ void XashSurface::drawSetTextFont( Font *font )
+ {
++	// Cry of Fear engine-rasterised VGUI fonts: this is the one place the
++	// surface learns which font the client wants, so it is where the engine's
++	// own font takes over. Font_Active() returns the client's font unchanged
++	// when cof_ui_inter_fonts is 0 or the role is unknown
++	font = Font_Active( font );
++
+ 	currentFont = font;
+ 	currentFontCache = nullptr;
+ 
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp
+@@ -91,6 +91,10 @@
+ 	panel->repaint();
+ 	panel->paintTraverse();
+ 
++	// cof_font_probe draws last, over everything, so it is visible whatever the
++	// client has on screen
++	g_surface->cofDrawProbe();
++
+ 	g_scissor.disable();
+ }
+ 
+@@ -118,4 +122,7 @@
+ 	// Cry of Fear in-game UI scaling: anchor each top-level client surface as
+ 	// the panel tree is solved (cofscale.cpp)
+ 	Panel_SetSolveHook( CofUI_SolvePanel );
++
++	// Cry of Fear engine-rasterised VGUI fonts (coffont.cpp)
++	CofFont_Install();
+ }
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/coffont.h b/3rdparty/freevgui/platform/xash3d-fwgs/coffont.h
+new file mode 100644
+--- /dev/null
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/coffont.h
+@@ -0,0 +1,47 @@
++// SPDX-License-Identifier: BSD-3-Clause
++// Cry of Fear engine-rasterised VGUI fonts (cof_ui_inter_fonts, milestone 4)
++
++#ifndef VGUI_XASH3D_COFFONT_H
++#define VGUI_XASH3D_COFFONT_H
++
++#include "font.h"
++
++namespace vgui
++{
++class FontPlat_Inter;
++
++// The engine-owned replacement for one of the game's bitmap fonts.
++//
++// Its public metrics are LOGICAL - the size the client should lay out in,
++// given that cof_ui_scale multiplies every VGUI quad on the way out. The atlas
++// builder needs the DEVICE size the glyphs were actually rasterised at, and
++// asks for it through deviceTall() / deviceABCwide(). Reporting one where the
++// other belongs is the difference between crisp text, text scaled twice, and a
++// magnified bitmap.
++class CofFont : public Font
++{
++public:
++	CofFont( FontPlat_Inter *newPlat );
++
++	virtual void getCharABCwide( int ch, int &a, int &b, int &c ) override;
++	virtual int getTall() override;
++
++	int deviceTall() const;
++	void deviceABCwide( int ch, int &a, int &b, int &c );
++
++private:
++	FontPlat_Inter *plat;
++};
++
++// installs the Font substitute and Font-created hooks
++void CofFont_Install( void );
++
++// the CofFont this pointer really is, or null for any other font
++CofFont *CofFont_Cast( Font *font );
++
++// an engine font for a role, with no client font involved: the cof_font_probe
++// developer string draws with this
++Font *CofFont_ForRole( const char *role );
++}
++
++#endif // VGUI_XASH3D_COFFONT_H
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/coffont.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/coffont.cpp
+new file mode 100644
+--- /dev/null
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/coffont.cpp
+@@ -0,0 +1,522 @@
++// SPDX-License-Identifier: BSD-3-Clause
++// Cry of Fear engine-rasterised VGUI fonts (cof_ui_inter_fonts, milestone 4)
++
++#include "vgui_internal.h"
++#include "support.h"
++#include "font.h"
++#include "platform/common/font.h"
++
++#include <stdlib.h>
++#include <string.h>
++#include <math.h>
++
++#define STB_TRUETYPE_IMPLEMENTATION
++#define STBTT_STATIC
++#include "stb_truetype.h"
++
++using namespace vgui;
++
++/*
++The game's VGUI text comes from bitmap strips at
++gfx/vgui/fonts/<res>_<scheme>.tga whose resolution table caps at 1600 and whose
++contents are byte-identical from the 1024 bucket upwards - the `inventory`
++scheme never scaled at all. So above 1024 px wide every label in the inventory,
++the phone and the notes has one fixed pixel size whatever the display is.
++
++This file replaces them with glyphs rasterised from the Inter faces the project
++already ships, at a size the engine derives from the render height
++(CL_CoF_FontDesc in engine/client/cl_main.c). Three things make it work:
++
++* THE ROLE. The client builds every one of its fonts as
++  Font( "Arial", <tga bytes>, tall = 20, weight = 700 ), so nothing about the
++  object says whether it is the inventory font or the chapter title. What does
++  is the strip it loaded a moment earlier: the engine latches the scheme name
++  out of that COM_LoadFile path and the Font constructor hook below consumes
++  it.
++
++* THE DEVICE/LOGICAL SPLIT. cof_ui_scale multiplies every VGUI quad on the way
++  out, so a font that reported its real pixel size would be magnified twice.
++  Glyphs are rasterised at `devicePx` and every metric is reported at
++  `logicalPx = devicePx / scale`, so the quad the surface emits lands on
++  exactly the device pixels the glyph was drawn for. That is the difference
++  between crisp text and the magnified bitmap this replaces.
++
++* THE CODE PAGE. Text reaches drawPrintText one byte at a time and the atlas is
++  256 cells, which is the whole 8-bit pipeline the game and the language packs
++  use. Rather than widen that, each byte is decoded to Unicode here, with the
++  pack's code page, immediately before the glyph lookup. One pack is one code
++  page; cp1250 carries Polish, cp1251 Cyrillic, cp1252 the Western default.
++*/
++// Windows-1250, the 0x80..0xFF half (0x00..0x7F is ASCII)
++static const unsigned short g_cp1250[128] =
++{
++	0x20AC, 0x0000, 0x201A, 0x0000, 0x201E, 0x2026, 0x2020, 0x2021,
++	0x0000, 0x2030, 0x0160, 0x2039, 0x015A, 0x0164, 0x017D, 0x0179,
++	0x0000, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
++	0x0000, 0x2122, 0x0161, 0x203A, 0x015B, 0x0165, 0x017E, 0x017A,
++	0x00A0, 0x02C7, 0x02D8, 0x0141, 0x00A4, 0x0104, 0x00A6, 0x00A7,
++	0x00A8, 0x00A9, 0x015E, 0x00AB, 0x00AC, 0x00AD, 0x00AE, 0x017B,
++	0x00B0, 0x00B1, 0x02DB, 0x0142, 0x00B4, 0x00B5, 0x00B6, 0x00B7,
++	0x00B8, 0x0105, 0x015F, 0x00BB, 0x013D, 0x02DD, 0x013E, 0x017C,
++	0x0154, 0x00C1, 0x00C2, 0x0102, 0x00C4, 0x0139, 0x0106, 0x00C7,
++	0x010C, 0x00C9, 0x0118, 0x00CB, 0x011A, 0x00CD, 0x00CE, 0x010E,
++	0x0110, 0x0143, 0x0147, 0x00D3, 0x00D4, 0x0150, 0x00D6, 0x00D7,
++	0x0158, 0x016E, 0x00DA, 0x0170, 0x00DC, 0x00DD, 0x0162, 0x00DF,
++	0x0155, 0x00E1, 0x00E2, 0x0103, 0x00E4, 0x013A, 0x0107, 0x00E7,
++	0x010D, 0x00E9, 0x0119, 0x00EB, 0x011B, 0x00ED, 0x00EE, 0x010F,
++	0x0111, 0x0144, 0x0148, 0x00F3, 0x00F4, 0x0151, 0x00F6, 0x00F7,
++	0x0159, 0x016F, 0x00FA, 0x0171, 0x00FC, 0x00FD, 0x0163, 0x02D9,
++};
++
++// Windows-1251, the 0x80..0xFF half (0x00..0x7F is ASCII)
++static const unsigned short g_cp1251[128] =
++{
++	0x0402, 0x0403, 0x201A, 0x0453, 0x201E, 0x2026, 0x2020, 0x2021,
++	0x20AC, 0x2030, 0x0409, 0x2039, 0x040A, 0x040C, 0x040B, 0x040F,
++	0x0452, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
++	0x0000, 0x2122, 0x0459, 0x203A, 0x045A, 0x045C, 0x045B, 0x045F,
++	0x00A0, 0x040E, 0x045E, 0x0408, 0x00A4, 0x0490, 0x00A6, 0x00A7,
++	0x0401, 0x00A9, 0x0404, 0x00AB, 0x00AC, 0x00AD, 0x00AE, 0x0407,
++	0x00B0, 0x00B1, 0x0406, 0x0456, 0x0491, 0x00B5, 0x00B6, 0x00B7,
++	0x0451, 0x2116, 0x0454, 0x00BB, 0x0458, 0x0405, 0x0455, 0x0457,
++	0x0410, 0x0411, 0x0412, 0x0413, 0x0414, 0x0415, 0x0416, 0x0417,
++	0x0418, 0x0419, 0x041A, 0x041B, 0x041C, 0x041D, 0x041E, 0x041F,
++	0x0420, 0x0421, 0x0422, 0x0423, 0x0424, 0x0425, 0x0426, 0x0427,
++	0x0428, 0x0429, 0x042A, 0x042B, 0x042C, 0x042D, 0x042E, 0x042F,
++	0x0430, 0x0431, 0x0432, 0x0433, 0x0434, 0x0435, 0x0436, 0x0437,
++	0x0438, 0x0439, 0x043A, 0x043B, 0x043C, 0x043D, 0x043E, 0x043F,
++	0x0440, 0x0441, 0x0442, 0x0443, 0x0444, 0x0445, 0x0446, 0x0447,
++	0x0448, 0x0449, 0x044A, 0x044B, 0x044C, 0x044D, 0x044E, 0x044F,
++};
++
++// Windows-1252, the 0x80..0xFF half (0x00..0x7F is ASCII)
++static const unsigned short g_cp1252[128] =
++{
++	0x20AC, 0x0000, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021,
++	0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x0000, 0x017D, 0x0000,
++	0x0000, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
++	0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x0000, 0x017E, 0x0178,
++	0x00A0, 0x00A1, 0x00A2, 0x00A3, 0x00A4, 0x00A5, 0x00A6, 0x00A7,
++	0x00A8, 0x00A9, 0x00AA, 0x00AB, 0x00AC, 0x00AD, 0x00AE, 0x00AF,
++	0x00B0, 0x00B1, 0x00B2, 0x00B3, 0x00B4, 0x00B5, 0x00B6, 0x00B7,
++	0x00B8, 0x00B9, 0x00BA, 0x00BB, 0x00BC, 0x00BD, 0x00BE, 0x00BF,
++	0x00C0, 0x00C1, 0x00C2, 0x00C3, 0x00C4, 0x00C5, 0x00C6, 0x00C7,
++	0x00C8, 0x00C9, 0x00CA, 0x00CB, 0x00CC, 0x00CD, 0x00CE, 0x00CF,
++	0x00D0, 0x00D1, 0x00D2, 0x00D3, 0x00D4, 0x00D5, 0x00D6, 0x00D7,
++	0x00D8, 0x00D9, 0x00DA, 0x00DB, 0x00DC, 0x00DD, 0x00DE, 0x00DF,
++	0x00E0, 0x00E1, 0x00E2, 0x00E3, 0x00E4, 0x00E5, 0x00E6, 0x00E7,
++	0x00E8, 0x00E9, 0x00EA, 0x00EB, 0x00EC, 0x00ED, 0x00EE, 0x00EF,
++	0x00F0, 0x00F1, 0x00F2, 0x00F3, 0x00F4, 0x00F5, 0x00F6, 0x00F7,
++	0x00F8, 0x00F9, 0x00FA, 0x00FB, 0x00FC, 0x00FD, 0x00FE, 0x00FF,
++};
++
++
++#include "coffont.h"
++
++namespace vgui
++{
++
++static int CofDecode( int codepage, int ch )
++{
++	const unsigned short *table;
++
++	ch &= 0xFF;
++
++	if( ch < 0x80 )
++		return ch; // every one of the three code pages is ASCII down here
++
++	switch( codepage )
++	{
++	case 1250: table = g_cp1250; break;
++	case 1251: table = g_cp1251; break;
++	default:   table = g_cp1252; break;
++	}
++
++	return table[ch - 0x80];
++}
++
++// One face at one size. Reports DEVICE metrics through BaseFontPlat, because
++// that is what the atlas is packed and rasterised in; CofFont converts to
++// logical for everything the client and the draw path see.
++class FontPlat_Inter : public BaseFontPlat
++{
++public:
++	static FontPlat_Inter *Create( const unsigned char *ttf, int ttfSize, int devicePx, int logicalPx, int codepage )
++	{
++		FontPlat_Inter *self = new FontPlat_Inter;
++
++		if( !stbtt_InitFont( &self->info, ttf, stbtt_GetFontOffsetForIndex( ttf, 0 )))
++		{
++			delete self;
++			return nullptr;
++		}
++
++		self->devicePx = Q_max( 4, devicePx );
++		self->logicalPx = Q_max( 4, logicalPx );
++		self->codepage = codepage;
++		self->scaleDevice = stbtt_ScaleForPixelHeight( &self->info, (float)self->devicePx );
++		self->scaleLogical = stbtt_ScaleForPixelHeight( &self->info, (float)self->logicalPx );
++
++		int ascent, descent, lineGap;
++
++		stbtt_GetFontVMetrics( &self->info, &ascent, &descent, &lineGap );
++		self->baselineDevice = (int)( ascent * self->scaleDevice + 0.5f );
++
++		for( int i = 0; i < 256; i++ )
++			self->glyph[i].resolved = false;
++
++		return self;
++	}
++
++	virtual ~FontPlat_Inter() override { }
++
++	virtual bool equals( const char *, int, int, float, int, bool, bool, bool, bool ) override
++	{
++		return false; // matched by role and size in the cache below, never by these
++	}
++
++	virtual void getCharRGBA( int ch, int rgbaX, int rgbaY, int rgbaWide, int rgbaTall, unsigned char *rgba ) override
++	{
++		const Glyph &g = resolve( ch );
++
++		if( !rgba || g.index <= 0 || g.deviceW <= 0 || g.deviceH <= 0 )
++			return;
++
++		unsigned char *bitmap = (unsigned char *)malloc( (size_t)g.deviceW * g.deviceH );
++
++		if( !bitmap )
++			return;
++
++		memset( bitmap, 0, (size_t)g.deviceW * g.deviceH );
++		stbtt_MakeGlyphBitmap( &info, bitmap, g.deviceW, g.deviceH, g.deviceW,
++			scaleDevice, scaleDevice, g.index );
++
++		for( int y = 0; y < g.deviceH; y++ )
++		{
++			int outY = rgbaY + g.deviceTop + y;
++
++			if( outY < 0 || outY >= rgbaTall )
++				continue;
++
++			for( int x = 0; x < g.deviceW; x++ )
++			{
++				int outX = rgbaX + x;
++
++				if( outX < 0 || outX >= rgbaWide )
++					continue;
++
++				// the same layout the bitmap sheets produce: white, alpha is
++				// the coverage, so the draw path's colour tint works unchanged
++				memset( &rgba[( outY * rgbaWide + outX ) * 4], bitmap[y * g.deviceW + x], 4 );
++			}
++		}
++
++		free( bitmap );
++	}
++
++	virtual void getCharABCwide( int ch, int &a, int &b, int &c ) override
++	{
++		const Glyph &g = resolve( ch );
++
++		a = g.deviceA;
++		b = g.deviceW;
++		c = g.deviceC;
++	}
++
++	virtual int getTall() override { return devicePx; }
++	virtual int getWide() override { return devicePx / 2; }
++	virtual void drawSetTextFont( SurfacePlat * ) override { }
++
++	void logicalABCwide( int ch, int &a, int &b, int &c )
++	{
++		const Glyph &g = resolve( ch );
++
++		a = g.logicalA;
++		b = g.logicalW;
++		c = g.logicalC;
++	}
++
++	int logicalTall() const { return logicalPx; }
++	int deviceTall() const { return devicePx; }
++
++private:
++	struct Glyph
++	{
++		bool	resolved;
++		int	index;
++		int	deviceA, deviceW, deviceC, deviceH, deviceTop;
++		int	logicalA, logicalW, logicalC;
++	};
++
++	FontPlat_Inter() : devicePx( 0 ), logicalPx( 0 ), codepage( 1252 ),
++		scaleDevice( 0.0f ), scaleLogical( 0.0f ), baselineDevice( 0 ) { }
++
++	const Glyph &resolve( int ch )
++	{
++		ch &= 0xFF;
++
++		Glyph &g = glyph[ch];
++
++		if( g.resolved )
++			return g;
++
++		g.resolved = true;
++		g.index = stbtt_FindGlyphIndex( &info, CofDecode( codepage, ch ));
++
++		if( g.index <= 0 )
++		{
++			// nothing in the face for this byte: no ink, no advance. The atlas
++			// builder skips it and the draw path steps over it
++			g.deviceA = g.deviceW = g.deviceC = g.deviceH = g.deviceTop = 0;
++			g.logicalA = g.logicalW = g.logicalC = 0;
++			return g;
++		}
++
++		measure( g.index, scaleDevice, baselineDevice, g.deviceA, g.deviceW, g.deviceC, &g.deviceH, &g.deviceTop );
++		measure( g.index, scaleLogical, 0, g.logicalA, g.logicalW, g.logicalC, nullptr, nullptr );
++
++		return g;
++	}
++
++	void measure( int index, float scale, int baseline, int &a, int &w, int &c, int *h, int *top )
++	{
++		int advance, lsb, x0, y0, x1, y1;
++
++		stbtt_GetGlyphHMetrics( &info, index, &advance, &lsb );
++		stbtt_GetGlyphBitmapBox( &info, index, scale, scale, &x0, &y0, &x1, &y1 );
++
++		int total = (int)( advance * scale + 0.5f );
++
++		a = x0;
++		w = x1 - x0;
++		c = total - a - w;
++
++		if( h ) *h = y1 - y0;
++		if( top ) *top = baseline + y0;
++	}
++
++	stbtt_fontinfo	info;
++	int		devicePx, logicalPx, codepage;
++	float		scaleDevice, scaleLogical;
++	int		baselineDevice;
++	Glyph		glyph[256];
++};
++
++/*
++================
++CofFont - the metric conversion, and nothing else
++
++The base Font's size is ABI-fixed and its init() runs from the base
++constructor, so the base is built normally (it makes a throwaway system font,
++which the library's own font list owns and frees) and the rasteriser is swapped
++into `impl` afterwards. `impl` and `id` are protected members of Font, which is
++why this derives rather than wraps.
++================
++*/
++CofFont::CofFont( FontPlat_Inter *newPlat ) :
++	Font( "CofInter", 1, 0, 0.0f, 400, false, false, false, false ), plat( newPlat )
++{
++	impl = plat;
++
++	// Font::init() reuses a platform font whose constructor arguments match,
++	// and when it does it never allocates an id - so every CofFont after the
++	// first would share id -1, and the surface's atlas cache is keyed by id.
++	// That is one atlas for every size and code page at once
++	id = Font_AllocId();
++}
++
++void CofFont::getCharABCwide( int ch, int &a, int &b, int &c )
++{
++	plat->logicalABCwide( ch, a, b, c );
++}
++
++int CofFont::getTall()
++{
++	return plat->logicalTall();
++}
++
++int CofFont::deviceTall() const
++{
++	return plat->deviceTall();
++}
++
++void CofFont::deviceABCwide( int ch, int &a, int &b, int &c )
++{
++	plat->getCharABCwide( ch, a, b, c );
++}
++
++} // namespace vgui
++
++namespace
++{
++
++using vgui::CofFont;
++using vgui::FontPlat_Inter;
++
++// one cache entry per (role, size, code page, face)
++struct CofEntry
++{
++	char		role[64];
++	int		devicePx, logicalPx, codepage, semibold;
++	CofFont		*font;
++};
++
++enum { COF_FONT_CACHE = 24 };
++
++CofEntry g_cache[COF_FONT_CACHE];
++int g_cacheCount;
++
++// what role each client font id was built for, from the strip it loaded
++struct CofRole
++{
++	int	id;
++	char	role[64];
++};
++
++enum { COF_ROLE_MAX = 64 };
++
++CofRole g_roles[COF_ROLE_MAX];
++int g_roleCount;
++
++const char *CofRoleForId( int id )
++{
++	for( int i = 0; i < g_roleCount; i++ )
++	{
++		if( g_roles[i].id == id )
++			return g_roles[i].role;
++	}
++
++	return nullptr;
++}
++
++CofFont *CofFindOrCreate( const char *role, const cof_vgui_font_t &desc )
++{
++	for( int i = 0; i < g_cacheCount; i++ )
++	{
++		if( g_cache[i].devicePx == desc.devicePx && g_cache[i].logicalPx == desc.logicalPx &&
++			g_cache[i].codepage == desc.codepage && g_cache[i].semibold == desc.semibold &&
++			!strcmp( g_cache[i].role, role ))
++			return g_cache[i].font;
++	}
++
++	if( g_cacheCount >= COF_FONT_CACHE )
++		return nullptr; // a session that changed resolution two dozen times; fall back
++
++	int size = 0;
++	const unsigned char *ttf = g_engine->CofFontFile( desc.semibold, &size );
++
++	if( !ttf || size <= 0 )
++		return nullptr;
++
++	FontPlat_Inter *plat = FontPlat_Inter::Create( ttf, size, desc.devicePx, desc.logicalPx, desc.codepage );
++
++	if( !plat )
++		return nullptr;
++
++	CofEntry &e = g_cache[g_cacheCount++];
++
++	vgui_strcpy( e.role, sizeof( e.role ), role );
++	e.devicePx = desc.devicePx;
++	e.logicalPx = desc.logicalPx;
++	e.codepage = desc.codepage;
++	e.semibold = desc.semibold;
++	e.font = new CofFont( plat );
++
++	return e.font;
++}
++
++// Font constructor hook: consume the role the engine latched from the strip
++// load that came immediately before this font was built.
++void CofFontCreated( Font *font, bool fromFile )
++{
++	char role[64];
++
++	// Every font the client builds from a strip is one of its VGUI text fonts
++	// and gets an engine face; the scheme name only chooses the SIZE. A font
++	// built before any strip load has no role and takes the body size, which
++	// is also how the two schemes that have no strip at any resolution -
++	// "Default Text" and "impact", which render nothing in the stock game -
++	// start working at all.
++	if( !fromFile || !g_engine || !g_engine->CofFontRoleLatch )
++		return;
++
++	if( !g_engine->CofFontRoleLatch( role, sizeof( role )))
++		role[0] = 0;
++
++	int id = font->getId();
++
++	for( int i = 0; i < g_roleCount; i++ )
++	{
++		if( g_roles[i].id == id )
++		{
++			vgui_strcpy( g_roles[i].role, sizeof( g_roles[i].role ), role );
++			return;
++		}
++	}
++
++	if( g_roleCount >= COF_ROLE_MAX )
++		return;
++
++	g_roles[g_roleCount].id = id;
++	vgui_strcpy( g_roles[g_roleCount].role, sizeof( g_roles[g_roleCount].role ), role );
++	g_roleCount++;
++}
++
++Font *CofFontSubstitute( Font *font )
++{
++	if( !font || !g_engine || !g_engine->CofFontDesc )
++		return font;
++
++	const char *role = CofRoleForId( font->getId( ));
++
++	if( !role )
++		return font; // not one of the client's strip fonts
++
++	if( !role[0] )
++		role = "inventory"; // no scheme was latched: the body size
++
++	cof_vgui_font_t desc;
++
++	memset( &desc, 0, sizeof( desc ));
++
++	if( !g_engine->CofFontDesc( role, &desc ))
++		return font; // cof_ui_inter_fonts 0, or not this game
++
++	CofFont *sub = CofFindOrCreate( role, desc );
++
++	return sub ? (Font *)sub : font;
++}
++
++} // anonymous namespace
++
++void vgui::CofFont_Install( void )
++{
++	Font_SetSubstituteHook( CofFontSubstitute );
++	Font_SetCreatedHook( CofFontCreated );
++}
++
++vgui::Font *vgui::CofFont_ForRole( const char *role )
++{
++	cof_vgui_font_t desc;
++
++	if( !role || !g_engine || !g_engine->CofFontDesc )
++		return nullptr;
++
++	memset( &desc, 0, sizeof( desc ));
++
++	if( !g_engine->CofFontDesc( role, &desc ))
++		return nullptr;
++
++	return (Font *)CofFindOrCreate( role, desc );
++}
++
++vgui::CofFont *vgui::CofFont_Cast( Font *font )
++{
++	for( int i = 0; i < g_cacheCount; i++ )
++	{
++		if( (Font *)g_cache[i].font == font )
++			return g_cache[i].font;
++	}
++
++	return nullptr;
++}

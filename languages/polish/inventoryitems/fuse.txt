@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"fuse"
+}
+
+
+"nice_name"
+{
+	data	"Bezpiecznik"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/fuse/640_fuse_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/fuse/640_fuse_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/fuse.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/fuse/640_fuse_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/lighter.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

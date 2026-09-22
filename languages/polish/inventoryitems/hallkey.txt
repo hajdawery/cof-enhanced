@@ -1,0 +1,46 @@
+"map_name"
+{
+	data	"hallkey"
+}
+
+
+"nice_name"
+{
+	data	"Klucz do holu"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/hallkey/640_hallkey_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/hallkey/640_hallkey_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/nyckel2.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/hallkey/640_hallkey_check.tga"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

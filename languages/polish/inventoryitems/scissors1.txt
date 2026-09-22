@@ -1,0 +1,54 @@
+"map_name"
+{
+	data	"scissors1"
+}
+
+"combined_with"
+{
+	data	"scissors2"
+}
+
+"nice_name"
+{
+	data	"Ostrze no¿yczek (Lewa czêœæ)"
+}
+
+"classname"
+{
+	data	"item_key"
+}
+
+"combined_result"
+{
+	data	"inventoryitems/scissors3.txt"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/scissors/640_scissorsleft_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/scissors/640_scissorsleft_slot.tga"
+}
+
+"3dmdl"
+{
+	data	"models/items/scissors2.mdl"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/items/scissors/640_scissorsleft_check.tga"
+}
+
+"pickup_sound"
+{
+	data	"buttons/lighterpickup.wav"
+}
+
+"droppable"
+{
+	data	"1"
+}

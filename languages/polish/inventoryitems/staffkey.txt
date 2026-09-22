@@ -1,0 +1,46 @@
+"map_name"
+{
+	data	"staffkey"
+}
+
+
+"nice_name"
+{
+	data	"Klucz personelu"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/staffkey/640_staffkey_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/staffkey/640_staffkey_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/nyckel2.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/staffkey/640_staffkey_check.tga"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

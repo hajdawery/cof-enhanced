@@ -1,0 +1,44 @@
+"nice_name"
+{
+	data	"Glock 19 9mm"
+}
+
+"classname"
+{
+	data	"weapon_glock"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/weapons/glocktac/640_glock_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/weapons/glocktac/640_glock_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/weapons/glocktac/640_glock_check.tga"
+}
+
+"ironsight_forward"
+{
+	data	"0.05"
+}
+
+"ironsight_right"
+{
+	data	"-20"
+}
+
+"ironsight_up"
+{
+	data	"13.75"
+}
+
+"ironsight_zoom"
+{
+	data	"50"
+}

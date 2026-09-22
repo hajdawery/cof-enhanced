@@ -1,0 +1,54 @@
+"map_name"
+{
+	data	"leftplate2"
+}
+
+"combined_with"
+{
+	data	"rightplate2"
+}
+
+"nice_name"
+{
+	data	"Kamienna p³yta (Lewa po³owa)"
+}
+
+"classname"
+{
+	data	"item_key"
+}
+
+"combined_result"
+{
+	data	"inventoryitems/wholeplate_2.txt"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/plate/640_plate2_left_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/plate/640_plate2_left_slot.tga"
+}
+
+"3dmdl"
+{
+	data	"models/items/numeral_plate_left2.mdl"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/items/plate/640_plate2_left_check.tga"
+}
+
+"pickup_sound"
+{
+	data	"buttons/lighterpickup.wav"
+}
+
+"droppable"
+{
+	data	"1"
+}

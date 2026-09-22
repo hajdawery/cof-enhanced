@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"rope"
+}
+
+
+"nice_name"
+{
+	data	"Lina"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/rope/640_rope_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/rope/640_rope_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/rope1.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/rope/640_rope_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/ropepick.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

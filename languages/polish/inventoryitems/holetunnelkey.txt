@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"holetunnelkey"
+}
+
+
+"nice_name"
+{
+	data	"Klucz serwisowy"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/holetunnelkey/640_holetunnelkey_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/holetunnelkey/640_holetunnelkey_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/nyckel1.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/holetunnelkey/640_holetunnelkey_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/button5.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

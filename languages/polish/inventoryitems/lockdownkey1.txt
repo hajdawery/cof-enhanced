@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"lockdownkey1"
+}
+
+
+"nice_name"
+{
+	data	"Klucz wiêzienny"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/lockdown/640_key1_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/lockdown/640_key1_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/nyckel4.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/lockdown/640_key1_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/button5.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

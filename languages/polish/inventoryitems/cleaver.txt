@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"cleaver"
+}
+
+
+"nice_name"
+{
+	data	"Tasak"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/cleaver/640_cleaver_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/cleaver/640_cleaver_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/EC/cleaver.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/cleaver/640_cleaver_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"ambience/takefoot.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

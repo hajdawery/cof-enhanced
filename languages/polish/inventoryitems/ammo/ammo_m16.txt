@@ -1,0 +1,19 @@
+"nice_name"
+{
+	data	"Amunicja do M16"
+}
+
+"classname"
+{
+	data	"ammo_m16"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/ammo/m16_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/ammo/m16_check.tga"
+}

@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"cc2carkey"
+}
+
+
+"nice_name"
+{
+	data	"Kluczyk do samochodu"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/sewerkey/640_sewerkey_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/sewerkey/640_sewerkey_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/nyckel4.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/cc2carkey/640_cc2carkey_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/button5.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

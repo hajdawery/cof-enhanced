@@ -1,0 +1,2173 @@
+{
+"wad" "\program files (x86)\steam\steamapps\common\cry of fear - dev\cryoffear\halflife.wad;\program files (x86)\steam\steamapps\common\cry of fear - dev\cryoffear\liquids.wad;\program files (x86)\steam\steamapps\common\cry of fear - dev\cryoffear\aomdc22.wad;\program files (x86)\steam\steamapps\common\cry of fear - dev\cryoffear\cof3.wad;\program files (x86)\steam\steamapps\common\cry of fear - dev\cryoffear\cofreal22.wad;\program files (x86)\steam\steamapps\common\cry of fear - dev\cryoffear\decals.wad;\program files (x86)\steam\steamapps\common\cry of fear - dev\cryoffear\cof_new.wad;"
+"mapversion" "220"
+"player4" "police4"
+"player3" "police3"
+"player2" "police2"
+"player1" "police1"
+"materialstxt" "sound/materials.txt"
+"nomusicstop" "1"
+"WaveHeight" "0.0"
+"sounds" "1"
+"MaxRange" "2000"
+"classname" "worldspawn"
+"skyname" "black"
+"classname" "worldspawn"
+}
+{
+"origin" "-2407 2088 11"
+"targetname" "teleportf2_1ld"
+"angles" "0 270 0"
+"classname" "info_teleport_destination"
+}
+{
+"model" "*1"
+"musicfadeout" "2"
+"musicfadein" "2"
+"opensound" "doors/doormove1.wav"
+"doortype" "0"
+"renderamt" "255"
+"rendermode" "4"
+"target" "fo2_exit1"
+"rendercolor" "0 0 0"
+"classname" "inter_door"
+}
+{
+"model" "*2"
+"rendermode" "4"
+"renderamt" "255"
+"rendercolor" "0 0 0"
+"classname" "func_wall"
+}
+{
+"origin" "-2292 2123 67"
+"netname" "klotter8"
+"classname" "env_static_decal"
+}
+{
+"origin" "-1110 -265 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-965 -290 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1215 -249 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-849 -222 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1057 -173 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1347 -140 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1216 321 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1058 397 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1348 430 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1035 686 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-937 835 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1187 876 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-821 903 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1029 952 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1319 985 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1043 1258 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-945 1407 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1482 996 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-829 1475 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-373 1244 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-275 1393 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-525 1434 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-159 1461 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-367 1510 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-657 1543 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "1250 909 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "1116 992 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-397 690 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-299 839 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-549 880 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-183 907 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-391 956 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-681 989 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "243 691 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "341 840 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "91 881 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "457 908 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "249 957 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-41 990 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "861 692 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "959 841 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "709 882 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "1075 909 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "867 958 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-353 341 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-603 382 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-237 409 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-445 458 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-735 491 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "96 199 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "194 348 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-56 389 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "310 416 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "102 465 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-188 498 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "807 177 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "905 326 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "655 367 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "1021 394 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "813 443 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "523 476 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-290 -237 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-540 -196 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-174 -169 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-382 -120 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-672 -87 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "237 -364 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "234 -361 17"
+"model" "models/Props/UtomhusD/sstenar.mdl"
+"rendercolor" "0 0 0"
+"angles" "-7 0 0"
+"classname" "env_model"
+}
+{
+"origin" "335 -215 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "85 -174 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "451 -147 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "243 -98 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-47 -65 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "703 -181 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "1095 69 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "861 -105 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "571 -72 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-61 360 74"
+"model" "models/Props/Vaxter/buske.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-634 693 74"
+"model" "models/Props/Vaxter/buske.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-215 1079 74"
+"model" "models/Props/Vaxter/buske.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "395 682 74"
+"model" "models/Props/Vaxter/buske.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-658 -128 74"
+"model" "models/Props/Vaxter/buske.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-16 -237 74"
+"model" "models/Props/Vaxter/buske.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-504 -212 74"
+"model" "models/Props/Vaxter/buske.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-620 -256 74"
+"model" "models/Props/Vaxter/buske.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-825 1157 74"
+"model" "models/Props/Vaxter/buske.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-857 959 74"
+"model" "models/Props/Vaxter/buske.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-967 1157 74"
+"model" "models/Props/Vaxter/buske.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "826 644 74"
+"model" "models/Props/Vaxter/buske.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-18 259 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "66 841 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "137 797 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "157 886 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-723 1131 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-813 1188 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-77 360 125"
+"model" "models/Props/Vaxter/buske.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-93 359 106"
+"model" "models/Props/Vaxter/buske.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 -83 0"
+"classname" "env_model"
+}
+{
+"origin" "-407 1048 125"
+"model" "models/Props/Vaxter/buske.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-392 1048 68"
+"model" "models/Props/Vaxter/buske.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-425 1048 42"
+"model" "models/Props/Vaxter/buske.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 -57 0"
+"classname" "env_model"
+}
+{
+"origin" "-905 1092 101"
+"model" "models/Props/Vaxter/aspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2406 2087 46"
+"angles" "0 270 0"
+"classname" "info_player_start"
+}
+{
+"model" "*3"
+"wait" "1"
+"target" "breathe"
+"classname" "trigger_multiple"
+}
+{
+"origin" "-2527 2027 20"
+"frags" "1"
+"targetname" "breathe"
+"classname" "cof_playerbreathetoggle"
+}
+{
+"model" "*4"
+"landmark" "f3l"
+"map" "c_forest2"
+"classname" "trigger_changelevel"
+}
+{
+"model" "*5"
+"target" "teleportf2_1"
+"classname" "trigger_multiple"
+}
+{
+"origin" "-459 574 -645"
+"targetname" "f3l"
+"classname" "info_landmark"
+}
+{
+"origin" "-399 574 -722"
+"targetname" "fo2_exit1"
+"angles" "0 90 0"
+"classname" "inter_door_exit"
+}
+{
+"origin" "-530 609 -631"
+"target" "teleportf2_1ld"
+"targetname" "teleportf2_1"
+"classname" "cof_teleport"
+}
+{
+"origin" "-2548 2027 20"
+"targetname" "stopbreathe"
+"classname" "cof_playerbreathetoggle"
+}
+{
+"model" "*6"
+"target" "stopbreathe"
+"classname" "trigger_multiple"
+}
+{
+"origin" "-1959 886 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1810 757 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1829 1098 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2403 1116 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2180 1064 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2121 1388 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2433 1354 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2693 1555 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2296 1641 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2538 1808 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2338 1855 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2567 2002 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2164 1726 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2314 1995 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2225 1497 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1320 1152 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1863 929 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1637 714 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2353 1340 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2234 1830 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2509 1873 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1410 236 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1580 533 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1985 1999 55"
+"model" "models/Props/Vaxter/stammar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2863 2217 55"
+"model" "models/Props/Vaxter/stammar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2018 1011 101"
+"model" "models/Props/Vaxter/aspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2647 1881 101"
+"model" "models/Props/Vaxter/aspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"model" "*7"
+"skin" "-1"
+"rendercolor" "0 0 0"
+"classname" "func_illusionary"
+}
+{
+"origin" "-2446 1827 93"
+"_falloff" "2"
+"_light" "35 36 39 200"
+"classname" "light"
+}
+{
+"origin" "-2122 746 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1992 1328 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2980 1827 55"
+"model" "models/Props/Vaxter/stammar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2985 2037 55"
+"model" "models/Props/Vaxter/stammar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2055 680 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "1091 622 46"
+"angles" "0 0 0"
+"classname" "info_player_start"
+}
+{
+"origin" "1195 604 64"
+"targetname" "doorknob_m"
+"model" "models/Props/Blandat/doorknob.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 -149"
+"classname" "env_model"
+}
+{
+"origin" "-623 340 46"
+"angles" "0 270 0"
+"classname" "info_player_start"
+}
+{
+"origin" "-613 392 9"
+"frags" "-1"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "weapon_lantern"
+}
+{
+"origin" "-610 367 14"
+"angles" "0 0 0"
+"model" "models/items/doorknob_i.mdl"
+"message" "inventoryitems/doorknob.txt"
+"classname" "item_key"
+}
+{
+"origin" "1297 626 63"
+"angles" "0 0 0"
+"classname" "info_player_start"
+}
+{
+"origin" "1076 512 90"
+"model" "models/Props/Vaxter/granmodel3.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "1138 852 90"
+"model" "models/Props/Vaxter/granmodel3.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "1041 733 42"
+"model" "models/Props/Vaxter/litengran1.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "1510 485 90"
+"model" "models/Props/Vaxter/granmodel3.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 -90 0"
+"classname" "env_model"
+}
+{
+"origin" "1463 506 42"
+"model" "models/Props/Vaxter/litengran1.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"model" "*8"
+"skin" "-1"
+"renderamt" "255"
+"rendermode" "4"
+"rendercolor" "0 0 0"
+"classname" "func_illusionary"
+}
+{
+"model" "*9"
+"skin" "-1"
+"renderamt" "255"
+"rendermode" "4"
+"rendercolor" "0 0 0"
+"classname" "func_illusionary"
+}
+{
+"model" "*10"
+"skin" "-1"
+"renderamt" "255"
+"rendermode" "4"
+"rendercolor" "0 0 0"
+"classname" "func_illusionary"
+}
+{
+"model" "*11"
+"skin" "-1"
+"renderamt" "255"
+"rendermode" "4"
+"rendercolor" "0 0 0"
+"classname" "func_illusionary"
+}
+{
+"model" "*12"
+"skin" "-1"
+"rendercolor" "0 0 0"
+"classname" "func_illusionary"
+}
+{
+"model" "*13"
+"targetname" "inter_doors"
+"target" "fo3_do_1_1"
+"closesound" "doors/doorstop1.wav"
+"opensound" "doors/doormove2.wav"
+"musicfadeout" "2"
+"musicfadein" "2"
+"renderamt" "255"
+"rendermode" "4"
+"rendercolor" "0 0 0"
+"classname" "inter_door"
+}
+{
+"origin" "1230 627 26"
+"targetname" "fo3_do_1_1"
+"angles" "0 0 0"
+"classname" "inter_door_exit"
+}
+{
+"origin" "1167 626 26"
+"targetname" "fo3_do_1_2"
+"angles" "0 180 0"
+"classname" "inter_door_exit"
+}
+{
+"model" "*14"
+"targetname" "interdorus"
+"target" "fo3_do_1_2"
+"closesound" "doors/doorstop1.wav"
+"opensound" "doors/doormove2.wav"
+"musicfadeout" "2"
+"musicfadein" "2"
+"renderamt" "255"
+"rendermode" "4"
+"rendercolor" "0 0 0"
+"spawnflags" "4"
+"classname" "inter_door"
+}
+{
+"model" "*15"
+"target" "fo3_do_2_1"
+"closesound" "doors/doorstop5.wav"
+"opensound" "doors/doormove8.wav"
+"musicfadeout" "2"
+"musicfadein" "2"
+"renderamt" "255"
+"rendermode" "4"
+"rendercolor" "0 0 0"
+"classname" "inter_door"
+}
+{
+"origin" "1200 565 98"
+"message" "inter_doors"
+"targetname" "inter_doors_lck"
+"classname" "cof_interdooronoff"
+}
+{
+"origin" "-2542 2165 97"
+"doorknob_m_inv" "0"
+"inter_doors_lck" "0"
+"targetname" "fo3start"
+"classname" "multi_manager"
+}
+{
+"model" "*16"
+"target" "fo3start"
+"classname" "trigger_once"
+}
+{
+"model" "*17"
+"renderamt" "255"
+"rendermode" "4"
+"unlockedmsg" "W³o¿y³eœ klamkê."
+"unlockedsnd" "buttons/lighterpickup.wav"
+"lockedmsg" "Potrzebujê klamki, ¿eby je otworzyæ."
+"lockedby" "doorknob"
+"targetname" "stbutton"
+"target" "multidoorknob"
+"wait" "-1"
+"speed" "25"
+"angles" "0 0 0"
+"rendercolor" "0 0 0"
+"spawnflags" "2081"
+"classname" "func_button"
+}
+{
+"origin" "1194 582 81"
+"inter_doors_lck" "0"
+"doorknob_m_vis" "0"
+"killstbutton" "0"
+"targetname" "multidoorknob"
+"classname" "multi_manager"
+}
+{
+"origin" "1194 577 118"
+"killtarget" "stbutton"
+"targetname" "killstbutton"
+"triggerstate" "2"
+"classname" "trigger_relay"
+}
+{
+"origin" "1194 534 120"
+"m_iVisible" "2"
+"target" "doorknob_m"
+"targetname" "doorknob_m_inv"
+"m_iPlayerReact" "-1"
+"m_fFramerate" "-1"
+"m_voicePitch" "-1"
+"frame" "-1"
+"skin" "-1"
+"body" "-1"
+"m_flRadius" "1000"
+"classname" "env_customize"
+}
+{
+"origin" "1174 534 120"
+"m_iVisible" "1"
+"target" "doorknob_m"
+"targetname" "doorknob_m_vis"
+"m_iPlayerReact" "-1"
+"m_fFramerate" "-1"
+"m_voicePitch" "-1"
+"frame" "-1"
+"skin" "-1"
+"body" "-1"
+"m_flRadius" "1000"
+"classname" "env_customize"
+}
+{
+"model" "*18"
+"delay" "2"
+"target" "spawnyou"
+"classname" "trigger_once"
+}
+{
+"origin" "-704 359 8"
+"sawmusic" "2"
+"spawnm2" "0"
+"targetname" "spawnyou"
+"classname" "multi_manager"
+}
+{
+"origin" "987 554 18"
+"netname" "sawrunner"
+"targetname" "spawnm2"
+"monstertype" "monster_sawrunner"
+"angles" "0 188 0"
+"m_imaxlivechildren" "5"
+"monstercount" "1"
+"spawnflags" "8"
+"classname" "monstermaker"
+}
+{
+"origin" "1187 668 97"
+"message" "ambience/ch1.wav"
+"targetname" "chch1"
+"pitchstart" "100"
+"pitch" "100"
+"channel" "6"
+"health" "6"
+"spawnflags" "17"
+"classname" "ambient_generic"
+}
+{
+"origin" "1169 668 97"
+"message" "ambience/ch2.wav"
+"targetname" "chch2"
+"pitchstart" "100"
+"pitch" "100"
+"channel" "6"
+"health" "6"
+"spawnflags" "17"
+"classname" "ambient_generic"
+}
+{
+"model" "*19"
+"target" "chch1"
+"classname" "trigger_once"
+}
+{
+"model" "*20"
+"target" "stopbreathe"
+"classname" "trigger_multiple"
+}
+{
+"model" "*21"
+"wait" "1"
+"target" "breathe"
+"classname" "trigger_multiple"
+}
+{
+"origin" "-1598 14 55"
+"model" "models/Props/Vaxter/stammar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"model" "*22"
+"rendercolor" "0 0 0"
+"classname" "func_wall"
+}
+{
+"model" "*23"
+"skin" "-1"
+"rendercolor" "0 0 0"
+"classname" "func_illusionary"
+}
+{
+"model" "*24"
+"skin" "-1"
+"rendercolor" "0 0 0"
+"classname" "func_illusionary"
+}
+{
+"model" "*25"
+"skin" "-1"
+"rendercolor" "0 0 0"
+"classname" "func_illusionary"
+}
+{
+"model" "*26"
+"skin" "-1"
+"rendercolor" "0 0 0"
+"classname" "func_illusionary"
+}
+{
+"model" "*27"
+"target" "endshit"
+"classname" "trigger_once"
+}
+{
+"origin" "1200 511 116"
+"enableshit" "0"
+"endsawmusic" "0"
+"killsawrunner" "0"
+"targetname" "endshit"
+"classname" "multi_manager"
+}
+{
+"origin" "1200 535 74"
+"killtarget" "sawrunner"
+"targetname" "killsawrunner"
+"triggerstate" "2"
+"classname" "trigger_relay"
+}
+{
+"origin" "1200 535 95"
+"message" "hit2.mp3"
+"targetname" "endsawmusic"
+"classname" "ambient_fmodstream"
+}
+{
+"origin" "-628 288 8"
+"message" "sawmusic2.mp3"
+"targetname" "sawmusic"
+"classname" "ambient_fmodstream"
+}
+{
+"model" "*28"
+"landmark" "f4l"
+"map" "c_forest4"
+"classname" "trigger_changelevel"
+}
+{
+"model" "*29"
+"target" "teleportf3_1"
+"classname" "trigger_multiple"
+}
+{
+"origin" "1856 277 -722"
+"targetname" "fo3_do_2_1"
+"angles" "0 0 0"
+"classname" "inter_door_exit"
+}
+{
+"origin" "1796 277 -645"
+"targetname" "f4l"
+"classname" "info_landmark"
+}
+{
+"origin" "1725 312 -631"
+"target" "teleportf3_1ld"
+"targetname" "teleportf3_1"
+"classname" "cof_teleport"
+}
+{
+"origin" "1536 604 26"
+"targetname" "teleportf3_1ld"
+"angles" "0 180 0"
+"classname" "info_teleport_destination"
+}
+{
+"origin" "-2428 1952 8"
+"message" "Forest Field"
+"rendercolor" "0 0 0"
+"angles" "0 44 0"
+"classname" "tape_recorder"
+}
+{
+"origin" "596 574 12"
+"m_fMoveTo" "1"
+"m_iPriority" "4"
+"m_iszEntity" "sawrunner"
+"targetname" "sawrunners"
+"m_flRadius" "1000"
+"angles" "0 0 0"
+"classname" "aiscripted_sequence"
+}
+{
+"model" "*30"
+"target" "sawrunners"
+"classname" "trigger_multiple"
+}
+{
+"origin" "-1064 131 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"model" "*31"
+"renderamt" "255"
+"rendermode" "4"
+"rendercolor" "0 0 0"
+"classname" "func_wall"
+}
+{
+"origin" "-762 1016 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "290 1252 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-451 192 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-926 -343 101"
+"model" "models/Props/Vaxter/aspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-908 8 101"
+"model" "models/Props/Vaxter/aspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-139 745 93"
+"model" "models/Props/Vaxter/aspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-60 635 37"
+"model" "models/Props/Vaxter/aspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-841 1037 101"
+"model" "models/Props/Vaxter/aspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-840 1147 101"
+"model" "models/Props/Vaxter/aspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "693 80 101"
+"model" "models/Props/Vaxter/aspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "851 666 101"
+"model" "models/Props/Vaxter/aspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 -73 0"
+"classname" "env_model"
+}
+{
+"origin" "1187 250 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1667 963 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1458 1176 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1351 727 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-761 177 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1264 -93 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1044 -193 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1510 189 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1348 70 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "409 70 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-300 -237 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-707 -240 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "462 -270 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "582 -198 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-183 106 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "326 282 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "280 586 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "662 580 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "989 267 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "38 1189 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "191 1396 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "513 1286 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "705 1176 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "494 1123 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1514 815 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1597 932 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1776 808 60"
+"model" "models/Props/Vaxter/smoaspar.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1825 547 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1542 4 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1356 -160 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-336 -433 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "31 -411 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "373 -343 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "628 -340 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "975 -64 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "1022 217 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "1031 500 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "1032 700 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "1013 976 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "1032 1188 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "789 1316 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "545 1392 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "217 1460 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-93 1561 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-348 1618 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-526 1612 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1360 1423 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1153 1433 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-888 204 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "270 1123 38"
+"model" "models/Props/Vaxter/skogskrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "971 85 90"
+"model" "models/Props/Vaxter/granmodel3.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "1064 1170 90"
+"model" "models/Props/Vaxter/granmodel3.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1567 472 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1691 599 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1695 1039 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1842 1237 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2239 1040 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2539 1295 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2703 1443 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2036 1567 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-1323 1323 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-814 1492 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "953 1163 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "761 1329 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "361 -200 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "820 35 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-175 -332 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "724 155 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "541 203 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "768 467 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "493 687 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "856 468 89"
+"model" "models/Props/Vaxter/aspdunge.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2039 832 74"
+"model" "models/Props/Vaxter/buske.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2501 1628 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2232 1192 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2011 1117 31"
+"model" "models/Props/Vaxter/skogsris.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2320 1897 90"
+"model" "models/Props/Vaxter/granmodel3.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2613 1969 42"
+"model" "models/Props/Vaxter/litengran1.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2081 1313 90"
+"model" "models/Props/Vaxter/granmodel3.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "-2444 1453 90"
+"model" "models/Props/Vaxter/granmodel3.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"model" "*32"
+"rendercolor" "0 0 0"
+"classname" "func_wall"
+}
+{
+"origin" "1300 608 26"
+"model" "models/Props/UtomhusD/skrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"origin" "1345 713 26"
+"model" "models/Props/UtomhusD/skrap.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "env_model"
+}
+{
+"model" "*33"
+"rendercolor" "0 0 0"
+"classname" "func_wall"
+}
+{
+"origin" "1200 591 121"
+"frags" "1"
+"target" "interdorus"
+"targetname" "enableshit"
+"classname" "inter_door_disable"
+}
+{
+"origin" "61 1379 8"
+"iuser1" "13"
+"model" "models/items/generic_note.mdl"
+"rendercolor" "0 0 0"
+"angles" "0 0 0"
+"classname" "cof_hoodie"
+}
+{
+"model" "*34"
+"target" "chch2"
+"classname" "trigger_once"
+}
+{
+"model" "*35"
+"target" "chch2"
+"classname" "trigger_once"
+}
+{
+"model" "*36"
+"classname" "func_monsterclip"
+}

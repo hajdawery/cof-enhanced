@@ -1,0 +1,24 @@
+"nice_name"
+{
+	data	"Pa³ka policyjna"
+}
+
+"classname"
+{
+	data	"weapon_nightstick"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/weapons/nightstick/640_nightstick_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/weapons/nightstick/640_nightstick_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/weapons/nightstick/640_nightstick_check.tga"
+}

@@ -1,0 +1,44 @@
+"nice_name"
+{
+	data	"Taurus .357 MAG"
+}
+
+"classname"
+{
+	data	"weapon_revolver"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/weapons/revolver/640_revolver_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/weapons/revolver/640_revolver_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/weapons/revolver/640_revolver_check.tga"
+}
+
+"ironsight_forward"
+{
+	data	"0.05"
+}
+
+"ironsight_right"
+{
+	data	"-6"
+}
+
+"ironsight_up"
+{
+	data	"4.5"
+}
+
+"ironsight_zoom"
+{
+	data	"50"
+}

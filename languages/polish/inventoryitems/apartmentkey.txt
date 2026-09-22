@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"apartmentkey"
+}
+
+
+"nice_name"
+{
+	data	"Klucz do apartamentu"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/apartmentkey/640_apartmentkey_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/apartmentkey/640_apartmentkey_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/nyckel12.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/apartmentkey/640_apartmentkey_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/button5.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"spade"
+}
+
+
+"nice_name"
+{
+	data	"Szpadel"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/spade/640_spade_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/spade/640_spade_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/Props/fpsc/shovel.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/spade/640_spade_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/spadepickup.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

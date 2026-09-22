@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"saw"
+}
+
+
+"nice_name"
+{
+	data	"Pi³a"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/saw/640_saw_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/saw/640_saw_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/Props/fpsc/saw.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/saw/640_saw_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/lighterpickup.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

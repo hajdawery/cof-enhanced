@@ -1,0 +1,46 @@
+"map_name"
+{
+	data	"trapdoorkey"
+}
+
+
+"nice_name"
+{
+	data	"Klucz do klapy"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/trapdoorkey/640_trapdoorkey_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/trapdoorkey/640_trapdoorkey_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/nyckel3.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/trapdoorkey/640_trapdoorkey_check.tga"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

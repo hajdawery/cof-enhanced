@@ -1,0 +1,6 @@
+# languages/ pack files carry pre-decided byte content (cp1250 text, GoldSrc
+# .ent format, tab-separated manifests) that must never be touched by
+# autocrlf line-ending conversion, whatever core.autocrlf is set to locally.
+languages/**/*.ent -text
+languages/**/*.tsv -text
+languages/**/*.txt -text

@@ -291,6 +291,30 @@ def build(lang: str) -> None:
     report.append(f"Flagged-but-kept rows present: {len(flagged_rows)} "
                    f"(expect 2): " + "; ".join(f"{r[3]} ({r[2]})" for r in flagged_rows))
 
+    # Project overrides: retranslations and keep-English decisions keyed by
+    # (source_dll, file_offset); see string_overrides_<lang>.tsv beside this
+    # script. A leading control byte in the canonical string (e.g. ) is
+    # preserved in front of the override text.
+    ov_path = Path(__file__).with_name(f"string_overrides_{lang}.tsv")
+    if ov_path.exists():
+        overrides = {}
+        with open(ov_path, encoding="utf-8", newline="") as fh:
+            for r in csv.DictReader(fh, delimiter="	"):
+                overrides[(r["source_dll"], r["file_offset"].lower())] = r
+        applied = 0
+        new_rows = []
+        for canonical, mod, dll, off, flag in rows:
+            key = (dll, str(off).lower())
+            if key in overrides:
+                o = overrides[key]
+                prefix = canonical[:1] if canonical and ord(canonical[0]) < 32 else ""
+                mod = prefix + o["polish"]
+                flag = o["note"]
+                applied += 1
+            new_rows.append((canonical, mod, dll, off, flag))
+        rows = new_rows
+        report.append(f"Applied {applied} project overrides from {ov_path.name} (expect {len(overrides)}).")
+
     out_path = lc.dll_strings_tsv_path(lang)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", encoding="utf-8", newline="") as fh:

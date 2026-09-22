@@ -1,0 +1,24 @@
+"nice_name"
+{
+	data	"Kamera cyfrowa"
+}
+
+"classname"
+{
+	data	"weapon_camera"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/weapons/camera/640_camera_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/weapons/camera/640_camera_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/weapons/camera/640_camera_check.tga"
+}

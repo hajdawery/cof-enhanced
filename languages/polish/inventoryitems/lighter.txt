@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"lighter"
+}
+
+
+"nice_name"
+{
+	data	"Zapalniczka"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/lighter/640_lighter_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/lighter/640_lighter_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/lighter.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/lighter/640_lighter_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/lighterpickup.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

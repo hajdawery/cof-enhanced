@@ -1,0 +1,24 @@
+"nice_name"
+{
+	data	"Strzykawka z morfin¹"
+}
+
+"classname"
+{
+	data	"weapon_syringe"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/weapons/syringe/640_syringe_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/weapons/syringe/640_syringe_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/weapons/syringe/640_syringe_check.tga"
+}

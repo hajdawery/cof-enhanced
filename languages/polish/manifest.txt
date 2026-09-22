@@ -1,0 +1,9 @@
+language_code=polish
+display_name=Polski
+codepage=1250
+codepage_name=cp1250
+client_subtitle_slot=none (not present in the client's hardcoded language list; menu wiring is future engine/menu work, not part of this data pack)
+pack_version=1.0.0
+source_mod_root=K:\LLM\COF_Fix\cof-spolszczenie-fanmade
+notes=Source: cof-spolszczenie-fanmade fan translation. No credits/readme file identifying individual translators was found in the mod tree; authors are recorded as unknown.
+authors=Avioo, Mixdedemon, hexag0n, Izonka (cof-spolszczenie-fanmade)

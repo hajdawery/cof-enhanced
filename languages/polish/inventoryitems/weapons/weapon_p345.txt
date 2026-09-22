@@ -1,0 +1,44 @@
+"nice_name"
+{
+	data	"P345 .45"
+}
+
+"classname"
+{
+	data	"weapon_p345"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/weapons/p345/640_p345_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/weapons/p345/640_p345_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/weapons/p345/640_p345_check.tga"
+}
+
+"ironsight_forward"
+{
+	data	"0.05"
+}
+
+"ironsight_right"
+{
+	data	"-6"
+}
+
+"ironsight_up"
+{
+	data	"4.5"
+}
+
+"ironsight_zoom"
+{
+	data	"50"
+}

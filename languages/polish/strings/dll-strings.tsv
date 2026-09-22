@@ -1,0 +1,217 @@
+english	polish	source_dll	file_offset	flagged
+To use custom hoodies place a .tga called custom_hoodie.tga in the models\costumes folder	Aby dodać bluzę, umieść plik .TGA o nazwie custom_hoodie.TGA w folderze models\costumes	client	0x0013F478	
+David Leatherhoff suit	David Leatherhoff 	client	0x0013F4DC	
+ModDB hoodie	ModDB	client	0x0013F4FC	
+Hello Kitty suit	Hello Kitty	client	0x0013F50C	
+Afraid of Monsters suit	Afraid of Monsters	client	0x0013F520	
+Camouflage hoodie	Kamuflaż	client	0x0013F538	
+Half-Life Creations hoodie	Half-Life Creations	client	0x0013F54C	
+Black Metal suit	Black Metal	client	0x0013F568	
+Team Psykskallar hoodie	Team Psykskallar 	client	0x0013F57C	
+Awesome suit	Jebać Anime	client	0x0013F594	
+Sick Simon suit	Chory Simon	client	0x0013F5A4	
+AoM Twitcher suit	AoM Twitcher	client	0x0013F5B4	
+Custom hoodie	Własna bluza	client	0x0013F5C8	
+Close	Zamknij	client	0x0013F6D8	
+Ending seen: 7	Zakończenie:7	client	0x001401FC	
+Grade: S	Ocena:S	client	0x00140218	
+Grade: A	Ocena:A	client	0x00140224	
+Grade: B	Ocena:B	client	0x00140230	
+Grade: C	Ocena:C	client	0x0014023C	
+Grade: D	Ocena:D	client	0x00140248	
+Grade: E	Ocena:E	client	0x00140254	
+Grade: F	Ocena:F	client	0x00140260	
+%s - Shots fired: %i	%s - Oddane strzały: %i	client	0x0014026C	
+%s - Shots hit: %i	%s - Trafione: %i	client	0x00140284	
+%s - Shots missed: %i	%s - Chybione: %i	client	0x00140298	
+%s - Accuracy: %i	%s - Celność: %i	client	0x001402B0	
+%s - Damage taken: %i	%s - Obrażenia: %i	client	0x001402C4	
+%s - Time taken: %i:%i:%i	%s - Czas trwania: %i:%i:%i	client	0x001402DC	
+%s - Killed by melee: %i	%s - Zabici wręcz: %i	client	0x001402F8	
+%s - Killed by shooting: %i	%s - Zabici strzałami: %i	client	0x00140314	
+%s - Seconds earned: %i	%s - Zdobyte sekundy:%i	client	0x00140330	
+STATS - CAMPAIGN WILL AUTORESTART SOON	STATYSTYKI - KAMPANIA AUTORESTAROTWANA	client	0x00140360	
+Shots fired: %i	Oddane:%i	client	0x00140B78	
+Shots hit: %i	Trafione:%i	client	0x00140B88	
+Shots missed: %i	Chybione strzały:%i	client	0x00140B98	
+Overall accuracy: %i percent	Ogólna celność:%i procent	client	0x00140BAC	
+Overall damage taken: %i	Całkowite obrażenia:%i	client	0x00140BCC	
+Distance travelled on foot: %i.%i km	Dystans pokonany pieszo:%i.%i km	client	0x00140BE8	
+Time taken: %i:%i:%i	Czas trwania:%i:%i:%i	client	0x00140C10	
+Enemies killed by melee: %i	Wrogowie zabici w wręcz:%i	client	0x00140C28	
+Enemies killed by firearms: %i	Wrogowie zabici strzałami:%i	client	0x00140C44	
+Syringes used: %i	Strzykawek użyto:%i	client	0x00140C64	
+Times saved: %i	Zapisano:%i	client	0x00140C78	
+Weapons found: %i	Znaleziono broni:%i	client	0x00140C88	
+Difficulty chosen: Easy	Poziom trudności:Łatwy	client	0x00140C9C	
+Difficulty chosen: Normal	Poziom trudności:Normalny	client	0x00140CB4	
+Difficulty chosen: Hard	Poziom trudności:Trudny	client	0x00140CD0	
+Difficulty chosen: Nightmare	Poziom trudności:Koszmar	client	0x00140CE8	
+Ending seen: 	Zakończenie:	client	0x00140D08	
+Statistics and grade	Statystyki i ocena	client	0x00140D68	
+Unlocked: David Leatherhoff suit	Odblokowano: David Leatherhoff	client	0x00140E90	
+Unlocked: ModDB hoodie	Odblokowano: ModDb	client	0x00140EB4	
+Unlocked: Hello Kitty suit	Odblokowano: Hello Kitty	client	0x00140ECC	
+Unlocked: Afraid of Monsters suit	Odblokowano: Afraid of Monsters	client	0x00140EE8	
+Unlocked: Camouflage hoodie	Odblokowano: Kamuflaż	client	0x00140F0C	
+Unlocked: Half Life Creations hoodie	Odblokowano: Half-Life Creations	client	0x00140F28	
+Unlocked: Black Metal suit	Odblokowano: Black Metal	client	0x00140F50	
+Unlocked: Team Psykskallar hoodie	Odblokowano: Team Psykskallar	client	0x00140F6C	
+Unlocked: Fuck Anime suit	Odblokowano: Jebać Anime	client	0x00140F90	
+Unlocked: Sick Simon suit	Odblokowano: Chory Simon	client	0x00140FAC	
+Unlocked: AoM Twitcher suit	Odblokowano: AoM Twitcher	client	0x00140FC8	
+Unlocked: Custom hoodies	Odblokowano: Własna bluza	client	0x00140FE4	
+Unlocked: AoMDC axe	Odblokowano: Topór	client	0x00141000	
+Unlocked: Camera of Death	Odblokowano: Kamera śmierci	client	0x00141038	
+Unlocked: Simon's Book	Odblokowano: Książka	client	0x00141080	
+Unlocked: Developer commentaries	Odblokowano: Komentarz dewelopera	client	0x001410B8	
+Unlocked: Secret package	Odblokowano: Paczka	client	0x001410DC	
+Unlocked: Nightmare mode	Odblokowano: Tryb Koszmar	client	0x001410F8	
+Unlocked: Nightvision	Odblokowano: Noktowizor	client	0x00141134	
+Unlocked: Book page 1	Odblokowano: Stronę 1	client	0x0014114C	
+Unlocked: Book page 2	Odblokowano: Stronę 2	client	0x00141164	
+Unlocked: Book page 3	Odblokowano: Stronę 3	client	0x0014117C	
+Unlocked: Book page 4	Odblokowano: Stronę 4	client	0x00141194	
+Unlocked: Book page 5	Odblokowano: Stronę 5	client	0x001411AC	
+Unlocked: Book page 6	Odblokowano: Stronę 6	client	0x001411C4	
+Unlocked: Doctor mode	Odblokowano: TrybDoktor	client	0x001411DC	
+1.6a	1.6a PL	client	0x00142294	
+Cancel	Anuluj	client	0x001422F8	
+Author: %s	Autor: %s	client	0x0014243C	
+Click to view all unlocked hint pages.	Kliknij i zobacz strony podpowiedzi	client	0x00143958	
+This item is currently locked.	Ten przedmiot jest zablokowany	client	0x00143980	
+Nightmare difficulty mode.	Tryb trudności Koszmar	client	0x001439A0	
+Developer commentary - Enable in difficulty menu.	Komentarz dewelopera - Włącz w menu trudności	client	0x001439BC	
+Doctor's Story. Click to play.	Tryb Doktora - Kliknij i zagraj	client	0x001439F0	
+flashlight	Latarka	client	0x00143A10	
+Nightvision - press %s to enable.	Noktowizor - Włącz naciskając %s	client	0x00143A1C	
+Nightvision - Press flashlight button to enable.	Noktowizor - Włącz naciskając przycisk latarki	client	0x00143A40	
+Hidden package.	Sekretna paczka	client	0x00143A74	
+FAMAS assault rifle with infinite ammo.	FAMAS z nieskończoną ilością amunicji	client	0x00143A84	
+AoMDC axe.	Topór AoM	client	0x00143AAC	
+Camera of death.	Kamera śmierci	client	0x00143AB8	
+Simon's book.	Książka Simona	client	0x00143ACC	
+David Leatherhoff suit - Equip in secret room.	David Leatherhoff - Ubierz w sekretnym pokoju	client	0x00143ADC	
+ModDB hoodie - Equip in secret room.	ModDB - Ubierz w sekretnym pokoju	client	0x00143B0C	
+Hello Kitty suit - Equip in secret room.	Hello Kitty - Ubierz w sekretnym pokoju	client	0x00143B34	
+Afraid of Monsters suit - Equip in secret room.	Afraid of Monsters - Ubierz w sekretnym pokoju	client	0x00143B60	
+Camouflage hoodie - Equip in secret room.	Kamuflaż - Ubierz w sekretnym pokoju	client	0x00143B90	
+Half-Life Creations hoodie - Equip in secret room.	Half-Life Creations - Ubierz w sekretnym pokoju	client	0x00143BBC	
+Black Metal suit - Equip in secret room.	Black Metal - Ubierz w sekretnym pokoju	client	0x00143BF0	
+Team Psykskallar hoodie - Equip in secret room.	Team Psykskallar - Ubierz w sekretnym pokoju	client	0x00143C1C	
+Awesome suit - Equip in secret room.	Jebać Anime - Ubierz w sekretnym pokoju	client	0x00143C4C	
+Sick Simon suit - Equip in secret room.	Chory Simon - Ubierz w sekretnym pokoju	client	0x00143C74	
+AoM Twitcher suit - Equip in secret room.	AoM Twitcher - Ubierz w sekretnym pokoju	client	0x00143C9C	
+Press Vote button when ready	Naciśnij przycisk głosowania	client	0x0014514C	
+Type votekick name in chat to votekick a player	Wpisz votekick Nazwa na czacie	client	0x00145170	
+Press %s to become ready/unready	Naciśnij %s aby być gotowy	client	0x0014521C	
+Press %s to become ready/unready	ready	client	0x00145237	
+Press Primary Attack to become ready/unready	Naciśnij Atak główny, aby być gotowy	client	0x00145240	
+%s - Ready	%s - Gotowy	client	0x00145270	
+%s - Not ready	%s - Niegotowy	client	0x0014527C	
+%s - Health %i - Ping %d	%s - Zdrowie %i - Ping %d	client	0x00145294	
+Invalid username or password!	Nieprawidlowa nazwa lub haslo!	client	0x00145E14	
+Invalid password or password!	Nieprawidłowa nazwa lub hasło!	client	0x00145E34	
+Enter a username...	Wpisz nazwe...	client	0x00145EE0	
+Enter a password...	Wpisz haslo...	client	0x00145EF4	
+Enable developer commentary	Komentarz dewelopera	client	0x001461C8	
+Simon's Book	Książka Simona	client	0x0014D8CC	retranslated by the project (haej) 2026-09-22: mod bytes used the repainted-font byte mapping
+You got %s	Zdobyłeś %s	client	0x0014D8DC	
+You got the %s	Podniosłeś %s	client	0x0014D8E8	
+Press USE to dock at %s	Dokuj klawiszem USE %s	hl	0x001A9A90	
+Press USE to dock here	Dokuj klawiszem USE	hl	0x001A9AA8	
+Use movement keys to move the boat, USE key to disembark	Poruszaj łodzią klawiszami ruchu, kliknij USE aby zejść	hl	0x001A9B00	
+Better than nothing I guess...	Chyba lepsze to niż nic...	hl	0x001AA860	
+I don't want to watch it again... %i ...What is that anyway?	Nie chcę oglądać tego ponownie... %i ...Co to w ogóle jest?	hl	0x001AB514	
+Please wait until everyone is ready!	Poczekaj, aż wszyscy będą gotowi!	hl	0x001AB694	
+Minuit - Press Enter to skip	Minuit - Pomiń ENTER	hl	0x001ABF8C	
+ruMpel - Press Enter to skip	ruMpel - Pomiń ENTER	hl	0x001ABFAC	
+Sporkeh - Press Enter to skip	Sporkeh - Pomiń ENTER	hl	0x001ABFCC	
+DragonNOR - Press Enter to skip	DragonNOR - Pomiń ENTER	hl	0x001ABFEC	
+BerZerk - Press Enter to skip	BerZerk - Pomiń ENTER	hl	0x001AC00C	
+Your message is too long. Rewrite it!	Twoja wiadomość jest za długa. Skróć ją!	hl	0x001AD090	retranslated by the project (haej) 2026-09-22
+Ugh...Argh... French...	Ugh...Argh... Francuski	hl	0x001AE030	
+I can't open it. Strange, there's no lock...	Nie mogę ich otworzyć. Dziwne, nie ma zamka...	hl	0x001B0054	
+I can't use this while %s is using it	Nie mogę tego używać, gdy %s tego używa	hl	0x001B0090	
+What the... The door is jammed!	Co do... Drzwi się zacięły.	hl	0x001B0990	retranslated by the project (haej) 2026-09-22
+Hmm... Should I take it?	Hmm... Powinienem to wziąć?	hl	0x001B0C88	
+What the... It's addressed to me...	Co do... Zaadresowane do mnie...	hl	0x001B0CA4	
+Looks like some kind of package. Something is written on it.	Wygląda jak jakaś paczka. Coś jest na niej napisane.	hl	0x001B0CC8	
+I'll need to drop this flare before I can climb	Muszę wyrzucić flarę zanim będę mógł się wspiąć	hl	0x001B1038	
+I don't need to use this anymore.	Nie muszę już tego używać.	hl	0x001B61A4	
+revolver	revolver	hl	0x001B66D8	kept English by decision 2026-09-22: identifier-like weapon/ammo name
+buckshot	buckshot	hl	0x001B85E0	kept English by decision 2026-09-22: ammo registration name; translating it broke pickups in the fan mod
+Looks like morphine. This is strong stuff, so I'd better be careful with it.	Wygląda jak morfina. To silna substancja, więc lepiej z nią uważać.	hl	0x001BB240	
+Huh? What's this doing here? Looks like an old tape recorder. I should be able to record my thoughts and experiences here.	Huh? Co to tutaj robi? Wygląda jak stary magnetofon. Powinienem być w stanie nagrywać tu swoje myśli i doświadczenia.	hl	0x001BB7E0	
+A dusty tape recorder. I can record my thoughts and experiences here.	Zakurzony magnetofon. Mogę tu nagrywać swoje myśli i doświadczenia.	hl	0x001BB860	
+I can't use this without a tape.	Nie mogę tego użyć bez kasety.	hl	0x001BB8C8	
+Looks like there's only enough room for 1 more save...	Wygląda na to, że wystarczy miejsca tylko na 1 zapis...	hl	0x001BB8EC	
+Looks like there's enough room for %i more saves.	Wygląda na to, że jest miejsce tylko na %i zapis.	hl	0x001BB924	
+Hmm... The board said %i...	Hmm... Jest napisane %i...	hl	0x001BBB88	
+Press USE or MOUSE1 to return, MOUSE to rotate	Naciśnij USE, aby powrócić, MOUSE1, aby obrócić	hl	0x001BBBA4	
+Inventory full	Brak miejsca w ekwipunku	hl	0x001C3ECF	retranslated by the project (haej) 2026-09-22; leading control byte preserved by the builder
+Hello kitty...	Hejka kociaku!	hl	0x001C8724	
+A dead cat...	Martwy kot...	hl	0x001C8734	
+Unlocked costume: Leatherhoff suit	Odblokowano bluzę: Leatherhoff	hl	0x001C8884	
+Unlocked costume: ModDB hoodie	Odblokowano bluzę: ModDB	hl	0x001C88A8	
+Unlocked costume: Hello Kitty hoodie	Odblokowano bluzę: Hello Kitty	hl	0x001C88C8	
+Unlocked costume: AoM hoodie	Odblokowano bluzę: AoM	hl	0x001C88F0	
+Unlocked costume: Camouflage hoodie	Odblokowano bluzę: Kamuflaż	hl	0x001C8910	
+Unlocked costume: HLC hoodie	Odblokowano bluzę: HLC	hl	0x001C8934	
+Unlocked costume: Black metal suit	Odblokowano bluzę: Black Metal	hl	0x001C8954	
+Unlocked costume: Team Psykskallar hoodie	Odblokowano bluzę: Team Psykskallar	hl	0x001C8978	
+Unlocked costume: Fuck anime hoodie	Odblokowano bluzę: Jebać Anime	hl	0x001C89A4	
+Unlocked costume: Sick Simon hoodie	Odblokowano bluzę: Chory Simon	hl	0x001C89C8	
+Unlocked costume: Twitcher suit	Odblokowano bluzę: Twitcher	hl	0x001C89EC	
+Unlocked book page: How To Unlock Book Pages	Odblokowano stronę: Jak odblokować strony	hl	0x001C8A0C	
+Unlocked book page: Ranking System Explained	Odblokowano stronę: Wyjaśnienie oceniania	hl	0x001C8A3C	
+Unlocked book page: How To Unlock Hoodies	Odblokowano stronę: Jak odblokować bluzy	hl	0x001C8A6C	
+Unlocked book page: How To Unlock Secret Items	Odblokowano stronę: Jak odblokować przedmioty	hl	0x001C8A98	
+Unlocked book page: How To Unlock Secret Weapons	Odblokowano stronę: Jak odblokować bronie	hl	0x001C8AC8	
+Game over	Koniec gry	hl	0x001C9828	
+\nGAME SKILL LEVEL:%d\n	\nPOZIOM GRY: %d	hl	0x001CCDFC	
+Congratulations! You got DAVE BENSON PHILLIPS!	Gratulacje! Zdobyłeś DAVE BENSON PHILLIPS!	hl	0x001D1334	
+You got the Nightvision	Zdobyłeś Noktowizor	hl	0x001D14A8	
+Starting in %i seconds	Start za %i sekund	hl	0x001D5654	
+Server is full (4 players max)	Serwer jest pełny	hl	0x001D5698	
+Flashlight	Latarka	hl	0x001D9EE4	
+Restarting the map in %i seconds\n	Restart mapy za %i sekund	hl	0x001DA704	
+I can't carry any more syringes	Nie mogę nosić więcej morfiny	hl	0x001DAE94	
+I can't carry any more flares	Nie mogę nosić więcej flar	hl	0x001DAEBC	
+I can't carry any more %s ammo	Nie mogę nosić więcej %s naboi.	hl	0x001DAEDC	
+Picked up a box of %i shells	Podniosłeś pudełko z %i łuskami	hl	0x001DAEFC	
+Picked up an %s magazine with %i rounds	Podniosłeś magazynek %s z %i nabojami	hl	0x001DAF1C	
+Picked up a syringe	Podniosłeś Morfinę	hl	0x001DAF44	
+Picked up a flare	Podniosłeś Flarę	hl	0x001DAF58	
+Picked up a box of %i revolver rounds	Podniosłeś %i naboi do rewolweru	hl	0x001DAF6C	
+Picked up a box of %i rifle rounds	Podniosłeś %i naboi do karabinu	hl	0x001DAF94	
+Picked up a %s magazine with %i rounds	Podniosłeś magazynek %s z %i nabojami	hl	0x001DAFB8	
+You can't drop your phone	Nie możesz upuścić telefonu	hl	0x001DBBE0	
+You can't drop your radio	Nie możesz upuścić radia	hl	0x001DBBFC	
+I better keep this until I've explored this area. It doesn't look safe.	Lepiej zachowam to, dopóki nie zbadam tego obszaru. Nie wygląda dobrze.	hl	0x001DBC18	
+Saving progress...	Zapisywanie...	hl	0x001DBC88	
+Saved	Zapisano grę	hl	0x001DBC9C	retranslated by the project (haej) 2026-09-22
+You unlocked the door.	Odblokowałeś drzwi.	hl	0x001DBCD4	
+I don't need to dual wield two light sources	Nie muszę oburęcznie trzymać dwóch świateł	hl	0x001DBCFC	
+Both %s and %s cannot be dual wielded	%s jak i %s nie mogę trzymać oburęcznie	hl	0x001DBD2C	
+%s cannot be dual wielded with %s	%s nie może być trzymany z %s	hl	0x001DBD54	
+"Archived ""%s"""	"Notatnik: ""%s"""	hl	0x001DBF34	
+Nothing to look at!	Nic ciekawego!	hl	0x001E3700	retranslated by the project (haej) 2026-09-22
+Mobile Phone	Telefon	hl	0x001E5138	
+Shotgun	Strzelba	hl	0x001E5154	retranslated by the project (haej) 2026-09-22
+Camera	Kamera	hl	0x001E515C	
+Switchblade	Nóż	hl	0x001E5164	
+Lantern	Lampka	hl	0x001E517C	
+Sniper Rifle	Snajperka	hl	0x001E5184	
+Nightstick	Pałka	hl	0x001E5194	
+Flare	Flara	hl	0x001E51A0	
+Dual Wield	Oburącz	hl	0x001E51AC	
+Branch	Gałąź	hl	0x001E51B8	
+Sledgehammer	Młot	hl	0x001E51C0	
+Police Radio	Radio policyjne	hl	0x001E51F4	
+Axe	Siekiera	hl	0x001E520C	retranslated by the project (haej) 2026-09-22
+Simon's book	Książka Simona	hl	0x001E5210	
+This is a donator-only weapon.	To jest broń dla darczyńców.	hl	0x001E59DC	
+I can't carry any more syringes.	Nie mogę nosić więcej flar	hl	0x001E5A18	
+It's too hot to pick up	Za gorąca, aby podnieść	hl	0x001E5A3C	
+The flare is burnt out	Flara jest wypalona	hl	0x001E5A54	

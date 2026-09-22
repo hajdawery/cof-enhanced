@@ -1,0 +1,54 @@
+"map_name"
+{
+	data	"rightplate3"
+}
+
+"combined_with"
+{
+	data	"leftplate3"
+}
+
+"nice_name"
+{
+	data	"Kamienna p³yta (Prawa po³owa)"
+}
+
+"classname"
+{
+	data	"item_key"
+}
+
+"combined_result"
+{
+	data	"inventoryitems/wholeplate_3.txt"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/plate/640_plate3_right_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/plate/640_plate3_right_slot.tga"
+}
+
+"3dmdl"
+{
+	data	"models/items/numeral_plate_right3.mdl"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/items/plate/640_plate3_right_check.tga"
+}
+
+"pickup_sound"
+{
+	data	"buttons/lighterpickup.wav"
+}
+
+"droppable"
+{
+	data	"1"
+}

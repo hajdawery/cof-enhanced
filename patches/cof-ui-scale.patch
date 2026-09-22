@@ -1,0 +1,894 @@
+diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
+index 8712d2b..ba0b9e4 100644
+--- a/engine/client/cl_main.c
++++ b/engine/client/cl_main.c
+@@ -94,6 +94,13 @@ static CVAR_DEFINE_AUTO( cof_ui_menu_map_redirect, "1", 0, "unified UI gate: tur
+ static CVAR_DEFINE_AUTO( cof_ui_death_menu, "1", 0, "unified UI gate: open the engine menu's own death page when the game DLL sends the Cry of Fear GAME OVER screen (0 = stock behaviour, the client's own panel)" );
+ static CVAR_DEFINE_AUTO( cof_mp3_stop_on_map, "1", 0, "run the client's \"stopmp3\" command before a fresh map, newgame, save load or disconnect, so the client's own MP3 player does not bleed across the transition (changelevel is deliberately untouched)" );
+ static CVAR_DEFINE_AUTO( cof_sky_reset_per_map, "1", 0, "restore the client's \"gl_customsky\" on every map load when the client turned it off after a failed sky load, so one map's missing sky faces do not disable the sky for the rest of the session (0 = stock behaviour)" );
++// Milestone 4, in-game UI scaling. Archived, unlike the gate cvars above,
++// because these are display preferences that have to survive a restart. Both
++// are live: nothing the client computed has to change for them to take effect.
++CVAR_DEFINE_AUTO( cof_ui_scale, "0", FCVAR_ARCHIVE, "Cry of Fear in-game UI scale, in percent of the client's own pixel layout (0 = automatic from the render height, 100 = stock size)" );
++CVAR_DEFINE_AUTO( cof_ui_scale_user, "1.0", FCVAR_ARCHIVE, "user multiplier on top of cof_ui_scale, applied to the whole in-game UI and to the engine HUD text together (1.0 = automatic size, 1.5 = half again as large). This is the menu's \"HUD scale\" control" );
++CVAR_DEFINE_AUTO( cof_ui_scale_sprites, "1", FCVAR_ARCHIVE, "let cof_ui_scale also scale the client's classic HUD sprites (ammo counter, icons); 0 leaves the engine sprite path at native size" );
++CVAR_DEFINE_AUTO( cof_hud_text_height_pct, "1.76", FCVAR_ARCHIVE, "target height of the engine HUD font (hints, subtitles, pickup text) as a percentage of the render height, never below the shipped size; 0 = stock fixed bitmap size" );
+ static CVAR_DEFINE_AUTO( cl_maxframetime, "0", 0, "set deadline timer for client rendering to catch freezes" );
+ CVAR_DEFINE_AUTO( cl_fixmodelinterpolationartifacts, "1", 0, "try to fix up models interpolation on a moving platforms (monsters on trains for example)" );
+ 
+@@ -220,6 +227,388 @@ qboolean CL_CoF_UIGateActive( void )
+ 	return active;
+ }
+ 
++/*
++====================
++Cry of Fear in-game UI scaling (cof_ui_scale, milestone 4)
++====================
++
++Every Cry of Fear in-game surface - the inventory panel, the HUD bars, the
++phone, the notes - is a fixed pixel layout. The client asks the engine for the
++screen size exactly once, inside CHud::VidInit, builds its whole VGUI panel
++tree from it inside CClientViewport's constructor, and never lays it out again
++(measured in stage1/ingame-ui-scaling-20260922/RESULTS.md, section 2). Its
++bitmap font strips stop growing at the 1024 bucket and its bucket table caps at
++1600, so nothing in that UI has scaled with the display since 2012.
++
++The obvious lever - lie to the client about the screen size through
++clgame.scrInfo, the way hud_scale does - is NOT usable here, and this is the
++single most important fact about this feature. The Cry of Fear client builds
++its own renderer's viewport and projection from the same gHUD.m_scrinfo it lays
++its panels out from, so a virtual screen size zooms and shifts the 3D view,
++in game and on the menu background map alike. Verified in the user's runtime
++with hud_scale 2. clgame.scrInfo therefore stays at the real render size and
++this feature never touches it.
++
++Instead the transform lives entirely in the engine's VGUI surface layer, which
++the client's 3D rendering does not go through:
++
++  device = ( layout + anchorOffset ) * scale
++
++  scale  = clamp( render_height / 1080, 1, 4 )      cof_ui_scale 0, automatic
++         = clamp( cof_ui_scale / 100,   1, 4 )      otherwise
++
++The automatic law keeps the client's fixed pixel layout at exactly the fraction
++of the screen it occupies at 1920x1080: an element of p layout pixels is drawn
++p*scale device pixels tall, so p*scale/height == p/1080 for every height. It is
++continuous in the render height with no per-resolution cases, and it stays at 1
++below 1080p, because shrinking a fixed pixel design only makes an already 8 px
++label smaller.
++
++`anchorOffset` is what keeps the result usable. A single scale about the screen
++centre would push the bottom-left HUD bars off the screen; a scale about the
++origin would push the centred inventory off the right edge. So each top-level
++client UI surface is anchored, per axis, to whichever screen edge it was laid
++out against (centre when it sits symmetrically), and its whole subtree inherits
++that anchor - see CofUI_SolvePanel() in the VGUI support library, which applies
++the offset to the panel's solved screen origin so that painting AND hit testing
++move together by construction.
++
++Two sizes feed it:
++
++* `layout`, pinned at the client's first VidInit, is the screen size the
++  client's frozen layout was built for. It never changes for the session.
++* the render size, read live.
++
++That is also the fix for the frozen-layout shift (the inventory panel in the
++lower-right quarter after a video mode change): the anchors are recomputed from
++the *current* render size against the *pinned* layout size every frame, so a
++layout built for 1920x1080 and then shown at 1280x720 is simply re-centred and
++re-anchored instead of being left at the old screen centre.
++*/
++#define COF_UI_REFERENCE_HEIGHT	1080.0f
++
++static struct
++{
++	qboolean	layout_pinned;
++	int		layout_width, layout_height;
++	qboolean	reported;
++	float		reported_scale;
++	qboolean	hud_scale_reported;
++} cof_ui;
++
++/*
++====================
++CL_CoF_UIReset
++
++Forget the pinned layout size. Called when the client library goes away, so a
++gamedir switch or a client reload starts a fresh session.
++====================
++*/
++void CL_CoF_UIReset( void )
++{
++	memset( &cof_ui, 0, sizeof( cof_ui ));
++}
++
++/*
++====================
++CL_CoF_UIPinLayout
++
++The screen size the client's one and only layout pass was made at. Called from
++SCR_VidInit just before the client's pfnVidInit, so the very first call pins
++the size the client is about to read from pfnGetScreenInfo.
++====================
++*/
++void CL_CoF_UIPinLayout( void )
++{
++	if( cof_ui.layout_pinned )
++		return;
++
++	if( !ref.initialized || refState.width <= 0 || refState.height <= 0 )
++		return;
++
++	cof_ui.layout_pinned = true;
++	cof_ui.layout_width = refState.width;
++	cof_ui.layout_height = refState.height;
++}
++
++/*
++====================
++CL_CoF_UIScale
++
++The scale factor, or 1.0 when the transform is inactive (a non-Cry of Fear
++game, cof_ui_scale 100, or a screen the law leaves at native size).
++====================
++*/
++float CL_CoF_UIScale( void )
++{
++	float	scale;
++
++	if( !cof_ui.layout_pinned || !ref.initialized || refState.height <= 0 )
++		return 1.0f;
++
++	// gated on the Cry of Fear client, like the rest of the cof_* stack
++	if( !GI || Q_stricmp( GI->gamefolder, "cryoffear" ))
++		return 1.0f;
++
++	if( cof_ui_scale.value == 0.0f )
++		scale = (float)refState.height / COF_UI_REFERENCE_HEIGHT;
++	else scale = cof_ui_scale.value * 0.01f;
++
++	// the user's own multiplier on top of the automatic size. It is applied
++	// here, and to the engine HUD text target in SCR_HudTextTargetHeight(), so
++	// the bars, the panels and the text all grow by the same factor together
++	scale *= CL_CoF_UIScaleUser();
++
++	scale = bound( 1.0f, scale, 4.0f );
++
++	if( !cof_ui.reported || fabs( scale - cof_ui.reported_scale ) > 0.0005f )
++	{
++		cof_ui.reported = true;
++		cof_ui.reported_scale = scale;
++
++		Con_Reportf( "[cof-ui] UI scale %.3f: layout %ix%i drawn on %ix%i (cof_ui_scale %g, cof_ui_scale_user %.2f)\n",
++			scale, cof_ui.layout_width, cof_ui.layout_height,
++			refState.width, refState.height, cof_ui_scale.value, CL_CoF_UIScaleUser( ));
++	}
++
++	return scale;
++}
++
++/*
++====================
++CL_CoF_UIScaleUser
++
++The menu's "HUD scale" control: Auto (1.0), 125, 150, 200 percent. Clamped so
++a hand-edited config cannot produce something unusable.
++====================
++*/
++float CL_CoF_UIScaleUser( void )
++{
++	return bound( 1.0f, cof_ui_scale_user.value, 2.0f );
++}
++
++/*
++====================
++CL_CoF_CheckUIScaleChanged
++
++cof_ui_scale, cof_ui_scale_user and cof_hud_text_height_pct are live: the menu
++applies them without a restart. The surface transform picks a change up on its
++own, because it is re-read every frame, but the engine HUD font has to be
++reloaded at the new size and the client has to re-read charWidths[]/iCharHeight
++from pfnGetScreenInfo, which it only does in its own VidInit. SCR_VidInit()
++does both. Called once per frame from CL_DrawHUD().
++
++Note that the client's VGUI panel tree is NOT rebuilt by this - its constructor
++is guarded and runs once per session - which is exactly why the surface
++transform anchors against the pinned layout size instead.
++====================
++*/
++void CL_CoF_CheckUIScaleChanged( void )
++{
++	if( !FBitSet( cof_ui_scale.flags, FCVAR_CHANGED ) &&
++		!FBitSet( cof_ui_scale_user.flags, FCVAR_CHANGED ) &&
++		!FBitSet( cof_hud_text_height_pct.flags, FCVAR_CHANGED ))
++		return;
++
++	ClearBits( cof_ui_scale.flags, FCVAR_CHANGED );
++	ClearBits( cof_ui_scale_user.flags, FCVAR_CHANGED );
++	ClearBits( cof_hud_text_height_pct.flags, FCVAR_CHANGED );
++
++	if( !GI || Q_stricmp( GI->gamefolder, "cryoffear" ))
++		return;
++
++	Con_Reportf( "[cof-ui] scale cvars changed, re-deriving\n" );
++	SCR_VidInit();
++}
++
++/*
++====================
++CL_CoF_UITransform
++
++The whole transform, for the VGUI support library: the scale, the pinned layout
++size the client's panels live in, and the current render size the anchors are
++measured against. False means "draw exactly as the stock engine would".
++====================
++*/
++qboolean CL_CoF_UITransform( float *scale, int *layoutWide, int *layoutTall, int *screenWide, int *screenTall )
++{
++	float	s = CL_CoF_UIScale();
++
++	if( scale ) *scale = s;
++	if( layoutWide ) *layoutWide = cof_ui.layout_width;
++	if( layoutTall ) *layoutTall = cof_ui.layout_height;
++	if( screenWide ) *screenWide = refState.width;
++	if( screenTall ) *screenTall = refState.height;
++
++	// the anchor pass still has work to do at scale 1 whenever the render size
++	// has moved away from the size the client laid out at: that is the frozen
++	// layout shift, and re-anchoring is what fixes it
++	if( s != 1.0f )
++		return true;
++
++	if( !cof_ui.layout_pinned )
++		return false;
++
++	return ( cof_ui.layout_width != refState.width || cof_ui.layout_height != refState.height );
++}
++
++/*
++====================
++CL_CoF_UIScaleRect
++
++Scale one VGUI quad from the client's layout pixels to device pixels.
++====================
++*/
++void CL_CoF_UIScaleRect( float *x, float *y, float *w, float *h )
++{
++	float	scale = CL_CoF_UIScale();
++
++	if( scale == 1.0f )
++		return;
++
++	if( x ) *x *= scale;
++	if( y ) *y *= scale;
++	if( w ) *w *= scale;
++	if( h ) *h *= scale;
++}
++
++/*
++====================
++CL_CoF_HudScaleBlocked
++
++True while hud_scale must be ignored: the Cry of Fear client cannot survive a
++virtual screen size, see the comment at the call site in CL_GetScreenInfo().
++Reports once so a config with a stale value is visible in a log.
++====================
++*/
++qboolean CL_CoF_HudScaleBlocked( void )
++{
++	if( !GI || Q_stricmp( GI->gamefolder, "cryoffear" ))
++		return false;
++
++	if( hud_scale.value != 0.0f && !cof_ui.hud_scale_reported )
++	{
++		cof_ui.hud_scale_reported = true;
++
++		Con_Printf( S_WARN "hud_scale %g ignored: it breaks the Cry of Fear client's own 3D view. Use cof_ui_scale instead.\n",
++			hud_scale.value );
++	}
++
++	return true;
++}
++
++/*
++====================
++CL_CoF_UIScaleHudRect
++
++The other half of the transform: the client's classic Half-Life HUD, drawn
++through the engine's own sprite engfuncs instead of through VGUI.
++
++Measured (stage1/ui-m4-scaling-20260922): the Cry of Fear client never calls
++pfnSPR_Draw at all - it uses pfnSPR_Set (68 sites), pfnSPR_DrawHoles (41) and
++pfnSPR_DrawAdditive (17), which all funnel through SPR_DrawGeneric here. What
++lives on this path is the ammo counter (CHudAmmo::Draw at client VA 100177C0,
++which reads ScreenWidth/ScreenHeight 22 times and positions every digit from
++them through CHud::DrawHudNumber at 10072160), the weapon selection menu, the
++pickup history icons, the secondary ammo readout, the status icons, the train
++controls and the logo sprite.
++
++NOT on this path, despite the obvious guess: the boss health bar is a FreeVGUI
++panel (CBossBar at gViewPort+0x1418) and is scaled by the VGUI pass instead,
++and CHudHealth, CHudBattery and CHudFlashlight are all 16-byte stubs in this
++client - the visible health, stamina and flashlight indicators are FreeVGUI
++panels inside CHUDControl.
++
++These are NOT in the frozen VGUI layout space. The client re-reads
++pfnGetScreenInfo in CHud::VidInit, which does run on every video mode change -
++only CClientViewport's constructor is guarded - so HUD sprite coordinates
++always follow the live render size. So the anchor is measured against the
++render size, and the result is a plain anchored scale about the screen:
++
++  low edge   (left / top)      device = pos * scale
++  centre                       device = screen/2 + ( pos - screen/2 ) * scale
++  high edge  (right / bottom)  device = screen - ( screen - pos ) * scale
++
++Per axis, from the drawn rectangle's own distance to each screen edge. Corner
++clustered elements - the ammo digits bottom right, the health icon bottom left
++- all resolve to the same anchor, so their relative geometry is preserved
++exactly: two digits 20 px apart at scale 2 end up 40 px apart and 2x as wide.
++====================
++*/
++static float CL_CoF_AnchorAxis( float pos, float size, float screen, float scale )
++{
++	float	low = pos;
++	float	high = screen - ( pos + size );
++	float	tolerance = Q_max( 8.0f, screen / 20.0f ); // 5 percent, as in the VGUI anchor pass
++
++	if( fabs( low - high ) <= tolerance )
++		return screen * 0.5f + ( pos - screen * 0.5f ) * scale;
++
++	if( low < high )
++		return pos * scale;
++
++	return screen - ( screen - pos ) * scale;
++}
++
++// A HUD widget is small. Anything that covers a third of the screen or more in
++// either axis is a screen-covering effect, not a widget: Cry of Fear paints its
++// darkness overlay and its fades as a handful of adjoining large sprites, and
++// anchoring each of those to its own nearest screen edge tears the effect into
++// visibly offset bands - measured, evidence/h1-spr-2560-hud.png against
++// evidence/s2-auto-2560-hud.png in stage1/ui-m4-scaling-20260922. Effects are
++// already screen-relative and need no scaling; leaving them alone is correct as
++// well as safe.
++#define COF_UI_HUD_WIDGET_FRACTION	0.33f
++
++void CL_CoF_UIScaleHudRect( float *x, float *y, float *w, float *h )
++{
++	float	scale = CL_CoF_UIScale();
++	float	rw = w ? *w : 0.0f;
++	float	rh = h ? *h : 0.0f;
++
++	if( scale == 1.0f || cof_ui_scale_sprites.value == 0.0f )
++		return;
++
++	if( rw >= refState.width * COF_UI_HUD_WIDGET_FRACTION )
++		return;
++
++	if( rh >= refState.height * COF_UI_HUD_WIDGET_FRACTION )
++		return;
++
++	if( x ) *x = CL_CoF_AnchorAxis( *x, rw, (float)refState.width, scale );
++	if( y ) *y = CL_CoF_AnchorAxis( *y, rh, (float)refState.height, scale );
++	if( w ) *w *= scale;
++	if( h ) *h *= scale;
++}
++
++/*
++====================
++CL_CoF_UIRootSize
++
++How big the VGUI root panel has to be so that nothing the anchor pass moved
++falls outside it: the client's own layout, or the part of the screen one layout
++pixel covers, whichever is larger. At the first VidInit this is exactly the
++render size, which is what the client reads when it builds its viewport.
++====================
++*/
++void CL_CoF_UIRootSize( int *width, int *height )
++{
++	float	scale = CL_CoF_UIScale();
++	int	w = refState.width, h = refState.height;
++
++	if( cof_ui.layout_pinned && scale > 0.0f )
++	{
++		int	visible_w = (int)(( refState.width / scale ) + 0.999f );
++		int	visible_h = (int)(( refState.height / scale ) + 0.999f );
++
++		w = Q_max( cof_ui.layout_width, visible_w );
++		h = Q_max( cof_ui.layout_height, visible_h );
++	}
++
++	if( width ) *width = w;
++	if( height ) *height = h;
++}
++
+ /*
+ ====================
+ CL_CoF_StopMP3
+@@ -1599,7 +1988,6 @@ static void CL_ApplyAddAngle( void )
+ 	cl.prevaddangletotal = addangletotal;
+ }
+ 
+-
+ /*
+ =======================================================================
+ 
+@@ -2576,7 +2964,6 @@ static void CL_Rcon_f( void )
+ 	NET_SendPacket( NS_CLIENT, MSG_GetNumBytesWritten( &msg ), MSG_GetData( &msg ), to );
+ }
+ 
+-
+ /*
+ =====================
+ CL_ClearState
+@@ -3972,7 +4359,6 @@ static void CL_ParseNetMessage( sizebuf_t *msg, void (*parsefn)( sizebuf_t * ))
+ 	}
+ }
+ 
+-
+ /*
+ =================
+ CL_ReadNetMessage
+@@ -4144,7 +4530,6 @@ static const char *CL_CleanFileName( const char *filename )
+ 	return filename;
+ }
+ 
+-
+ /*
+ ====================
+ CL_RegisterCustomization
+@@ -4743,6 +5128,10 @@ static void CL_InitLocal( void )
+ 	Cvar_RegisterVariable( &cof_ui_death_menu );
+ 	Cvar_RegisterVariable( &cof_mp3_stop_on_map );
+ 	Cvar_RegisterVariable( &cof_sky_reset_per_map );
++	Cvar_RegisterVariable( &cof_ui_scale );
++	Cvar_RegisterVariable( &cof_ui_scale_user );
++	Cvar_RegisterVariable( &cof_ui_scale_sprites );
++	Cvar_RegisterVariable( &cof_hud_text_height_pct );
+ 	Cvar_RegisterVariable( &cl_maxframetime );
+ 	Cvar_RegisterVariable( &cl_fixmodelinterpolationartifacts );
+ 
+diff --git a/engine/client/client.h b/engine/client/client.h
+index 8f0f024..d4add8a 100644
+--- a/engine/client/client.h
++++ b/engine/client/client.h
+@@ -717,6 +717,10 @@ extern convar_t	hud_fontscale;
+ extern convar_t hud_fontrender;
+ extern convar_t	hud_scale;
+ extern convar_t hud_scale_minimal_width;
++extern convar_t cof_ui_scale;
++extern convar_t cof_ui_scale_sprites;
++extern convar_t cof_ui_scale_user;
++extern convar_t cof_hud_text_height_pct;
+ extern convar_t	r_showtextures;
+ extern convar_t	r_showtextures_zoom;
+ extern convar_t	cl_bmodelinterp;
+@@ -1277,6 +1281,18 @@ extern convar_t cof_skip_vgui_paint;
+ extern convar_t cof_ui_input_gate;
+ extern convar_t cof_ui_deferred_cmd_guard;
+ qboolean CL_CoF_UIGateActive( void );
++
++// Cry of Fear in-game UI scaling (cof_ui_scale, milestone 4), cl_main.c
++void CL_CoF_UIReset( void );
++void CL_CoF_UIPinLayout( void );
++float CL_CoF_UIScale( void );
++qboolean CL_CoF_UITransform( float *scale, int *layoutWide, int *layoutTall, int *screenWide, int *screenTall );
++void CL_CoF_UIScaleRect( float *x, float *y, float *w, float *h );
++void CL_CoF_UIScaleHudRect( float *x, float *y, float *w, float *h );
++qboolean CL_CoF_HudScaleBlocked( void );
++float CL_CoF_UIScaleUser( void );
++void CL_CoF_CheckUIScaleChanged( void );
++void CL_CoF_UIRootSize( int *width, int *height );
+ // Cry of Fear unified UI (cof_ui_death_menu): the GAME OVER user message hook,
+ // defined in cl_main.c and called from CL_ParseUserMessage
+ qboolean CL_CoF_DeathUserMessage( const char *name, int size, const byte *buf );
+diff --git a/engine/client/cl_scrn.c b/engine/client/cl_scrn.c
+index 3a8f929..6bcec3c 100644
+--- a/engine/client/cl_scrn.c
++++ b/engine/client/cl_scrn.c
+@@ -756,6 +756,106 @@ SCR_LoadCreditsFont
+ INTERNAL RESOURCE
+ ================
+ */
++// Cry of Fear engine HUD text sizing: the target height cls.creditsFont was
++// last loaded for, so SCR_VidInit() can tell when the screen has moved away
++// from it. A negative sentinel compares unequal to every live target, so the
++// first VidInit always loads.
++static float scr_hud_text_target = -1.0f;
++
++/*
++================
++SCR_HudTextTargetHeight
++
++Cry of Fear engine HUD text sizing (cof_hud_text_height_pct, milestone 4).
++
++cls.creditsFont is the font behind pfnDrawCharacter, which is how the Cry of
++Fear client draws its hints, its "Using Gas Mask" style prompts and its
++subtitles: the client measures the text itself with gHUD.m_scrinfo.charWidths[]
++and iCharHeight and emits one pfnDrawCharacter per glyph. Those two fields are
++copied out of this very font at the bottom of SCR_LoadCreditsFont(), so making
++the font bigger makes the client's own centring, line pitch and wrap points
++follow it for free - no client-side layout has to be understood or touched.
++
++Same model as the console's cof_text_autoscale: a plain fraction of the render
++height, continuous, with no per-resolution cases. The default 1.85 percent
++reproduces the stock 20 px glyph at 1920x1080 and scales it from there, so a
++1080p player sees exactly what they saw before and a 4K player finally gets
++readable subtitles. hud_fontscale multiplies it, so a user who already set that
++keeps their preference on top. Returns 0 for "size it exactly as stock".
++================
++*/
++static float SCR_HudTextTargetHeight( void )
++{
++	float	px;
++
++	if( cof_hud_text_height_pct.value <= 0.0f )
++		return 0.0f;
++
++	if( !ref.initialized || refState.height <= 0 )
++		return 0.0f;
++
++	px = refState.height * bound( 0.4f, cof_hud_text_height_pct.value, 12.0f ) * 0.01f;
++
++	if( hud_fontscale.value > 0.0f )
++		px *= hud_fontscale.value;
++
++	// the menu's HUD scale control, the same multiplier the surface transform
++	// uses, so text and panels grow together
++	px *= CL_CoF_UIScaleUser();
++
++	return bound( 6.0f, px, 192.0f );
++}
++
++/*
++================
++SCR_ScaleCreditsFont
++
++Resize the loaded HUD font to the target height. The atlas was loaded at
++base_scale, so dividing it back out recovers the raw metrics and setting
++font->scale is exactly what loading at that scale would have produced -
++CL_DrawCharacter() multiplies both the glyph rectangle and the advance by it.
++================
++*/
++static void SCR_ScaleCreditsFont( cl_font_t *font, float base_scale )
++{
++	float	target = SCR_HudTextTargetHeight();
++	float	base, scale;
++
++	if( !font->valid || target <= 0.0f )
++		return;
++
++	if( base_scale <= 0.0f )
++		base_scale = 1.0f;
++
++	base = font->charHeight / base_scale;
++
++	if( base <= 0.0f )
++		return;
++
++	scale = target / base;
++
++	// never below 1, for the same reason cof_ui_scale never is: the shipped
++	// font is already small at 1080p and shrinking it at 720p would be a
++	// regression, not a feature. So the target is a floor, not an equality
++	if( scale < 1.0f )
++		scale = 1.0f;
++
++	font->scale = scale;
++	font->charHeight = Q_max( 1, Q_rint( base * scale ));
++
++	for( int i = 0; i < ARRAYSIZE( font->charWidths ); i++ )
++	{
++		if( font->charWidths[i] > 0 )
++			font->charWidths[i] = Q_max( 1, Q_rint(( font->charWidths[i] / base_scale ) * scale ));
++	}
++
++	scr_hud_text_target = target;
++
++	Con_Reportf( "[cof-hudtext] %ix%i: target %.1f px (cof_hud_text_height_pct %.2f, hud_fontscale %.2f) -> base %.0f px, glyph scale %.3f, charH %i px\n",
++		refState.width, refState.height, target, cof_hud_text_height_pct.value,
++		hud_fontscale.value, base, scale, font->charHeight );
++}
++
+ void SCR_LoadCreditsFont( void )
+ {
+ 	cl_font_t *const font = &cls.creditsFont;
+@@ -763,6 +863,12 @@ void SCR_LoadCreditsFont( void )
+ 	float scale = hud_fontscale.value;
+ 	dword crc = 0;
+ 
++	// Cry of Fear engine HUD text sizing: SCR_ScaleCreditsFont() below rewrites
++	// charHeight and charWidths[] in place, so the loader has to start from a
++	// clean font or a second call would scale the already scaled metrics. This
++	// is a no-op for a font that is not loaded.
++	CL_FreeFont( font );
++
+ 	// replace default gfx.wad textures by current charset's font
+ 	if( !CRC32_File( &crc, "gfx.wad" ) || crc == 0x49eb9f16 )
+ 	{
+@@ -783,6 +889,10 @@ void SCR_LoadCreditsFont( void )
+ 	if( !success )
+ 		success = Con_LoadFixedWidthFont( "gfx/conchars", font, scale, &hud_fontrender, TF_FONT|TF_NEAREST|TF_KEEP_SOURCE );
+ 
++	// Cry of Fear engine HUD text sizing: resize BEFORE the metrics are copied
++	// out, so the client lays its hints and subtitles out at the new size
++	SCR_ScaleCreditsFont( font, scale );
++
+ 	// copy font size for client.dll
+ 	if( success )
+ 	{
+@@ -931,6 +1041,20 @@ void SCR_VidInit( void )
+ 		gameui.globals->scrHeight = refState.height;
+ 	}
+ 
++	// Cry of Fear in-game UI scaling: pin the size the client's one and only
++	// layout pass is about to be made at, before anything can read it
++	CL_CoF_UIPinLayout();
++
++	// Cry of Fear engine HUD text sizing: the target is a fraction of the render
++	// height, so a mode change has to reload the font at the new size. The
++	// client re-reads charWidths[]/iCharHeight from pfnGetScreenInfo in its own
++	// VidInit, which runs below, so the new metrics are in place in time
++	if( scr_hud_text_target != SCR_HudTextTargetHeight( ))
++	{
++		CL_FreeFont( &cls.creditsFont );
++		SCR_LoadCreditsFont();
++	}
++
+ 	// notify vgui about screen size change
+ 	if( clgame.hInstance )
+ 	{
+diff --git a/engine/client/dll_int/cl_game.c b/engine/client/dll_int/cl_game.c
+index cfa702d..8461b90 100644
+--- a/engine/client/dll_int/cl_game.c
++++ b/engine/client/dll_int/cl_game.c
+@@ -364,6 +364,26 @@ static void SPR_AdjustTexCoords( int texnum, float width, float height, float *s
+ 	*t2 /= height;
+ }
+ 
++/*
++====================
++Cry of Fear in-game UI scaling: telling a HUD widget from a screen overlay
++
++Both go through pfnSPR_Draw at the sprite's own native size, so the API does
++not separate them. Their size does. Measured on Cry of Fear, the whole HUD
++sprite set is small - 16x16 to 32x128 - and the one screen overlay,
++sprites/subtle_noise.spr, is 256x256 tiled across the whole screen. Anchoring
++those tiles individually to their own nearest screen edge makes them overlap
++and bands the picture (evidence/h3-spr-2560-hud.png in
++stage1/ui-m4-scaling-20260922 is what that looks like).
++
++A HUD sprite authored for a 640x480 layout is never bigger than this, so the
++cap costs nothing and cannot be fooled by how often a sprite is drawn.
++cof_ui_scale_sprites 0 turns the whole sprite path back to native size, and 2
++traces every draw with its sprite name and rectangle.
++====================
++*/
++#define COF_SPRITE_MAX_WIDGET	128	// design pixels, per axis
++
+ /*
+ ====================
+ SPR_DrawGeneric
+@@ -375,7 +395,15 @@ static void SPR_DrawGeneric( int frame, float x, float y, float width, float hei
+ {
+ 	float	s1, s2, t1, t2;
+ 
+-	if( width == -1 && height == -1 )
++	// Cry of Fear in-game UI scaling: only a sprite drawn at its own natural
++	// size is a HUD widget. pfnSPR_Draw / DrawHoles / DrawAdditive all pass
++	// -1,-1 and get the sprite's own pixels; pfnSPR_DrawGeneric is the one that
++	// takes an explicit width and height, and that is what the client stretches
++	// its screen-covering darkness overlay with, tile by tile. Anchoring those
++	// tiles individually tears the overlay into visibly offset bands.
++	qboolean cof_hud_widget = ( width == -1 && height == -1 );
++
++	if( cof_hud_widget )
+ 	{
+ 		int	w, h;
+ 
+@@ -418,6 +446,32 @@ static void SPR_DrawGeneric( int frame, float x, float y, float width, float hei
+ 	if( !CL_Scissor( &clgame.ds.scissor, &x, &y, &width, &height, &s1, &t1, &s2, &t2 ))
+ 		return;
+ 
++	// Cry of Fear in-game UI scaling: the classic HUD sprite path - ammo digits,
++	// crosshair, damage indicators - anchored to the screen edge it was drawn
++	// against so a magnified corner element stays in its corner
++	if( cof_hud_widget )
++	{
++		// Measured on Cry of Fear (evidence/k2-trace-2560.log in
++		// stage1/ui-m4-scaling-20260922): the HUD widgets are
++		// cof_ammohud.spr 20x24, cof_mag_cross.spr 16x16,
++		// cof_glock_mag_icon.spr 32x32 and cof_glock_mag.spr 32x128, each
++		// drawn once a frame, while subtle_noise.spr is 256x256 and drawn 60
++		// times a frame as a grid over the whole screen. A HUD sprite in a
++		// 640x480 design is never larger than this; a screen overlay tile
++		// always is.
++		qboolean widget = ( width <= COF_SPRITE_MAX_WIDGET && height <= COF_SPRITE_MAX_WIDGET );
++
++		if( cof_ui_scale_sprites.value > 1.0f )
++		{
++			Con_Reportf( "[cof-spr] %s %.0f,%.0f %.0fx%.0f%s\n",
++				clgame.ds.pSprite ? clgame.ds.pSprite->name : "?", x, y, width, height,
++				widget ? "" : " (overlay tile, left alone)" );
++		}
++
++		if( widget )
++			CL_CoF_UIScaleHudRect( &x, &y, &width, &height );
++	}
++
+ 	// scale for screen sizes
+ 	SPR_AdjustSize( &x, &y, &width, &height );
+ 	ref.dllFuncs.Color4ub( clgame.ds.spriteColor[0], clgame.ds.spriteColor[1], clgame.ds.spriteColor[2], clgame.ds.spriteColor[3] );
+@@ -903,6 +957,9 @@ void CL_DrawHUD( int state )
+ 	// is left alone.
+ 	const qboolean cof_gate = CL_CoF_UIGateActive();
+ 
++	// Cry of Fear in-game UI scaling: the HUD scale control is live
++	CL_CoF_CheckUIScaleChanged();
++
+ 	if( state == CL_ACTIVE && !cl.video_prepped )
+ 		state = CL_LOADING;
+ 
+@@ -1646,6 +1703,12 @@ static void GAME_EXPORT CL_FillRGBA( int x, int y, int w, int h, int r, int g, i
+ 	b = bound( 0, b, 255 );
+ 	a = bound( 0, a, 255 );
+ 
++	// NOT scaled by cof_ui_scale, deliberately: the Cry of Fear client uses
++	// pfnFillRGBA for screen-covering effects - fades, the vignette, the
++	// letterbox bars - built out of several adjoining rectangles. Anchoring
++	// each of those to its own nearest screen edge tears the effect into
++	// visibly offset bands (measured, stage1/ui-m4-scaling-20260922). Its HUD
++	// widgets are VGUI panels and scale through VGUI_DrawQuad instead.
+ 	SPR_AdjustSize( &x_, &y_, &w_, &h_ );
+ 
+ 	ref.dllFuncs.FillRGBA( kRenderTransAdd, x_, y_, w_, h_, r, g, b, a );
+@@ -1675,7 +1738,22 @@ int GAME_EXPORT CL_GetScreenInfo( SCREENINFO *pscrinfo )
+ 	clgame.scrInfo.iSize = sizeof( clgame.scrInfo );
+ 	clgame.scrInfo.iFlags = SCRINFO_SCREENFLASH;
+ 
+-	if( hud_scale.value >= 320.0f && hud_scale.value >= hud_scale_minimal_width.value )
++	// Cry of Fear in-game UI scaling (milestone 4): hud_scale is POISON for this
++	// game and is disabled for it outright. The Cry of Fear client builds its
++	// own renderer's viewport and projection from the same gHUD.m_scrinfo it
++	// lays its panels out from, so a virtual screen size here zooms and shifts
++	// the 3D view, in game and on the menu background map alike - verified in
++	// the user's runtime with hud_scale 2, and measured again in
++	// stage1/ui-m4-scaling-20260922 (the 3D view correlates at 0.68 against a
++	// stock frame, where cof_ui_scale correlates at 0.999). The engine menu no
++	// longer offers the control for this game either, but a stale archived
++	// value in an existing config.cfg would otherwise still break the renderer.
++	// cof_ui_scale is the supported way to scale this game's UI.
++	if( CL_CoF_HudScaleBlocked( ))
++	{
++		scale_factor = 0.0f;
++	}
++	else if( hud_scale.value >= 320.0f && hud_scale.value >= hud_scale_minimal_width.value )
+ 	{
+ 		scale_factor = refState.width / hud_scale.value;
+ 		apply_scale_factor = scale_factor > 1.0f;
+@@ -3179,6 +3257,7 @@ static void GAME_EXPORT CL_FillRGBABlend( int x, int y, int w, int h, int r, int
+ 	b = bound( 0, b, 255 );
+ 	a = bound( 0, a, 255 );
+ 
++	// not scaled by cof_ui_scale, see the note in CL_FillRGBA above
+ 	SPR_AdjustSize( &x_, &y_, &w_, &h_ );
+ 
+ 	ref.dllFuncs.FillRGBA( kRenderTransTexture, x_, y_, w_, h_, r, g, b, a );
+@@ -3961,6 +4040,10 @@ void CL_UnloadProgs( void )
+ {
+ 	if( !clgame.hInstance ) return;
+ 
++	// Cry of Fear in-game UI scaling: the pinned layout size belongs to this
++	// client library's one layout pass and must not outlive it
++	CL_CoF_UIReset();
++
+ 	CL_FreeEdicts();
+ 	CL_FreeTempEnts();
+ 	CL_FreeViewBeams();
+diff --git a/engine/client/vgui/vgui_draw.c b/engine/client/vgui/vgui_draw.c
+index 3b7e13b..315d2e1 100644
+--- a/engine/client/vgui/vgui_draw.c
++++ b/engine/client/vgui/vgui_draw.c
+@@ -253,6 +253,11 @@ static void GAME_EXPORT VGUI_DrawQuad( const vpoint_t *ul, const vpoint_t *lr )
+ 	float w = lr->point[0] - ul->point[0];
+ 	float h = lr->point[1] - ul->point[1];
+ 
++	// Cry of Fear in-game UI scaling: the support library hands us the client's
++	// own layout pixels, this is where they become device pixels. It is applied
++	// before SPR_AdjustSize so a hand-set hud_scale still composes with it
++	CL_CoF_UIScaleRect( &x, &y, &w, &h );
++
+ 	SPR_AdjustSize( &x, &y, &w, &h );
+ 
+ 	if( vgui.enable_texture )
+@@ -276,12 +281,21 @@ static void GAME_EXPORT VGUI_EnableTexture( qboolean enable )
+ 	vgui.enable_texture = enable;
+ }
+ 
++static int GAME_EXPORT VGUI_CofUITransform( float *scale, int *layoutWide, int *layoutTall, int *screenWide, int *screenTall )
++{
++	return CL_CoF_UITransform( scale, layoutWide, layoutTall, screenWide, screenTall ) ? 1 : 0;
++}
++
+ static void GAME_EXPORT VGUI_SetPaintOffset( int x, int y )
+ {
+ 	float fx = x, fy = y, fw = 0.0f, fh = 0.0f;
+ 
+ 	Vector2Set( vgui.paint_offset, x, y );
+ 
++	// the offset is in the same layout pixels VGUI_DrawQuad() subtracts it from,
++	// so it goes through exactly the same scale
++	CL_CoF_UIScaleRect( &fx, &fy, &fw, &fh );
++
+ 	SPR_AdjustSize( &fx, &fy, &fw, &fh );
+ 	ref.dllFuncs.R_Set2DOffset( fx, fy );
+ }
+@@ -298,8 +312,13 @@ static qboolean GAME_EXPORT VGUI_IsInGame( void )
+ 
+ static void GAME_EXPORT VGUI_GetMousePos( int *_x, int *_y )
+ {
+-	float xscale = (float)refState.width / (float)clgame.scrInfo.iWidth;
+-	float yscale = (float)refState.height / (float)clgame.scrInfo.iHeight;
++	// Cry of Fear in-game UI scaling: the exact inverse of the scale
++	// VGUI_DrawQuad() applies, so the cursor lands on the same layout pixel the
++	// panel under it was drawn from. The anchor half of the transform moved the
++	// panels themselves (CofUI_SolvePanel), so it needs no inverse here
++	float cof_scale = CL_CoF_UIScale();
++	float xscale = (float)refState.width / (float)clgame.scrInfo.iWidth * cof_scale;
++	float yscale = (float)refState.height / (float)clgame.scrInfo.iHeight * cof_scale;
+ 	int x, y;
+ 
+ 	Platform_GetMousePos( &x, &y );
+@@ -376,6 +395,7 @@ static const vguiapi_t gEngfuncs =
+ 	NULL, // MouseMove
+ 	NULL, // TextInput
+ 	VGUI_SetPaintOffset,
++	VGUI_CofUITransform,
+ };
+ 
+ qboolean VGui_LoadProgs( HINSTANCE hInstance )
+@@ -440,6 +460,11 @@ void VGui_Startup( int width, int height )
+ 	if( !vgui.initialized )
+ 		return;
+ 
++	// Cry of Fear in-game UI scaling: the root panel has to cover everything the
++	// anchor pass may move, which at the client's first VidInit is exactly the
++	// render size it is called with here
++	CL_CoF_UIRootSize( &width, &height );
++
+ 	height = Q_max( 480, height );
+ 
+ 	if( width <= 640 ) width = 640;
+@@ -678,8 +703,10 @@ void VGui_MouseMove( int x, int y )
+ 
+ 	if( vgui.dllFuncs.MouseMove )
+ 	{
+-		float xscale = (float)refState.width / (float)clgame.scrInfo.iWidth;
+-		float yscale = (float)refState.height / (float)clgame.scrInfo.iHeight;
++		// same inverse as VGUI_GetMousePos() above
++		float cof_scale = CL_CoF_UIScale();
++		float xscale = (float)refState.width / (float)clgame.scrInfo.iWidth * cof_scale;
++		float yscale = (float)refState.height / (float)clgame.scrInfo.iHeight * cof_scale;
+ 		vgui.dllFuncs.MouseMove( x / xscale, y / yscale );
+ 	}
+ }
+diff --git a/engine/vgui_api.h b/engine/vgui_api.h
+index 89133ea..cea4174 100644
+--- a/engine/vgui_api.h
++++ b/engine/vgui_api.h
+@@ -213,5 +213,15 @@ typedef struct  vguiapi_s
+ 
+ 	// called from vgui_support, appended later so older support libraries keep working
+ 	void	(*SetPaintOffset)( int x, int y );	// translates 2D drawing for the everything that's not VGUI, used to simulate GoldSrc behavior which installs matrix in push/popMakeCurrent
++
++	// Cry of Fear in-game UI scaling (cof_ui_scale, milestone 4). Fills the
++	// current transform and returns non-zero while it is active: `scale` is the
++	// layout-pixel to device-pixel factor the engine applies to every VGUI quad,
++	// `layout*` is the screen size the client's frozen panel layout was built
++	// for, `screen*` is the render size now. The support library uses the three
++	// to anchor each top-level client panel to the screen edge it was laid out
++	// against, which is what keeps a magnified HUD in its corner and a magnified
++	// inventory centred. See engine/client/cl_main.c.
++	int	(*CofUITransform)( float *scale, int *layoutWide, int *layoutTall, int *screenWide, int *screenTall );
+ } vguiapi_t;
+ #endif // VGUI_API_H

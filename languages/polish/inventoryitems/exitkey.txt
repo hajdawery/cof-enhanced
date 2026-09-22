@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"exitkey"
+}
+
+
+"nice_name"
+{
+	data	"Klucz do wyjœcia"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/exitkey/640_exitkey_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/exitkey/640_exitkey_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/exitkey.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/exitkey/640_exitkey_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/button5.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

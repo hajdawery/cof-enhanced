@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"card"
+}
+
+
+"nice_name"
+{
+	data	"Karta magnetyczna"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/card/640_card_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/card/640_card_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/card.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/card/640_card_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/lighter.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

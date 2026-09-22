@@ -1,0 +1,44 @@
+"nice_name"
+{
+	data	"FAMAS G2"
+}
+
+"classname"
+{
+	data	"weapon_famas"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/weapons/famas/640_famas_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/weapons/famas/640_famas_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/weapons/famas/640_famas_check.tga"
+}
+
+"ironsight_forward"
+{
+	data	"0.05"
+}
+
+"ironsight_right"
+{
+	data	"-5"
+}
+
+"ironsight_up"
+{
+	data	"2.5"
+}
+
+"ironsight_zoom"
+{
+	data	"50"
+}

@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"backdoorkey"
+}
+
+
+"nice_name"
+{
+	data	"Klucz do tylnych drzwi"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/backdoorkey/640_backdoorkey_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/backdoorkey/640_backdoorkey_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/nyckel7.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/backdoorkey/640_backdoorkey_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/button5.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

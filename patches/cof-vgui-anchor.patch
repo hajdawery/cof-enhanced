@@ -1,0 +1,590 @@
+diff --git a/controls/edit.cpp b/controls/edit.cpp
+index bad677d..27886e9 100644
+--- a/controls/edit.cpp
++++ b/controls/edit.cpp
+@@ -322,7 +322,8 @@ void EditPanel::paint()
+ 			if( line == cursorPos[1] && col == cursorPos[0] )
+ 				caretX = x;
+ 
+-			f->getCharABCwide( ch, a, b, c );
++			// cast: see the note in Font::getTextSize()
++			f->getCharABCwide( (unsigned char)ch, a, b, c );
+ 			drawPrintChar( x, y, ch );
+ 			x += a + b + c;
+ 		}
+@@ -430,7 +431,8 @@ int EditPanel::spatialCharOffsetBetweenTwoLines( Dar<char> *src, Dar<char> *dst,
+ 	{
+ 		int a, b, c;
+ 
+-		f->getCharABCwide( (*src)[i], a, b, c );
++		// cast: see the note in Font::getTextSize()
++		f->getCharABCwide( (unsigned char)(*src)[i], a, b, c );
+ 		pixelX += a + b + c;
+ 	}
+ 
+@@ -440,7 +442,8 @@ int EditPanel::spatialCharOffsetBetweenTwoLines( Dar<char> *src, Dar<char> *dst,
+ 	{
+ 		int a, b, c;
+ 
+-		f->getCharABCwide( (*dst)[col], a, b, c );
++		// cast: see the note in Font::getTextSize()
++		f->getCharABCwide( (unsigned char)(*dst)[col], a, b, c );
+ 		cur += a + b + c;
+ 		col++;
+ 	}
+diff --git a/controls/text.cpp b/controls/text.cpp
+index c1dab1b..a383b30 100644
+--- a/controls/text.cpp
++++ b/controls/text.cpp
+@@ -306,7 +306,9 @@ int TextEntry::cursorToPixelSpace( int at )
+ 		int a, b, c;
+ 		if( hideText )
+ 			f->getCharABCwide( '*', a, b, c );
+-		else f->getCharABCwide( line[i], a, b, c );
++		// cast: see the note in Font::getTextSize(), a signed char would index
++		// a 256-entry width table with a negative number
++		else f->getCharABCwide( (unsigned char)line[i], a, b, c );
+ 
+ 		x += a + b + c;
+ 	}
+diff --git a/font.cpp b/font.cpp
+index 02974c1..0ecdbe1 100644
+--- a/font.cpp
++++ b/font.cpp
+@@ -243,7 +243,11 @@ void Font::getTextSize( const char *str, int &wide, int &tall )
+ 		}
+ 
+ 		int a, b, c;
+-		getCharABCwide( ch, a, b, c );
++		// the cast is load bearing: a plain char sign-extends 0x80..0xFF to a
++		// negative int, and a font whose getCharABCwide() indexes a 256-entry
++		// table without masking would then read outside it. Harmless only as
++		// long as every font masks, which an engine-supplied one need not
++		getCharABCwide( (unsigned char)ch, a, b, c );
+ 		xx += a + b + c;
+ 
+ 		if( xx > wide )
+diff --git a/image.cpp b/image.cpp
+index 0f784d8..e0ec0a0 100644
+--- a/image.cpp
++++ b/image.cpp
+@@ -506,7 +506,10 @@ void TextImage::paint( Panel *p )
+ 	int x = 0, y = 0, tall = f->getTall();
+ 	for( int i = 0; ; i++ )
+ 	{
+-		int ch = text[i];
++		// the cast is load bearing: text is char*, so a byte in 0x80..0xFF
++		// would sign-extend to a negative int and index a 256-entry width table
++		// out of bounds in any font that does not mask. See Font::getTextSize()
++		int ch = (unsigned char)text[i];
+ 
+ 		int a, b, c;
+ 		f->getCharABCwide( ch, a, b, c );
+@@ -527,7 +530,7 @@ void TextImage::paint( Panel *p )
+ 
+ 		if( ch == ' ' )
+ 		{
+-			int ch2 = text[i + 1];
++			int ch2 = (unsigned char)text[i + 1];
+ 
+ 			f->getCharABCwide( ' ', a, b, c );
+ 
+@@ -547,7 +550,7 @@ void TextImage::paint( Panel *p )
+ 		int word;
+ 		for( word = 1; ; word++ )
+ 		{
+-			int ch2 = text[i + word];
++			int ch2 = (unsigned char)text[i + word];
+ 
+ 			if( ch2 == '\0' || ch2 == '\n' || ch2 == '\r' || ch2 == ' ' )
+ 				break;
+@@ -564,7 +567,7 @@ void TextImage::paint( Panel *p )
+ 
+ 		for( int j = 0; j < word; j++ )
+ 		{
+-			ch = text[i + j];
++			ch = (unsigned char)text[i + j];
+ 
+ 			f->getCharABCwide( ch, a, b, c );
+ 			drawPrintChar( x, y, ch );
+@@ -629,7 +632,7 @@ void TextImage::getTextSizeWrapped( int &wide, int &tall )
+ 
+ 	for( int i = 0; ; i++ )
+ 	{
+-		int ch = text[i];
++		int ch = (unsigned char)text[i];
+ 
+ 		int a, b, c;
+ 		f->getCharABCwide( ch, a, b, c );
+@@ -650,7 +653,7 @@ void TextImage::getTextSizeWrapped( int &wide, int &tall )
+ 
+ 		if( ch == ' ' )
+ 		{
+-			int ch2 = text[i + 1];
++			int ch2 = (unsigned char)text[i + 1];
+ 
+ 			f->getCharABCwide( ' ', a, b, c );
+ 
+@@ -670,7 +673,7 @@ void TextImage::getTextSizeWrapped( int &wide, int &tall )
+ 		int word;
+ 		for( word = 1; ; word++ )
+ 		{
+-			int ch2 = text[i + word];
++			int ch2 = (unsigned char)text[i + word];
+ 
+ 			if( ch2 == '\0' || ch2 == '\n' || ch2 == '\r' || ch2 == ' ' )
+ 				break;
+@@ -687,7 +690,7 @@ void TextImage::getTextSizeWrapped( int &wide, int &tall )
+ 
+ 		for( int j = 0; j < word; j++ )
+ 		{
+-			ch = text[i + j];
++			ch = (unsigned char)text[i + j];
+ 
+ 			f->getCharABCwide( ch, a, b, c );
+ 
+diff --git a/panel.cpp b/panel.cpp
+index ebf1eba..b009d7b 100644
+--- a/panel.cpp
++++ b/panel.cpp
+@@ -712,6 +712,33 @@ void Panel::drawTexturedRect( int x0, int y0, int x1, int y1 )
+ 	surfaceBase->drawTexturedRect( x0, y0, x1, y1 );
+ }
+ 
++int *vgui::CofPanelAccess::screenOrigin( Panel *panel )
++{
++	return panel->screenOrigin;
++}
++
++int *vgui::CofPanelAccess::clipRect( Panel *panel )
++{
++	return panel->clipRect;
++}
++
++const int *vgui::CofPanelAccess::size( Panel *panel )
++{
++	return panel->size;
++}
++
++vgui::Panel *vgui::CofPanelAccess::parent( Panel *panel )
++{
++	return panel->parent;
++}
++
++static vgui::PanelSolveFn g_panelSolveHook = nullptr;
++
++void vgui::Panel_SetSolveHook( PanelSolveFn fn )
++{
++	g_panelSolveHook = fn;
++}
++
+ void Panel::solve()
+ {
+ 	screenOrigin[0] = origin[0];
+@@ -741,6 +768,10 @@ void Panel::solve()
+ 		clipRect[2] = Q_min( clipRect[2], parent->clipRect[2] );
+ 		clipRect[3] = Q_min( clipRect[3], parent->clipRect[3] );
+ 	}
++
++	// Cry of Fear in-game UI scaling, see Panel_SetSolveHook()
++	if( g_panelSolveHook )
++		g_panelSolveHook( this );
+ }
+ 
+ void Panel::paintTraverse( bool repaint )
+diff --git a/panel.h b/panel.h
+index 7d28928..f1c62b3 100644
+--- a/panel.h
++++ b/panel.h
+@@ -23,11 +23,24 @@ class FocusChangeSignal;
+ class LayoutInfo;
+ class FocusNavGroup;
+ 
++// Cry of Fear in-game UI scaling (milestone 4): the anchor pass in the platform
++// layer works on solved coordinates directly. Panel's size is ABI-fixed - the
++// game library allocates its own subclasses - so the class carries no state of
++// its own for this and the pass reaches the solved members through here.
++struct CofPanelAccess
++{
++	static int *screenOrigin( Panel *panel );
++	static int *clipRect( Panel *panel );
++	static const int *size( Panel *panel );
++	static Panel *parent( Panel *panel );
++};
++
+ class CLASSEXPORT Panel
+ {
+ 	friend class App;
+ 	friend class Image;
+ 	friend class SurfaceBase;
++	friend struct CofPanelAccess;
+ public:
+ 	Panel( int x, int y, int w, int h );
+ 	Panel();
+@@ -204,6 +217,18 @@ private:
+ };
+ CHECK_STRUCT_SIZE( Panel, 188, 264, 264 );
+ 
++// Cry of Fear in-game UI scaling (milestone 4). The platform layer may install
++// a hook that runs at the end of Panel::solve(), after screenOrigin and
++// clipRect have been computed and before any child is solved, and may move the
++// panel so it stays anchored to the screen edge it was laid out against.
++// Because solve() is the single place absolute coordinates are produced, and
++// both painting (getAbsExtents) and hit testing (screenToLocal) read them, the
++// drawn position and the mouse target can never disagree.
++// Panel's size is ABI-fixed, so the hook works on the public members directly
++// instead of the class carrying any new state.
++typedef void ( *PanelSolveFn )( Panel *panel );
++void Panel_SetSolveHook( PanelSolveFn fn );
++
+ class CLASSEXPORT FocusNavGroup
+ {
+ 	friend class Panel;
+diff --git a/platform/xash3d-fwgs/app.cpp b/platform/xash3d-fwgs/app.cpp
+index e374739..8709ec7 100644
+--- a/platform/xash3d-fwgs/app.cpp
++++ b/platform/xash3d-fwgs/app.cpp
+@@ -1,6 +1,7 @@
+ // SPDX-License-Identifier: BSD-3-Clause
+ // Copyright (C) 2024-2026 Alibek Omarov
+ 
++#include "vgui_internal.h"
+ #include "support.h"
+ 
+ using namespace vgui;
+@@ -14,6 +15,8 @@ static XashApp staticApp;
+ 
+ static void XashStartup( int width, int height )
+ {
++	CofUI_Refresh();
++
+ 	if( g_rootPanel )
+ 	{
+ 		g_rootPanel->setSize( width, height );
+@@ -62,8 +65,24 @@ static void XashPaint( void )
+ 
+ 	int width, height;
+ 
++	// Cry of Fear in-game UI scaling: re-read the transform before the tree is
++	// solved, and keep the root large enough to hold everything the anchor pass
++	// may move. It only ever grows, so the engine's own initial size - which is
++	// what the client read when it laid itself out - is never taken away
++	CofUI_Refresh();
++
+ 	g_rootPanel->getSize( width, height );
+ 
++	if( CofUI_RootSize( width, height ))
++	{
++		int currentWide, currentTall;
++
++		g_rootPanel->getSize( currentWide, currentTall );
++		width = Q_max( width, currentWide );
++		height = Q_max( height, currentTall );
++		g_rootPanel->setSize( width, height );
++	}
++
+ 	g_scissor.enable();
+ 
+ 	staticApp.externalTick();
+@@ -95,4 +114,8 @@ extern "C" void EXPORT VGUI_SUPPORT_INIT( vguiapi_t *api )
+ 	api->Key = XashKey;
+ 	api->MouseMove = XashMouseMove;
+ 	api->TextInput = XashTextInput;
++
++	// Cry of Fear in-game UI scaling: anchor each top-level client surface as
++	// the panel tree is solved (cofscale.cpp)
++	Panel_SetSolveHook( CofUI_SolvePanel );
+ }
+diff --git a/platform/xash3d-fwgs/support.h b/platform/xash3d-fwgs/support.h
+index c79ac76..1f70ee6 100644
+--- a/platform/xash3d-fwgs/support.h
++++ b/platform/xash3d-fwgs/support.h
+@@ -44,6 +44,11 @@ private:
+ 
+ extern Scissor g_scissor;
+ 
++// Cry of Fear in-game UI scaling (cofscale.cpp)
++void CofUI_Refresh( void );
++bool CofUI_RootSize( int &wide, int &tall );
++void CofUI_SolvePanel( Panel *panel );
++
+ // input entry points the engine calls (input.cpp)
+ void XashMouse( VGUI_MouseAction action, int code );
+ void XashKey( VGUI_KeyAction action, VGUI_KeyCode code );
+diff --git a/platform/xash3d-fwgs/cofscale.cpp b/platform/xash3d-fwgs/cofscale.cpp
+new file mode 100644
+--- /dev/null
++++ b/platform/xash3d-fwgs/cofscale.cpp
+@@ -0,0 +1,272 @@
++// SPDX-License-Identifier: BSD-3-Clause
++// Cry of Fear in-game UI scaling (cof_ui_scale, unified UI milestone 4)
++
++#include "vgui_internal.h"
++#include "support.h"
++
++using namespace vgui;
++
++/*
++The engine scales every VGUI quad from the client's layout pixels to device
++pixels (VGUI_DrawQuad in engine/client/vgui/vgui_draw.c) and applies the exact
++inverse to the cursor. That alone is not enough: a pure scale about the origin
++walks the centred inventory panel off the right edge of the screen, and a pure
++scale about the screen centre walks the bottom-left HUD bars off the bottom.
++
++So this file supplies the other half. Each top-level client UI surface is
++anchored, per axis, to whichever screen edge it was laid out against, and the
++offset that implements that anchor is written into the panel's solved screen
++origin - which is the one place absolute coordinates come from, so painting and
++hit testing move together and cannot disagree.
++
++	device = ( layout + offset ) * scale
++
++	offset, per axis, for a surface laid out in a `layout` wide screen that is
++	now being shown on a `screen` wide one at `scale`:
++
++	  anchored low     (left / top)        0
++	  anchored centre                      screen / ( 2 * scale ) - layout / 2
++	  anchored high    (right / bottom)    screen / scale - layout
++
++An axis is centred when the surface sits (nearly) symmetrically in the layout,
++otherwise it is anchored to the nearer edge. The surface's whole subtree
++inherits the offset for free, because Panel::solve() adds the parent's screen
++origin to its own.
++
++Which panel is a "surface": the outermost one, below the root, that does not
++cover the whole layout screen. Everything above it is a container - see the
++measured tree above CofAnchorOwner() below.
++
++Note that the offsets are recomputed from the *current* render size against the
++*pinned* layout size on every solve. That is what fixes the frozen-layout
++shift: the client lays its panels out once, at the first VidInit, and a later
++video mode change would otherwise leave them at the old screen centre.
++*/
++
++namespace
++{
++
++struct CofTransform
++{
++	bool	active;
++	float	scale;
++	int	layout[2];
++	int	screen[2];
++};
++
++CofTransform g_cof = { false, 1.0f, { 0, 0 }, { 0, 0 } };
++
++enum CofAnchor
++{
++	COF_ANCHOR_LOW = 0,	// left or top
++	COF_ANCHOR_CENTER,
++	COF_ANCHOR_HIGH		// right or bottom
++};
++
++int CofRound( float v )
++{
++	return (int)( v >= 0.0f ? v + 0.5f : v - 0.5f );
++}
++
++bool CofIsFullScreen( Panel *p )
++{
++	const int *size = CofPanelAccess::size( p );
++
++	return size[0] >= g_cof.layout[0] && size[1] >= g_cof.layout[1];
++}
++
++// how many parents there are between this panel and the root
++int CofDepth( Panel *p )
++{
++	int depth = 0;
++
++	for( Panel *q = p; CofPanelAccess::parent( q ); q = CofPanelAccess::parent( q ))
++	{
++		if( ++depth > 64 ) // a cycle would hang the paint traversal anyway
++			break;
++	}
++
++	return depth;
++}
++
++Panel *CofAncestor( Panel *p, int depth, int want )
++{
++	for( int i = depth; i > want && p; i-- )
++		p = CofPanelAccess::parent( p );
++
++	return p;
++}
++
++// The panel that owns the anchor decision for p's subtree, or null for none:
++// walking down from the root, the outermost panel that does NOT cover the whole
++// layout screen.
++//
++// Measured tree, Cry of Fear at 2560x1440 (evidence/tree2-2560-best.txt):
++//
++//   d0 root                      2560x1440
++//    d1 client viewport          2560x1440
++//     d2 (overlay container)     2560x1440
++//     d2 HUD container           2560x1440
++//      d3 health bar group         32x160  at   32,1280   -> left + bottom
++//      d3 stamina bar group        32x160  at   64,1280   -> left + bottom
++//      d3 message strip          2560x64   at    0,720    -> centre + centre
++//      d3 letterbox strips       2560x75   at    0,-75 / 0,1440
++//     d2 inventory container     2560x1440
++//      d3 backdrop               2560x1440           (full screen, no anchor)
++//      d3 inventory outer frame   800x600  at  880,420   -> centre + centre
++//      d3 inventory inner frame   748x480  at  906,480   -> centre + centre
++//       d4 slots, icons, labels                          (inherit the centre)
++//
++// Every full-screen panel here is a container, and every real surface hangs off
++// one. Stopping the descent any earlier - at a fixed depth, say - gives the HUD
++// bars the inventory's centre anchor and walks them off the bottom left corner.
++Panel *CofAnchorOwner( Panel *p, int depth )
++{
++	for( int d = 1; d <= depth; d++ )
++	{
++		Panel *a = CofAncestor( p, depth, d );
++
++		if( a && !CofIsFullScreen( a ))
++			return a;
++	}
++
++	return nullptr;
++}
++
++CofAnchor CofPickAnchor( int low, int high, int layoutSize )
++{
++	// generous, because "centred" in a hand-placed 2012 layout means "within a
++	// few pixels": the client's message strip sits 32 px below the exact centre
++	int	tolerance = Q_max( 8, layoutSize / 20 ); // 5 percent
++	int	diff = low - high;
++
++	if( diff < 0 )
++		diff = -diff;
++
++	if( diff <= tolerance )
++		return COF_ANCHOR_CENTER;
++
++	return low < high ? COF_ANCHOR_LOW : COF_ANCHOR_HIGH;
++}
++
++int CofAnchorOffset( CofAnchor anchor, int layoutSize, int screenSize )
++{
++	switch( anchor )
++	{
++	case COF_ANCHOR_CENTER:
++		return CofRound(( screenSize / ( 2.0f * g_cof.scale )) - layoutSize * 0.5f );
++	case COF_ANCHOR_HIGH:
++		return CofRound(( screenSize / g_cof.scale ) - layoutSize );
++	default:
++		return 0;
++	}
++}
++
++} // anonymous namespace
++
++/*
++================
++CofUI_Refresh
++
++Re-read the transform from the engine. Called once per painted frame, before
++the panel tree is solved, and whenever the surface is (re)started.
++================
++*/
++void vgui::CofUI_Refresh( void )
++{
++	float	scale = 1.0f;
++	int	lw = 0, lh = 0, sw = 0, sh = 0;
++
++	g_cof.active = false;
++
++	if( !g_engine || !g_engine->CofUITransform )
++		return;
++
++	if( !g_engine->CofUITransform( &scale, &lw, &lh, &sw, &sh ))
++		return;
++
++	if( scale <= 0.0f || lw <= 0 || lh <= 0 || sw <= 0 || sh <= 0 )
++		return;
++
++	g_cof.active = true;
++	g_cof.scale = scale;
++	g_cof.layout[0] = lw;
++	g_cof.layout[1] = lh;
++	g_cof.screen[0] = sw;
++	g_cof.screen[1] = sh;
++}
++
++/*
++================
++CofUI_RootSize
++
++How big the root panel has to be for nothing the anchor pass moved to fall
++outside it, and for the cursor to stay routable across the whole screen: the
++client's own layout, or the part of the screen one layout pixel covers,
++whichever is larger. Returns false when the transform is inactive.
++================
++*/
++bool vgui::CofUI_RootSize( int &wide, int &tall )
++{
++	if( !g_cof.active )
++		return false;
++
++	wide = Q_max( g_cof.layout[0], (int)( g_cof.screen[0] / g_cof.scale + 0.999f ));
++	tall = Q_max( g_cof.layout[1], (int)( g_cof.screen[1] / g_cof.scale + 0.999f ));
++
++	return true;
++}
++
++/*
++================
++CofUI_SolvePanel
++
++Panel::solve() hook: anchor the panel if it owns an anchor decision, then
++re-derive its clip rectangle from the position it ended up at.
++================
++*/
++void vgui::CofUI_SolvePanel( Panel *p )
++{
++	if( !g_cof.active || !p )
++		return;
++
++	int		depth = CofDepth( p );
++	int		*origin = CofPanelAccess::screenOrigin( p );
++	int		*clip = CofPanelAccess::clipRect( p );
++	const int	*size = CofPanelAccess::size( p );
++	Panel		*parent = CofPanelAccess::parent( p );
++	if( CofAnchorOwner( p, depth ) == p )
++	{
++		CofAnchor ax = CofPickAnchor( origin[0],
++			g_cof.layout[0] - ( origin[0] + size[0] ), g_cof.layout[0] );
++		CofAnchor ay = CofPickAnchor( origin[1],
++			g_cof.layout[1] - ( origin[1] + size[1] ), g_cof.layout[1] );
++
++		origin[0] += CofAnchorOffset( ax, g_cof.layout[0], g_cof.screen[0] );
++		origin[1] += CofAnchorOffset( ay, g_cof.layout[1], g_cof.screen[1] );
++	}
++
++	// a panel the client laid out to cover the whole screen must not clip a
++	// child the anchor pass moved outside that old rectangle - the HUD bars
++	// after a mode change to a taller screen are exactly that case
++	if( CofIsFullScreen( p ) && parent )
++	{
++		memcpy( clip, CofPanelAccess::clipRect( parent ), sizeof( int ) * 4 );
++		return;
++	}
++
++	clip[0] = origin[0];
++	clip[1] = origin[1];
++	clip[2] = origin[0] + size[0];
++	clip[3] = origin[1] + size[1];
++
++	if( parent )
++	{
++		const int *pclip = CofPanelAccess::clipRect( parent );
++
++		clip[0] = Q_max( clip[0], pclip[0] );
++		clip[1] = Q_max( clip[1], pclip[1] );
++		clip[2] = Q_min( clip[2], pclip[2] );
++		clip[3] = Q_min( clip[3], pclip[3] );
++	}
++}

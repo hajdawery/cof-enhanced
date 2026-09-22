@@ -1,0 +1,44 @@
+"map_name"
+{
+	data	"scissors3"
+}
+
+"nice_name"
+{
+	data	"No¿yczki"
+}
+
+"classname"
+{
+	data	"item_key"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/scissors/640_scissors_slot.tga"
+}
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/scissors/640_scissors_slot.tga"
+}
+
+"3dmdl"
+{
+	data	"models/items/scissors3.mdl"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/items/scissors/640_scissors_check.tga"
+
+}
+"pickup_sound"
+{
+	data	"buttons/lighterpickup.wav"
+}
+
+"droppable"
+{
+	data	"1"
+}

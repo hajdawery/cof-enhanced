@@ -1,0 +1,52 @@
+"map_name"
+{
+	data	"screwdriver"
+}
+
+
+"nice_name"
+{
+	data	"œrubokrêt"
+}
+
+
+"classname"
+{
+	data	"item_key"
+}
+
+
+"inventory_picture"
+{
+	data	"gfx/vgui/items/screwdriver/640_screwdriver_slot.tga"
+}
+
+
+"quick_picture"
+{
+	data	"gfx/vgui/items/screwdriver/640_screwdriver_slot.tga"
+}
+
+
+"3dmdl"
+{
+	data	"models/items/screwdriver.mdl"
+}
+
+
+"check_picture"
+{
+	data	"gfx/vgui/items/screwdriver/640_screwdriver_check.tga"
+}
+
+
+"pickup_sound"
+{
+	data	"buttons/lighterpickup.wav"
+}
+
+
+"droppable"
+{
+	data	"1"
+}

@@ -1,0 +1,234 @@
+suicide
+{
+	line1		"Naciœnij *, aby oprzeæ siê samobójczemu wp³ywowi!"
+	nobutton	"attack button"
+	cfgbutton	"+attack"
+}
+
+sprint
+{
+	line1		"Przytrzymaj *, aby biec. Niebieski pasek na interfejsie to wytrzyma³oœæ."
+	line2		"Bieganie wyczerpuje wytrzyma³oœæ, wiêc u¿ywaj j¹ oszczêdnie."
+	line3		"Gdy nie bêdziesz biegaæ ani skakaæ, bêdzie siê regenerowaæ."
+	line4		"Kucaj¹c regenerujesz j¹ szybciej."
+	nobutton	"sprint button"
+	cfgbutton	"+sprint"
+}
+
+nightvision
+{
+	line1		"Naciœnij *, aby w³¹czyæ/wy³¹czyæ noktowizor."
+	line2		"Noktowizor nie wymaga baterii."
+	nobutton	"flashlight button"
+	cfgbutton	"flashlight"
+}
+
+inventory
+{
+	line1		"Naciœnij *, aby uzyskaæ dostêp do ekwipunku."
+	line2		"St¹d mo¿esz u¿ywaæ, upuszczaæ, wyposa¿aæ lub ³¹czyæ przedmioty."
+	line3		"Niektóre przedmioty mo¿na ³¹czyæ z broni¹. Podpowiedzi poka¿¹ siê po najechaniu myszk¹."
+	nobutton	"inventory button"
+	cfgbutton	"+inventory"
+}
+
+quickslots
+{
+	line1		"W szybkich wyborach mo¿esz umieœciæ do 3 przedmiotów."
+	line2		"Jeœli naciœniesz *, wyposa¿ysz broñ z pierwszego szybkiego wyboru."
+	line3		"Jest to szybsze ni¿ wyposa¿enie za pomoc¹ ekwipunku i mo¿e uratowaæ ci ¿ycie."
+	nobutton	"quickslot button"
+	cfgbutton	"quicksel 1"
+}
+
+melee
+{
+	line1		"Naciœnij *, aby wykonaæ atak wrêcz."
+	line2		"Spowoduje to zadanie niewielkich obra¿eñ potworom znajduj¹cym siê przed tob¹."
+	line3		"U¿yj go, aby odepchn¹æ wrogów, gdy jesteœ otoczony lub skoñczy³a ci siê amunicja."
+	nobutton	"attack2 button"
+	cfgbutton	"+attack2"
+}
+
+ladders
+{
+	line1		"Naciœnij *, aby wspi¹æ siê po drabinie. Po wejœciu u¿yj klawiszy kierunkowych."
+	nobutton	"use button"
+	cfgbutton	"+use"
+}
+
+dodge
+{
+	line1		"Naciœnij dwukrotnie klawisz kierunkowy lub przytrzymaj *, aby wykonaæ unik."
+	line2		"Jest to niezwykle przydatne do unikania ataków i mo¿e uratowaæ ci ¿ycie."
+	line3		"Uniki wymagaj¹ wytrzyma³oœci, wiêc u¿ywaj jej m¹drze."
+	nobutton	"dodge button"
+	cfgbutton	"+dodge"
+}
+
+mobilelight
+{
+	line1		"Telefon mo¿e s³u¿yæ jako Ÿród³o œwiat³a do poruszania siê po ciemnych obszarach."
+	line2		"Naciœnij *, aby aktywowaæ latarkê. Latarka nie wymaga baterii."
+	line3		"Jeœli schowasz telefon z w³¹czon¹ latark¹, s³abe œwiat³o bêdzie przeœwitywaæ."
+	nobutton	"attack1 button"
+	cfgbutton	"+attack"
+}
+
+useitems
+{
+	line1		"Aby u¿yæ przedmiotu, otwórz ekwipunek za pomoc¹ *."
+	line2		"W tym miejscu kliknij przycisk u¿ycia."
+	line3		"Pamiêtaj, aby sprawdziæ przedmiot pod k¹tem wskazówek, jeœli nie masz pewnoœci, gdzie go u¿yæ."
+	nobutton	"inventory button"
+	cfgbutton	"+inventory"
+}
+
+usemobilephone
+{
+	line1		"Aby zadzwoniæ pod numer za pomoc¹ telefonu, naciœnij *."
+	line2		"Z tego miejsca mo¿esz wybraæ cyfry lub wpisywaæ je za pomoc¹ klawiatury."
+	line3		"Po wprowadzeniu numeru naciœnij przycisk wysy³ania. Niektóre numery uruchamiaj¹ zdarzenia."
+	nobutton	"weapon toggle button"
+	cfgbutton	"weapontoggle"
+}
+
+save
+{
+	line1		"Grê mo¿na zapisaæ w dowolnym miejscu za pomoc¹ magnetofonu."
+	line2		"Dozwolone jest zapisanie do 5 osobnych zapisów dla wielu rozgrywek."
+	line3		"W trybie Koszmar zapisywanie wymaga taœmy. Taœma mo¿e byæ u¿yta tylko 5 razy."
+}
+
+ironsights
+{
+	line1		"Naciœnij *, aby prze³¹czaæ celowniki."
+	line2		"Celowniki pozwalaj¹ na precyzyjne celowanie kosztem ograniczonych ruchów."
+	nobutton	"ironsights button"
+	cfgbutton	"+attack3"
+}
+
+weaponfunctionglock
+{
+	line1		"Naciœnij *, aby w³¹czyæ/wy³¹czyæ latarkê taktyczn¹."
+	line2		"Latarka taktyczna nie wymaga baterii."
+	nobutton	"weapon function button"
+	cfgbutton	"weapontoggle"
+}
+
+weaponfunctionm16
+{
+	line1		"Naciœnij *, aby prze³¹czaæ miêdzy pojedynczym strza³em a seri¹."
+	line2		"Seria strza³ów wystrzeli 3 kolejne pociski w bardzo szybkim tempie."
+	line3		"Seria strza³ów ma swoj¹ cenê w postaci trudniejszej kontroli broni."
+	nobutton	"weapon function button"
+	cfgbutton	"weapontoggle"
+}
+	
+crouch
+{
+	line1		"Przytrzymaj *, aby kucn¹æ. Kucaj¹c mo¿na poruszaæ siê w ciasnych miejscach."
+	line2		"Kucanie pomaga równie¿ szybciej odzyskaæ wytrzyma³oœæ."
+	nobutton 	"crouch button"
+	cfgbutton	"+duck"
+}
+
+objectives
+{
+	line1		"Naciœnij *, aby wyœwietliæ aktualny cel."
+	nobutton 	"objectives button"
+	cfgbutton	"+objectives"
+}
+
+objective_a
+{
+	line1		"ZnajdŸ kod do k³ódki."
+}
+
+objective_b
+{
+	line1		"Pomó¿ osobie na czwartym piêtrze."
+}
+
+objective_c
+{
+	line1		"Dotrzyj do piwnicy."
+}
+
+objective_d
+{
+	line1		"ZnajdŸ odtwarzacz wideo."
+}
+
+objective_e
+{
+	line1		"Ucieknij z apartamentowca wind¹."
+}
+
+objective_f
+{
+	line1		"Dotrzyj do placu Hanssona przez@Saxon Avenue."
+}
+
+objective_g
+{
+	line1		"Pod¹¿aj za doktorem."
+}
+
+objective_h
+{
+	line1		"Odzyskaj 2 bezpieczniki na Hansson Square.@Jeden z nich znajduje siê w Saxon Avenue."
+}
+
+objective_i
+{
+	line1		"Przynieœ oba bezpieczniki z niebieskiej@linii, aby uciec poci¹giem."
+}
+
+objective_j
+{
+	line1		"ZnajdŸ wyjœcie z lasu."
+}
+
+objective_k
+{
+	line1		"Otwórz bramê blokuj¹c¹ schody.@Potrzebne zasilanie?"
+}
+
+objective_l
+{
+	line1		"ZnajdŸ doktora."
+}
+
+objective_m
+{
+	line1		"IdŸ na strych i sprawdŸ, czy jest tam doktor."
+}
+
+objective_n
+{
+	line1		"Ucieknij ze szpitala psychiatrycznego."
+}
+
+objective_o
+{
+	line1		"ZnajdŸ drogê do domu."
+}
+objective_p
+{
+	line1		"Przenieœ bezpiecznik na Saxon Avenue."
+}
+
+objective_q
+{
+	line1		"ZnajdŸ numer telefonu."
+}
+
+// Post Steam release stuff
+weaponfunctionsniperbreathe
+{
+	line1		"Naciœnij *, aby wstrzymaæ oddech by ustabilizowaæ celnoœæ."
+	line2		"Wymaga to wytrzyma³oœci."
+	nobutton	"sprint button"
+	cfgbutton	"+sprint"
+}

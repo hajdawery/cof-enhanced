@@ -1,0 +1,19 @@
+"nice_name"
+{
+	data	"Amunicja do P345"
+}
+
+"classname"
+{
+	data	"ammo_p345"
+}
+
+"inventory_picture"
+{
+	data	"gfx/vgui/ammo/p345_slot.tga"
+}
+
+"check_picture"
+{
+	data	"gfx/vgui/ammo/p345_check.tga"
+}
