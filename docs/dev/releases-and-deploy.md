@@ -22,10 +22,11 @@ deploy failed its hash check. Since then:
    changes what is deployed updates the script's hashes in **one** edit, and
    only one worker owns that edit at a time.
 
-Staged so far (2026-09-22): `m4`, `m4-fonts`, `m4b`, `m4c`, `m5`, `m5a`, `fov`,
-`fovmenu`, `m5b`, `lang`, `cheats`, `m6`, `coop`, `lang2`, `fix-ads-tape`
-(all `-20260922`). The deploy script points at `m6`; `coop`, `lang2` and
-`fix-ads-tape` are staged but not deployed, pending one combined m7 build.
+Staged so far: `m4`, `m4-fonts`, `m4b`, `m4c`, `m5`, `m5a`, `fov`,
+`fovmenu`, `m5b`, `lang`, `cheats`, `m6`, `coop`, `lang2`, `fix-ads-tape`,
+`lang3` (all `-20260922`) and `m7-20260923`, the first build of the complete
+[patch stack](patch-stack.md) in one run (it folds in `coop`, `lang2`,
+`fix-ads-tape` and `lang3`). The deploy script points at `m7`.
 
 ## The deploy script
 
@@ -35,17 +36,18 @@ hash-pinned payload into the runtime and keeps a backup:
 * files: `xash.dll`, `vgui.dll`, `ref_gl.dll`, `cryoffear\cl_dlls\menu.dll`
   (each with its PDB), the Inter TTFs and `OFL.txt` under
   `cryoffear\gfx\fonts\`, the five atlases under `cryoffear\fonts\`,
-  `cryoffear\resource\cryoffear_english.txt`, `cryoffear\gfx\shell\kb_def.lst`;
-* folders: each language pack, `languages\<code>` -> `cryoffear\languages\<code>`,
-  pinned by its `MANIFEST.tsv` hash and file count, checked file by file before
-  and after the copy, refusing junctions;
-* `-Rollback` restores the backup and removes packs that were not there before.
+  `cryoffear\resource\cryoffear_english.txt`, `cryoffear\gfx\shell\kb_def.lst`,
+  and (since m7) `OFL.txt` beside the atlases under `cryoffear\fonts\`;
+* folders: all seven language packs, `languages\<code>` -> `cryoffear\languages\<code>`,
+  each pinned by its `MANIFEST.tsv` hash and file count, checked file by file
+  before and after the copy, refusing junctions;
+* `-Rollback` restores the backup, removes files and packs that were not there
+  before, and puts back a pack that was (since m7 a deploy also drops a stale
+  backup copy of a file it finds absent, so rollback removes that file instead
+  of restoring an older deploy's copy).
 
-Known gaps, for whoever edits it next: it does not copy
-`gamedata\cryoffear\fonts\OFL.txt` (the OFL copy beside the atlases), it still
-lists only the Polish pack (the six minimal packs are new), and its pinned
-Polish `MANIFEST.tsv` hash is stale since the lang2 round, so it refuses to run
-until the m7 integration updates it (`stage1\releases\lang2-20260922\DEPLOY-NOTES.md`).
+The Polish pack (1.2.0, entity patches and model textures) and the engine go
+together: an older engine ignores `.entpatch` files and `models/` textures.
 
 The base overlay that the UI deploys sit on (launcher, `SDL2.dll`,
 `filesystem_stdio.dll`, `cryoffear\gameinfo.txt`,

@@ -37,7 +37,7 @@ off live with its cvar, which then reproduces the stock path in the same binary.
 | 17 | `cof-text-autoscale` | E | `cof_text_autoscale`, `cof_text_height_pct`, `cof_text_font` | [text autoscale](cof-text-autoscale.md) |
 | 18 | `cof-mp3-stop-on-map` | E | `cof_mp3_stop_on_map` | [MP3 stop](cof-mp3-stop-on-map.md) |
 | 19 | `cof-sky-reset-per-map` | E | `cof_sky_reset_per_map`, `cof_default_skyname` | [sky reset](cof-sky-reset-per-map.md) |
-| 20 | `cof-cofenhanced-version` | E | `cof_version` | [build stamp](cof-cofenhanced-version.md) |
+| 20 | `cof-cofenhanced-version` | E | build stamp `cofenhanced <version> (<milestone>, <commit>)`, top-right corner (m7) | [build stamp](cof-cofenhanced-version.md) |
 | 21 | `cof-ui-scale` | E | `cof_ui_scale`, `cof_ui_scale_user`, `cof_ui_scale_sprites`, `cof_hud_text_height_pct` | [UI scaling](../design/ui-scaling.md) |
 | 22 | `cof-vgui-anchor` | V | - | [UI scaling](../design/ui-scaling.md) |
 | 23 | `cof-vgui-inter-fonts` | E + V | `cof_ui_inter_fonts`, `cof_text_codepage`, `cof_font_probe` | [VGUI Inter fonts](../design/vgui-inter-fonts.md) |
@@ -59,12 +59,13 @@ off live with its cvar, which then reproduces the stock path in the same binary.
 | 39 | `cof-ads-toggle` | E | `cof_ads_toggle`, `cof_ads_hold_pulse`, `cof_key_probe`, `cof_ads_status` | [ADS and binds](cof-ads-toggle.md) |
 | 40 | `cof-chapter-rule` | E | `cof_hud_chapter_rule_hide` | [ADS and binds](cof-ads-toggle.md) section 4 |
 | 41 | `cof-sprite-quiet-frames` | R | `cof_sprite_quiet_frames`, `cof_sprite_trace` | [sprite frames](cof-sprite-quiet-frames.md) |
-| 42 | `cof-language-packs` | E + V | `cof_language`, `cof_language_strings`, `cof_language_files`, `cof_language_trace`, `cof_language_list` / `_status` / `_apply` | [language packs](../design/language-packs.md) |
+| 42 | `cof-language-packs` | E + V | `cof_language`, `cof_language_strings`, `cof_language_files`, `cof_language_trace`, `cof_language_list` / `_status` / `_apply`; entity patches and studio-model texture overrides | [language packs](../design/language-packs.md), [pack format](../design/language-pack-format.md) |
 | 43 | `cof-mainui-language-selector` | M | Language option, `menu_cof_language_select` | [language packs](../design/language-packs.md) section 7 |
 | 44 | `cof-mainui-menu-strings` | M | per-pack menu translation, `menu_cof_strings` | [language packs](../design/language-packs.md) section 8 |
 | 45 | `cof-coop-bridge` | E + V | `cof_ui_remote_end_menu`, `cof_vgui_text_overflow` | [co-op bridge](../design/coop-bridge.md) |
 | 46 | `cof-mainui-coop` | M | Host / Join co-op pages, `cof_coop_*` settings, `menu_cof_host_start` | [co-op bridge](../design/coop-bridge.md) |
-| 47 | `cof-cheats` | E | `fly`, `give`, sticky `noclip` / `notarget`, `cof_infammo`, `cof_infstamina`, `cof_nodamage`, `cof_nodrown`, `cof_nightvision`, `cof_ending`, `cof_tapes`, `cof_unlockdoors`, `cof_cheats` | [cheats internals](../design/cheats.md), player list in [CHEATS.md](../../CHEATS.md) |
+| 47 | `cof-notify-option` | E + M | `cof_notify` (saved, default 1; 0 hides the top-left notify lines), *Show console notifications* on the Game page | [UI theme](../design/ui-theme.md) (Game page) |
+| 48 | `cof-cheats` | E | `fly`, `give`, sticky `noclip` / `notarget`, `cof_infammo`, `cof_infstamina`, `cof_nodamage`, `cof_nodrown`, `cof_nightvision`, `cof_ending`, `cof_tapes`, `cof_unlockdoors`, `cof_cheats` | [cheats internals](../design/cheats.md), player list in [CHEATS.md](../../CHEATS.md) |
 
 (diag) = default-off developer diagnostic; it changes nothing unless switched on.
 
@@ -381,7 +382,18 @@ ends (`cof_ui_remote_end_menu`), the lobby hint lines no longer cut off
 (`cof_vgui_text_overflow`), and `Cmd_ExecScript` no longer glues a cfg's last
 line onto the next command (upstreamable). See [the co-op bridge](../design/coop-bridge.md).
 
-## Restored cheats (step 47, last)
+## Console notifications option (step 47)
+
+The newest console lines the engine prints over the top-left corner while
+playing can now be hidden: the saved `cof_notify` (default 1) skips only their
+drawing in `Con_DrawNotify`; the console, the chat line and the developer
+overlays stay. The Game page has a matching **Show console notifications**
+checkbox, translated by every pack's menu strings. See the
+[UI theme](../design/ui-theme.md) (Game page). Since the same round the build
+stamp (step 20) sits in the top-right corner, below the fps counter when that
+is on, instead of under the engine's version line over the HUD.
+
+## Restored cheats (step 48, last)
 
 Cry of Fear 1.6 removed its cheats in its own `hw.dll` and resets or ignores
 the stock ones in `hl.dll` (`PostThink` turns noclip off every frame,

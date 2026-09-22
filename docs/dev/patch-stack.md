@@ -6,20 +6,26 @@ reminder; where one disagrees with this list, this list wins. For what each
 patch does, see the [patch index](../patches/README.md).
 
 The order below is the order the stack verifiers in `stage1/` apply
-(`stage1/lang2-20260922/stackverify-lang2.ps1`,
-`stage1/coop-bridge-20260922/stackverify-coop.ps1`,
-`stage1/fix-ads-tape-20260922/stackverify-fixads.ps1`), and it matches the
-order the old README gave, group by group. It covers all 48 patches in
-`patches/` and all 48 `scripts/apply-*.ps1` scripts.
+(`stage1/m7-integration-20260923/stackverify-m7.py` reads it from this page;
+before it `stage1/lang3-20260922/stackverify-lang3.ps1` and the per-round
+ones), and it matches the
+order the old README gave, group by group. It covers all 49 patches in
+`patches/` and all 49 `scripts/apply-*.ps1` scripts.
 
-> **Verification status.** Each group below has been stack-verified on a fresh
-> tree, but by three separate verifiers: the lang2 run (everything except the
-> co-op pair, 623 files identical), the co-op run (everything except
-> `cof-mainui-menu-strings`, 624 identical) and the fix-ads-tape run (neither
-> of those, with the regenerated `cof-vgui-anchor`, `cof-ads-toggle` and
-> `cof-chapter-rule`, 622 identical). **One end-to-end run of the complete
-> list below has not been done yet**; it is the job of the next combined (m7)
-> build. Treat the union as verified per group, unverified as a whole.
+> **Verification status (m7, 2026-09-23).** The complete list below, steps
+> 1-48 in this order, was applied in one run to a fresh `pristine-clean` copy
+> with no patch edited, and that tree built the m7 release
+> (`stage1/m7-integration-20260923`). A second fresh tree was verified step by
+> step by `stackverify-m7.py`, which reads its order from **this page**: after
+> each step the patch was reversed with `git apply --reverse`, re-applied, and
+> (where the script has `-Reverse`) reversed and re-applied through its script;
+> every re-apply reproduced the tree byte for byte, and the finished tree is
+> byte-identical to the build tree (627 files). The reverse direction restores
+> content exactly but not always whitespace: 31 reverses leave a lone CR on a
+> blank line of a mixed-line-ending file (eight patches carry CRLF lines), and
+> `cof-save-root-compat.patch` has one pre-image line indented with spaces
+> where the file has tabs (`cl_scrn.c`, `VID_MINISHOT`), so its reverse writes
+> spaces. Neither changes what a forward apply produces.
 
 ## The base tree
 
@@ -168,13 +174,14 @@ order that is known to apply.
 | 43 | `apply-cof-mainui-language-selector` | `cof-mainui-language-selector` | M | [language packs](../design/language-packs.md) section 7 |
 | 44 | `apply-cof-mainui-menu-strings` | `cof-mainui-menu-strings` | M | [language packs](../design/language-packs.md) section 8 |
 
-### Co-op bridge, then the cheats last
+### Co-op bridge, the notifications option, then the cheats last
 
 | # | Script | Patch | Target | Doc |
 | ---: | --- | --- | --- | --- |
 | 45 | `apply-cof-coop-bridge` | `cof-coop-bridge` | E + V | [co-op bridge](../design/coop-bridge.md) |
 | 46 | `apply-cof-mainui-coop` | `cof-mainui-coop` | M | [co-op bridge](../design/coop-bridge.md) (shares no file with 43-44) |
-| 47 | `apply-cof-cheats` | `cof-cheats` | E | [cheats internals](../design/cheats.md); **always last**, needs steps 2 and 4 |
+| 47 | `apply-cof-notify-option` | `cof-notify-option` | E + M | [UI theme](../design/ui-theme.md), Game page (`cof_notify`); needs 14-17 and 43 |
+| 48 | `apply-cof-cheats` | `cof-cheats` | E | [cheats internals](../design/cheats.md); **always last**, needs steps 2 and 4 |
 
 ## After applying
 

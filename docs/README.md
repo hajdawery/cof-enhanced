@@ -77,6 +77,7 @@ Grouped:
 | [fonts.md](design/fonts.md) | which text is drawn by what, from which font file |
 | [vgui-inter-fonts.md](design/vgui-inter-fonts.md) | the client's VGUI text from Inter, code pages |
 | [language-packs.md](design/language-packs.md) | `cof_language`, the pack format, hooks, the Language option, menu strings |
+| [language-pack-format.md](design/language-pack-format.md) | the pack layout reference: entity patches, model-texture overrides, generator rules |
 | [coop-bridge.md](design/coop-bridge.md) | Host / Join co-op pages and engine shims |
 | [cheats.md](design/cheats.md) | cheats internals: the hash gate, offsets, latches (player list: [CHEATS.md](../CHEATS.md)) |
 | [branding.md](design/branding.md) | the emblem and icons |
@@ -110,7 +111,7 @@ changed their conclusions, but their evidence is left as written.
 ### Redirect stubs
 
 `cof-cheats.md`, `cof-coop-bridge.md`, `cof-hud-text-legibility.md`,
-`cof-language-packs.md`, `cof-sprite-quiet-frames.md`, `cof-text-autoscale.md`,
+`cof-language-pack-format.md`, `cof-language-packs.md`, `cof-sprite-quiet-frames.md`, `cof-text-autoscale.md`,
 `cof-ui-death-flow.md`, `cof-ui-m1-plumbing.md`, `cof-ui-m2-cof-menu.md`,
 `cof-ui-m3-theme.md`, `cof-ui-m4-scaling.md` and `cof-ui-menu-map-redirect.md`
 in this folder are one-line stubs pointing to the new locations. They stay
