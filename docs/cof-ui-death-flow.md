@@ -206,6 +206,11 @@ not its artwork:
 * `Think()` closes the page as soon as `ClientInGame()` goes false or
   `cl_background` goes on, so the redirect's `menu_main` never ends up drawn
   over a page that still holds the scrim suppression.
+* **Since 2026-09-22** it also stops Cry of Fear's death music: `stopmp3` in
+  `Show()`, and a one-shot repeat on the first `Think()` frame. See the
+  *Death-music round* in [the milestone 3 theme notes](cof-ui-m3-theme.md) —
+  that round is also where the current `menu.dll` hash lives, not the table in
+  §6a below.
 
 ### What each button does
 
@@ -304,9 +309,13 @@ newest write `2026-09-18T20:33:58.9860178Z`.
    `CMenuCheckBox::LinkCvar` / `WriteCvar` pair every other checkbox on the page
    uses, and both cvar values were verified to be reflected and to take effect;
    the click itself is a manual test.
-3. **Death music.** The client still plays `game_over.mp3` from its own player;
-   the page does not stop it. Whether that is wanted is a judgement call for the
-   user, not a measurement.
+3. **Death music.** ~~The client still plays `game_over.mp3` from its own
+   player; the page does not stop it.~~ **Done on 2026-09-22 (the user asked for
+   it):** the page issues the client's own `stopmp3` in `Show()` and once more
+   on its first `Think()` frame. The ordering argument, the runs and the
+   artefact hashes are the *Death-music round* in
+   [the milestone 3 theme notes](cof-ui-m3-theme.md); audibility is still a
+   one-click manual test, because every automated run passes `+volume 0`.
 4. **Coop.** The page is single-player only by construction (`cl.maxclients > 1`
    returns early). Coop still gets the client's own panel, including its
    `RESTART` arm, which is the right behaviour until the coop bridge exists.

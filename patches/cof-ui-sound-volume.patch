@@ -1,0 +1,67 @@
+diff --git a/engine/client/dll_int/cl_gameui.c b/engine/client/dll_int/cl_gameui.c
+--- a/engine/client/dll_int/cl_gameui.c
++++ b/engine/client/dll_int/cl_gameui.c
+@@ -25,6 +25,16 @@ static void 	UI_UpdateUserinfo( void );
+ 
+ gameui_static_t	gameui;
+ 
++// Cry of Fear unified UI: the volume of the menu library's own sounds, and of
++// nothing else. The menu DLL reaches the mixer through exactly one function,
++// EngFuncs::PlayLocalSound -> pfnPlaySound below, so scaling there cannot touch
++// a sound the game DLL, the client DLL, a map or the "play"/"playvol" console
++// commands start. Archived, because it is a preference; 1.0 is the stock
++// behaviour and Cry of Fear's theme defaults it to 0.5 once through the menu's
++// own ui_cof_scene_defaults marker (3rdparty/mainui/Theme.cpp).
++static CVAR_DEFINE_AUTO( ui_sound_volume, "1.0", FCVAR_ARCHIVE, "volume of the menu's own UI sounds, 0..1 (game sounds are not affected)" );
++static qboolean ui_sound_volume_registered = false;
++
+ static void UI_ToggleAllowConsole_f( void )
+ {
+ 	host.allow_console = host.allow_console_init = true;
+@@ -720,10 +730,28 @@ pfnPlaySound
+ */
+ static void GAME_EXPORT pfnPlaySound( const char *szSound )
+ {
++	float volume;
++
+ 	if( COM_StringEmptyOrNULL( szSound ))
+ 		return;
+ 
+-	S_StartLocalSound( szSound, VOL_NORM, false );
++	// Cry of Fear unified UI (ui_sound_volume): the engine's local-sound path
++	// already carries a per-call volume - S_StartLocalSound( name, volume, ... )
++	// hands it straight to S_StartSound as fvol, which becomes the channel's
++	// master_vol - so the menu's sounds are simply scaled here instead of being
++	// routed through the "playvol" command. This is the menu DLL's only entry
++	// into the mixer, so no game sound can be affected by it.
++	volume = ui_sound_volume.value;
++
++	if( volume < 0.0f ) volume = 0.0f;
++	if( volume > 1.0f ) volume = 1.0f;
++
++	volume *= VOL_NORM;
++
++	Con_Reportf( "[cof-ui] menu sound \"%s\" -> S_StartLocalSound volume %.2f (ui_sound_volume %.2f)\n",
++		szSound, volume, ui_sound_volume.value );
++
++	S_StartLocalSound( szSound, volume, false );
+ }
+ 
+ /*
+@@ -1386,6 +1414,16 @@ qboolean UI_LoadProgs( void )
+ 
+ 	if( gameui.hInstance ) UI_UnloadProgs();
+ 
++	// Cry of Fear unified UI (ui_sound_volume). Registered here, not lazily in
++	// pfnPlaySound: UI_LoadProgs runs from CL_Init, and Host_Init execs
++	// config.cfg only afterwards, so an archived value the user chose reaches
++	// this cvar. Guarded because the menu library can be reloaded.
++	if( !ui_sound_volume_registered )
++	{
++		Cvar_RegisterVariable( &ui_sound_volume );
++		ui_sound_volume_registered = true;
++	}
++
+ 	// setup globals
+ 	gameui.globals = &gpGlobals;
+ 

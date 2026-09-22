@@ -204,7 +204,9 @@ hover-only status string to a dim caption under the list. The
 `Enable developer commentary` checkbox sits above the button row and now draws
 a real box, so the `[ON ]`/`[OFF]` text marker milestone 2 needed is gone.
 Buttons: `Cancel` `Start`. (The capture shows Nightmare selectable because the
-fixture's `config.cfg` carries `cof_nightmare_unlocked "1"` from milestone 2.)
+fixture's `config.cfg` carried `cof_nightmare_unlocked "1"` from milestone 2.
+**Superseded by the unlockables round below:** that cvar no longer exists and
+the gate reads `scriptsettings.dat` line 83.)
 
 ### Custom campaign — `m3-campaign.png` `88D05C92…`
 
@@ -520,6 +522,10 @@ the seventh row. `evidence/m3fb-pages-extras.png`.
 
 ### 8. An engine-menu Unlockables page
 
+**Superseded by the *Unlockables round* below**, which decoded the file and made
+both the status column and the Nightmare gate real. The rest of this item
+describes the page as it was first built.
+
 `CMenuCoFUnlockables` (`menus/CryOfFear.cpp`, command `menu_cofunlockables`),
 940x600, a table of the 27 items measured in `client.dll`
 (`stage1/ui-data-research-20260921/RESULTS.md` §1.4) with columns
@@ -613,6 +619,9 @@ The same patch grew two more things, both documented in
 2. **"Enable console"** on the Game page (`menus/AdvancedControls.cpp`), bound to
    the archived engine cvar `con_enable` that the death-flow engine patch adds.
 
+The death page did **not** stop Cry of Fear's death music in this round; that is
+the *Death-music round* at the end of this document.
+
 The patch is regenerated in place and is now **41 files**
 (`controls/BackgroundBitmap.cpp` joins the list; it was already touched by
 `cof-mainui-background-scrim.patch`, and this patch adds one hunk on top). The
@@ -637,9 +646,390 @@ generated LF-normalised).
 Evidence for both additions is in `stage1/ui-m1-menu-fixture-20260921/evidence/`
 as the `d*` and `b*` runs listed in `docs/cof-ui-death-flow.md`.
 
+## Unlockables round, 2026-09-22
+
+The unlock state is no longer unknown. `cryoffear/scriptsettings.dat` is
+decoded, the Unlockables page shows a real **Unlocked** / **Locked** per flag,
+and the difficulty page's Nightmare gate reads the same file instead of the
+milestone-2 stand-in cvar, which is removed.
+
+### The file, byte for byte (measured)
+
+`GAME/cryoffear/scriptsettings.dat`, 2 222 bytes, SHA-256
+`194E7144C398A7176D7BCA8543FFD4547949AC998E6F38FA38982DC7D6295F1E`:
+
+* **101 lines of exactly 20 bytes**, separated by CRLF, with a trailing CRLF
+  after the last one. `101 * 20 + 101 * 2 = 2222`, and every one of the 101
+  splits is 20 bytes long — verified, not assumed.
+* Line bytes are printable ASCII plus the single extended byte **`0xA3`**. That
+  settles the guide's `£`: it is one byte, `0xA3`, in the file *and* in
+  `client.dll`, not a UTF-8 `£` (`0xC2 0xA3`) and not a wide character. It
+  occurs in 15 of the 101 lines and in 11 of the 34 token pairs. In the menu
+  source it is written as the octal escape `\243`, because a hex escape would
+  swallow a following hex digit (`"\xA3e"` is one character, not two).
+
+### The comparison table in client.dll (measured)
+
+Immediately after the `"/alt.dat\0"` literal at VA `1014118C`, padded to a
+4-byte boundary, `client.dll` carries **34 pairs of 20-byte tokens**, each
+stored as `<20 bytes>'\n'` padded to 24. The table runs from VA `10141198` to
+VA `101417F8` (1 632 bytes) and is followed by the unrelated `"Ending seen: %d"`
+strings. The two members of a pair differ in **exactly one character** — checked
+for all 34.
+
+The `'\n'` in the binary is why the file is CRLF: the client writes a token
+through a text-mode stream, which expands it.
+
+### The pair-to-line mapping (derived, not guessed)
+
+Every one of the 34 pairs matches **exactly one** line of the canonical
+`scriptsettings.dat`, and the 34 matched lines are all distinct. That is what
+pins each pair to its line; the mapping is read out of the shipped file, not
+inferred from ordering. Table order and file order do not agree.
+
+All 27 entries of the Steam guide's table
+(`stage1/ui-data-research-20260921/unlockables-token-table.md`) then match
+`client.dll`'s own bytes **byte for byte**, both members, `0xA3` bytes included
+— 27 of 27, no mismatches. That cross-check is what pins the *names* to the
+lines. The other 7 pairs have no published name and are listed as
+`Unidentified flag (line N)`; nothing about them is invented.
+
+The first-listed member of each pair is the **locked** token. Measured for the
+27 named entries (it equals the guide's "locked" column in all 27); assumed for
+the other 7, and consistent with a fresh install holding the first member on
+all 34 lines.
+
+| Line | Pair | Unlockable | Line | Pair | Unlockable |
+| ---: | ---: | --- | ---: | ---: | --- |
+| 3 | 4 | Secret room, empty hint book, MP5 | 58 | 13 | Team Psykskallar hoodie |
+| 7 | 1 | *unidentified* | 59 | 14 | Awesome suit |
+| 15 | 0 | *unidentified* | 60 | 15 | Sick Simon suit |
+| 22 | 3 | *unidentified* | 61 | 16 | AoM Twitcher suit |
+| 39 | 5 | FAMAS with infinite ammo | 62 | 17 | Custom hoodies |
+| 45 | 2 | *unidentified* | 70 | 18 | David Leatherhoff's axe |
+| 47 | 32 | *unidentified* | 71 | 19 | Digital camera |
+| 48 | 33 | *unidentified* | 72 | 20 | Simon's book |
+| 51 | 6 | David Leatherhoff suit | 73 | 21 | Developer commentary |
+| 52 | 7 | ModDB hoodie | 74 | 22 | Hidden package |
+| 53 | 8 | Hello Kitty suit | 75 | 23 | Gasmask (night vision) |
+| 54 | 9 | Afraid of Monsters suit | 76 | 24 | First hint page |
+| 55 | 10 | Camouflage hoodie | 77 | 25 | Second hint page |
+| 56 | 11 | Half Life Creations hoodie | 78 | 26 | Third hint page |
+| 57 | 12 | Black Metal suit | 79 | 27 | Fourth hint page |
+| | | | 80 | 28 | Fifth hint page |
+| | | | 81 | 29 | *unidentified* |
+| | | | 82 | 30 | Doctor mode |
+| | | | 83 | 31 | Nightmare difficulty |
+
+The tokens themselves live in `s_cofUnlockables[]` in `menus/CryOfFear.cpp`,
+34 rows of `{ line, pair, name, how, locked, unlocked }`, ordered by line
+number. They are the client's own bytes; a regenerating script is not needed,
+but the check that produced them is reproducible from
+`GAME/cryoffear/cl_dlls/client.dll` plus the canonical `scriptsettings.dat`.
+
+**Verified against the compiler's view, too:** the 34 pairs of C string
+literals in the source were decoded the way the compiler decodes them (octal
+escapes included) and compared to the tokens extracted from `client.dll`. All
+34 × 2 match, all are 20 bytes, and no line is missing or duplicated.
+
+### Naming notes
+
+* Names come from the guide, because the guide is what ties a name to a line.
+  `client.dll`'s own 27 `"Unlocked: ..."` announcement strings (research
+  §1.4) are a *separate* list whose order-to-line mapping was never measured,
+  so they are not used as the key. Where the two disagree it is only wording:
+  the guide's *Awesome suit* (line 59) is `client.dll`'s `Unlocked: Fuck Anime
+  suit` — the twelve costume announcements sit in the same order as guide lines
+  51–62, which is what identifies it.
+* Line 3 is one flag for three things (secret room, empty hint book, MP5), per
+  the guide.
+
+### "How to unlock" — only what is measured
+
+The conditions are still not text anywhere. `s_cofUnlockHow` (now the `how`
+column of `s_cofUnlockables`) is **blank** for 28 of the 34 rows, and the six
+filled rows are:
+
+| Line | Text | Source |
+| ---: | --- | --- |
+| 3 | `One flag for all three; MP5 via Steam group` | the guide's note |
+| 73 | `Enable it on the New Game page once unlocked` | the project's own `dev_commentary` checkbox |
+| 74 | `Tied to the secret ending` | the guide names line 74 "Hidden Package (secret ending)" |
+| 76–80 | `In-game hint page "<title>"` | `hl.dll`'s five measured page titles, whose order matches the guide's five hint-page lines exactly: `How To Unlock Book Pages`, `Ranking System Explained`, `How To Unlock Hoodies`, `How To Unlock Secret Items`, `How To Unlock Secret Weapons` |
+
+Nothing reads `Finish the game`: no research supports that for any row, so the
+rest are blank rather than filled with a plausible-sounding guess.
+
+### What changed in the menu
+
+| Place | Change |
+| --- | --- |
+| `menus/CryOfFear.h` | `UI_CoFUnlockablesReload()` and `UI_CoFNightmareStatus()` added; the Unlockables comment now describes a real source |
+| `menus/CryOfFear.cpp` | `cofUnlockable_t s_cofUnlockables[34]` replaces `s_cofUnlockName[27]` / `s_cofUnlockHow[27]`; `UI_CoFDatLine()`, `UI_CoFUnlockablesReload()`, a real `UI_CoFUnlockableStatus()`; `CMenuCoFUnlockables::Show()` and `CMenuCoFDifficulty::Show()` re-read the file; the model gained `GetCellColors`; `cof_nightmare_unlocked` removed from the gate, from `Refresh()` and from `UI_CoFDifficulty_Precache` |
+
+The read uses `EngFuncs::COM_LoadFile( "scriptsettings.dat", &len )` — the same
+engine VFS call the library already uses for `scripts/chapterbackgrounds.txt`
+and `maps/*.custom` — and `EngFuncs::COM_FreeFile`. Lines are found by
+splitting on `\n` and dropping a trailing `\r`, not by striding a fixed 22
+bytes, so an LF-only file still reads correctly. A line that is missing, not 20
+bytes, or equal to neither token leaves that flag **unknown**; a missing file
+leaves all 34 unknown rather than reporting everything locked, because an empty
+or replaced file is not the same fact as a locked flag.
+
+The file is re-read on every `Show()` of the Unlockables page and of the
+difficulty page (2 KiB, so the cost is nothing), with a lazy first read as a
+backstop. Nothing persists across a visit, so unlocking something in game and
+returning to the menu shows the new state.
+
+### Nightmare, and the removed cvar
+
+`cof_nightmare_unlocked` is **gone**: not registered, not read, no replacement
+override. `CMenuCoFDifficulty::StartGame` refuses `skillset 4` unless
+`UI_CoFNightmareStatus() == 1`, so *unknown* is treated as locked, and
+`Refresh()` grays the row and captions it. The caption distinguishes the two
+non-unlocked cases:
+
+* locked → `Nightmare has to be unlocked in game (scriptsettings.dat line 83).`
+* unknown → `Nightmare state is unknown: cryoffear/scriptsettings.dat is missing or line 83 is unreadable.`
+
+A `cof_nightmare_unlocked "1"` line left in an existing `config.cfg` is now
+inert; the engine drops unknown archived names the next time it writes the
+file.
+
+### Status colours
+
+`CMenuCoFUnlockablesModel::GetCellColors` forces the Status column only (theme
+mode only): `THEME_ACCENT` for **Unlocked**, `THEME_TEXT_DIM` for **Locked**,
+`THEME_DISABLED` for `?`. Every other column keeps the table's single row
+colour, so the accent still means exactly one thing on the page. The
+`Unlockable` / `How to unlock` split moved from 0.34 / 0.50 to 0.42 / 0.42 for
+the 34-row list; `Status` stays 0.16.
+
+### What the canonical file actually says on this machine
+
+**All 34 flags are locked.** Every one of the 34 lines holds the first-listed
+(locked) member of its pair, which is what a fresh install looks like — the
+canonical copy at `K:\LLM\COF_Fix\Cry of Fear` has never been played. So the
+"real state" capture below is a page of 34 `Locked` rows, and that *is* the
+correct answer for this file; it is also the strongest possible check of the
+token bytes, because a single wrong byte anywhere would have shown `?` on that
+row.
+
+### Evidence
+
+Fixture `stage1/ui-m1-menu-fixture-20260921`, driven by the new `run-m3u.ps1`
+(which only writes `maps/c_game_menu1_load.cfg`: `menu_cofunlockables`,
+screenshot, `menu_cofdifficulty`, screenshot, `quit`). Windowed 1920x1080 with
+`+volume 0`. **No input was injected.**
+
+| File | Shows |
+| --- | --- |
+| `m3u-real-unlockables.png` `EED78A1F…` | the page against the canonical file: 34 rows, every visible one `Locked` in the dim colour, none `?` |
+| `m3u-real-difficulty.png` `92F51E6D…` | the same file on the New Game page: the fourth row reads `Locked`, grayed, with the line-83 caption |
+| `m3u-unlocked-unlockables.png` `6A6BBF9C…` | the fixture-only scratch file with lines 3, 39 and 83 set to their unlocked tokens: those rows read `Unlocked` in the accent, the rest `Locked` |
+| `m3u-unlocked-difficulty.png` `4DA9DE98…` | the same file: `Nightmare` is named, not grayed, selectable, and the locked caption is gone |
+| `m3u-real.log`, `m3u-unlocked.log` | the two runs |
+| `canonical-manifest-m3u-before.txt`, `-after.txt` | the canonical tree unchanged |
+
+**The scratch file was fixture-only and is restored.** Only
+`stage1/ui-m1-menu-fixture-20260921/root/cryoffear/scriptsettings.dat` was
+edited (lines 3, 39 and 83 rewritten in place, file length unchanged at 2 222
+bytes, SHA-256 `26F56CF1…` while flipped); it is back to
+`194E7144C398A7176D7BCA8543FFD4547949AC998E6F38FA38982DC7D6295F1E`, identical to
+the canonical file. The canonical copy was never opened for writing:
+`evidence/canonical-manifest-m3u-before.txt` and `-after.txt` are byte-identical
+(6 197 files, 4 702 274 797 bytes, newest mtime
+`2026-09-18T20:33:58.9860178Z`, SHA-256
+`35EA26352345FA048F20ACE4D28D040A2BC616D1E919A6196F25644E5F639111`).
+
+The fixture's `config.cfg` also lost its milestone-2 `cof_nightmare_unlocked "1"`
+line, so the "real state" run starts from nothing but the file.
+
+### Unlockables-round artefacts
+
+**Superseded by the death-music round below**, which extends the same patch in
+place; the current artefact hashes are in *Death-music-round artefacts*.
+
+| Artefact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `patches/cof-mainui-source-theme.patch` | 184 165 | `C955D7C0BA45B5E45C9074730C37FFEF9E89CD63E0DB45C127FBE5709A1BBCF7` |
+| `menu.dll` (`build-cof-ui-m3-20260921`) | 1 475 072 | `A1D61188612AC8245D23FF663DF4290409B13903A4354615FFBD5FA09769362D` |
+| `menu.pdb` | 21 532 672 | `1F8D98D6365B469462AE97176FBA12ACDC70621233CF5F361660B687D3028471` |
+| engine `xash.dll` used for both runs | 3 526 656 | `DC200932C8189C0E787CFB1750EBDC1CDC1A2CACEB7635B4078F3884D08F0786` |
+
+Build line unchanged (`--enable-stbtt`, `WAFLOCK=.lock-waf-cof-ui-m3`). No new
+cvar; one removed. `stage1/deploy-ui-m3-20260921.ps1` carries the new
+`menu.dll` hash. The patch is still **41 files**, now 4 122 insertions and 160
+deletions (was 3 457 / 140 at the death-flow round).
+
+**Patch safety, re-verified.** The patch is regenerated **in place** — only the
+`menus/CryOfFear.cpp` and `menus/CryOfFear.h` sections changed, every other
+section is byte-identical to the previous revision — and the apply script is
+untouched (its existing marker checks still cover the file). On
+`cof-fix/pristine-ui-m1-scratch` over the pinned MainUI baseline plus the three
+earlier MainUI patches: reverse, forward, duplicate-apply refusal. All **167**
+mainui `.c`/`.cpp`/`.h` files then compared identical to the working tree
+(line-ending-insensitive; the `core.autocrlf=true` caveat above still applies,
+which is why the patch is generated LF-normalised).
+
+### Still open after this round
+
+1. **Seven flags have no name.** Lines 7, 15, 22, 45, 47, 48 and 81. Naming them
+   needs a dynamic diff (toggle one thing in game, diff the file), not more
+   static reading.
+2. **The other 67 lines are still undecoded.** They are not boolean flags —
+   `client.dll` has no paired constant for them — and most likely hold the
+   profile data whose format strings sit right after the table
+   (`Ending seen: %d`, `Grade: S/A/B/C/D`, `Difficulty chosen: …`).
+3. **"How to unlock" is blank on 28 rows** and will stay blank until a
+   condition is actually measured.
+4. **Interaction is still manual**: scrolling the 34-row list, clicking
+   *Open original gallery*, and starting a game on a genuinely unlocked
+   Nightmare.
+
+## Death-music round, 2026-09-22
+
+The `GAME OVER` page now stops the death music. Cry of Fear's own
+`CGameOver::setVisible` (`client.dll` VA `10040E60`) starts `game_over.mp3` on
+its own MP3 player when the panel is shown; our page replaces the panel, the
+panel is only gated off the screen, and its track carried on playing under it.
+
+### What the page does
+
+`CMenuCoFDeath` (`menus/CryOfFear.cpp`) issues the client's own console command
+`stopmp3` — no arguments, unconditional stop, the same command
+`CMenuLoadGame::LoadGame` and `CMenuCoFDifficulty::StartGame` already use, and a
+different player from `EngFuncs::StopBackgroundTrack` — through the small helper
+`StopDeathMusic()`, which is a no-op outside Cry of Fear and prints a
+`Con_DPrintf` line naming the call site. It runs twice:
+
+1. in `Show()`, and
+2. once more on the **first `Think()` frame** after that, guarded by the
+   one-shot `m_bStopMusicAgain` (also cleared when `Think` finds the session
+   gone).
+
+**Why `Show()` is the decisive one (measured + read from the engine source).**
+`CL_CoF_DeathUserMessage()` is called from `CL_ParseUserMessage` *before* the
+client DLL is handed the `VGUIMenu` message and only sets a latch; the page is
+opened by `CL_CoF_DeathPump()`, which `Host_ClientFrame` calls right after
+`CL_ReadPackets` (`engine/client/cl_main.c`). The client has therefore already
+handled both `PlayMP3` and `VGUIMenu` — measured in that order,
+`docs/cof-ui-death-flow.md` §1.1 — and started `game_over.mp3` by the time
+`Show()` runs, so a single stop there is after every start.
+
+**Why the second one exists.** A repeated `VGUIMenu` index 35 is still delivered
+to the client even when the engine's latch ignores it (the latch only stops a
+second page from being stacked), and the client re-shows `CGameOver` in that
+case, which plays the track again. `Show()` does not run a second time for an
+already-open page, so the first `Think()` frame covers a start that lands just
+after the page opened. It is a one-shot, not a per-frame retry: `stopmp3` is
+unconditional and nothing else on this page has music of its own to lose.
+
+**One property of the command buffer, not of the page.** `pfnClientCmd`
+(`engine/client/dll_int/cl_gameui.c:703`) appends to the command buffer, and
+that buffer has a single `wait` counter shared by everything in it
+(`Cbuf_ExecuteCommandsFromBuffer`, `engine/common/cmd.c:174`). In play the buffer
+is empty when the player dies and the command runs on the same frame; a cfg or
+an alias that is mid-`wait` delays it. This is the same fact that produced
+`CL_CoF_DeathPump`, and it is why the verification below uses two runs.
+
+### Evidence
+
+Fixture `stage1/ui-m1-menu-fixture-20260921` with the new `menu.dll` over
+`root/cryoffear/cl_dlls/menu.dll` and the shipped engine `BD90FDB9…` already in
+`root/xash.dll`. Driver `run-deathmusic.ps1` (new; a thin wrapper around
+`run-death.ps1`, which is itself the `run-m2.ps1` wrapper that adds the
+`cof_ui_*` cvars). Windowed 1920x1080, `+volume 0`, `+load cofsave1`, the player
+killed from `maps/c_forest3_load.cfg`. **No keyboard or mouse input was
+injected, `SetForegroundWindow`/`AppActivate` were never called, and nothing was
+retried.** Neither script ends in `quit`: a trailing `quit` sits *in front of*
+the commands the page appends and would shut the host down before `stopmp3` was
+reached, so both runs end by `run-m2.ps1`'s timeout instead, which loses nothing
+— the engine `fflush`es the log on every line (`engine/common/sys_con.c:80`).
+
+| Run | Shows |
+| --- | --- |
+| `dm1-stopmp3` (`-PageWait 450`) | the script ran out before the death message, so the page opened into an **empty** command buffer — the play case. `evidence/dm1-stopmp3.log:1114-1119`: `death screen: … -> menu_cofdeath`, `opening menu_cofdeath`, `Cry of Fear: death page (show), stopping the client MP3 player (stopmp3)`, `input gate engaged (key_dest=2)`, `Cry of Fear: death page (first think frame), …`. Its screenshot (`dm1-stopmp3-prepage.png`) is the scene *before* the page, which is what the short wait caught |
+| `dm2-page` (`-PageWait 950`) | the page up and captured: `evidence/dm2-page.log:1109-1119` has the same five lines, then the script's own `COFDM-page-up` and `Write dm2-page-death.png`. `evidence/dm2-page-death.png` is `GAME OVER` with `Load Game` and `Exit` over the scene the player died in, no Cry of Fear panel and no HUD |
+
+**The command really reaches the client.** Neither log contains
+`Unknown command: stopmp3` (0 occurrences in both). That absence is meaningful
+because each run also executes a deliberate control, `stopmp3_not_a_command`,
+from the same cfg in the same session state, and the log answers it with
+`Unknown command: stopmp3_not_a_command` (`dm1-stopmp3.log:1112`,
+`dm2-page.log:1118`). `stopmp3` is a string in the shipped
+`cryoffear/cl_dlls/client.dll` and in neither `hl.dll` nor the engine, so the
+command is the client's own.
+
+**Audibility is still a one-click manual test**, as it was for the Load Game and
+New Game stops: `+volume 0` is on for every automated run.
+
+### Regression check
+
+The unlockables and difficulty pages were captured once more from the same
+build, with `run-m3u.ps1 -Name m3dm-real`:
+
+| File | Shows |
+| --- | --- |
+| `m3dm-real-unlockables.png` `515911C8…` | the 34-row page against the canonical `scriptsettings.dat`, every visible row `Locked`, none `?` — the same as `m3u-real-unlockables.png` |
+| `m3dm-real-difficulty.png` `AD2A2C6D…` | `NEW GAME` with the fourth row grayed, named `Locked`, and the line-83 caption |
+| `m3dm-real.log` | the run |
+
+One cosmetic difference from `m3u-real-difficulty.png`: the theme's status line
+at the bottom-left carries the Nightmare row's status string rather than
+`Start a new game on Easy`, and that long string runs under the button row. The
+status line follows the **pointer**, which rests wherever the desktop cursor
+happens to be (no input is injected), so the two captures simply have the
+pointer in different places; the clipping is the pre-existing full-width status
+line, not a change from this round. Nothing else on either page moved.
+
+Canonical game copy untouched across all three runs:
+`evidence/canonical-manifest-m3dm-before.txt` and `-after.txt` are
+byte-identical — 6 197 files, 4 702 274 797 bytes, newest mtime
+`2026-09-18T20:33:58.9860178Z`.
+
+### Death-music-round artefacts
+
+| Artefact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `patches/cof-mainui-source-theme.patch` | 185 160 | `3200FC2F9CE74FAAEFFA8F34BCF0DCDEF1FF47C70DC5F76D98F28F8CD366A19B` |
+| `menu.dll` (`build-cof-ui-m3-20260921`) | 1 475 584 | `6C25115CF99DAFD66CEBA6B734B40390E66D78D43875087B272ADD077604B426` |
+| `menu.pdb` | 21 557 248 | `07702C47413E9F0838D4B9B9D5BE0CEDC6B541E9922F5EAB0CC119DC8142F8CF` |
+| engine `xash.dll` used for both death runs | 3 511 296 | `BD90FDB994053BD6AE42E5E5C15B7A8DCAB5934389E657D5D0D3813A5C3328DE` |
+
+Build line unchanged (`--enable-stbtt`, `WAFLOCK=.lock-waf-cof-ui-m3`, only
+`--targets=menu`). No new cvar. `stage1/deploy-ui-m3-20260921.ps1` carries the
+new `menu.dll` hash. The patch is still **41 files**, now 4 172 insertions and
+152 deletions (was 4 122 / 160 at the unlockables round).
+
+**Patch safety, re-verified.** The patch is regenerated **in place**: only the
+`menus/CryOfFear.cpp` section changed in content. (`menus/CryOfFear.h` changed by
+one character too — its single `@@` header had kept a git-style function-context
+suffix that the rest of the file sections do not carry; the hunk itself is
+identical.) The generator is the one the earlier revisions used: both trees read
+**LF-normalised**, `difflib.unified_diff` with three lines of context,
+`diff --git` headers, `new file mode 100644` plus `--- /dev/null` for `Theme.cpp`
+and `Theme.h`, and no `index` lines. On
+`cof-fix/pristine-ui-m1-scratch` over the pinned MainUI baseline plus the three
+earlier MainUI patches: forward apply, duplicate-apply refusal, reverse (with
+the scrim, menu-save and CoF-menu markers still in place afterwards), forward
+again. After both forward applies all **167** mainui `.c`/`.cpp`/`.h` files
+compared identical to the working tree (line-ending-insensitive; the
+`core.autocrlf=true` caveat above still applies).
+
 ## Evidence index
 
 All under `stage1/ui-m1-menu-fixture-20260921/evidence/`.
+
+### Death-music round
+
+| File | Shows |
+| --- | --- |
+| `dm1-stopmp3.log` | the page opening into an empty command buffer, both `stopmp3` issues, and the `stopmp3_not_a_command` control |
+| `dm1-stopmp3-prepage.png` | the scene a few seconds before the page (the short `-PageWait`) |
+| `dm2-page.log`, `dm2-page-death.png` | the same log lines and the `GAME OVER` page itself at 1920x1080 |
+| `m3dm-real-unlockables.png`, `m3dm-real-difficulty.png`, `m3dm-real.log` | the unlockables and difficulty pages re-captured from the same build |
+| `canonical-manifest-m3dm-before.txt`, `-after.txt` | the canonical tree unchanged |
 
 ### Feedback round
 
@@ -678,3 +1068,456 @@ All under `stage1/ui-m1-menu-fixture-20260921/evidence/`.
 | `m3.log`, `m3p.log`, `m3-720.log`, `m3-1440.log`, `m3-main.log`, `m3-720-main.log` | the runs, including the Inter font lines |
 | `m3-stopmp3.log` | `stopmp3` executing with no `Unknown command` |
 | `canonical-manifest-m3-before.txt`, `-after.txt` | the canonical tree unchanged |
+
+
+## Options audit, main-list restructure, menu sounds and Skip prologue, 2026-09-22
+
+Seven changes in one MainUI round, all Cry of Fear only, all in the same
+`patches/cof-mainui-source-theme.patch` regenerated in place. `menu.dll` for
+this round is in *Artefacts* at the bottom of this section.
+
+### 1. The main list is two levels now
+
+The main menu is exactly
+
+    New Game, Load Game, Custom Campaign, Extras, Options, Quit
+
+and **Extras** is no longer a page: it swaps the list in place, in the same
+centred style, with the wordmark left exactly where it is, for
+
+    Join Server, Host Server, Unlockables, Links, Back
+
+**Links** is the old Extras page, the collection of URLs with
+`Cry of Fear: Enhanced` first. **Language** left the main list entirely; the
+Game options page owns it, where it already was.
+
+How, in `menus/Main.cpp`: the list was never an array to begin with - every item
+is a named `CMenuPicButton` member added once in `InitCoF` - and `VidInitCoF`
+already switched between two completely different sets (main and pause) with
+`SetVisibility` plus a local ordering array. The second level is one more member
+(`iCoFLevel`), two more items (`cofLinks`, `cofBack`), one ordering array with
+both levels in it, and `CoFSetLevel`, which repeats the four calls
+`DisconnectCb` already made after it changed what the list contains:
+
+```cpp
+	VidInit( CL_IsActive( ));
+	CalcPosition();
+	CalcSizes();
+	VidInitItems();
+```
+
+Because `VidInitCoF` recomputes every visible item's rectangle from the item's
+own measured text width on every `VidInit`, and because both the mouse hit test
+(`CMenuItemsHolder::MouseMove`) and the keyboard cursor
+(`CMenuItemsHolder::AdjustCursor`) skip invisible items by themselves,
+**keyboard navigation and mouse hit boxes follow the swapped list at every
+resolution with no extra code**. `AddItem` order is the navigation order, so the
+two levels are added in the order each is drawn and never interleaved. After a
+swap the cursor is put on the first item of the list that is now on screen
+(`SetCursorToItem`), because `AdjustCursor` wraps.
+
+Escape on the second level is **Back**, not Quit: `CMenuMain::KeyDown` handles
+it before the existing branch, and only when the main menu is showing - going in
+game resets the level, so the pause list keeps its own flat behaviour.
+
+Two console commands, `menu_cof_extras_list` and `menu_cof_main_list`, run the
+same `CoFSetLevel` path, because this project may not inject the click that
+would otherwise be the only way in. Same pattern as the engine's
+`cof_ui_menu_panel_probe`.
+
+### 2. Options audit: what actually does anything in this game
+
+Cry of Fear renders through its own Paranoia OpenGL path, so several stock
+Video-page controls were suspected of doing nothing. They were **measured**, not
+guessed, in `stage1/ui-m1-engine-fixture-20260921` with `run-vidprobe.ps1`:
+`cofsave1` on `c_forest3`, the same camera, three screenshots forty frames
+apart, the cvar at two extremes, and the nine A-B frame pairs compared pixel by
+pixel (percentage of pixels differing by more than 8 in any channel).
+
+Two methodology notes, both learned the hard way and both load-bearing:
+
+* the value must **not** go on the command line as `+set`. `config.cfg` and
+  `opengl.cfg` are exec'd by `Host_Init` *after* the command line's `+set` pass,
+  so an archived or `FCVAR_GLCONFIG` cvar written in either config silently won
+  and both runs of a pair came out identical. The first pass measured `gamma`,
+  `brightness`, `gl_gamma`, `gl_brightness`, `gl_contrast` and `gl_anisotropy`
+  as having *exactly zero* effect for this reason alone. The value now goes in a
+  generated cfg the command line execs, which lands in the command buffer and
+  therefore runs after both configs, and every run's log prints the cvar one
+  more time immediately before the screenshot;
+* **the noise floor is about 13 %, not zero.** Two runs with an identical
+  command line produce byte-identical screenshots (`cl_showfps 0` against
+  `cl_showfps 0`: aligned differences `0.00, 0.00, 0.00`). But three null
+  controls that cannot change a pixel - `cl_cmdrate` 20/60, `cl_updaterate`
+  20/60 and `name` probeA/probeB - all land at **9.9 % to 13.8 %**, because the
+  scene has a flickering light whose phase decorrelates as soon as anything at
+  all differs between the two launches. Anything at or below ~13 % is therefore
+  *no measurable effect*, not a small one.
+
+| Control | Cvar | Aligned difference | Verdict |
+| --- | --- | ---: | --- |
+| (null control) | `cl_cmdrate` 20/60 | 9.9-12.9 % | the floor |
+| (null control) | `cl_updaterate` 20/60 | 10.0-12.5 % | the floor |
+| (null control) | `name` A/B | 9.9-11.4 % | the floor |
+| Detail textures | `r_detailtextures` 0/1 | 10.5-13.5 % | **at the floor - removed** |
+| Overbrights | `gl_overbright` 0/1 | 10.4-13.2 % | **at the floor - removed** |
+| Use VBO | `gl_vbo` 0/1 | 9.2-9.6 % | at the floor, but it is a *performance* option and has no visual effect by design - **kept** |
+| Water ripples | `r_ripple` 0/1 | 10.4-14.2 % | at the floor, but there is no water in the test scene - **kept, inconclusive** |
+| Texture filtering | `gl_texture_nearest` 0/1 | **19.8-20.6 %** | works - kept |
+| Auto scale HUD | `hud_scale` 0/1024 | **50.2-52.1 %** | works - kept |
+| (not on the page) | `gl_anisotropy` 1/16 | 13.0-13.6 % | at the floor |
+| (not on the page) | `gl_detailtex` 0/1 (the client's own) | 9.4-11.8 % | at the floor |
+| Crosshair (Game page) | `crosshair` 0/1 | 11.4-13.8 % | at the floor, but this save may show no crosshair at all - **kept, inconclusive** |
+
+Detail textures is additionally settled by the data: Cry of Fear ships **no**
+`maps/<map>_detail.txt`, and its own detail-texture cvar is the client's
+`gl_detailtex`, which measured at the floor too. The checkbox is gone for this
+game and `r_detailtextures` is defaulted to `0` through
+`UI_ThemeApplyDeferredDefaults`, the same one-shot marker
+(`ui_cof_scene_defaults`) that already defaults `ui_renderworld` to `1` - so an
+explicit user value in `opengl.cfg` still wins, because the marker is already
+`1` by then.
+
+Overbrights is settled by the same reading: Cry of Fear loads its own
+"additional lightmaps" and lights the world inside the Paranoia path, so the
+engine's overbright never reaches what you see.
+
+#### Gamma, brightness and contrast are rebound
+
+The client logs `gamma / brightness / contrast` into `paranoia_log.txt` from a
+single format string at VA `1014C5D0`, fed from three cvars it registers itself:
+
+| cvar | registered at | default | clamp |
+| --- | --- | --- | --- |
+| `gl_gamma` | `100607AB` | `1` | - |
+| `gl_brightness` | `100607C5` | `0` | forced down to `0.3` at VA `1005A1C3` |
+| `gl_contrast` | `100607DC` | `1` | forced down to `2.0` at VA `1005A195` |
+
+The decisive measurement is **when** a change takes effect. Applied *before* the
+level loads, the engine's own `gamma` 1.8 -> 3.0 changes 83.7 % of the frame; but
+applied from the map-load hook, with the level already up - which is what
+dragging a slider does - it changes only **10.5 %**, i.e. the floor. The
+client's three, applied exactly the same way from the map-load hook, change
+**92.2 %** (`gl_gamma` 0.4/2.0), **89.5 %** (`gl_brightness` 0/0.3) and
+**60.5 %** (`gl_contrast` 0.2/2.0).
+
+So for Cry of Fear the Gamma and Brightness sliders drive `gl_gamma` and
+`gl_brightness`, a **Contrast** slider is added for `gl_contrast` (the engine
+has no contrast at all and the client treats the three as one group), the slider
+ranges are the clamps above, and the engine's gamma test image is not touched -
+it previews an engine-side transform the Paranoia path does not perform. Every
+other game keeps `gamma`/`brightness` exactly as before.
+
+**Not touched, as instructed:** resolution, window mode, vsync and the renderer
+spinner.
+
+Game, Controls and Audio pages: nothing else was removed. Controls binds keys
+through `bind`/`unbind` and has no cvars at all; Audio already hides the HEV
+suit slider and the mobile vibration controls for this game; the Game page's
+remaining controls are input plumbing (`m_pitch`, `in_mlook`, `lookspring`,
+`lookstrafe`, `look_filter`/`m_filter`, `sv_aim`, `m_rawinput`, `sensitivity`)
+plus this project's own `con_enable`, `cof_pause_menu_saves` and
+`cof_subtitlelanguage`.
+
+### 3. Localisation: no more raw `GameUI_*` keys
+
+`L()` (`MenuStrings.cpp:75`) is a pure fallback - a key with no entry is
+returned verbatim, which is why `GameUI_VSync` and `GameUI_RawInput` were
+rendering as their own names. `Localize_InitLanguage` (`MenuStrings.cpp:456`)
+loads `resource/<name>_<lang>.txt` in the order `gameui`, `valve`, `mainui`,
+`<gamedir>`, and `Dictionary_Insert` lets the last writer win, so a file at
+`cryoffear/resource/cryoffear_english.txt` overrides everything.
+
+A full sweep of the mainui tree found 82 distinct `GameUI_*` keys used against
+the 232 in the game's shipped `resource/gameui_english.txt`. Exactly four have
+no entry, and the new file supplies all four:
+
+| Key | Used by | Now reads |
+| --- | --- | --- |
+| `GameUI_VSync` | Video page | Vertical sync |
+| `GameUI_RawInput` | Game page | Raw mouse input |
+| `GameUI_RawInputLabel` | Game page status line | Take the mouse straight from the device, bypassing the operating system's pointer acceleration |
+| `GameUI_PlayGame_Alt` | `menus/NewGame.cpp`, not reachable on a CoF page | Start |
+
+The file is `gamedata/cryoffear/resource/cryoffear_english.txt`, Valve VDF, UTF-8
+without a BOM. The parser (`MenuStrings.cpp:385`) reads the header through
+`COM_ParseFile`, which skips `//` comments, so the explanatory header at the top
+is safe.
+
+### 4. Menu sounds
+
+The engine menu was silent in this game. `uiSounds` (`BaseMenu.cpp:48`) names
+seven Half-Life files under `media/`, `UI_LoadSounds` rewrites a missing one to
+`sound/common/`, and **none of the fourteen resulting paths exists**: a sweep of
+the canonical read-only copy finds no `launch_*`, no `buttons/blip*`, no `valve`
+directory and no PAK anywhere in the tree. `FS_LoadSound` failed for every one
+and `S_LoadSound` substituted a second of silence.
+
+`uiSoundsCoF` supplies the game's own, gated on `UI_IsCryOfFear()` so every
+other game keeps the stock names untouched:
+
+| Slot | File | What plays it |
+| --- | --- | --- |
+| `SND_IN` | `ui/3d_click.wav` | (mainui never uses this slot) |
+| `SND_OUT` | `ui/buttonclickrelease.wav` | a window closing |
+| `SND_LAUNCH` | `ui/3d_click.wav` | every pic button, action and close button |
+| `SND_ROLLOVER` | `ui/3d_rollover.wav` | (mainui never uses this slot) |
+| `SND_GLOW` | `ui/buttonclick.wav` | checkbox and switch toggles |
+| `SND_BUZZ` | `common/wpn_denyselect.wav` | slider/spinner/table at the end of range, rejected bind |
+| `SND_KEY` | `ui/buttonclick.wav` | slider step, entering key-grab mode |
+| `SND_REMOVEKEY` | `common/wpn_denyselect.wav` | key unbound |
+| `SND_MOVE` | `ui/3d_rollover.wav` | keyboard cursor moved, mouse entered a new item |
+| `SND_NULL` | (silent) | deliberate silence on a table mouse-drag |
+
+All six files exist (`cryoffear/sound/ui/` and `cryoffear/sound/common/`).
+`UI_LoadSounds` also had to stop discarding a name whose `FileExists` probe
+fails: `FS_LoadSound` tries `sound/<name>` before `<name>`
+(`engine/client/soundlib/snd_main.c`), and these names are relative to `sound/`.
+
+**This cannot trigger the gallery MAIN MENU hook.** `CL_CoF_MenuPanelSound` has
+exactly one caller in the whole engine - `pfnPlaySoundByName` in
+`engine/client/dll_int/cl_game.c`, the *client DLL's* callback. The menu goes
+through `EngFuncs::PlayLocalSound` -> `pfnPlaySound` (`cl_gameui.c:721`) ->
+`S_StartLocalSound` at `VOL_NORM`, a different function entirely; the hook only
+answers to volume `0.5` and additionally requires `cls.state == ca_active` and
+`cl_background 0`, neither of which holds for the menu over the background map.
+Three independent reasons, all read in the engine sources.
+
+Audibility is manual. What the log proves is the resolution, one line per slot:
+`Cry of Fear menu sound 0: "ui/3d_click.wav"` through
+`Cry of Fear menu sound 9: ""`, with no sound-loading error anywhere in the run.
+
+### 5. Skip prologue
+
+An archived cvar `cof_skip_prologue` (default `0`) and a checkbox on the New
+Game page, shown only for the main campaign - a custom campaign starts at its
+own first map and has no prologue to skip.
+
+The target map is **`c_nightmare`**, and that was measured, not assumed:
+
+* `c_intro` has exactly one `trigger_changelevel`: brush `*141`, `"map"
+  "c_nightmare"`, landmark `landakukej` (`info_landmark` at `212 -408 -2523`);
+  the player is teleported into it by `cof_teleport` `kunitei2` about 185 s in;
+* all ten of `c_intro`'s `trigger_camera` entities carry `spawnflags 116`, which
+  includes `SF_CAMERA_PLAYER_TAKECONTROL`: the player never has control on that
+  map;
+* a classname census of `c_intro` returns **zero** `game_player_equip`,
+  `weapon_*`, `item_*`, `cof_giveitems`, `cof_clearitems`, `env_global`,
+  `cof_chapter`, `cof_begingame` and `trigger_auto`. It grants nothing and sets
+  nothing; its only effect outside itself is the level change;
+* `c_nightmare`'s worldspawn has `"newunit" "1"`, so the engine wipes the save
+  transition directory on entry - it is a clean unit boundary by design - and
+  its **first** `info_player_start` (`211 -412 -2545`) is exactly the landmark
+  arrival point, inside the `trigger_once` that starts its own opening sequence;
+* `c_nightmare` carries the main campaign's **only** `cof_begingame` (`"begin"`,
+  fired at t=0 of its `nightmulti`; there are ten in all 235 maps and this is
+  the one in the campaign) and grants `weapon_camera` through `cof_giveitems`
+  `kakkaej`. Starting one map later, at `c_start`, would skip both - which is
+  why `c_start` is the wrong answer even though it is the first map with a
+  chapter card.
+
+Difficulty survives the map change by itself. `difficulty` is an engine cvar
+registered by the game DLL with `FCVAR_ARCHIVE|FCVAR_SERVER` (`hl.dll` `cvar_t`
+at `10214750`, default `"2"`); `skillset` writes it synchronously with
+`pfnCVarSetFloat` (VA `10019E09` / `10019E47`) and writes nothing else that
+outlives the map; `RefreshSkillData` (VA `100AF810`) re-reads it from the cvar on
+every level load through `CWorld::Precache` -> `InstallGameRules`.
+
+But `skillset` also arms a five-second player think (VA `100DFC10`) that issues
+`map <campaign>` or, with no campaign set, **`map c_intro`**. So the skip is not
+spelled as our own `map` command on top of `skillset` - that think would load
+`c_intro` five seconds later. It is spelled as the game's own `campaign`
+override, which is exactly what the shipped difficulty panel uses
+(`"campaign %s"` at `client.dll` `10147744`):
+
+```
+cmd campaign c_nightmare
+cmd skillset <N>
+```
+
+so the authentic white fade, `inventory/game_start.wav` and the difficulty write
+all still happen and only the destination differs. With no server to forward to
+(right after Quit to menu), the existing fallback sets `difficulty` and issues
+`map <target>` directly, as before.
+
+**Measured** (`stage1/ui-m1-menu-fixture-20260921/evidence/sp-skip2.log`): from
+the background map, `cmd campaign c_nightmare` then `cmd skillset 2` gives
+`GAME SKILL LEVEL:2`, then `Spawn Server: c_nightmare`, then `GAME SKILL LEVEL:2`
+again on the new map.
+
+### 6. Credits
+
+A **Credits** entry joins the Extras sub-list, which is now
+
+    Join Server, Host Server, Unlockables, Links, Credits, Back
+
+`CMenuCoFCredits` (`menus/CryOfFear.cpp`) is a centred theme panel titled
+CREDITS with three sections. Each section is a small uppercase label, one or
+more body lines (the last of each of the first two dim), and a link button that
+hands its URL to the system browser through `EngFuncs::ShellExecute`, the same
+route the Links page uses:
+
+| Section | Body | Link |
+| --- | --- | --- |
+| TEAM PSYKSKALLAR | Andreas "ruMpel" Ronnberg and James "Minuit" Marchant / *Creators of Cry of Fear* | YouTube -> `https://www.youtube.com/@TeamPsykskallar` |
+| CRY OF FEAR: ENHANCED | haej / *Community-driven* | Project site -> `https://cofenhanced.haej.pl` |
+| CRY OF FEAR SPOLSZCZENIE (POLISH LOCALISATION) | Avioo, Mixdedemon, hexag0n, Izonka with their roles | Steam Workshop -> `https://steamcommunity.com/sharedfiles/filedetails/?id=3164091802` |
+
+(The table above spells the two accented letters plainly; the shipped strings
+carry the real characters.)
+
+Layout: one column, 640x470 in the 1024x768 virtual space, the section pitch
+derived from the content rect rather than hard-coded, so it follows the panel at
+every resolution. Two details were fixed by looking at the first screenshots
+rather than by guessing:
+
+* the three link buttons share **one measured width**, taken from the longest
+  label through `g_FontMgr->GetTextWideScaled( uiStatic.hThemeBody, ... )`.
+  `THEME_BTN_MIN_W` is 110 virtual units and both "Project site" and "Steam
+  Workshop" are wider, so at the fixed width they clipped to `Project ...` and
+  `Steam ...`;
+* only the body line the button sits **beside** (the section's last) gives up
+  width for it. With every line shortened, the first section's long line clipped
+  to `Andreas "ruMpel" Ronnberg and James "Minuit" M...`.
+
+**Non-ASCII, measured, not assumed.** The strings carry `o`-diaeresis and
+`l`-stroke as UTF-8 in the source. The theme's primary font backend is
+stb_truetype over the shipped Inter faces (`--enable-stbtt`), which rasterises
+by code point, and both letters render correctly at both resolutions -
+`Roennberg` and `Tlumaczenie` appear with their real glyphs in
+`mz-1920-c-credits.png` and `mz-1280-c-credits.png`. At 1280x720 the whole panel
+fits with no scrolling, which was the tight case.
+
+### Artefacts
+
+| Artefact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `patches/cof-mainui-source-theme.patch` | 216 361 | `9B04F63EA64F757404ADDD1F8EE5B304D3B0B7F79217F0E1E5BD14051562F24F` |
+| `menu.dll` (`build-cof-ui-m3-20260921`) | 1 484 800 | `3B5569D5FD2DB95FA436952860FAE8FF9FE05BD47CC434A11821FC62B37F9EC2` |
+| engine `xash.dll` used for these runs | 3 519 488 | `06F1D1159320761FBF1C09770DD61A152D04F01D24E5A14E3379BBF0B7AF7E1B` |
+
+Build line unchanged (`--enable-stbtt`, `WAFLOCK=.lock-waf-cof-ui-m3`).
+
+**Patch safety, re-verified.** The patch is regenerated **in place** and is
+still 41 files - the same file set as the committed version, compared name by
+name. On `cof-fix/pristine-ui-m1-scratch` over the pinned MainUI baseline plus
+the three earlier MainUI patches: reverse the old patch to get back to that
+baseline, forward-apply the new one, duplicate-apply refusal, all **187** mainui
+files then compared identical to the working tree (line-ending-insensitive),
+then reverse and forward again. The patch is generated LF-normalised, for the
+`core.autocrlf=true` reason described earlier in this document.
+
+### Evidence
+
+`stage1/ui-m1-menu-fixture-20260921/evidence/`, engine `06F1D115...`:
+
+| File | Shows |
+| --- | --- |
+| `mz-1920-a-main.png`, `mz-1280-a-main.png` | the restructured main list at 1080p and 720p, and the `cofenhanced` stamp in the corner |
+| `mz-1920-b-extras.png`, `mz-1280-b-extras.png` | the Extras second level in place, wordmark unmoved, with Credits in the list |
+| `mz-1920-c-credits.png`, `mz-1280-c-credits.png` | the Credits panel, three sections, all three link labels complete, the accented letters rendered |
+| `mn-1920-c-back.png`, `mn-1280-c-back.png` | back on the main list after `menu_cof_main_list` (earlier round, before Credits) |
+| `mz-1920-d-video.png`, `mz-1280-d-video.png` | the Video page: Gamma/Brightness/Contrast, `Vertical sync` localised, no Detail textures and no Overbrights |
+| `mz-1920-e-newgame.png`, `mz-1280-e-newgame.png` | the New Game page with `Skip prologue` |
+| `mz-1920-f-game.png`, `mz-1280-f-game.png` | the Game page with `Raw mouse input` localised and Subtitle language |
+| `mn-1920-g-audio.png`, `mn-1280-g-audio.png` | the Audio page |
+| `mm-1920.log` | the ten `Cry of Fear menu sound N:` lines and the cvar readback |
+| `mm-defaults.log` | `r_detailtextures defaulted to 0` firing once, and `opengl.cfg` coming back with `r_detailtextures "0"` |
+| `mm-userchoice.log` | the same build with the marker already `1` and the user value `1`: no `defaulted to` line, the value stays `1` |
+| `sp-skip2.log` | `campaign c_nightmare` + `skillset 2` -> `Spawn Server: c_nightmare`, `GAME SKILL LEVEL:2` |
+
+The video-option measurements are in
+`stage1/ui-m1-engine-fixture-20260921/evidence/` as the `vq-*` runs, with
+`run-vidprobe.ps1` as the driver.
+
+## Menu sounds volume and the deferred-defaults generation, 2026-09-22
+
+The user: *the CoF menu sounds are too loud.* The engine side of the fix - the
+archived `ui_sound_volume` cvar, where it is applied and why - is
+[its own document](cof-ui-sound-volume.md) and its own patch
+(`patches/cof-ui-sound-volume.patch`). Three things changed in the menu, all in
+`patches/cof-mainui-source-theme.patch`, regenerated in place.
+
+### 1. A "Menu sounds" slider on the Audio page
+
+`menus/Audio.cpp`: a third slider under *Sound effects volume* and *MP3 volume*,
+`0 … 1` in steps of `0.05`, `LinkCvar( "ui_sound_volume" )`, status line
+*Volume of the menu's own button and rollover sounds*. It writes on change and
+again in `SaveAndPopMenu` (skipped when hidden), exactly like its neighbours.
+
+**Theme mode only.** The WON layout is a grid of fixed coordinates and adding a
+row to it would move controls that `ui_theme 0` promises to leave byte for byte
+as upstream has them, so the item is added but `SetVisibility( UI_ThemeActive() )`
+hides it there. In the panel layout it takes the next `THEME_CTRL_PITCH` slot in
+the left column; the panel is unchanged at 640x460 and still fits four sliders,
+which is the non-Cry-of-Fear case where the HEV suit slider is also visible.
+
+`evidence/sv2-1920-audio.png` `0400A208…`.
+
+### 2. `ui_cof_scene_defaults` is a generation number now
+
+`UI_ThemeApplyDeferredDefaults()` (`Theme.cpp`) used the archived marker as a
+boolean: zero meant *apply the defaults*, anything else meant *the user's
+choices stand*. That made it a one-way door - every installation that had run an
+older build already had `ui_cof_scene_defaults "1"`, so a newly added default
+could never reach it.
+
+The marker is now the **generation** of the last set of defaults that was
+offered, and `COF_SCENE_DEFAULTS_GEN` (currently `2`) is what this build knows:
+
+| Generation | Applied |
+| ---: | --- |
+| 1 | `ui_renderworld 1` (the paused scene through the scrim) and `r_detailtextures 0` |
+| 2 | `ui_sound_volume 0.5` |
+
+`UI_ThemeApplyDeferredDefaults` applies only the steps between the recorded
+generation and `COF_SCENE_DEFAULTS_GEN`, then writes the new number. A user who
+already has `1` therefore gets the quieter menu sounds once and keeps whatever
+they decided about `ui_renderworld` and `r_detailtextures`; a fresh install gets
+all three. Raising the number is the whole procedure for adding the next one.
+
+**Measured** (`stage1/ui-m1-menu-fixture-20260921/evidence/`): with the fixture
+`config.cfg` at `ui_cof_scene_defaults "1"`, `sv2-1920.log:756` prints
+`Cry of Fear: ui_sound_volume defaulted to 0.5 (the game's own UI sounds are
+loud)` and nothing about `ui_renderworld` or `r_detailtextures`, and the file
+comes back with `ui_cof_scene_defaults "2"` and `ui_sound_volume "0.500000"`.
+Run again with the marker at `2`, `sv2-control.log` has no `defaulted to` line
+at all and a value the cfg set by hand survives.
+
+### 3. Two more cfg-only hooks
+
+Same reason and same pattern as `menu_cof_extras_list` / `menu_cof_main_list`:
+the real way in is a click this project may not inject.
+
+| Command | Runs |
+| --- | --- |
+| `menu_cof_quit_to_menu` | `CMenuMain::DisconnectCb`, i.e. Quit to menu plus its confirmation, for the disconnect-return validation in [the redirect document](cof-ui-menu-map-redirect.md#disconnect-re-arms-the-background-map-too-2026-09-22) |
+| `menu_cof_sound_probe [slot]` | `EngFuncs::PlayLocalSound( uiStatic.sounds[slot] )`, default `SND_LAUNCH` - one menu sound through the very call every control uses, so a cfg can prove the volume the mixer is handed |
+
+### Artefacts
+
+| Artefact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `patches/cof-mainui-source-theme.patch` | 228 657 | `BCEE87E6800DE153011A0DC6558D0B04150244CF9F771F5E58AE4A951A2CE8B7` |
+| `menu.dll` (`build-cof-ui-m3-20260921`) | 1 485 824 | `F7E46B3A2A472AFED3167E78D2D575EC58A631AF344FE6789A344346F0A569DF` |
+| engine `xash.dll` used for these runs | 3 520 000 | `1C25CE6BF17EB3C7A70931CD6D00D9296917B41F756CDA6FFD4E603ECF197C13` |
+
+Build line unchanged (`--enable-stbtt`, `WAFLOCK=.lock-waf-cof-ui-m3`).
+
+**Patch safety, re-verified.** Regenerated in place, still **41 files**, the same
+file set as before. On `cof-fix/pristine-ui-m1-scratch` over the pinned MainUI
+baseline plus the three earlier MainUI patches: reverse the old patch to reach
+that baseline, generate the new one against it, round-trip it in a scratch copy
+(forward, byte-identical, reverse check), then run the apply script itself
+through reverse → forward → duplicate-apply refusal on the scratch tree. All
+mainui files there then compare identical to the working tree
+(line-ending-insensitive). The patch is generated LF-normalised, for the
+`core.autocrlf=true` reason described earlier in this document.
+
+### Evidence
+
+| File | Shows |
+| --- | --- |
+| `sv2-1920.log`, `sv2-1920-audio.png` | the deferred default firing once, the four `[cof-ui] menu sound … volume 0.50` lines, and the Audio page with the new slider at half travel |
+| `sv2-control.log` | the marker already at `2`: no re-default, and `volume 0.50 / 1.00 / 0.25` tracking the cvar |
+| `dm1-console-disconnect*`, `dm2-quit-to-menu*`, `dm3-control-off*`, `dm4-redirect-latch*` | the disconnect-return cases, which also exercise `menu_cof_quit_to_menu` |

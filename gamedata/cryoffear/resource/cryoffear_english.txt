@@ -1,0 +1,23 @@
+// cryoffear_english.txt - Cry of Fear string overrides for the engine menu.
+//
+// mainui loads resource/<name>_<lang>.txt in the order gameui, valve, mainui,
+// <gamedir> (3rdparty/mainui/MenuStrings.cpp, Localize_InitLanguage), so this
+// file is read last and wins every key. Cry of Fear ships
+// resource/gameui_english.txt with 232 GameUI_* tokens; the three below are
+// used by mainui and are not in it, so without this file they render on screen
+// as their own key names.
+//
+// Valve VDF, and the parser is strict about the header: "lang", "{",
+// "Language", <name>, "Tokens", "{" in that order. UTF-8 without a BOM is
+// accepted; UTF-32 is not.
+"lang"
+{
+"Language" "English"
+"Tokens"
+{
+"GameUI_VSync"			"Vertical sync"
+"GameUI_RawInput"		"Raw mouse input"
+"GameUI_RawInputLabel"		"Take the mouse straight from the device, bypassing the operating system's pointer acceleration"
+"GameUI_PlayGame_Alt"		"Start"
+}
+}

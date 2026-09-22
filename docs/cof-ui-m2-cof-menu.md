@@ -335,6 +335,11 @@ the same tree is not disturbed.
 New cvars, both archived: `cof_nightmare_unlocked` (default `0`) and
 `dev_commentary` (default `0`, the name the client itself uses).
 
+**Superseded 2026-09-22:** `cof_nightmare_unlocked` is removed. The gate now
+reads the real flag out of `cryoffear/scriptsettings.dat` line 83; see the
+*Unlockables round* section of [the milestone 3 theme](cof-ui-m3-theme.md).
+Every mention of that cvar below is history.
+
 ## Open, and what needs an engine change
 
 1. **The Nightmare unlock flag is not observable.** The menu needs a cvar

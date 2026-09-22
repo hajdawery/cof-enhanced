@@ -1,0 +1,633 @@
+diff --git a/engine/client/console.c b/engine/client/console.c
+--- a/engine/client/console.c
++++ b/engine/client/console.c
+@@ -76,6 +76,41 @@
+ // down to the font texture.
+ static CVAR_DEFINE_AUTO( cof_console_font_grayscale, "1", 0, "styled console: load the console font as greyscale, so a pre-tinted game font stops forcing its own colour" );
+ 
++// Cry of Fear unified UI, milestone 4: engine text that scales with the display.
++//
++// The console font is a bitmap atlas, so a glyph is a fixed number of *pixels*
++// tall whatever the framebuffer is. The game's own gfx.wad CONCHARS atlas is
++// 12 px tall, which is already small at 1920x1080 and half of that again at
++// 3840x2160, where the console, the notify lines and every engine-drawn corner
++// overlay become unreadable.
++//
++// The size is therefore not a factor and not a table of resolutions: it is one
++// target glyph height, cof_text_height_pct percent of the render height, from
++// which everything else follows. Everything that draws through a console font
++// grows together, because the target is baked into the font's charHeight,
++// charWidths and scale: the styled console and the stock console, the input
++// line, the notify lines, Con_DrawDebug, cl_showfps, r_speeds, net_speeds and
++// the net graph labels, and the version string.
++//
++// con_fontscale still multiplies it rather than being replaced by it, so a
++// user who has set con_fontscale 1.5 keeps that 1.5 on top of the target.
++//
++// Archived, unlike the cof_console_* look cvars, because these are display
++// preferences that have to survive a restart.
++static CVAR_DEFINE_AUTO( cof_text_autoscale, "1", FCVAR_ARCHIVE, "size console and engine overlay text from the render height (0 = off, fixed bitmap glyph size)" );
++static CVAR_DEFINE_AUTO( cof_text_height_pct, "1.7", FCVAR_ARCHIVE, "target console and overlay glyph height, as a percentage of the render height" );
++// The stock atlas is a 12 px aliased bitmap; stretched to 37 px at 2160p it is
++// mush. scripts/make-cof-console-font.py rasterises Inter into three .fnt
++// atlases at 16, 24 and 34 px, shipped in the game's fonts/ folder, and
++// Con_LoadConchars() picks whichever needs the least resampling to reach the
++// target. 0 goes back to the game's own CONCHARS, which is the control.
++static CVAR_DEFINE_AUTO( cof_text_font, "1", FCVAR_ARCHIVE, "load the generated Inter console atlases from fonts/cof_console*.fnt (0 = the game's own CONCHARS atlas)" );
++
++// the target glyph height baked into the console fonts as they are loaded right
++// now, in pixels; 0 means "autoscale off or nothing loaded yet", which never
++// compares equal to a live target, so the first Con_CheckTextScale() loads
++static float con_text_target_applied = 0.0f;
++
+ static int g_codepage = 0;
+ 
+ static qboolean g_messagemode_privileged = true;
+@@ -94,6 +129,10 @@
+ #define CON_TEXTSIZE	1048576	// max scrollback buffer characters in console (1 Mb)
+ #define CON_MAXLINES	16384	// max scrollback buffer lines in console
+ #endif
++// milestone 4: the unscaled glyph height of each loaded atlas, so the target
++// height can be re-derived without reading the .fnt files again
++static int con_font_base_height[CON_NUMFONTS];
++
+ #define CON_LINES( i )	(con.lines[(con.lines_first + (i)) % con.maxlines])
+ #define CON_LINES_COUNT	con.lines_count
+ #define CON_LINES_LAST()	CON_LINES( CON_LINES_COUNT - 1 )
+@@ -199,6 +238,10 @@
+ static qboolean Con_StyleEnabled( void );
+ static qboolean Con_StyleCloseHit( int mx, int my );
+ 
++// milestone 4, text autoscale: the wrap width has to know the styled panel, but
++// constyle_t is only declared with the rest of the styled console below
++static int Con_StyleLogWidth( void );
++
+ // last known mouse position, fed by IN_MouseMove()
+ static int con_style_mouse_x = -1;
+ static int con_style_mouse_y = -1;
+@@ -510,6 +553,41 @@
+ 
+ /*
+ ================
++Con_TextTargetHeight
++
++The one number the whole of milestone 4 derives from: how tall a console glyph
++should be, in pixels, on this render target. It is a plain fraction of the
++render height - no integer steps, no per-resolution cases, nothing that has to
++be extended when somebody plugs in a different monitor.
++
++  cof_text_height_pct 1.7 gives 12 px at 720p, 18 at 1080p, 24 at 1440p,
++  37 at 2160p, 73 at 4320p.
++
++con_fontscale multiplies it, so a user who has already set con_fontscale keeps
++that preference on top. Returns 0 when the feature is off, which every caller
++reads as "size the fonts exactly the way the stock engine did".
++================
++*/
++static float Con_TextTargetHeight( void )
++{
++	float	px;
++
++	if( cof_text_autoscale.value == 0.0f )
++		return 0.0f;
++
++	if( !ref.initialized || refState.height <= 0 )
++		return 0.0f;
++
++	px = refState.height * bound( 0.4f, cof_text_height_pct.value, 12.0f ) * 0.01f;
++
++	if( con_fontscale.value > 0.0f )
++		px *= con_fontscale.value;
++
++	return bound( 6.0f, px, 192.0f );
++}
++
++/*
++================
+ Con_CheckResize
+ 
+ If the line width has changed, reformat the buffer.
+@@ -518,11 +596,31 @@
+ static void Con_CheckResize( void )
+ {
+ 	int	charWidth = 8;
++	int	logWidth;
+ 
+ 	if( con.curFont && con.curFont->hFontTexture )
+ 		charWidth = con.curFont->charWidths['O'] - 1;
+ 
++	if( charWidth < 1 )
++		charWidth = 1; // an autoscaled atlas never gets here, but do not divide by zero
++
+ 	int width = ( refState.width / charWidth ) - 2;
++
++	// milestone 4: Con_Print() wraps a line at con.linewidth when the line is
++	// added, long before the styled panel exists, so the panel can only ever
++	// show a long line whole if the wrap width is the panel's log area instead
++	// of the whole screen. charWidth already carries the autoscale factor,
++	// because the factor is baked into charWidths at load time.
++	logWidth = Con_StyleLogWidth();
++
++	if( logWidth > 0 )
++	{
++		int	w = ( logWidth / charWidth ) - 1;
++
++		if( w >= 20 ) // never wrap to something unusably narrow
++			width = w;
++	}
++
+ 	if( !ref.initialized ) width = (640 / 5);
+ 
+ 	if( width == con.linewidth )
+@@ -606,18 +704,48 @@
+ static void Con_LoadConsoleFont( int fontNumber, cl_font_t *font )
+ {
+ 	qboolean success = false;
+-	float scale = con_fontscale.value;
++	// milestone 4: when a target height is in force the atlas is loaded at its
++	// native size and Con_ScaleConsoleFont() resizes it afterwards, because the
++	// base glyph height is only known once the .fnt header has been read.
++	qboolean autoscale = con_text_target_applied > 0.0f;
++	float scale = autoscale ? 1.0f : con_fontscale.value;
+ 	uint texFlags = TF_FONT|TF_NEAREST;
+ 
+ 	if( font->valid )
+ 		return; // already loaded
+ 
++	// milestone 4: a target height is almost never an integer multiple of the
++	// atlas, and a nearest-filtered stretch turns a 1.15x glyph stem into an
++	// alternating one and two pixels. Filter the atlas instead; CL_DrawCharacter
++	// then insets half a texel per glyph rect when it magnifies (cl_font.c),
++	// which is exactly the case that inset exists for, and the generated
++	// atlases keep a two-pixel gutter between cells for the minifying case.
++	if( autoscale )
++		ClearBits( texFlags, TF_NEAREST );
++
+ 	// milestone 3b: neutralise a pre-tinted game font so the styled console's
+ 	// text colour means something (Cry of Fear's CONCHARS atlas is amber)
+ 	if( Con_StyleEnabled() && cof_console_font_grayscale.value != 0.0f )
+ 		SetBits( texFlags, TF_LUMINANCE );
+ 
+-	if( con_oldfont.value )
++	// milestone 4: the generated Inter atlases, before anything else. They are
++	// the only console font in this stack that was drawn to be resized: three
++	// base sizes, antialiased, with an alpha ramp instead of a colour key.
++	// cof_text_font 0, or simply not shipping them, falls through to the exact
++	// stock chain below, which is what keeps the game's own atlas as a control.
++	if( !con_oldfont.value && cof_text_font.value != 0.0f )
++	{
++		string path;
++
++		Q_snprintf( path, sizeof( path ), "fonts/cof_console%i.fnt", fontNumber );
++		success = Con_LoadVariableWidthFont( path, font, scale, &con_fontrender, texFlags );
++	}
++
++	if( success )
++	{
++		// nothing else to try
++	}
++	else if( con_oldfont.value )
+ 	{
+ 		success = Con_LoadVariableWidthFont( "gfx/conchars.fnt", font, scale, &con_fontrender, texFlags );
+ 	}
+@@ -663,16 +791,85 @@
+ Con_LoadConchars
+ ================
+ */
++static void Con_ScaleConsoleFont( cl_font_t *font, int base, float target )
++{
++	float	scale;
++
++	if( !font->valid || base <= 0 || target <= 0.0f )
++		return;
++
++	scale = target / (float)base;
++
++	// the atlas was loaded at scale 1, so charWidths are still the raw advances
++	// and fontRc is still in texels; setting font->scale and rescaling the
++	// metrics is exactly what loading at that scale would have produced
++	font->scale = scale;
++	font->charHeight = Q_max( 1, Q_rint( base * scale ));
++
++	for( int i = 0; i < ARRAYSIZE( font->charWidths ); i++ )
++	{
++		if( font->charWidths[i] > 0 )
++			font->charWidths[i] = Q_max( 1, Q_rint( font->charWidths[i] * scale ));
++	}
++}
++
+ static void Con_LoadConchars( void )
+ {
++	qboolean fresh[CON_NUMFONTS];
++	float	target;
++	int	fontSize;
++
++	// milestone 4: freeze the target height for this whole load, so every font
++	// in the set carries the same one and Con_CheckTextScale() can tell when
++	// the screen has moved away from it
++	con_text_target_applied = Con_TextTargetHeight();
++	target = con_text_target_applied;
++
+ 	// load all the console fonts
+ 	for( int i = 0; i < CON_NUMFONTS; i++ )
++	{
++		fresh[i] = !con.chars[i].valid;
+ 		Con_LoadConsoleFont( i, con.chars + i );
+ 
++		if( fresh[i] && con.chars[i].valid )
++			con_font_base_height[i] = con.chars[i].charHeight;
++	}
++
+ 	// select properly fontsize
+-	int fontSize;
+ 	if( con_fontnum.value >= 0 && con_fontnum.value <= CON_NUMFONTS - 1 )
++	{
+ 		fontSize = con_fontnum.value;
++	}
++	else if( target > 0.0f )
++	{
++		// milestone 4: not "how wide is the screen" but "which of the loaded
++		// atlases is closest to the height we actually want", measured as the
++		// resampling ratio, so magnifying 1.2x loses to minifying 1.1x
++		float	best = 0.0f;
++
++		fontSize = -1;
++
++		for( int i = 0; i < CON_NUMFONTS; i++ )
++		{
++			float	ratio;
++
++			if( !con.chars[i].valid || con_font_base_height[i] <= 0 )
++				continue;
++
++			ratio = target / (float)con_font_base_height[i];
++			if( ratio < 1.0f )
++				ratio = 1.0f / ratio;
++
++			if( fontSize < 0 || ratio < best )
++			{
++				best = ratio;
++				fontSize = i;
++			}
++		}
++
++		if( fontSize < 0 )
++			fontSize = 0;
++	}
+ 	else if( refState.width <= 640 )
+ 		fontSize = 0;
+ 	else if( refState.width >= 1280 )
+@@ -682,11 +879,74 @@
+ 	if( fontSize > CON_NUMFONTS - 1 )
+ 		fontSize = CON_NUMFONTS - 1;
+ 
++	// milestone 4: bring every atlas to the same on-screen height, so whichever
++	// one a consumer already picked for itself - con_fontsize for the client's
++	// pfnDrawConsoleString, font 0 for the net graph - agrees with the console
++	if( target > 0.0f )
++	{
++		for( int i = 0; i < CON_NUMFONTS; i++ )
++		{
++			if( fresh[i] )
++				Con_ScaleConsoleFont( &con.chars[i], con_font_base_height[i], target );
++		}
++	}
++
+ 	// sets the current font
+ 	con.curFont = &con.chars[fontSize];
+ }
+ 
+ /*
++================
++Con_CheckTextScale
++
++Re-derives the target glyph height and reloads the console fonts when it has
++moved.
++
++Two triggers: a video mode change, which reaches this through
++SCR_VidInit() -> Con_VidInit(), and cof_text_autoscale / cof_text_height_pct /
++cof_text_font being changed at runtime, which reach it through
++Con_RunConsole()/Con_DrawConsole() on the next frame. Everything else is a
++float comparison per frame.
++
++The target is baked into the atlas' charWidths/charHeight/scale at load time,
++so no drawing code has to know it exists; only the wrap width has to be redone,
++because Con_Print() wraps at con.linewidth in glyph cells.
++================
++*/
++static void Con_CheckTextScale( void )
++{
++	qboolean force = false;
++	float	want;
++
++	if( !ref.initialized )
++		return;
++
++	// which atlas is loaded is not a function of the target height
++	if( FBitSet( cof_text_font.flags, FCVAR_CHANGED ))
++	{
++		ClearBits( cof_text_font.flags, FCVAR_CHANGED );
++		force = true;
++	}
++
++	want = Con_TextTargetHeight();
++
++	if( !force && want == con_text_target_applied )
++		return;
++
++	Con_InvalidateFonts();
++	Con_LoadConchars();	// sets con_text_target_applied = want
++	con.linewidth = 0;	// make Con_CheckResize() redo the wrap width
++
++	Con_Reportf( "[cof-text] %ix%i: target %.1f px (cof_text_height_pct %.2f, con_fontscale %.2f) -> font %i base %i px, glyph scale %.3f, charH %i px\n",
++		refState.width, refState.height, want,
++		cof_text_height_pct.value, con_fontscale.value,
++		(int)( con.curFont - con.chars ),
++		con.curFont ? con_font_base_height[con.curFont - con.chars] : 0,
++		con.curFont ? con.curFont->scale : 0.0f,
++		con.curFont ? con.curFont->charHeight : 0 );
++}
++
++/*
+ ============================
+ Con_UtfProcessChar
+ 
+@@ -878,6 +1138,11 @@
+ 	Cvar_RegisterVariable( &cof_console_accent_color );
+ 	Cvar_RegisterVariable( &cof_console_font_grayscale );
+ 
++	// milestone 4: console and overlay text sized from the render height
++	Cvar_RegisterVariable( &cof_text_autoscale );
++	Cvar_RegisterVariable( &cof_text_height_pct );
++	Cvar_RegisterVariable( &cof_text_font );
++
+ 	// init the console buffer
+ 	con.bufsize = CON_TEXTSIZE;
+ 	con.buffer = (char *)Z_Calloc( con.bufsize );
+@@ -2142,6 +2407,28 @@
+ 
+ /*
+ ================
++Con_StyleLogWidth
++
++Width in pixels of the styled panel's log area, or 0 when the styled console is
++off or cannot be laid out. Con_CheckResize() uses it as the wrap width so that
++a long line is rewrapped inside the panel instead of being clipped at its edge.
++================
++*/
++static int Con_StyleLogWidth( void )
++{
++	constyle_t	r;
++
++	if( !Con_StyleEnabled( ))
++		return 0;
++
++	if( !Con_StyleLayout( &r ))
++		return 0;
++
++	return r.log_w;
++}
++
++/*
++================
+ Con_StyleCloseHit
+ 
+ The close "X" is clickable only if a mouse position ever reached us and the
+@@ -2395,8 +2682,14 @@
+ 		int bx = r.close_x - r.padx - stringLen;
+ 
+ 		MakeRGBA( dim, title[0], title[1], title[2], alpha / 2 );
++		// milestone 4: Con_DrawStringClipped() keeps a whole 'W' of headroom
++		// before it stops, so an exact maxWidth drops the last glyphs. The
++		// string was measured, it cannot draw past stringLen, so hand it that
++		// headroom back - otherwise the build string loses its ")" as soon as
++		// the glyphs get big.
+ 		if( bx > tx + r.padx * 4 )
+-			Con_DrawStringClipped( bx, r.y + r.pady, stringLen + 1, curbuild, dim );
++			Con_DrawStringClipped( bx, r.y + r.pady,
++				stringLen + con.curFont->charWidths['W'] + 1, curbuild, dim );
+ 	}
+ 
+ 	// close button: an "X" in the band, highlighted while the cursor is over it
+@@ -2590,6 +2883,10 @@
+ 		}
+ 	}
+ 
++	// milestone 4: Con_RunConsole() is not reached in the connecting states, so
++	// the autoscale factor is re-checked here too before anything is measured
++	Con_CheckTextScale();
++
+ 	// check for console width changes from a vid mode change
+ 	Con_CheckResize ();
+ 
+@@ -2833,6 +3130,10 @@
+ {
+ 	Con_ApplyEnable();
+ 
++	// milestone 4: pick up a cof_text_autoscale change (a mode change is caught
++	// by Con_VidInit instead, and the connecting states by Con_DrawConsole)
++	Con_CheckTextScale();
++
+ 	Con_SetColor( );
+ 
+ 	con.showlines = Con_DestHeight();
+@@ -2974,6 +3275,10 @@
+ 	if( Sys_CheckParm( "-oldfont" ))
+ 		Cvar_DirectSet( &con_oldfont, "1" );
+ 
++	// milestone 4: the render size may have changed under us, so re-derive the
++	// text autoscale factor before the fonts are (re)loaded
++	Con_CheckTextScale();
++
+ 	Con_LoadConchars();
+ 	Con_CheckResize();
+ 
+diff --git a/engine/client/cl_scrn.c b/engine/client/cl_scrn.c
+--- a/engine/client/cl_scrn.c
++++ b/engine/client/cl_scrn.c
+@@ -338,8 +338,17 @@
+ 		Q_memprint( cls.netchan.total_sended )
+ 	);
+ 
+-	int x = refState.width - 320 * font->scale;
+-	int y = 384;
++	// milestone 4 (cof_text_autoscale): 320 is where this block starts with the
++	// stock 8 px glyphs. Once the console font is sized from the display, the
++	// widest line no longer fits in 320 scaled pixels and the text ran off the
++	// right edge, so place it from its own measured width instead.
++	int width = 0, x, y = 384;
++
++	CL_DrawStringLen( font, msg, &width, NULL, FONT_DRAW_RESETCOLORONLF );
++	if( width <= 0 )
++		width = 320 * font->scale;
++
++	x = Q_max( 0, refState.width - width - Q_max( 4, font->charWidths[' ' ] ));
+ 
+ 	MakeRGBA( color, 255, 255, 255, 255 );
+ 	CL_DrawString( x, y, msg, color, font, FONT_DRAW_RESETCOLORONLF );
+@@ -362,8 +371,15 @@
+ 		rgba_t	color;
+ 		cl_font_t *font = Con_GetCurFont();
+ 
+-		int x = refState.width - 340 * font->scale;
+-		int y = 64;
++		// milestone 4 (cof_text_autoscale): same as SCR_NetSpeeds above, 340 is
++		// a stock-glyph constant; measure the block and right-align it
++		int width = 0, x, y = 64;
++
++		CL_DrawStringLen( font, msg, &width, NULL, FONT_DRAW_RESETCOLORONLF );
++		if( width <= 0 )
++			width = 340 * font->scale;
++
++		x = Q_max( 0, refState.width - width - Q_max( 4, font->charWidths[' ' ] ));
+ 
+ 		MakeRGBA( color, 255, 255, 255, 255 );
+ 		CL_DrawString( x, y, msg, color, font, FONT_DRAW_RESETCOLORONLF );
+diff --git a/engine/client/cl_netgraph.c b/engine/client/cl_netgraph.c
+--- a/engine/client/cl_netgraph.c
++++ b/engine/client/cl_netgraph.c
+@@ -364,11 +364,30 @@
+ 	static int	lastout;
+ 	cl_font_t *font = Con_GetFont( 0 );
+ 	rgba_t		colors = { 0.9 * 255, 0.9 * 255, 0.7 * 255, 255 };
+-	int		ptx = Q_max( x + w - NETGRAPH_LERP_HEIGHT - 1, 1 );
+-	int		pty = Q_max( rect.top + rect.bottom - NETGRAPH_LERP_HEIGHT - 3, 1 );
+ 	int		out, i = ( cls.netchan.outgoing_sequence - 1 ) & NET_TIMINGS_MASK;
+ 	int		j = cls.netchan.incoming_sequence & NET_TIMINGS_MASK;
+ 	int		last_y = y - net_graphheight.value;
++	// milestone 4 (cof_text_autoscale): every number below - the row pitch, the
++	// "ms" column, where the block starts - was a constant tuned to the stock
++	// 8x12 glyphs. Once the console font is sized from the render height the
++	// rows overlap, the two fields collide, the block runs off the bottom of
++	// the screen and the right-hand "%i/s" labels run off its right edge. All
++	// four are now derived from the font and clamped to the screen.
++	float		fscale = ( font && font->valid && font->scale > 0.0f ) ? font->scale : 1.0f;
++	int		charH = ( font && font->valid ) ? font->charHeight : 12;
++	int		row = Q_max( 15, (int)( 15 * fscale ));
++	int		mscol = Q_max( 75, (int)( 75 * fscale ));
++	// the labels start at the graph's left edge, which is net_graphwidth
++	// (192 px) from the right edge of the screen - enough for the stock glyphs
++	// and nothing else. Keep the graph where it is and slide only the text
++	// block left far enough for the longest line to fit.
++	int		tx = x;
++	// how many label rows this graph type draws, so the block can be lifted far
++	// enough for the last one to stay on screen
++	int		rows = ( graphtype > 2 ) ? 4 : 3;
++	int		ptx = Q_max( x + w - NETGRAPH_LERP_HEIGHT - 1, 1 );
++	int		pty = Q_max( rect.top + rect.bottom - NETGRAPH_LERP_HEIGHT - 3, 1 );
++	int		ty;
+ 
+ 	if( count > 0 )
+ 	{
+@@ -387,35 +406,66 @@
+ 
+ 	CL_SetFontRendermode( font );
+ 
++	if( font && font->valid )
++	{
++		// the two widest things drawn below: the longest label line, and the
++		// "fps" line plus the "ms" column that sits mscol to its right
++		int	labelw = 0, msw = 0;
++
++		CL_DrawStringLen( font, "out:  1234 99.99 kb/s", &labelw, NULL, FONT_DRAW_NORENDERMODE );
++		CL_DrawStringLen( font, "9999 ms", &msw, NULL, FONT_DRAW_NORENDERMODE );
++		labelw = Q_max( labelw, mscol + msw );
++
++		if( labelw <= 0 )
++			labelw = Q_max( 1, font->charWidths['0'] ) * 21;
++
++		// the right-hand cl_cmdrate/cl_updaterate "%i/s" labels are placed from
++		// the graph's own geometry, so they need the same clamp in both axes
++		CL_DrawStringLen( font, "9999/s", &msw, NULL, FONT_DRAW_NORENDERMODE );
++		msw = Q_max( 1, msw );
++		ptx = Q_max( 1, Q_min( ptx, refState.width - msw ));
++		pty = Q_max( 1, Q_min( pty, refState.height - charH ));
++
++		// and the label block has to end before that column starts, or the two
++		// overlap once the glyphs are big enough for both to have been moved
++		if( tx + labelw > ptx )
++			tx = Q_max( 0, ptx - labelw - Q_max( 2, font->charWidths[' ' ] ));
++	}
++
++	// lift the whole block until its last row fits above the bottom edge
++	ty = y - net_graphheight.value;
++	ty = Q_min( ty, refState.height - charH - row * ( rows - 1 ));
++	ty = Q_max( 0, ty );
++
+ 	if( framerate > 0.0f )
+ 	{
+-		y -= net_graphheight.value;
++		y = ty;
+ 
+-		CL_DrawStringf( font, x, y, colors, FONT_DRAW_NORENDERMODE, "%.1f fps" , 1.0f / framerate);
++		CL_DrawStringf( font, tx, y, colors, FONT_DRAW_NORENDERMODE, "%.1f fps" , 1.0f / framerate);
+ 
+ 		if( avg > 1.0f )
+-			CL_DrawStringf( font, x + 75, y, colors, FONT_DRAW_NORENDERMODE, "%i ms" , (int)avg );
++			CL_DrawStringf( font, tx + mscol, y, colors, FONT_DRAW_NORENDERMODE, "%i ms" , (int)avg );
+ 
+-		y += 15;
++		y += row;
+ 
+ 		out = netstat_cmdinfo[i].size;
+ 		if( !out ) out = lastout;
+ 		else lastout = out;
+ 
+-		CL_DrawStringf( font, x, y, colors, FONT_DRAW_NORENDERMODE,
++		CL_DrawStringf( font, tx, y, colors, FONT_DRAW_NORENDERMODE,
+ 			"in :  %i %.2f kb/s", netstat_graph[j].msgbytes, cls.netchan.flow[FLOW_INCOMING].avgkbytespersec );
+-		y += 15;
++		y += row;
+ 
+-		CL_DrawStringf( font, x, y, colors, FONT_DRAW_NORENDERMODE,
++		CL_DrawStringf( font, tx, y, colors, FONT_DRAW_NORENDERMODE,
+ 			"out:  %i %.2f kb/s", out, cls.netchan.flow[FLOW_OUTGOING].avgkbytespersec );
+-		y += 15;
++		y += row;
+ 
+ 		if( graphtype > 2 )
+ 		{
+ 			int	loss = (int)(( packet_loss + PACKETLOSS_AVG_FRAC ) - 0.01f );
+ 			int	choke = (int)(( packet_choke + PACKETCHOKE_AVG_FRAC ) - 0.01f );
+ 
+-			CL_DrawStringf( font, x, y, colors, FONT_DRAW_NORENDERMODE, "loss: %i choke: %i", loss, choke );
++			CL_DrawStringf( font, tx, y, colors, FONT_DRAW_NORENDERMODE, "loss: %i choke: %i", loss, choke );
+ 		}
+ 	}
+ 
+diff --git a/engine/common/imagelib/img_wad.c b/engine/common/imagelib/img_wad.c
+--- a/engine/common/imagelib/img_wad.c
++++ b/engine/common/imagelib/img_wad.c
+@@ -160,8 +160,31 @@
+ 
+ 	if( numcolors == 768 || numcolors == 256 )
+ 	{
++		// Cry of Fear unified UI, milestone 4. A .fnt whose palette is the
++		// identity grey ramp - pal[i] == (i,i,i) for all 256 entries - is not a
++		// colour-keyed bitmap, it is an 8-bit coverage mask: the pixel value is
++		// the glyph's antialiasing. LUMP_MASKED would flatten every partly
++		// covered pixel to fully opaque and key out only index 255, which turns
++		// a smooth outline into a hard halo. LUMP_GRADIENT is the decode that
++		// already exists for exactly this shape: one colour, taken from the last
++		// palette entry (white here), with alpha = the index.
++		//
++		// No shipped font has that palette, so every existing .fnt keeps the
++		// masked behaviour byte for byte. scripts/make-cof-console-font.py in
++		// this project writes the ramp deliberately.
++		qboolean ramp = true;
++
++		for( int i = 0; i < 256; i++ )
++		{
++			if( pal[i * 3 + 0] != i || pal[i * 3 + 1] != i || pal[i * 3 + 2] != i )
++			{
++				ramp = false;
++				break;
++			}
++		}
++
+ 		// g-cont. make sure that is didn't hit anything
+-		Image_GetPaletteLMP( pal, LUMP_MASKED );
++		Image_GetPaletteLMP( pal, ramp ? LUMP_GRADIENT : LUMP_MASKED );
+ 		image.flags |= IMAGE_HAS_ALPHA; // fonts always have transparency
+ 	}
+ 	else

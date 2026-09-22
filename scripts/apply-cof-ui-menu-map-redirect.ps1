@@ -80,14 +80,26 @@ try {
         $mainAfter.Contains('Cvar_RegisterVariable( &cof_ui_menu_map_redirect )') -and
         $mainAfter.Contains('qboolean CL_CoF_MenuMapRedirect( const char *cmd, const char *source )') -and
         $mainAfter.Contains('qboolean CL_CoF_MenuMapLevelChange( const char *mapname, const char *source )') -and
+        $mainAfter.Contains('qboolean CL_CoF_MenuPanelSound( const char *sample, float volume )') -and
+        $mainAfter.Contains('static void CL_CoF_MenuPanelProbe_f( void )') -and
+        $mainAfter.Contains('static void CL_CoF_Disconnect_f( void )') -and
+        $mainAfter.Contains('static qboolean	cof_menu_return_armed;') -and
+        $mainAfter.Contains('Cmd_AddCommand ("disconnect", CL_CoF_Disconnect_f, "disconnect from server" );') -and
+        -not $mainAfter.Contains('Cmd_AddCommand ("disconnect", CL_Disconnect_f, "disconnect from server" );') -and
         $mainAfter.Contains('void CL_CoF_RememberBackgroundMap( const char *mapname )') -and
         $mainAfter.Contains('#define COF_MENU_MAP') -and
+        $mainAfter.Contains('#define COF_MENU_PANEL_SOUND') -and
+        $mainAfter.Contains('#define COF_MENU_PANEL_VOLUME') -and
+        $mainAfter.Contains('Cmd_AddCommand ("cof_ui_menu_panel_probe", CL_CoF_MenuPanelProbe_f') -and
         $mainAfter.Contains('scripts/chapterbackgrounds.txt') -and
         $mainAfter.Contains('disconnect\nmenu_main\nmap_background %s\n') -and
         $clgameAfter.Contains('CL_CoF_MenuMapRedirect( szCmdString, "client pfnClientCmd" )') -and
+        $clgameAfter.Contains('CL_CoF_MenuPanelSound( szSound, volume );') -and
         $clparseAfter.Contains('CL_CoF_MenuMapRedirect( s, "server svc_stufftext" )') -and
         $commonAfter.Contains('qboolean CL_CoF_MenuMapRedirect( const char *cmd, const char *source );') -and
+        $commonAfter.Contains('qboolean CL_CoF_MenuPanelSound( const char *sample, float volume );') -and
         $commonAfter.Contains('static inline qboolean CL_CoF_MenuMapLevelChange( const char *mapname, const char *source ) { return false; }') -and
+        $commonAfter.Contains('static inline qboolean CL_CoF_MenuPanelSound( const char *sample, float volume ) { return false; }') -and
         $svcmdsAfter.Contains('CL_CoF_RememberBackgroundMap( mapname );') -and
         $svcmdsAfter.Contains('CL_CoF_MenuMapLevelChange( mapname, "map command" )') -and
         $svcmdsAfter.Contains('CL_CoF_MenuMapLevelChange( Cmd_Argv( 1 ), "changelevel command" )') -and

@@ -1,0 +1,65 @@
+diff --git a/engine/client/console.c b/engine/client/console.c
+--- a/engine/client/console.c
++++ b/engine/client/console.c
+@@ -23,6 +23,26 @@
+ #include "input.h"
+ #include "utflib.h"
+ 
++// The "cofenhanced" build stamp. cof-fix\scripts\write-cof-version.ps1 writes
++// engine/cof_version.h from cof-fix\VERSION and the repository's git short
++// hash; a plain apply of the patch has no such file, so every value falls back
++// to "dev" and the build still compiles.
++#if defined( __has_include )
++#if __has_include( "cof_version.h" )
++#include "cof_version.h"
++#endif
++#endif
++#ifndef COFE_VERSION
++#define COFE_VERSION   "dev"
++#endif
++#ifndef COFE_MILESTONE
++#define COFE_MILESTONE "dev"
++#endif
++#ifndef COFE_COMMIT
++#define COFE_COMMIT    "dev"
++#endif
++#define COFE_BUILD_STRING "cofenhanced " COFE_VERSION " (" COFE_MILESTONE ", " COFE_COMMIT ")"
++
+ static CVAR_DEFINE_AUTO( scr_conspeed, "600", FCVAR_ARCHIVE, "console moving speed" );
+ static CVAR_DEFINE_AUTO( con_notifytime, "3", FCVAR_ARCHIVE, "notify time to live" );
+ CVAR_DEFINE_AUTO( con_fontsize, "1", FCVAR_ARCHIVE, "console font number (0, 1 or 2)" );
+@@ -2672,9 +2692,10 @@
+ 	tx = r.x + r.padx;
+ 	Con_DrawStringClipped( tx, r.y + r.pady, r.w - r.padx * 2, titleText, title );
+ 
+-	// the build string lives in the band now, not across the top of the screen
+-	Q_snprintf( curbuild, sizeof( curbuild ), XASH_ENGINE_NAME " %i/" XASH_VERSION " (%s-%s build %i)",
+-		PROTOCOL_VERSION, Q_buildos(), Q_buildarch(), Q_buildnum( ));
++	// the build string lives in the band now, not across the top of the screen,
++	// with the cofenhanced stamp appended after the engine's own build
++	Q_snprintf( curbuild, sizeof( curbuild ), XASH_ENGINE_NAME " %i/" XASH_VERSION " (%s-%s build %i)  %s",
++		PROTOCOL_VERSION, Q_buildos(), Q_buildarch(), Q_buildnum( ), COFE_BUILD_STRING );
+ 	Con_DrawStringLen( curbuild, &stringLen, &charH );
+ 
+ 	{
+@@ -2987,6 +3008,20 @@
+ 	int start = refState.width - stringLen * 1.05f;
+ 	int height = refState.height - charH * 1.05f;
+ 
++	// cofenhanced build stamp: a second line under the engine's own, same
++	// autoscaled font (Con_DrawString/Con_DrawStringLen already carry the
++	// cof_text_autoscale sizing), same colour and alpha, right-aligned the same
++	// way. The engine line moves up by one row so both fit on screen.
++	{
++		int	cofLen, cofH = 0;
++
++		Con_DrawStringLen( COFE_BUILD_STRING, &cofLen, &cofH );
++
++		height -= cofH;
++		Con_DrawString( refState.width - cofLen * 1.05f,
++			refState.height - cofH * 1.05f, COFE_BUILD_STRING, color );
++	}
++
+ 	Con_DrawString( start, height, curbuild, color );
+ }
+ 

@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory=$true)] [string] $SourceRoot,
     [switch] $Reverse
 )
@@ -48,6 +48,7 @@ $scrimFile  = Join-Path $mainui 'controls\BackgroundBitmap.cpp'
 $cofFile    = Join-Path $mainui 'menus\CryOfFear.cpp'
 $fwFile     = Join-Path $mainui 'controls\Framework.cpp'
 $fontFile   = Join-Path $mainui 'font\FontManager.cpp'
+$audioFile  = Join-Path $mainui 'menus\Audio.cpp'
 $newSource  = Join-Path $mainui 'Theme.cpp'
 $newHeader  = Join-Path $mainui 'Theme.h'
 foreach($path in @($mainui, $baseHeader, $baseSource, $mainFile, $loadFile, $scrimFile, $cofFile, $fwFile, $fontFile)) {
@@ -122,11 +123,14 @@ $fontAfter = Get-Content -Raw -LiteralPath $fontFile
 $mainAfter = Get-Content -Raw -LiteralPath $mainFile
 $loadAfter = Get-Content -Raw -LiteralPath $loadFile
 $cofAfter  = Get-Content -Raw -LiteralPath $cofFile
+$audioAfter = Get-Content -Raw -LiteralPath $audioFile
+$themeAfter = if (Test-Path -LiteralPath $newSource) { Get-Content -Raw -LiteralPath $newSource } else { '' }
 $advAfter  = Get-Content -Raw -LiteralPath $advFile
 if ($Reverse) {
     if ((Test-Path -LiteralPath $newSource) -or (Test-Path -LiteralPath $newHeader) -or
         $fwAfter.Contains('DrawPanelChrome') -or $fontAfter.Contains('UI_ThemeFontFallback') -or
-        $cofAfter.Contains('CMenuCoFDeath') -or $advAfter.Contains('conEnable')) {
+        $cofAfter.Contains('CMenuCoFDeath') -or $advAfter.Contains('conEnable') -or
+        $audioAfter.Contains('menuVolume')) {
         throw 'Reverse application completed without removing all MainUI Source-theme markers.'
     }
     if (-not $mainAfter.Contains('UI_IsCryOfFear')) {
@@ -140,7 +144,11 @@ if ($Reverse) {
     if (!(Test-Path -LiteralPath $newSource) -or !(Test-Path -LiteralPath $newHeader) -or
         -not $fwAfter.Contains('DrawPanelChrome') -or -not $fontAfter.Contains('UI_ThemeFontFallback') -or
         -not $cofAfter.Contains('ADD_MENU( menu_cofdeath, CMenuCoFDeath, UI_CoFDeath_Menu );') -or
-        -not $advAfter.Contains('conEnable.LinkCvar( "con_enable" );')) {
+        -not $advAfter.Contains('conEnable.LinkCvar( "con_enable" );') -or
+        -not $audioAfter.Contains('menuVolume.LinkCvar( "ui_sound_volume" );') -or
+        -not $mainAfter.Contains('ADD_COMMAND( menu_cof_quit_to_menu, UI_CoFMainQuitToMenu );') -or
+        -not $mainAfter.Contains('ADD_COMMAND( menu_cof_sound_probe, UI_CoFSoundProbe );') -or
+        -not $themeAfter.Contains('#define COF_SCENE_DEFAULTS_GEN')) {
         throw 'Forward application completed without the expected MainUI Source-theme markers.'
     }
     Write-Host "Applied CoF MainUI Source theme in $mainui"

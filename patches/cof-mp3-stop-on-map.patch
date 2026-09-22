@@ -1,0 +1,165 @@
+diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
+--- a/engine/client/cl_main.c
++++ b/engine/client/cl_main.c
+@@ -92,6 +92,7 @@
+ CVAR_DEFINE_AUTO( ui_renderworld, "0", FCVAR_ARCHIVE, "render world when UI is visible" );
+ static CVAR_DEFINE_AUTO( cof_ui_menu_map_redirect, "1", 0, "unified UI gate: turn a client- or server-issued \"map c_game_menu1\" into a return to the engine menu over the background map (0 = stock behaviour)" );
+ static CVAR_DEFINE_AUTO( cof_ui_death_menu, "1", 0, "unified UI gate: open the engine menu's own death page when the game DLL sends the Cry of Fear GAME OVER screen (0 = stock behaviour, the client's own panel)" );
++static CVAR_DEFINE_AUTO( cof_mp3_stop_on_map, "1", 0, "run the client's \"stopmp3\" command before a fresh map, newgame, save load or disconnect, so the client's own MP3 player does not bleed across the transition (changelevel is deliberately untouched)" );
+ static CVAR_DEFINE_AUTO( cl_maxframetime, "0", 0, "set deadline timer for client rendering to catch freezes" );
+ CVAR_DEFINE_AUTO( cl_fixmodelinterpolationartifacts, "1", 0, "try to fix up models interpolation on a moving platforms (monsters on trains for example)" );
+ 
+@@ -214,6 +215,67 @@
+ 
+ /*
+ ====================
++CL_CoF_StopMP3
++
++Cry of Fear music bleed across transitions (cof_mp3_stop_on_map, default on).
++
++Cry of Fear does not play music through the engine at all. The client owns an
++irrKlang device and a CMP3Player of its own (measured in
++stage1/menu-music-20260921/RESULTS.md: MP3_Create at client.dll VA 1007F9E0,
++the current track at 105440B0), so S_StopBackgroundTrack in CL_Disconnect and
++the level loader's own audio teardown do not touch it, and a track started on
++one map keeps playing on the next. The only control surface the client exposes
++is one console command, "stopmp3" (registered at VA 1006D60A, handler 1006E350,
++an unconditional MP3_Stop( 0.0f )); the "mp3player" command is an empty stub and
++there is no "stop" user message.
++
++So the engine issues that command itself, directly rather than through Cbuf,
++because it has to take effect *before* the transition it precedes - a queued
++command would run after the new level had already started its own track.
++
++Deliberately NOT done for changelevel: Cry of Fear carries a track across an
++in-game level transition on purpose (the train ride, the sewer/subway chains),
++and killing it there would be a regression, not a fix. The hooks are therefore
++on the four "this is a new session" funnels only - COM_LoadLevel, COM_NewGame,
++COM_LoadGame and CL_Disconnect - and never on COM_ChangeLevel.
++
++Safe on a dedicated build (the stub in common.h), before the client DLL is
++loaded, with a client that does not register the command, and during a crash
++teardown.
++====================
++*/
++void CL_CoF_StopMP3( const char *reason )
++{
++	// COM_NewGame/COM_LoadLevel/COM_LoadGame call CL_Disconnect themselves when
++	// no server is running, so one transition can reach this twice. "once" is
++	// per frame: stopmp3 is idempotent, but the log should not double up.
++	static qboolean	stopped_once;
++	static uint	last_frame;
++
++	if( !cof_mp3_stop_on_map.value )
++		return;
++
++	if( host.status == HOST_CRASHED || host.type == HOST_DEDICATED )
++		return;
++
++	if( !clgame.hInstance )
++		return; // no client DLL, so no player and no command
++
++	if( !Cmd_Exists( "stopmp3" ))
++		return; // a client that does not have the Cry of Fear music player
++
++	if( stopped_once && last_frame == host.framecount )
++		return;
++
++	stopped_once = true;
++	last_frame = host.framecount;
++
++	Con_Reportf( "[cof-mp3] stopmp3 before %s\n", reason ? reason : "transition" );
++	Cmd_ExecuteString( "stopmp3" );
++}
++
++/*
++====================
+ CL_CoF_VidRestartForget
+ 
+ Drop a queued background-map restart. Called from CL_ClearState so a restart
+@@ -2467,6 +2529,11 @@
+ 	if( cls.state == ca_disconnected )
+ 		return;
+ 
++	// Cry of Fear (cof_mp3_stop_on_map): the client's own irrKlang player is not
++	// part of the session the lines below tear down, so it has to be told. Done
++	// first, while the client DLL is still fully live.
++	CL_CoF_StopMP3( "disconnect" );
++
+ 	cls.connect_time = 0;
+ 	cls.changedemo = false;
+ 	cls.max_fragment_size = FRAGMENT_MAX_SIZE; // reset fragment size
+@@ -4450,6 +4517,7 @@
+ 	Cvar_RegisterVariable( &ui_renderworld );
+ 	Cvar_RegisterVariable( &cof_ui_menu_map_redirect );
+ 	Cvar_RegisterVariable( &cof_ui_death_menu );
++	Cvar_RegisterVariable( &cof_mp3_stop_on_map );
+ 	Cvar_RegisterVariable( &cl_maxframetime );
+ 	Cvar_RegisterVariable( &cl_fixmodelinterpolationartifacts );
+ 
+diff --git a/engine/common/common.h b/engine/common/common.h
+--- a/engine/common/common.h
++++ b/engine/common/common.h
+@@ -759,6 +759,9 @@
+ qboolean CL_CoF_MenuMapLevelChange( const char *mapname, const char *source );
+ qboolean CL_CoF_MenuPanelSound( const char *sample, float volume );
+ void CL_CoF_RememberBackgroundMap( const char *mapname );
++// Cry of Fear music bleed (cof_mp3_stop_on_map): defined in cl_main.c, called
++// from the host state transitions in host_state.c
++void CL_CoF_StopMP3( const char *reason );
+ #else
+ static inline qboolean CL_Initialized( void ) { return false; }
+ static inline qboolean CL_IsInGame( void ) { return true; } // always true for dedicated
+@@ -774,6 +777,7 @@
+ static inline qboolean CL_CoF_MenuMapLevelChange( const char *mapname, const char *source ) { return false; }
+ static inline qboolean CL_CoF_MenuPanelSound( const char *sample, float volume ) { return false; }
+ static inline void CL_CoF_RememberBackgroundMap( const char *mapname ) { }
++static inline void CL_CoF_StopMP3( const char *reason ) { }
+ #endif
+ 
+ char *CL_Userinfo( void );
+diff --git a/engine/common/host_state.c b/engine/common/host_state.c
+--- a/engine/common/host_state.c
++++ b/engine/common/host_state.c
+@@ -52,6 +52,13 @@
+ 	if( UI_CreditsActive( ))
+ 		return;
+ 
++	// Cry of Fear (cof_mp3_stop_on_map, default on): the client's own
++	// irrKlang player is not part of any engine session, so a track started
++	// on the map we are leaving would keep playing over the new game.
++	// COM_ChangeLevel deliberately does NOT do this - Cry of Fear carries a
++	// track across an in-game level transition on purpose.
++	CL_CoF_StopMP3( "newgame" );
++
+ 	Q_strncpy( GameState->levelName, pMapName, sizeof( GameState->levelName ));
+ 	Host_SetNextState( STATE_LOAD_LEVEL );
+ 
+@@ -74,6 +81,13 @@
+ 	if( UI_CreditsActive( ))
+ 		return;
+ 
++	// Cry of Fear (cof_mp3_stop_on_map, default on): the client's own
++	// irrKlang player is not part of any engine session, so a track started
++	// on the map we are leaving would keep playing over the new level.
++	// COM_ChangeLevel deliberately does NOT do this - Cry of Fear carries a
++	// track across an in-game level transition on purpose.
++	CL_CoF_StopMP3( "map" );
++
+ 	Q_strncpy( GameState->levelName, pMapName, sizeof( GameState->levelName ));
+ 	Host_SetNextState( STATE_LOAD_LEVEL );
+ 
+@@ -96,6 +110,13 @@
+ 	if( UI_CreditsActive( ))
+ 		return;
+ 
++	// Cry of Fear (cof_mp3_stop_on_map, default on): the client's own
++	// irrKlang player is not part of any engine session, so a track started
++	// on the map we are leaving would keep playing over the restored save.
++	// COM_ChangeLevel deliberately does NOT do this - Cry of Fear carries a
++	// track across an in-game level transition on purpose.
++	CL_CoF_StopMP3( "load" );
++
+ 	Q_strncpy( GameState->levelName, pMapName, sizeof( GameState->levelName ));
+ 	Host_SetNextState( STATE_LOAD_GAME );
+ 	GameState->backgroundMap = false;

@@ -9,7 +9,7 @@ diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
  static CVAR_DEFINE_AUTO( cl_maxframetime, "0", 0, "set deadline timer for client rendering to catch freezes" );
  CVAR_DEFINE_AUTO( cl_fixmodelinterpolationartifacts, "1", 0, "try to fix up models interpolation on a moving platforms (monsters on trains for example)" );
  
-@@ -115,6 +116,13 @@ clgame_static_t	clgame;
+@@ -115,6 +116,31 @@ clgame_static_t	clgame;
  // Cry of Fear video mode change hook: a background-map restart is queued
  static qboolean	cof_vid_restart_pending;
  
@@ -17,13 +17,31 @@ diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
 +// was asked to start, and the map whose level changes the redirect intercepts
 +static char	cof_menu_background_map[MAX_QPATH];
 +#define COF_MENU_MAP		"c_game_menu1"
++// Cry of Fear unified UI: the client's own main-menu panel, CGameMenu. Some of
++// its callers never ask for a level change at all - the Unlockables gallery's
++// MAIN MENU button just calls setVisible( true ) on that panel in place, on
++// whatever map is loaded - so the level-change hooks above cannot see them.
++// The one thing those arms do reach the engine with is this click sound, and
++// the 0.5 volume belongs to CGameMenu's own methods alone; see
++// docs/cof-ui-menu-map-redirect.md for the measured call sites.
++#define COF_MENU_PANEL_SOUND	"ui/3d_click.wav"
++#define COF_MENU_PANEL_VOLUME	0.5f
++// the map a panel return was already queued on, so the second click the same
++// press produces cannot queue it twice; it clears itself on the next level
++static char	cof_menu_panel_map[MAX_QPATH];
++// Cry of Fear unified UI: one-shot latch, set whenever the return sequence has
++// just been queued and consumed by the "disconnect" that is part of it. It is
++// what keeps CL_CoF_Disconnect_f from arming a second background map on top of
++// the one the redirect (or the menu's own Quit to menu, which ends up here too)
++// already asked for.
++static qboolean	cof_menu_return_armed;
 +// one console command line; cmd.c's own MAX_CMD_LINE is private to that file
 +#define COF_MENU_CMD_MAX	2048
 +
  //======================================================================
  int GAME_EXPORT CL_Active( void )
  {
-@@ -254,6 +262,281 @@ qboolean CL_IsInConsole( void )
+@@ -254,6 +280,478 @@ qboolean CL_IsInConsole( void )
  	return ( cls.key_dest == key_console );
  }
  
@@ -46,6 +64,15 @@ diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
 +		return;
 +
 +	Q_strncpy( cof_menu_background_map, mapname, sizeof( cof_menu_background_map ));
++
++	// back under the engine menu: arm the panel hook again, see
++	// CL_CoF_MenuPanelSound. This is the one event that always follows a panel
++	// return and always precedes the next trip out to a Cry of Fear UI map.
++	cof_menu_panel_map[0] = '\0';
++
++	// the queued return has arrived; nothing is pending any more, so the next
++	// disconnect from anywhere is free to arm a background map of its own
++	cof_menu_return_armed = false;
 +}
 +
 +/*
@@ -171,6 +198,11 @@ diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
 +	Q_snprintf( redirect, sizeof( redirect ), "disconnect\nmenu_main\nmap_background %s\n", background );
 +	Cbuf_AddText( redirect );
 +
++	// the "disconnect" on the first line of that sequence goes through the
++	// console command like any other, so tell CL_CoF_Disconnect_f that this one
++	// is already accounted for
++	cof_menu_return_armed = true;
++
 +	Con_Reportf( "[cof-ui] menu map redirect: \"%s\" from %s -> disconnect + menu_main + map_background %s\n",
 +		what, source, background );
 +
@@ -214,6 +246,189 @@ diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
 +		return false;
 +
 +	return CL_CoF_MenuMapReturn( mapname, source );
++}
++
++/*
++====================
++CL_CoF_MenuPanelSound
++
++Cry of Fear unified UI (cof_ui_menu_map_redirect, default on).
++
++The producer the level-change hooks cannot see, and the one the user reported:
++from the Unlockables gallery on c_unlockables, MAIN MENU brought up the old Cry
++of Fear menu. Measured in the shipped client.dll, read-only:
++
++  CUnlockables::OnCommand( 50 ) at VA 10035950, arm 10035991
++      this->setVisible( false );
++      gViewport->UpdateCursorState();
++      gViewport->m_pGameMenu->setVisible( true );   // CGameMenu, vtable 10143200
++      gViewport->UpdateCursorState();
++      pfnPlaySoundByName( "ui/3d_click.wav", 1.0f );
++
++There is no level change, no console command, no stufftext and no user message
++anywhere on that path: the client simply shows its own main-menu panel over the
++map that is already loaded. The redirect's four interception points all sit on
++the command path, so none of them was ever reached.
++
++What the engine can see is the click sound, and the discriminator is the volume.
++"ui/3d_click.wav" has nineteen call sites in client.dll; eight of them pass
++0.5f and all eight are methods of CGameMenu itself (the object is 0xC748 bytes
++and they all work on its 0xC6xx/0xC7xx members), including CGameMenu::setVisible
++at VA 1002ECF0, which is what runs first in the arm above. Every other site
++passes 1.0f. So a 0.5f "ui/3d_click.wav" means exactly one thing: the Cry of
++Fear main-menu panel is taking the screen. Under the unified UI that is a
++request to come back to our menu, the same as "map c_game_menu1", and it is
++answered with the same sequence. The 1.0f clicks are left alone, which is what
++keeps the gallery's own item buttons - and the item viewer's way back to the
++gallery, client.dll VA 1001F0ED, also on c_unlockables - working normally.
++
++The sound still plays: the user pressed a button and should hear it. Nothing is
++executed here either, the return is queued, see CL_CoF_MenuMapReturn.
++====================
++*/
++qboolean CL_CoF_MenuPanelSound( const char *sample, float volume )
++{
++	char	name[MAX_QPATH];
++	int	i;
++
++	if( !cof_ui_menu_map_redirect.value )
++		return false;
++
++	if( COM_StringEmptyOrNULL( sample ))
++		return false;
++
++	// a real single player session or the gallery map, never a background map
++	// (there the panel cannot be on screen) and never a multiplayer game (Cry
++	// of Fear's own panels disconnect instead of showing the menu there)
++	if( cls.state != ca_active || cl.maxclients > 1 )
++		return false;
++
++	if( cl_background.value != 0.0f )
++		return false;
++
++	if( fabs( volume - COF_MENU_PANEL_VOLUME ) > 0.01f )
++		return false;
++
++	Q_strncpy( name, sample, sizeof( name ));
++
++	for( i = 0; name[i] != '\0'; i++ )
++	{
++		if( name[i] == '\\' )
++			name[i] = '/';
++	}
++
++	if( Q_stricmp( name, COF_MENU_PANEL_SOUND ))
++		return false;
++
++	// one press plays two of these; queue the return only for the first
++	if( !COM_StringEmpty( clgame.mapname ) && !Q_stricmp( cof_menu_panel_map, clgame.mapname ))
++		return true;
++
++	Q_strncpy( cof_menu_panel_map, clgame.mapname, sizeof( cof_menu_panel_map ));
++
++	return CL_CoF_MenuMapReturn( "Cry of Fear main menu panel", "client menu panel" );
++}
++
++/*
++====================
++CL_CoF_MenuPanelProbe_f
++
++Cry of Fear unified UI (cof_ui_menu_map_redirect): the test hook for
++CL_CoF_MenuPanelSound above. What that hook answers to is a mouse click on a
++client VGUI panel, and this project may not inject mouse or keyboard input, so
++feeding it the same (sample, volume) pair pfnPlaySoundByName would is the only
++way to exercise it from a cfg. It plays nothing and touches nothing else.
++
++	cof_ui_menu_panel_probe [sample] [volume]
++
++with the measured pair as the default.
++====================
++*/
++static void CL_CoF_MenuPanelProbe_f( void )
++{
++	const char	*sample = COF_MENU_PANEL_SOUND;
++	float		volume = COF_MENU_PANEL_VOLUME;
++
++	if( Cmd_Argc() > 1 )
++		sample = Cmd_Argv( 1 );
++
++	if( Cmd_Argc() > 2 )
++		volume = Q_atof( Cmd_Argv( 2 ));
++
++	Con_Printf( "[cof-ui] menu panel probe: \"%s\" %.2f -> %s\n", sample, volume,
++		CL_CoF_MenuPanelSound( sample, volume ) ? "taken over" : "passed through" );
++}
++
++/*
++====================
++CL_CoF_Disconnect_f
++
++Cry of Fear unified UI (cof_ui_menu_map_redirect, default on).
++
++The user-visible symptom: typing "disconnect" in the console left the engine
++menu standing over nothing, while Quit to menu on the same menu came back to
++the live scene. Quit to menu is not the disconnect doing that - it is MainUI's
++CMenuMain::Think re-arming the background map afterwards (menus/Main.cpp), and
++that is the *menu's* code, so no other route to a disconnect has it.
++
++This wraps the "disconnect" console command itself, which is the one thing every
++route shares: a typed line, an alias, a cfg, a stufftext, the menu's own
++ClientCmd("disconnect") and the redirect's queued sequence all arrive here. When
++the redirect is on and this is a single-player session, it queues the same two
++commands the redirect's return sequence uses after its own disconnect -
++menu_main and map_background <the remembered chapter background> - so every
++disconnect lands where Quit to menu lands.
++
++Ordering is the same trick CL_CoF_MenuMapReturn relies on: the commands are only
++*queued*, and the real CL_Disconnect_f below ends a local game through
++Host_EndGame(), which aborts the current frame. Cbuf_ExecuteCommandsFromBuffer
++has already popped this line, so the two queued ones run at the start of the
++next frame, with the server really down - which SV_MapBackground_f insists on
++("can't set background map while game is active").
++
++Not armed twice:
++
++* the redirect's own sequence already contains a disconnect. It sets
++  cof_menu_return_armed when it queues, and that disconnect consumes it here;
++* MainUI's Quit to menu issues a bare "disconnect", so it is armed here - and
++  its own delayed re-arm then cannot fire, because CMenuMain::Think requires
++  cl_background == 0 for COF_BACKGROUND_RESTART_DELAY consecutive frames and
++  UI_StartBackGroundMap() refuses outright while cl_background is set. One
++  background map is started, not two.
++====================
++*/
++static void CL_CoF_Disconnect_f( void )
++{
++	char		redirect[COF_MENU_CMD_MAX];
++	const char	*background;
++
++	while( cof_ui_menu_map_redirect.value )
++	{
++		if( cof_menu_return_armed )
++		{
++			// this is the disconnect of a sequence that already carries the
++			// re-arm; one shot, so the next disconnect is free again
++			cof_menu_return_armed = false;
++			Con_Reportf( "[cof-ui] menu map redirect: \"disconnect\" - background map already armed, not arming again\n" );
++			break;
++		}
++
++		if( cls.state == ca_disconnected )
++			break; // nothing to leave
++
++		if( cl.maxclients > 1 )
++			break; // multiplayer keeps the stock behaviour, as everywhere else here
++
++		background = CL_CoF_MenuBackgroundMap( COF_MENU_MAP );
++		Q_snprintf( redirect, sizeof( redirect ), "menu_main\nmap_background %s\n", background );
++		Cbuf_AddText( redirect );
++		cof_menu_return_armed = true;
++
++		Con_Reportf( "[cof-ui] menu map redirect: \"disconnect\" -> menu_main + map_background %s\n", background );
++		break;
++	}
++
++	CL_Disconnect_f();
 +}
 +
 +/*
@@ -305,13 +520,35 @@ diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
  qboolean CL_IsIntermission( void )
  {
  	return cl.intermission;
-@@ -3880,6 +4163,7 @@ static void CL_InitLocal( void )
+@@ -3880,6 +4378,7 @@ static void CL_InitLocal( void )
  	Cvar_RegisterVariable( &cl_showevents );
  	Cvar_Get( "lastdemo", "", FCVAR_ARCHIVE, "last played demo" );
  	Cvar_RegisterVariable( &ui_renderworld );
 +	Cvar_RegisterVariable( &cof_ui_menu_map_redirect );
  	Cvar_RegisterVariable( &cl_maxframetime );
  	Cvar_RegisterVariable( &cl_fixmodelinterpolationartifacts );
+ 
+@@ -3912,7 +4411,12 @@ static void CL_InitLocal( void )
+ 	Cmd_AddRestrictedCommand ("setinfo", CL_SetInfo_f, "examine or change the userinfo string (alias of userinfo)" );
+ 	Cmd_AddRestrictedCommand ("userinfo", CL_SetInfo_f, "examine or change the userinfo string (alias of setinfo)" );
+ 	Cmd_AddCommand ("physinfo", CL_Physinfo_f, "print current client physinfo" );
+-	Cmd_AddCommand ("disconnect", CL_Disconnect_f, "disconnect from server" );
++	// Cry of Fear unified UI (cof_ui_menu_map_redirect, default on): the console
++	// command goes through CL_CoF_Disconnect_f, which re-arms the engine menu's
++	// background map exactly the way Quit to menu does. The engine's own
++	// internal callers still use CL_Disconnect_f directly, so a connection
++	// failure or a host error is unaffected.
++	Cmd_AddCommand ("disconnect", CL_CoF_Disconnect_f, "disconnect from server" );
+ 	Cmd_AddRestrictedCommand( "record", CL_Record_f, "record a demo" );
+ 	Cmd_AddCommand ("playdemo", CL_PlayDemo_f, "play a demo" );
+ 	Cmd_AddCommand ("timedemo", CL_TimeDemo_f, "demo benchmark" );
+@@ -3929,6 +4433,7 @@ static void CL_InitLocal( void )
+ 	Cmd_AddCommand ("linefile", CL_ReadLineFile_f, "show leaks on a map (if present of course)" );
+ 	Cmd_AddCommand ("fullserverinfo", CL_FullServerinfo_f, "sent by server when serverinfo changes" );
+ 	Cmd_AddCommand ("upload", CL_BeginUpload_f, "uploading file to the server" );
++	Cmd_AddCommand ("cof_ui_menu_panel_probe", CL_CoF_MenuPanelProbe_f, "Cry of Fear unified UI: feed a UI sound through the menu-panel hook, the cfg-driven stand-in for the click" );
+ 
+ 	Cmd_AddRestrictedCommand( "replaybufferdat", CL_ReplayBufferDat_f, "development and debugging tool" );
  
 diff --git a/engine/client/dll_int/cl_game.c b/engine/client/dll_int/cl_game.c
 --- a/engine/client/dll_int/cl_game.c
@@ -337,6 +574,20 @@ diff --git a/engine/client/dll_int/cl_game.c b/engine/client/dll_int/cl_game.c
  		Q_strncat( host.deferred_cmd, szCmdString, sizeof( host.deferred_cmd ));
  		Q_strncat( host.deferred_cmd, "\n", sizeof( host.deferred_cmd ));
  	}
+@@ -1915,6 +1922,13 @@ pfnPlaySoundByName
+ */
+ static void GAME_EXPORT pfnPlaySoundByName( const char *szSound, float volume )
+ {
++	// Cry of Fear unified UI (cof_ui_menu_map_redirect, default on): the client
++	// brings its own main-menu panel up without asking for a level change at
++	// all - the Unlockables gallery's MAIN MENU button is the measured case -
++	// and this click is the only thing the engine gets to see of it. The sound
++	// still plays; the return to our menu is queued, see cl_main.c.
++	CL_CoF_MenuPanelSound( szSound, volume );
++
+ 	int hSound = S_RegisterSound( szSound );
+ 	S_StartSound( NULL, cl.viewentity, CHAN_ITEM, hSound, volume, ATTN_NORM, PITCH_NORM, SND_STOP_LOOPING );
+ }
 diff --git a/engine/client/parse/cl_parse.c b/engine/client/parse/cl_parse.c
 --- a/engine/client/parse/cl_parse.c
 +++ b/engine/client/parse/cl_parse.c
@@ -355,7 +606,7 @@ diff --git a/engine/client/parse/cl_parse.c b/engine/client/parse/cl_parse.c
 diff --git a/engine/common/common.h b/engine/common/common.h
 --- a/engine/common/common.h
 +++ b/engine/common/common.h
-@@ -753,6 +753,11 @@ qboolean CL_IsPlaybackDemo( void );
+@@ -753,6 +753,12 @@ qboolean CL_IsPlaybackDemo( void );
  qboolean UI_CreditsActive( void );
  void *UI_GetMenuFactory( void );
  int CL_GetMaxClients( void );
@@ -363,16 +614,18 @@ diff --git a/engine/common/common.h b/engine/common/common.h
 +// called from the client and from the server's pfnServerCommand
 +qboolean CL_CoF_MenuMapRedirect( const char *cmd, const char *source );
 +qboolean CL_CoF_MenuMapLevelChange( const char *mapname, const char *source );
++qboolean CL_CoF_MenuPanelSound( const char *sample, float volume );
 +void CL_CoF_RememberBackgroundMap( const char *mapname );
  #else
  static inline qboolean CL_Initialized( void ) { return false; }
  static inline qboolean CL_IsInGame( void ) { return true; } // always true for dedicated
-@@ -764,6 +769,9 @@ static inline qboolean CL_IsPlaybackDemo( void ) { return false; }
+@@ -764,6 +770,10 @@ static inline qboolean CL_IsPlaybackDemo( void ) { return false; }
  static inline qboolean UI_CreditsActive( void ) { return false; }
  static inline void *UI_GetMenuFactory( void ) { return NULL; }
  static inline int CL_GetMaxClients( void ) { return SV_GetMaxClients(); }
 +static inline qboolean CL_CoF_MenuMapRedirect( const char *cmd, const char *source ) { return false; }
 +static inline qboolean CL_CoF_MenuMapLevelChange( const char *mapname, const char *source ) { return false; }
++static inline qboolean CL_CoF_MenuPanelSound( const char *sample, float volume ) { return false; }
 +static inline void CL_CoF_RememberBackgroundMap( const char *mapname ) { }
  #endif
  
