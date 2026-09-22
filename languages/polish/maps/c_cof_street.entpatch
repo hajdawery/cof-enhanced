@@ -1,0 +1,86 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_cof_street: 285 entities in the BSP entity lump; 12 value(s) in 12 entities; values are cp1250 bytes
+{
+"@entity" "88"
+"@classname" "inter_door"
+"@model" "*12"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "89"
+"@classname" "inter_door"
+"@model" "*13"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "90"
+"@classname" "inter_door"
+"@model" "*14"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "91"
+"@classname" "inter_door"
+"@model" "*15"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "92"
+"@classname" "inter_door"
+"@model" "*16"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "93"
+"@classname" "inter_door"
+"@model" "*17"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "104"
+"@classname" "inter_door"
+"@model" "*18"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "129"
+"@classname" "inter_door"
+"@model" "*24"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "228"
+"@classname" "trigger_checkbrush"
+"@model" "*41"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "229"
+"@classname" "trigger_checkbrush"
+"@model" "*42"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "230"
+"@classname" "trigger_checkbrush"
+"@model" "*43"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "231"
+"@classname" "trigger_checkbrush"
+"@model" "*44"
+"@crc:message" "52af2b71"
+"message" "Ta droga jest zablokowana."
+}

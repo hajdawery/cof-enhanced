@@ -1,0 +1,101 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_cof_city2: 732 entities in the BSP entity lump; 14 value(s) in 14 entities; values are cp1250 bytes
+{
+"@entity" "2"
+"@classname" "inter_door"
+"@model" "*2"
+"@crc:lockedmsg" "fbc3571b"
+"lockedmsg" "Nie musimy wracaæ."
+}
+{
+"@entity" "69"
+"@classname" "inter_door"
+"@model" "*50"
+"@crc:lockedmsg" "ae2ad352"
+"lockedmsg" "Drzwi siê nie otwieraj¹."
+}
+{
+"@entity" "82"
+"@classname" "inter_door"
+"@targetname" "lockeddoor1"
+"@model" "*60"
+"@crc:lockedmsg" "f21186b2"
+"lockedmsg" "Wszystko jest skute ³añcuchami, nie mogê ich otworzyæ."
+}
+{
+"@entity" "202"
+"@classname" "inter_door"
+"@model" "*114"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "203"
+"@classname" "inter_door"
+"@model" "*115"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "204"
+"@classname" "inter_door"
+"@model" "*116"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "218"
+"@classname" "inter_door"
+"@model" "*122"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "219"
+"@classname" "inter_door"
+"@model" "*123"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "226"
+"@classname" "inter_door"
+"@model" "*126"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "228"
+"@classname" "inter_door"
+"@model" "*128"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "236"
+"@classname" "inter_door"
+"@model" "*131"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "237"
+"@classname" "inter_door"
+"@model" "*132"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "242"
+"@classname" "inter_door"
+"@model" "*137"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "247"
+"@classname" "inter_door"
+"@model" "*142"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}

@@ -1,0 +1,318 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_apartment1: 967 entities in the BSP entity lump; 46 value(s) in 44 entities; values are cp1250 bytes
+{
+"@entity" "36"
+"@classname" "inter_door"
+"@model" "*10"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5ae8bcf4"
+"lockedmsg" "Drzwi do holu s¹ zamkniête."
+}
+{
+"@entity" "59"
+"@classname" "inter_door"
+"@model" "*13"
+"@crc:lockedmsg" "af53ac6f"
+"lockedmsg" "Nie mogê wezwaæ windy. Gdzieœ musia³a utkn¹æ."
+}
+{
+"@entity" "70"
+"@classname" "inter_door"
+"@model" "*16"
+"@crc:lockedmsg" "af53ac6f"
+"lockedmsg" "Nie mogê wezwaæ windy. Gdzieœ musia³a utkn¹æ."
+}
+{
+"@entity" "84"
+"@classname" "inter_door"
+"@model" "*19"
+"@crc:lockedmsg" "af53ac6f"
+"lockedmsg" "Nie mogê wezwaæ windy. Gdzieœ musia³a utkn¹æ."
+}
+{
+"@entity" "89"
+"@classname" "inter_door"
+"@model" "*21"
+"@crc:lockedmsg" "7a295359"
+"lockedmsg" "Obok windy jest klawiatura."
+}
+{
+"@entity" "129"
+"@classname" "inter_door"
+"@model" "*41"
+"@crc:lockedmsg" "af53ac6f"
+"lockedmsg" "Nie mogê wezwaæ windy. Gdzieœ musia³a utkn¹æ."
+}
+{
+"@entity" "131"
+"@classname" "inter_door"
+"@model" "*43"
+"@crc:lockedmsg" "af53ac6f"
+"lockedmsg" "Nie mogê wezwaæ windy. Gdzieœ musia³a utkn¹æ."
+}
+{
+"@entity" "193"
+"@classname" "inter_door"
+"@model" "*66"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "229"
+"@classname" "inter_door"
+"@targetname" "door_office_a"
+"@model" "*78"
+"@crc:lockedmsg" "28a1d5e1"
+"lockedmsg" "Wygl¹da na to, ¿e s¹ zamkniête z drugiej strony."
+}
+{
+"@entity" "307"
+"@classname" "inter_door"
+"@model" "*111"
+"@crc:lockedmsg" "828cc2a1"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "308"
+"@classname" "inter_door"
+"@model" "*112"
+"@crc:lockedmsg" "828cc2a1"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "309"
+"@classname" "inter_door"
+"@model" "*113"
+"@crc:lockedmsg" "313cb454"
+"lockedmsg" "Drzwi siê zaciê³y. Nie mo¿na ich otworzyæ."
+}
+{
+"@entity" "315"
+"@classname" "trigger_checkbrush"
+"@targetname" "gay2"
+"@model" "*115"
+"@crc:message" "28a1d5e1"
+"message" "Wygl¹da na to, ¿e s¹ zamkniête z drugiej strony."
+}
+{
+"@entity" "320"
+"@classname" "trigger_checkbrush"
+"@model" "*116"
+"@crc:message" "cadd0ad8"
+"message" "Korytarz jest ca³kowicie zablokowany. Nie mogê przejœæ."
+}
+{
+"@entity" "323"
+"@classname" "trigger_checkbrush"
+"@model" "*118"
+"@crc:message" "0929500f"
+"message" "Zalega tu mnóstwo mebli. Nie da siê przejœæ."
+}
+{
+"@entity" "332"
+"@classname" "trigger_checkbrush"
+"@model" "*121"
+"@crc:message" "cadd0ad8"
+"message" "Korytarz jest ca³kowicie zablokowany. Nie mogê przejœæ."
+}
+{
+"@entity" "333"
+"@classname" "inter_door"
+"@model" "*122"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "337"
+"@classname" "trigger_checkbrush"
+"@model" "*123"
+"@crc:message" "cadd0ad8"
+"message" "Korytarz jest ca³kowicie zablokowany. Nie mogê przejœæ."
+}
+{
+"@entity" "369"
+"@classname" "inter_door"
+"@model" "*129"
+"@crc:lockedmsg" "b8c40161"
+"lockedmsg" "Nie mogê ich otworzyæ. Zaciê³y siê?"
+}
+{
+"@entity" "370"
+"@classname" "cof_giveitems"
+"@targetname" "giveitem1"
+"@origin" "-851 732 195"
+"@crc:custommsg" "eddc50be"
+"custommsg" "Zdoby³eœ pistolet."
+}
+{
+"@entity" "386"
+"@classname" "inter_door"
+"@model" "*131"
+"@crc:lockedmsg" "e950bf14"
+"lockedmsg" "Muszê dostaæ siê na czwarte piêtro."
+}
+{
+"@entity" "401"
+"@classname" "inter_door"
+"@model" "*136"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "402"
+"@classname" "inter_door"
+"@model" "*137"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "403"
+"@classname" "inter_door"
+"@model" "*138"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "404"
+"@classname" "inter_door"
+"@model" "*139"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "405"
+"@classname" "inter_door"
+"@model" "*140"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "406"
+"@classname" "inter_door"
+"@model" "*141"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "407"
+"@classname" "inter_door"
+"@model" "*142"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "421"
+"@classname" "trigger_checkbrush"
+"@model" "*149"
+"@crc:message" "a08f4d63"
+"message" "Wszystko jest skute ³añcuchami. Co mog³o siê tutaj wydarzyæ?"
+}
+{
+"@entity" "539"
+"@classname" "inter_door"
+"@model" "*173"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "540"
+"@classname" "inter_door"
+"@model" "*174"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "541"
+"@classname" "inter_door"
+"@model" "*175"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "694"
+"@classname" "inter_door"
+"@model" "*214"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "695"
+"@classname" "inter_door"
+"@model" "*215"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "696"
+"@classname" "inter_door"
+"@model" "*216"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "697"
+"@classname" "inter_door"
+"@model" "*217"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "698"
+"@classname" "inter_door"
+"@model" "*218"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "699"
+"@classname" "inter_door"
+"@model" "*219"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "700"
+"@classname" "inter_door"
+"@model" "*220"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "701"
+"@classname" "inter_door"
+"@model" "*221"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "702"
+"@classname" "inter_door"
+"@model" "*222"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "703"
+"@classname" "inter_door"
+"@model" "*223"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "704"
+"@classname" "inter_door"
+"@model" "*224"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "713"
+"@classname" "inter_door"
+"@targetname" "kakaelai"
+"@model" "*229"
+"@crc:lockedmsg" "4ab6147d"
+"lockedmsg" "Co? Ktoœ je zamkn¹³."
+}

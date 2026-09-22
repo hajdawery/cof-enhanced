@@ -1,0 +1,36 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_subway2st2: 638 entities in the BSP entity lump; 7 value(s) in 4 entities; values are cp1250 bytes
+{
+"@entity" "367"
+"@classname" "inter_door"
+"@model" "*36"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "449"
+"@classname" "inter_door"
+"@model" "*100"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "451"
+"@classname" "inter_door"
+"@model" "*102"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "620"
+"@classname" "trigger_subwaywall"
+"@model" "*200"
+"@crc:message" "3d2fed5c"
+"message" "Wygl¹da na to, ¿e tê œcianê mo¿na zburzyæ."
+}

@@ -1,0 +1,34 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_sewer: 251 entities in the BSP entity lump; 6 value(s) in 4 entities; values are cp1250 bytes
+{
+"@entity" "49"
+"@classname" "trigger_checkbrush"
+"@model" "*29"
+"@crc:message" "712dce84"
+"message" "W œrodku s³ychaæ radio. Drzwi s¹ jednak zniszczone."
+}
+{
+"@entity" "71"
+"@classname" "trigger_checkbrush"
+"@model" "*35"
+"@crc:message" "76364ce0"
+"message" "Coœ siê rusza na stole. Co to do cholery jest?"
+}
+{
+"@entity" "72"
+"@classname" "inter_door"
+"@model" "*36"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "76"
+"@classname" "inter_door"
+"@model" "*37"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}

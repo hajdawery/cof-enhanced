@@ -1,0 +1,9 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_forest5: 239 entities in the BSP entity lump; 1 value(s) in 1 entities; values are cp1250 bytes
+{
+"@entity" "236"
+"@classname" "trigger_checkbrush"
+"@model" "*45"
+"@crc:message" "3c9f16cb"
+"message" "''Uwa¿aj na drzewa.''"
+}

@@ -1,0 +1,60 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_start: 1024 entities in the BSP entity lump; 8 value(s) in 8 entities; values are cp1250 bytes
+{
+"@entity" "204"
+"@classname" "inter_door"
+"@targetname" "doorlockedss"
+"@model" "*48"
+"@crc:lockedmsg" "47bf18a0"
+"lockedmsg" "Najpierw muszê sprawdziæ drugie drzwi."
+}
+{
+"@entity" "205"
+"@classname" "inter_door"
+"@model" "*49"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "208"
+"@classname" "inter_door"
+"@model" "*50"
+"@crc:lockedmsg" "a5340c89"
+"lockedmsg" "Co do... Drzwi siê nie otwieraj¹."
+}
+{
+"@entity" "274"
+"@classname" "inter_door"
+"@model" "*77"
+"@crc:lockedmsg" "828cc2a1"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "275"
+"@classname" "inter_door"
+"@model" "*78"
+"@crc:lockedmsg" "828cc2a1"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "329"
+"@classname" "inter_door"
+"@model" "*95"
+"@crc:lockedmsg" "13b76b28"
+"lockedmsg" "Brama jest zamkniêta. Ani drgnie."
+}
+{
+"@entity" "711"
+"@classname" "trigger_checkbrush"
+"@model" "*159"
+"@crc:message" "38374ac1"
+"message" "''Pomó¿ mi'' Co tu siê dzieje?"
+}
+{
+"@entity" "787"
+"@classname" "cof_chapter"
+"@targetname" "chapter"
+"@origin" "597 -2825.8 -692.963"
+"@crc:message" "5b6db13c"
+"message" "Rozdzia³ 1 - Zagubiony w mieœcie"
+}

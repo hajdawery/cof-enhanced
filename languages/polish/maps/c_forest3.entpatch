@@ -1,0 +1,12 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_forest3: 309 entities in the BSP entity lump; 2 value(s) in 1 entities; values are cp1250 bytes
+{
+"@entity" "174"
+"@classname" "func_button"
+"@targetname" "stbutton"
+"@model" "*17"
+"@crc:unlockedmsg" "db730f4a"
+"unlockedmsg" "W³o¿y³eœ klamkê."
+"@crc:lockedmsg" "cb72cae4"
+"lockedmsg" "Potrzebujê klamki, ¿eby je otworzyæ."
+}

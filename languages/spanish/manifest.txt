@@ -1,0 +1,8 @@
+language_code=spanish
+display_name=Español
+codepage=1252
+codepage_name=cp1252
+subtitle_language=6
+pack_version=1.0.0
+notes=Minimal pack: only the menu's own strings (strings/menu-strings.tsv, machine-drafted for review). The game's text is the game's own Spanish set (txtfiles/languages/spanish, notes/languages/spanish), picked through the client subtitle slot 6; nothing is mounted and no DLL string is replaced.
+authors=Cry of Fear: Enhanced (menu strings, machine-drafted); the game's own Spanish text by Team Psykskallar

@@ -1,0 +1,10 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_ending3b: 175 entities in the BSP entity lump; 1 value(s) in 1 entities; values are cp1250 bytes
+{
+"@entity" "116"
+"@classname" "cof_chapter"
+"@targetname" "chapterlols"
+"@origin" "-3454 -1706 -252"
+"@crc:message" "789d3e2e"
+"message" "Rozdzia³ 8 - Moje ¿ycie koñczy siê tutaj"
+}

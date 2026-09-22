@@ -1,0 +1,17 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_bridge: 386 entities in the BSP entity lump; 2 value(s) in 2 entities; values are cp1250 bytes
+{
+"@entity" "261"
+"@classname" "trigger_checkbrush"
+"@model" "*138"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "342"
+"@classname" "cof_chapter"
+"@targetname" "chaptersss"
+"@origin" "-1094.89 947.608 0"
+"@crc:message" "0f6e7b3d"
+"message" "Rozdzia³ 6 - To jeszcze nie koniec"
+}

@@ -1,0 +1,468 @@
+diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/AdvancedControls.cpp
+index 1501fa0..45dda23 100644
+--- a/3rdparty/mainui/menus/AdvancedControls.cpp
++++ b/3rdparty/mainui/menus/AdvancedControls.cpp
+@@ -27,6 +27,14 @@ advanced control options), plus the Cry of Fear pause-menu-saves switch that
+ used to live in the Save/Load menu and the subtitle language selector. Without
+ the theme it is still the stock Advanced Controls dialog reached from Controls,
+ so the WON path is unchanged.
++
++The Language selector is the one language option for Cry of Fear: English
++and every pack installed under <gamedir>/languages/<code>/ that has a
++manifest.txt (the Polish translation, and one minimal pack per subtitle
++language the game ships: Dutch ... Swedish, which translate the menu and pick
++the game's own subtitles). It sets the engine's cof_language and the client's
++own subtitle language together; the client's separate "Subtitle language" row
++is gone. See docs/cof-language-packs.md section 7.
+ */
+ 
+ #include "q_client.h"
+@@ -37,6 +45,7 @@ so the WON path is unchanged.
+ #include "CheckBox.h"
+ #include "Slider.h"
+ #include "SpinControl.h"
++#include "Action.h"
+ #include "StringArrayModel.h"
+ #include "CryOfFear.h"
+ 
+@@ -95,6 +104,201 @@ public:
+ 	const char *GetText( int line ) override { return L( g_cofAdsModes[line] ); }
+ };
+ 
++// The game language, one option for everything (docs/cof-language-packs.md
++// section 7). Rows, in this order:
++//
++//   English    cof_language ""      cof_subtitlelanguage 1
++//   packs      cof_language <code>  cof_subtitlelanguage <manifest subtitle_language>
++//              (sorted by display name)
++//
++// A pack is every folder under <gamedir>/languages that holds a manifest.txt,
++// found the way the engine's own cof_language_list finds them (a
++// game-directory-only search of languages/*) and named by the manifest's
++// display_name (UTF-8; the folder name when the key is missing). Its
++// subtitle_language key is the client subtitle slot it wants (1 = English,
++// the client default, when the key is missing): the engine serves the pack's
++// own txtfiles/notes over whatever slot the client asks for, so 1 means that
++// anything the pack does not translate falls back to English; the packs for
++// the game's own six languages (languages/dutch ... swedish) name slots 2..7
++// and carry only the menu's strings. A cof_language naming a pack that is not
++// installed, or a client slot 2..7 with no pack (an old configuration), is
++// shown as its own row, so opening the page never rewrites anything.
++#define COF_LANG_MAX_ROWS	40
++
++// cof_subtitlelanguage 2..7, in the client's own order (CryOfFear.cpp); only
++// to name an old configuration's slot when no pack is selected
++static const char *g_cofBuiltinLanguages[] =
++{
++	"Nederlands", "Fran\xC3\xA7" "ais", "Deutsch", "Norsk", "Espa\xC3\xB1" "ol", "Svenska"
++};
++
++class CMenuCoFLangPackModel : public CMenuBaseArrayModel
++{
++public:
++	CMenuCoFLangPackModel() : m_iRows( 1 ) { memset( m_rows, 0, sizeof( m_rows )); m_rows[0].subtitle = 1; }
++
++	void Update() override;
++	int GetRows() const override { return m_iRows; }
++	const char *GetText( int line ) override
++	{
++		if( line <= 0 || line >= m_iRows )
++			return L( "English" );
++		return m_rows[line].name;
++	}
++
++	const char *Code( int line ) const { return ( line <= 0 || line >= m_iRows ) ? "" : m_rows[line].code; }
++	int Subtitle( int line ) const { return ( line <= 0 || line >= m_iRows ) ? 1 : m_rows[line].subtitle; }
++	int Row( const char *code, int subtitle );	// adds a "not installed" row for an unknown code
++
++private:
++	struct row_t
++	{
++		char code[32];
++		char name[96];
++		int  subtitle;
++	};
++
++	bool ReadManifest( const char *code, char *name, size_t size, int *subtitle );
++
++	int m_iRows;
++	row_t m_rows[COF_LANG_MAX_ROWS];
++};
++
++bool CMenuCoFLangPackModel::ReadManifest( const char *code, char *name, size_t size, int *subtitle )
++{
++	char path[128];
++	int length = 0;
++
++	snprintf( path, sizeof( path ), "languages/%s/manifest.txt", code );
++	byte *raw = EngFuncs::COM_LoadFile( path, &length );
++
++	if( !raw )
++		return false;
++
++	Q_strncpy( name, code, size );
++	*subtitle = 1;
++
++	const char *p = (const char *)raw, *end = p + length;
++
++	while( p < end )
++	{
++		const char *line = p, *eol;
++
++		while( p < end && *p != '\n' )
++			p++;
++		eol = p;
++		if( p < end )
++			p++;
++		if( eol > line && eol[-1] == '\r' )
++			eol--;
++
++		static const char key[] = "display_name=";
++		const size_t keylen = sizeof( key ) - 1;
++		static const char subkey[] = "subtitle_language=";
++		const size_t subkeylen = sizeof( subkey ) - 1;
++
++		if( (size_t)( eol - line ) > keylen && !strnicmp( line, key, keylen ))
++		{
++			size_t n = eol - line - keylen;
++
++			if( n >= size )
++				n = size - 1;
++			memcpy( name, line + keylen, n );
++			name[n] = 0;
++		}
++		else if( (size_t)( eol - line ) > subkeylen && !strnicmp( line, subkey, subkeylen ))
++		{
++			int n = atoi( line + subkeylen );
++
++			// the client knows 1..7 (1 English, 2..7 its six folders)
++			*subtitle = ( n >= 1 && n <= 7 ) ? n : 1;
++		}
++	}
++
++	EngFuncs::COM_FreeFile( raw );
++	return true;
++}
++
++void CMenuCoFLangPackModel::Update()
++{
++	int numFiles = 0;
++	char **files = EngFuncs::GetFilesList( "languages/*", &numFiles, 1 );
++	m_iRows = 1;
++
++	for( int i = 0; files && i < numFiles && m_iRows < COF_LANG_MAX_ROWS - 1; i++ )
++	{
++		const char *code = strrchr( files[i], '/' );
++		code = code ? code + 1 : files[i];
++
++		// a pack code is a plain folder name, the rule the engine applies
++		if( !code[0] || strlen( code ) >= sizeof( m_rows[0].code ) || strpbrk( code, ".:\\/" ))
++			continue;
++
++		bool dup = false;
++		for( int j = 1; j < m_iRows && !dup; j++ )
++			dup = !stricmp( m_rows[j].code, code );
++		if( dup )
++			continue;
++
++		row_t &r = m_rows[m_iRows];
++		if( !ReadManifest( code, r.name, sizeof( r.name ), &r.subtitle ))
++			continue;
++
++		Q_strncpy( r.code, code, sizeof( r.code ));
++		m_iRows++;
++	}
++
++	// English stays first; the packs by display name (byte order, case
++	// folded for ASCII - every name starts with a Latin letter today)
++	for( int i = 2; i < m_iRows; i++ )
++	{
++		row_t t = m_rows[i];
++		int j = i - 1;
++
++		while( j >= 1 && stricmp( m_rows[j].name, t.name ) > 0 )
++		{
++			m_rows[j + 1] = m_rows[j];
++			j--;
++		}
++		m_rows[j + 1] = t;
++	}
++}
++
++int CMenuCoFLangPackModel::Row( const char *code, int subtitle )
++{
++	if( !code || !code[0] )
++	{
++		const int numBuiltin = (int)( sizeof( g_cofBuiltinLanguages ) / sizeof( g_cofBuiltinLanguages[0] ));
++
++		if( subtitle < 2 || subtitle > numBuiltin + 1 || m_iRows >= COF_LANG_MAX_ROWS )
++			return 0;
++
++		// an old configuration: the client's own slot without a pack. Shown
++		// as it is ("%s (subtitles)" is a key of the menu string table) and
++		// not written back until the player picks a row.
++		row_t &r = m_rows[m_iRows];
++		r.code[0] = 0;
++		r.subtitle = subtitle;
++		snprintf( r.name, sizeof( r.name ), "%s (subtitles)", g_cofBuiltinLanguages[subtitle - 2] );
++		return m_iRows++;
++	}
++
++	for( int i = 1; i < m_iRows; i++ )
++	{
++		if( !stricmp( m_rows[i].code, code ))
++			return i;
++	}
++
++	if( m_iRows >= COF_LANG_MAX_ROWS || strlen( code ) >= sizeof( m_rows[0].code ))
++		return 0;
++
++	row_t &r = m_rows[m_iRows];
++	Q_strncpy( r.code, code, sizeof( r.code ));
++	r.subtitle = subtitle;
++	snprintf( r.name, sizeof( r.name ), "%s (%s)", code, L( "not installed" ));
++	return m_iRows++;
++}
++
+ class CAdvancedControls : public CMenuFramework
+ {
+ public:
+@@ -102,6 +306,7 @@ public:
+ 	CAdvancedControls() : CMenuFramework("CAdvancedControls") { m_bCoF = false; }
+ 
+ 	void ToggleLookCheckboxes( bool write );
++	void CoFLanguageProbe( const char *arg );
+ 
+ private:
+ 	void _Init( void ) override;
+@@ -115,6 +320,7 @@ private:
+ 	void LanguageChanged( void );
+ 	void HudScaleChanged( void );
+ 	void AdsModeChanged( void );
++	void LangPackChanged( void );
+ 
+ 	CMenuPicButton done, inputDev;
+ 
+@@ -145,6 +351,9 @@ private:
+ 	CMenuCoFLanguageModel	languageModel;
+ 	CMenuCoFHudScaleModel	hudScaleModel;
+ 	CMenuCoFAdsModel	adsModel;
++	CMenuSpinControl	langPack;
++	CMenuCoFLangPackModel	langPackModel;
++	CMenuAction	langNote;
+ 	bool		m_bCoF;
+ };
+ 
+@@ -193,7 +402,9 @@ void CAdvancedControls::GetConfig( )
+ 	{
+ 		menuSaves.LinkCvar( "cof_pause_menu_saves" );
+ 		menuSaves.UpdateEditable();
+-		language.SetCurrentValue( (float)( UI_CoFGetSubtitleLanguage() - 1 ));
++		// the client's own "Subtitle language" control is not on the page any
++		// more (the Language row sets that slot); moving a spinner that has
++		// no parent would raise its change event on no page at all
+ 
+ 		// pick the row the two cvars currently describe; anything hand-edited
+ 		// that matches no row shows as Auto without being written back
+@@ -216,6 +427,13 @@ void CAdvancedControls::GetConfig( )
+ 		}
+ 
+ 		adsMode.SetCurrentValue( EngFuncs::GetCvarFloat( "cof_ads_toggle" ) != 0.0f ? 1.0f : 0.0f );
++
++		// the packs are listed again every time the page opens, so a pack
++		// copied in while the game runs shows up without a restart
++		langPackModel.Update();
++		int langRow = langPackModel.Row( EngFuncs::GetCvarString( "cof_language" ), UI_CoFGetSubtitleLanguage( ));
++		langPack.Setup( &langPackModel );
++		langPack.SetCurrentValue( (float)langRow );
+ 	}
+ 
+ 	ToggleLookCheckboxes( false );
+@@ -287,6 +505,64 @@ void CAdvancedControls::AdsModeChanged()
+ 	EngFuncs::CvarSetValue( "cof_ads_toggle", adsMode.GetCurrentValue() >= 1.0f ? 1.0f : 0.0f );
+ }
+ 
++/*
++=================
++CAdvancedControls::LangPackChanged
++
++One option for both language settings. cof_language is archived and live:
++the engine applies a change on its next frame (CoF_Lang_Frame) - the string
++table, the code page and every text file the game opens from then on switch
++at once, and so do this menu's own strings (menu-strings.tsv, MenuStrings.cpp);
++repainted world textures and entity strings follow on the next map load, and
++the client's VGUI art, which it loads once per session, after a restart (the
++note under the row). The client's own subtitle language (cof_subtitlelanguage,
++read by the game DLLs at every file open) is set to the row's slot: the pack's
++subtitle_language, 1 for English, 2..7 for the game's own languages. Inside a
++running game the client is also told through its own "subtitleset" command,
++so the player's cached copy follows. The configuration is written straight
++away so the choice survives even a session that does not end with a clean
++quit. Opening the page selects the current row without writing anything.
++=================
++*/
++void CAdvancedControls::LangPackChanged()
++{
++	const int row = (int)langPack.GetCurrentValue( );
++	const char *code = langPackModel.Code( row );
++	const int subtitle = langPackModel.Subtitle( row );
++	bool changed = false;
++
++	if( stricmp( code, EngFuncs::GetCvarString( "cof_language" )))
++	{
++		EngFuncs::CvarSetString( "cof_language", code );
++		changed = true;
++	}
++
++	const bool coopCopy = EngFuncs::GetCvarString( "cl_coop_language" )[0] != 0;
++
++	if( subtitle != (int)EngFuncs::GetCvarFloat( "cof_subtitlelanguage" ) ||
++		( coopCopy && subtitle != (int)EngFuncs::GetCvarFloat( "cl_coop_language" )))
++	{
++		// "cmd subtitleset N" in a running game, the cvar otherwise
++		UI_CoFSetSubtitleLanguage( subtitle );
++
++		// the cvar itself at once too, so the config written below has it;
++		// the game creates it on its first subtitleset, so make sure it exists
++		if( EngFuncs::GetCvarString( "cof_subtitlelanguage" )[0] )
++			EngFuncs::CvarSetValue( "cof_subtitlelanguage", (float)subtitle );
++		else
++			EngFuncs::ClientCmdF( false, "set cof_subtitlelanguage %d\n", subtitle );
++
++		// the client's co-op intro card reads its own copy of the slot
++		if( coopCopy )
++			EngFuncs::CvarSetValue( "cl_coop_language", (float)subtitle );
++
++		changed = true;
++	}
++
++	if( changed )
++		EngFuncs::ClientCmd( FALSE, "host_writeconfig\n" );
++}
++
+ void CAdvancedControls::PitchInvert()
+ {
+ 	bool invert = invertMouse.bChecked;
+@@ -343,7 +619,7 @@ void CAdvancedControls::_Init( void )
+ 	m_bCoF = UI_ThemeActive() && UI_IsCryOfFear();
+ 
+ 	if( UI_ThemeActive( ))
+-		SetPanel( "GAME", 760, 520 );
++		SetPanel( "GAME", 760, m_bCoF ? 580 : 520 );
+ 
+ 	done.szName = L( "Done" );
+ 	done.SetPicture( PC_DONE );
+@@ -427,6 +703,18 @@ void CAdvancedControls::_Init( void )
+ 	adsMode.szStatusText = L( "Hold: aim while the aim key is held. Toggle: press once to aim, press again to stop" );
+ 	adsMode.onChanged = VoidCb( &CAdvancedControls::AdsModeChanged );
+ 
++	langPack.szName = L( "Language" );
++	langPack.Setup( &langPackModel );
++	langPack.SetCharSize( QM_SMALLFONT );
++	langPack.iFlags |= QMF_NOTIFY;
++	langPack.szStatusText = L( "Language of the menus and of the game's subtitles, documents and signs" );
++	langPack.onChanged = VoidCb( &CAdvancedControls::LangPackChanged );
++
++	langNote.iFlags = QMF_INACTIVE;
++	langNote.colorBase = uiColorHelp;
++	langNote.SetCharSize( QM_SMALLFONT );
++	langNote.szName = L( "Text switches at once, signs on the next map; restart the game for the remaining art." );
++
+ 	if( !UI_ThemeActive( ))
+ 		AddItem( banner );
+ 	AddItem( done );
+@@ -446,10 +734,13 @@ void CAdvancedControls::_Init( void )
+ 
+ 	if( m_bCoF )
+ 	{
++		// the client's own "Subtitle language" row ("language") is not added:
++		// the Language row sets that slot too, one option for both
+ 		AddItem( menuSaves );
+-		AddItem( language );
+ 		AddItem( hudScale );
+ 		AddItem( adsMode );
++		AddItem( langPack );
++		AddItem( langNote );
+ 	}
+ }
+ 
+@@ -500,11 +791,17 @@ void CAdvancedControls::_VidInit()
+ 		if( m_bCoF )
+ 		{
+ 			y += THEME_CTRL_PITCH;
+-			language.SetRect( left.pt.x, y, left.sz.w, THEME_CTRL_H );
++			langPack.SetRect( left.pt.x, y, left.sz.w, THEME_CTRL_H );
+ 			hudScale.SetRect( right.pt.x, y, right.sz.w, THEME_CTRL_H );
+ 
+ 			y += THEME_CTRL_PITCH;
+ 			adsMode.SetRect( left.pt.x, y, left.sz.w, THEME_CTRL_H );
++
++			// under the rows, the full content width, room for two lines
++			// (a translation may be longer than the English)
++			y += THEME_CTRL_H + 14;
++			Rect c = ContentRect();
++			langNote.SetRect( c.pt.x, y, c.sz.w, 2 * THEME_LABEL_TALL + 8 );
+ 		}
+ 
+ 		done.szName = L( "Close" );
+@@ -516,3 +813,60 @@ void CAdvancedControls::_VidInit()
+ }
+ 
+ ADD_MENU( menu_advcontrols, CAdvancedControls, UI_AdvControls_Menu );
++
++/*
++=================
++menu_cof_language_select [row | code | english]
++
++This project's tests may not inject a click or a key, so this cfg-only hook
++opens the Game page and moves its Language spinner exactly the way an arrow
++click does: SetCurrentValue on the control, which redraws it and raises the
++same QM_CHANGED event, so LangPackChanged runs unchanged. Without an argument
++it only lists the rows. Cry of Fear with the theme only.
++=================
++*/
++void CAdvancedControls::CoFLanguageProbe( const char *arg )
++{
++	if( !m_bCoF )
++	{
++		Con_Printf( "menu_cof_language_select: Cry of Fear with ui_theme 1 only\n" );
++		return;
++	}
++
++	for( int i = 0; i < langPackModel.GetRows( ); i++ )
++		Con_Printf( "menu_cof_language_select: row %d \"%s\" = cof_language \"%s\", cof_subtitlelanguage %d%s\n", i,
++			langPackModel.GetText( i ), langPackModel.Code( i ), langPackModel.Subtitle( i ),
++			i == (int)langPack.GetCurrentValue( ) ? " (selected)" : "" );
++
++	if( !arg || !arg[0] )
++		return;
++
++	int row = !stricmp( arg, "english" ) ? 0 : -1;
++
++	for( int i = 1; i < langPackModel.GetRows( ) && row < 0; i++ )
++	{
++		if( langPackModel.Code( i )[0] && !stricmp( arg, langPackModel.Code( i )))
++			row = i;
++	}
++
++	if( row < 0 && arg[0] >= '0' && arg[0] <= '9' )
++		row = atoi( arg );
++
++	if( row < 0 || row >= langPackModel.GetRows( ))
++	{
++		Con_Printf( "menu_cof_language_select: no row \"%s\"\n", arg );
++		return;
++	}
++
++	langPack.SetCurrentValue( (float)row );
++	Con_Printf( "menu_cof_language_select: row %d, cof_language is now \"%s\", cof_subtitlelanguage \"%s\"\n",
++		row, EngFuncs::GetCvarString( "cof_language" ), EngFuncs::GetCvarString( "cof_subtitlelanguage" ));
++}
++
++static void UI_CoFLanguageSelect( void )
++{
++	UI_AdvControls_Menu();
++	menu_advcontrols->CoFLanguageProbe( EngFuncs::CmdArgc() > 1 ? EngFuncs::CmdArgv( 1 ) : NULL );
++}
++
++ADD_COMMAND( menu_cof_language_select, UI_CoFLanguageSelect );

@@ -1,0 +1,137 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_city2: 857 entities in the BSP entity lump; 19 value(s) in 19 entities; values are cp1250 bytes
+{
+"@entity" "80"
+"@classname" "inter_door"
+"@model" "*55"
+"@crc:lockedmsg" "ae2ad352"
+"lockedmsg" "Drzwi siê nie otwieraj¹."
+}
+{
+"@entity" "93"
+"@classname" "inter_door"
+"@targetname" "lockeddoor1"
+"@model" "*65"
+"@crc:lockedmsg" "f21186b2"
+"lockedmsg" "Wszystko jest skute ³añcuchami, nie mogê ich otworzyæ."
+}
+{
+"@entity" "183"
+"@classname" "trigger_checkbrush"
+"@model" "*109"
+"@crc:message" "36265032"
+"message" "Nie potrzebujê tego teraz."
+}
+{
+"@entity" "198"
+"@classname" "trigger_checkbrush"
+"@model" "*117"
+"@crc:message" "36265032"
+"message" "Nie potrzebujê tego teraz."
+}
+{
+"@entity" "235"
+"@classname" "inter_door"
+"@model" "*130"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "238"
+"@classname" "inter_door"
+"@model" "*133"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "239"
+"@classname" "inter_door"
+"@model" "*134"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "264"
+"@classname" "inter_door"
+"@model" "*143"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "265"
+"@classname" "inter_door"
+"@model" "*144"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "276"
+"@classname" "inter_door"
+"@model" "*148"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "278"
+"@classname" "inter_door"
+"@model" "*150"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "289"
+"@classname" "inter_door"
+"@model" "*155"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "290"
+"@classname" "inter_door"
+"@model" "*156"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "296"
+"@classname" "inter_door"
+"@model" "*162"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "305"
+"@classname" "inter_door"
+"@model" "*169"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "623"
+"@classname" "trigger_checkbrush"
+"@model" "*218"
+"@crc:message" "a0132ca3"
+"message" "Blokuje mi drogê. Sk¹d to wszystko siê wziê³o?"
+}
+{
+"@entity" "624"
+"@classname" "trigger_checkbrush"
+"@model" "*219"
+"@crc:message" "a0132ca3"
+"message" "Blokuje mi drogê. Sk¹d to wszystko siê wziê³o?"
+}
+{
+"@entity" "637"
+"@classname" "cof_billboard"
+"@targetname" "tavlaparkbus"
+"@origin" "-32 -322 -1195"
+"@crc:text" "d7e3b709"
+"text" "Co jest? Ktoœ zablokowa³ œcie¿kê, ale narysowa³ inn¹."
+}
+{
+"@entity" "842"
+"@classname" "trigger_checkbrush"
+"@model" "*236"
+"@crc:message" "8da5e446"
+"message" "Bardzo zabawne... Easter egg..."
+}

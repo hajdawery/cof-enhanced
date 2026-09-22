@@ -1,20 +1,29 @@
 #!/usr/bin/env python3
-"""Part 6: write pack/languages/<lang>/manifest.txt, pack/MANIFEST.tsv and pack/README.md.
+"""Last step: manifest.txt, README.md and MANIFEST.tsv of one language pack,
+plus the pack-wide checks that keep the pack translator-authored.
 
-Run this LAST, after all of build_txt_pack.py, build_maps_ent.py,
-extract_sign_textures.py, copy_overlay_assets.py and build_dll_strings_tsv.py
-have produced pack/languages/<lang>/{txt,inventoryitems,maps,textures,overlay,strings}.
+Run after every other generator (build_all.py does). Writes, in
+<pack> = <out>/languages/<lang>/:
 
-This script:
-  1. Writes pack/languages/<lang>/manifest.txt (language metadata).
-  2. Recomputes totals and known data-quality notes directly from the files on
-     disk (it does not trust any prior report -- it re-derives everything),
-     and writes pack/README.md from those numbers.
-  3. Walks pack/ and writes pack/MANIFEST.tsv: path (relative to pack/), size
-     in bytes, sha256 -- for every file under pack/ except MANIFEST.tsv itself
-     (a manifest cannot contain its own hash).
+  manifest.txt   language metadata read by the engine and the menu
+                 (display_name, codepage, subtitle_language, authors, ...)
+  README.md      the pack's own documentation: creators, source, what the
+                 pack holds and what was left out, with every number
+                 re-derived from the files on disk
+  MANIFEST.tsv   path <TAB> bytes <TAB> sha256 of every file except itself
+                 and README.md, sorted by path (the deploy script pins its hash)
 
-Usage: python build_manifest.py --lang polish [--pack-version 1.0.0]
+and FAILS (exit 1) when the pack breaks a rule of the pack reduction
+(lang3, 2026-09-22):
+  * any file byte-identical to any file of the canonical game;
+  * any overlay/ image whose pixels equal the game's image of that path;
+  * any whole model (.mdl) or whole entity lump (.ent) in the pack.
+
+Hand-maintained files are kept as they are and listed in MANIFEST.tsv:
+strings/menu-strings.tsv (the project's own menu, not the game) and
+LICENSE-NOTE.md.
+
+Usage: python build_manifest.py --lang polish [--pack-version 1.2.0]
 """
 from __future__ import annotations
 
@@ -26,226 +35,181 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import langpack_common as lc  # noqa: E402
 
-# Known authors of the source fan translation, per its own cryoffear/txtfiles/credits.txt
-# (the file exists in the mod tree but has no destination slot in this pack -- see
-# build_txt_pack.py -- so this credit is recorded here instead).
-AUTHORS_BY_LANG = {
-    "polish": "Avioo, Mixdedemon, hexag0n, Izonka (cof-spolszczenie-fanmade)",
-}
+PACK_VERSION = "1.2.0"
+HAND_MAINTAINED = ("strings/menu-strings.tsv", "LICENSE-NOTE.md")
 
 
-def count_files(root: Path, pattern: str = "*") -> int:
-    return sum(1 for p in root.rglob(pattern) if p.is_file())
+def files_under(root: Path) -> list[Path]:
+    return sorted((p for p in root.rglob("*") if p.is_file()), key=lambda p: p.as_posix().lower()) if root.exists() else []
 
 
-def find_ent_exclusions(lang: str):
-    """Re-derive the maps/.ent exclusion list directly from the BSP analysis, using the
-    same mechanical rule build_maps_ent.py applied: a changed value is excluded (kept
-    canonical) if it ends in .wav/.mdl/.spr/.tga (case-insensitive) or contains '/'.
-    Independent of build_maps_ent.py's own report -- recomputed here for the README.
-    """
-    import json
-
-    analysis = json.loads((lc.ANALYSIS_ROOT / "bsp" / "analysis.json").read_text(encoding="utf-8"))
-    excluded = []
-    total_pairs = 0
-    maps_with_applied = set()
-    for m in analysis["maps"]:
-        ents = (m.get("entities") or {}).get("entities", []) or []
-        for e in ents:
-            for key, canon_list, mod_list in e.get("changed", []):
-                total_pairs += 1
-                canon_val = canon_list[0] if canon_list else ""
-                low = canon_val.lower()
-                is_path = low.endswith((".wav", ".mdl", ".spr", ".tga")) or "/" in canon_val
-                if is_path:
-                    excluded.append((m["map"], e["index"], key, canon_val, mod_list[0] if mod_list else ""))
-                else:
-                    maps_with_applied.add(m["map"])
-    return total_pairs, excluded, maps_with_applied
-
-
-def find_strings_quality_notes(tsv_path: Path):
-    """Re-derive the two known DLL-string data-quality notes directly from the TSV:
-    (a) rows the mod's own patcher wrote with non-cp1250 diacritics -- bytes chosen to
-        match the game's bitmap font-atlas glyph slots rather than real Windows-1250
-        (see BINARIES_ANALYSIS.md section 5.4) -- decode correctly under strict cp1250
-        but do not read as correct Polish, and
-    (b) the two identifier-like pairs (revolver/buckshot) already flagged in-TSV.
-    """
-    valid_pl = set("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ")
-    font_quirk_rows = []
-    flagged_rows = []
-    with open(tsv_path, encoding="utf-8", newline="") as fh:
-        for row in csv.DictReader(fh, delimiter="\t"):
-            pl = row["polish"]
-            if any(ord(ch) > 127 and ch not in valid_pl for ch in pl):
-                font_quirk_rows.append(row)
-            if row.get("flagged"):
-                flagged_rows.append(row)
-    return font_quirk_rows, flagged_rows
-
-
-def write_readme(lang: str, cfg: lc.LanguageConfig, pack_version: str) -> None:
-    lang_dir = lc.lang_pack_dir(lang)
-
-    txt_n = count_files(lc.txt_dir(lang))
-    inv_n = count_files(lc.inventoryitems_dir(lang))
-    maps_n = count_files(lc.maps_dir(lang))
-    tex_n = count_files(lc.textures_dir(lang))
-    # NOTE: rglob("*.tga") already matches "*.TGA" etc. on Windows' case-insensitive
-    # filesystem, so do NOT also glob the uppercase pattern (that double-counts).
-    overlay_tga_n = sum(1 for p in lc.overlay_dir(lang).rglob("*") if p.is_file() and p.suffix.lower() == ".tga")
-    overlay_mdl_n = sum(1 for p in lc.overlay_dir(lang).rglob("*") if p.is_file() and p.suffix.lower() == ".mdl")
-    overlay_n = count_files(lc.overlay_dir(lang))
-    masked = sorted(p.name for p in lc.textures_dir(lang).glob("{*.tga"))
-
-    total_pairs, ent_excluded, maps_with_applied = find_ent_exclusions(lang)
-    tsv_path = lc.dll_strings_tsv_path(lang)
-    with open(tsv_path, encoding="utf-8", newline="") as fh:
-        tsv_rows = list(csv.DictReader(fh, delimiter="\t"))
-    font_quirk_rows, flagged_rows = find_strings_quality_notes(tsv_path)
-
-    lines = []
-    lines.append("# Cry of Fear native language pack")
-    lines.append("")
-    lines.append(
-        "Generated from two read-only source trees (`K:\\LLM\\COF_Fix\\Cry of Fear` canonical, "
-        f"`{cfg.mod_root}` source translation) by the scripts in `cof-fix\\scripts\\polish\\`. "
-        "See that folder's README.md for the pack format, the run order, and citations. "
-        "Nothing here was produced by launching the game."
-    )
-    lines.append("")
-    lines.append(f"## `languages/{lang}/` ({cfg.display_name}, code page {cfg.codepage_label})")
-    lines.append("")
-    lines.append("| Part | Folder | Files | Notes |")
-    lines.append("|---|---|---:|---|")
-    lines.append(
-        f"| 1a | `txt/` | {txt_n} | Language-slot text mirroring the canonical "
-        "`txtfiles/languages/<lang>/` (9) + `notes/languages/<lang>/` (8) convention, cp1250 bytes. "
-        "`credits.txt` exists translated in the source mod but has **no** language-folder slot in "
-        "canonical (canonical never localizes credits) -- excluded, not shipped anywhere in this pack." )
-    lines.append(
-        f"| 1b | `inventoryitems/` | {inv_n} | Mirrors `cryoffear/inventoryitems/` "
-        "(incl. `ammo/`, `weapons/`), cp1250 bytes. Two anomalies fixed at generation time: "
-        "`weapons/weapon_sledgeshovel.txt` was UTF-8 in the source mod, re-encoded to cp1250; "
-        "`valve.txt` had a mojibake `\"Zaw\u0102\u0142r\"` (UTF-8 \u00f3 pasted into a cp1250 file) repaired to `\"Zaw\u00f3r\"`.")
-    lines.append(
-        f"| 2 | `maps/` | {maps_n} | Per-map `.ent` entity-lump overrides, cp1250 bytes. Built from "
-        f"{total_pairs} total changed entity key/value pairs across 102 maps; "
-        f"{len(ent_excluded)} excluded (kept canonical) as asset file paths, not display text -- see "
-        "Exclusions below. Every `.ent` was re-parsed and verified to have the same entity count, "
-        f"classnames and targetnames as canonical. {len(maps_with_applied)} maps ended up with at "
-        "least one applied change and therefore got a `.ent` file; maps with zero surviving changes "
-        "(byte-identical maps, texture-only maps, and any map whose only changes were excluded "
-        "asset paths) get no `.ent` file.")
-    lines.append(
-        f"| 3 | `textures/` | {tex_n} | Repainted sign/poster textures extracted from the mod's BSPs, "
-        "one TGA per unique texture name (cross-map identical, verified). "
-        f"{len(masked)} are alpha-masked (`{{`-prefixed name): {', '.join(masked)} -- exported 32-bit "
-        "with palette index 255 as the transparency key; the rest are 24-bit. **Not a literal deploy "
-        "path** -- see `cof-fix/scripts/polish/README.md` for the engine citation "
-        "(`Mod_SearchForTextureReplacement`, `engine/common/mod_bmodel.c`): the real deploy target for "
-        "every file here is `cryoffear/materials/common/<texname>.tga`, with the archived cvar "
-        "`host_allow_materials` set to at least `1`.")
-    lines.append(
-        f"| 4 | `overlay/` | {overlay_n} | Verbatim byte-for-byte copies of the "
-        f"{overlay_tga_n} changed TGAs + {overlay_mdl_n} changed MDLs, at their original path relative "
-        "to the mod root (spans both `cryoffear/` and `platform/`). Excluded by construction (never in "
-        "the source TGA/MDL compare data used to build this list): font TGAs and all `.chw` files, "
-        "`media/` (the 118 MB startup video), `resource/GameMenu.res` and every other `.res`/`.scr` "
-        "file, the three DLLs, and both EXEs.")
-    lines.append(
-        f"| 5 | `strings/dll-strings.tsv` | 1 ({len(tsv_rows)} data rows) | English -> Polish string "
-        "table recovered from the mod's `client.dll` (123 raw pairs) and `hl.dll` (109 raw pairs) "
-        "hex patches -- `GameUI.dll`'s 3 pairs are excluded entirely (1 CRT day-name corruption, 2 "
-        "are token redirects like `#UI_RunWindowed`, not translations). 16 pairs excluded by exact "
-        "file offset: 9 identifier-corruption strings (`ammo_buckshot`, `sk_plr_buckshot1-4`, "
-        "`sk_plr_buckshot`, `browningwheelchair`, `SimonMode`, `Syringe`), 6 C-runtime day-name-table "
-        "fragments (a `Wed`->`Wen` blanket replace hit the compiled MSVC CRT locale tables in both "
-        "DLLs), and 1 string that overran its own NUL terminator and merged with the next literal "
-        "(`Unlocked: FAMAS with infinite ammo`). See Data-quality notes below for two further findings "
-        "recorded but *not* excluded.")
-    lines.append("")
-    lines.append("## Exclusions")
-    lines.append("")
-    lines.append(
-        f"**Part 2 (`maps/`), {len(ent_excluded)} entity key/value changes kept canonical** "
-        "(mechanical rule: excluded if the canonical value ends in `.wav`/`.mdl`/`.spr`/`.tga` "
-        "case-insensitively, or contains `/`) -- all four are the mod's own broken find-and-replace of "
-        "the word \"docks\", which also rewrote an asset filename that does not exist under either tree:")
-    lines.append("")
-    lines.append("| map | entity # | key | canonical value | mod value (not applied) |")
-    lines.append("|---|---:|---|---|---|")
-    for map_name, idx, key, canon_val, mod_val in ent_excluded:
-        lines.append(f"| `{map_name}` | {idx} | `{key}` | `{canon_val}` | `{mod_val}` |")
-    lines.append("")
-    lines.append(
-        "Not excluded, by the same mechanical rule (kept as an applied translation, since it has no "
-        "slash and no matching extension): `boat_exit.message` \"Docks\" -> \"Doki\" in `c_lake.bsp` -- "
-        "this reads as an in-world place-name string, not a file path, so `c_lake.ent` still ships "
-        "with this one change applied even though its other two changes (the ambient sound paths) "
-        "were excluded.")
-    lines.append("")
-    lines.append(
-        "**Part 4 (`overlay/`)**: font TGAs, `.chw` files, `media/`, `resource/GameMenu.res` and other "
-        "`.res`/`.scr` files, the DLLs, and both EXEs -- see the part 4 row above; these asset kinds are "
-        "outside this pack's scope entirely (not merely filtered out of an otherwise-included set).")
-    lines.append("")
-    lines.append(
-        "**Part 5 (`strings/dll-strings.tsv`)**: 16 pairs excluded by exact offset -- see the part 5 "
-        "row above and `cof-fix/scripts/polish/build_dll_strings_tsv.py` for the full offset list.")
-    lines.append("")
-    lines.append("## Data-quality notes (recorded, not excluded)")
-    lines.append("")
-    lines.append(
-        f"**{len(font_quirk_rows)} rows in `dll-strings.tsv`** contain a diacritic letter that is a "
-        "valid Windows-1250 decode of the mod's raw patch byte but is **not** a Polish letter (e.g. "
-        "`\u00fa \u00ee \u00e4 \u00eb \u00e7 \u00c1 \u00f4` instead of the intended `\u015b \u0142 \u0105 "
-        "\u0119 \u0107` etc.). `BINARIES_ANALYSIS.md` section 5.4 documents why: for a substantial "
-        "minority of its patched strings, the mod's patcher used a non-standard byte mapping chosen to "
-        "match glyph slots in the game's own bitmap font atlas rather than real Windows-1250, so the "
-        "same byte renders as the intended Polish letter in the game's own custom font but decodes to a "
-        "different (wrong) Latin-1-range letter under a strict standards-based cp1250 decode. This "
-        "pack's `dll-strings.tsv` always uses the strict, standards-based cp1250/UTF-8 decode (the "
-        "correct choice for a native table meant to be rendered by a normal Unicode-aware font/console, "
-        "not the mod's bitmap atlas), so these rows are technically correctly decoded but will read as "
-        "garbled Polish; a human reviewer should retranslate them from the `english` column rather than "
-        "trust the `polish` column as-is. Affected offsets:")
-    lines.append("")
-    lines.append("| file_offset | source_dll | english | polish (as decoded) |")
-    lines.append("|---|---|---|---|")
-    for row in font_quirk_rows:
-        lines.append(f"| `{row['file_offset']}` | {row['source_dll']} | {row['english']} | {row['polish']} |")
-    lines.append("")
-    lines.append(
-        f"**{len(flagged_rows)} rows flagged `identifier-like`** (present in `dll-strings.tsv` with a "
-        "non-empty `flagged` column, kept rather than excluded because they are not in the confirmed "
-        "exclusion-by-offset list, but the analysis independently identified them as gameplay "
-        "identifiers/registration names rather than display text, same family as the excluded "
-        "`ammo_buckshot`/`sk_plr_buckshot*` corruption):")
-    lines.append("")
-    for row in flagged_rows:
-        lines.append(f"- `{row['file_offset']}` ({row['source_dll']}): `{row['english']}` -> `{row['polish']}` -- {row['flagged']}")
-    lines.append("")
-    lines.append("## Regeneration")
-    lines.append("")
-    lines.append(
-        "See `cof-fix\\scripts\\polish\\README.md` for the full language-pack format spec and the "
-        "run order (`build_all.py` runs every step for a given `--lang`)."
-    )
-    lines.append("")
-
-    (lc.PACK_DIR / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def write_pack_manifest_tsv() -> Path:
-    out_path = lc.PACK_DIR / "MANIFEST.tsv"
-    rows = []
-    for f in lc.iter_pack_files(lc.PACK_DIR):
-        if f.resolve() == out_path.resolve():
+def check_rules(lang: str) -> list[str]:
+    pack = lc.lang_pack_dir(lang)
+    problems = []
+    for f in files_under(pack):
+        rel = f.relative_to(pack).as_posix()
+        if rel in ("MANIFEST.tsv",):
             continue
-        rel = f.relative_to(lc.PACK_DIR).as_posix()
+        if f.suffix.lower() in (".mdl", ".ent"):
+            problems.append(f"{rel}: whole models / entity lumps are not shipped")
+        same = lc.game_identical(f.read_bytes())
+        if same is not None:
+            problems.append(f"{rel}: byte-identical to the game's {same.relative_to(lc.CANONICAL_ROOT)}")
+    for f in files_under(lc.overlay_dir(lang)):
+        rel = f.relative_to(lc.overlay_dir(lang)).as_posix()
+        canon = lc.find_ci(lc.CANONICAL_ROOT / rel)
+        if canon is not None and f.suffix.lower() == ".tga":
+            if lc.decode_tga(f.read_bytes()) == lc.decode_tga(canon.read_bytes()):
+                problems.append(f"overlay/{rel}: pixel-identical to the game's image")
+    return problems
+
+
+def dll_string_notes(tsv: Path):
+    rows = list(csv.DictReader(open(tsv, encoding="utf-8", newline=""), delimiter="\t")) if tsv.exists() else []
+    flagged = [r for r in rows if r.get("flagged")]
+    return rows, flagged
+
+
+def md_table(rows, header):
+    out = ["| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
+    out += ["| " + " | ".join(str(c) for c in r) + " |" for r in rows]
+    return out
+
+
+def write_readme(lang: str, cfg: lc.LanguageConfig, pack_version: str, totals: dict) -> Path:
+    pack = lc.lang_pack_dir(lang)
+    ex = lc.EXCLUDED_ART.get(lang, {})
+    rows, flagged = dll_string_notes(lc.dll_strings_tsv_path(lang))
+    models = files_under(lc.models_dir(lang))
+    model_names = sorted({str(p.parent.relative_to(pack).as_posix()) for p in models}, key=str.lower)
+    n = totals
+    L = []
+    L += [f"# Cry of Fear: Spolszczenie (Polish language pack)" if lang == "polish" else f"# {cfg.display_name} language pack", ""]
+    L += [f"A native, engine-loadable {cfg.display_name} language pack for Cry of Fear: Enhanced (code page "
+          f"{cfg.codepage_label}), version {pack_version}. It is generated by "
+          "[`scripts/polish/build_all.py`](../../scripts/polish/README.md) from the canonical game and the fan "
+          "translation, and holds **only what the translators authored**: translated text, the key/value "
+          "pairs they changed in the maps, and the images and model textures they repainted. Nothing in it is "
+          "byte-identical to the game, and it contains no whole game asset (no maps, no models, no entity lumps). "
+          "The layout and the engine side are described in "
+          "[`docs/design/language-pack-format.md`](../../docs/design/language-pack-format.md) and "
+          "[`docs/cof-language-packs.md`](../../docs/cof-language-packs.md).", ""]
+    if lang == "polish":
+        L += ["## Creators", "",
+              "- **Avioo** (Tłumaczenie, grafiki, testowanie)",
+              "- **Mixdedemon** (Tłumaczenie)",
+              "- **hexag0n** (Technikalia, testowanie)",
+              "- **Izonka** (Testowanie)", "",
+              "## Source and permission", "",
+              "The translation is the fan mod **Cry of Fear: Spolszczenie**, published on the Steam Workshop: "
+              "<https://steamcommunity.com/sharedfiles/filedetails/?id=3164091802>. It was incorporated into this "
+              "repository with the Polish localisation team's explicit permission (green light received "
+              "2026-09-22). The underlying game content belongs to Team Psykskallar; see "
+              "[`LICENSE-NOTE.md`](LICENSE-NOTE.md).", ""]
+    L += ["## Contents", ""]
+    L += md_table([
+        ("`manifest.txt`", 1, "display name, code page, client subtitle slot, version, authors"),
+        ("`txt/`", n["txt"], "subtitles, hints, conclusions, phone messages and notes, in the game's own "
+         f"`txtfiles/languages/<lang>/` and `notes/languages/<lang>/` layout, {cfg.codepage} bytes"),
+        ("`inventoryitems/`", n["inv"], "item and weapon names and descriptions, mirroring "
+         f"`cryoffear/inventoryitems/`, {cfg.codepage} bytes"),
+        ("`maps/*.entpatch`", n["maps"], f"per-map entity patches: {n['entvalues']} translated key/value "
+         "pairs, applied by the engine to the map's own entity string at load"),
+        ("`textures/*.tga`", n["tex"], "repainted world signs and posters, one per texture name"),
+        ("`models/<model>/<texture>.bmp`", n["models"], f"repainted textures embedded in {len(model_names)} "
+         "studio models (phone screens, newspapers, book pages, signs), 8-bit BMP; the engine swaps them "
+         "into the loaded model"),
+        ("`overlay/`", n["overlay"], "translated interface images (menus, notes, item and weapon cards, "
+         "maps, dialogs), same path as the game's"),
+        ("`strings/dll-strings.tsv`", 1, f"English -> {cfg.display_name} table for the strings compiled "
+         f"into client.dll / hl.dll ({len(rows)} rows)"),
+        ("`strings/menu-strings.tsv`", 1, "this project's own menu (hand-maintained, see below)"),
+        ("`LICENSE-NOTE.md`, `README.md`, `MANIFEST.tsv`", 3, "licence note, this file, file list with hashes"),
+    ], ["Path", "Files", "What"])
+    L += ["", f"Total: **{n['files']} files, {n['bytes']:,} bytes** (every file but `MANIFEST.tsv` and "
+          f"`README.md` is listed in `MANIFEST.tsv` with its size and SHA-256).", ""]
+
+    L += ["## What was left out, and why", "",
+          "The fan mod ships as a full standalone install. The generators keep only the translators' own "
+          "work and leave out:", "",
+          "- **Anything byte-identical to the game** (every generator writes through a check against all "
+          "files of the game; nine `inventoryitems/weapons/weapon_*.txt` of the source are untouched game "
+          "files).",
+          "- **Whole maps and whole entity lumps.** The maps differ only in entity text and embedded sign "
+          "textures; the pack carries the changed key/value pairs (`maps/*.entpatch`) and the repainted "
+          "textures (`textures/`). Four changed values are asset paths the mod's find-and-replace broke "
+          "(`ambience/docks.wav` -> `ambience/Doki.wav` in `c_hamn2` and `c_lake`) and are kept as the game "
+          "has them.",
+          "- **Whole models.** All 23 models the mod replaces differ from the game only in embedded texture "
+          "pixels and palettes (checked byte by byte); the pack carries the repainted textures.",
+          "- **Images whose pixels equal the game's**, and three sign textures the mod copied unchanged "
+          "from other maps.",
+          "- **The mod's repainted bitmap fonts** (this project renders the pack's code page with Inter), "
+          "**its DLLs and EXEs** (strings are substituted at draw time from `dll-strings.tsv`), and **its "
+          "118 MB startup video**.",
+          "- **Art changed for reasons other than translation** (review of 2026-09-22; listed so the "
+          "translators can say whether any of it should ship):", ""]
+    ov = sorted(ex.get("overlay", {}).items())
+    mo = sorted(ex.get("model", {}).items())
+    L += md_table([(f"`overlay/{k}`", v) for k, v in ov] + [(f"model texture `{k}`", v) for k, v in mo],
+                  ["File", "Why it is left out"])
+    L += ["", "Kept, but worth a look: `gfx/vgui/hansts1.tga` and `saxts1.tga` (timetable maps: the "
+          "title is translated, and the translators' base image also has the poster the other timetables "
+          "carry), the phone skins `tex1.bmp` of five phone models (the SMS text is translated, and a "
+          "'Sony Ericsson' logo was added), `models/cutscene/mobileprop/fullbright_mess2.bmp` (the "
+          "translated SMS, drawn on a whole phone image where the game's texture has only the screen), "
+          "and `gfx/vgui/language_settings.tga` (the English flag tile became a Polish one).", ""]
+
+    L += ["## DLL strings (`strings/dll-strings.tsv`)", "",
+          f"{len(rows)} rows recovered from the mod's hex patches of client.dll and hl.dll; 16 pairs the mod's "
+          "blanket find-and-replace corrupted (identifiers such as `ammo_buckshot`, C-runtime day names, one "
+          "overrun string) are excluded by offset in `build_dll_strings_tsv.py`. Rows whose mod bytes were "
+          "chosen for the old bitmap font rather than real Windows-1250 are replaced by the project's "
+          "corrections in `scripts/polish/string_overrides_polish.tsv`."]
+    if flagged:
+        kept = [r for r in flagged if r["flagged"].lower().startswith("kept english")]
+        fixed = [r for r in flagged if r not in kept]
+        L += [""]
+        if fixed:
+            L += [f"{len(fixed)} rows were retranslated by the project (the `flagged` column says so): "
+                  + ", ".join(f"`{r['english'].strip(chr(16))}`" for r in fixed) + "."]
+        if kept:
+            L += ["", f"{len(kept)} identifier-like rows are kept in English by decision: "
+                  + ", ".join(f"`{r['english']}`" for r in kept) + "."]
+    L += ["", "## Menu strings (`strings/menu-strings.tsv`), machine-drafted, please review", "",
+          "This file translates **this project's own menu** (main menu, Options pages, Extras, Unlockables, "
+          "Credits, Save/Load, pause and death pages, co-op pages, dialogs, tooltips, the Controls list). It "
+          "is not from the fan translation, which never touched this menu. It was drafted by an AI worker of "
+          "this project on 2026-09-22 and is waiting for review by a Polish speaker. Format: `english <TAB> "
+          "translation <TAB> where`, UTF-8; check it with `scripts/polish/extract-menu-strings.ps1`. It is "
+          "hand-maintained: the generators keep it as it is.", ""]
+    L += ["## Client subtitle slot (`subtitle_language=" + str(cfg.subtitle_language) + "`)", "",
+          "The Language option sets the client's own subtitle slot (`cof_subtitlelanguage`) to this value. "
+          "`1` is the client's English slot: the engine serves this pack's `txt/` files over whatever slot "
+          "the client asks for, so anything the pack does not translate falls back to English.", ""]
+    L += ["## Regeneration", "",
+          "From the repository root, with the canonical game at `K:\\LLM\\COF_Fix\\Cry of Fear` and the fan "
+          "translation at the path in `scripts/polish/langpack_common.py` (both read-only):", "",
+          "```",
+          f"python scripts/polish/build_all.py --lang {lang} --out .",
+          "```", "",
+          f"This rewrites every generated part of `languages/{lang}/` in place and keeps "
+          "`strings/menu-strings.tsv` and `LICENSE-NOTE.md`. The DLL string step also reads the string "
+          "tables of the binary analysis (`stage1/polish-mod-analysis-20260922/binaries/data/`). The result "
+          "is byte-identical to the committed pack (checked 2026-09-22, `stage1/lang3-20260922`).", ""]
+    out = pack / "README.md"
+    out.write_text("\n".join(L) + "\n", encoding="utf-8")
+    return out
+
+
+def write_pack_manifest_tsv(lang: str) -> Path:
+    pack = lc.lang_pack_dir(lang)
+    out_path = pack / "MANIFEST.tsv"
+    rows = []
+    for f in files_under(pack):
+        rel = f.relative_to(pack).as_posix()
+        if rel in ("MANIFEST.tsv", "README.md"):
+            continue
         rows.append((rel, f.stat().st_size, lc.sha256_file(f)))
     rows.sort(key=lambda r: r[0])
     with open(out_path, "w", encoding="utf-8", newline="") as fh:
@@ -256,25 +220,70 @@ def write_pack_manifest_tsv() -> Path:
     return out_path
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--lang", required=True, choices=sorted(lc.LANGUAGES))
-    ap.add_argument("--pack-version", default="1.0.0")
+    ap.add_argument("--pack-version", default=PACK_VERSION)
     args = ap.parse_args()
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
+    except Exception:
+        pass
 
     cfg = lc.get_language(args.lang)
-    authors = AUTHORS_BY_LANG.get(args.lang, "unknown")
+    pack = lc.lang_pack_dir(args.lang)
+    for legacy in ("pack-README.md",):
+        (pack / legacy).unlink(missing_ok=True)
+    for h in HAND_MAINTAINED:
+        if not (pack / h).is_file():
+            print(f"WARNING: hand-maintained {h} is missing from {pack} (copy it in before building)")
 
-    manifest_path = lc.write_manifest_txt(args.lang, pack_version=args.pack_version, extra={"authors": authors})
-    print(f"wrote {manifest_path}")
+    print(f"wrote {lc.write_manifest_txt(args.lang, pack_version=args.pack_version)}")
 
-    write_readme(args.lang, cfg, args.pack_version)
-    print(f"wrote {lc.PACK_DIR / 'README.md'}")
+    problems = check_rules(args.lang)
 
-    tsv_path = write_pack_manifest_tsv()
-    n = sum(1 for _ in open(tsv_path, encoding="utf-8")) - 1
-    print(f"wrote {tsv_path} ({n} files)")
+    entvalues = 0
+    for f in files_under(lc.maps_dir(args.lang)):
+        entvalues += sum(1 for line in f.read_bytes().splitlines()
+                         if line.startswith(b'"') and not line.startswith(b'"@'))
+    # MANIFEST.tsv first (README counts include it), then README, then MANIFEST.tsv again is not
+    # needed: README.md is not listed in MANIFEST.tsv.
+    tsv = write_pack_manifest_tsv(args.lang)
+    listed = sum(1 for _ in open(tsv, encoding="utf-8")) - 1
+    all_files = files_under(pack)
+    totals = dict(
+        txt=len(files_under(lc.txt_dir(args.lang))),
+        inv=len(files_under(lc.inventoryitems_dir(args.lang))),
+        maps=len(files_under(lc.maps_dir(args.lang))),
+        entvalues=entvalues,
+        tex=len(files_under(lc.textures_dir(args.lang))),
+        models=len(files_under(lc.models_dir(args.lang))),
+        overlay=len(files_under(lc.overlay_dir(args.lang))),
+        files=len([f for f in all_files if f.name != "README.md"]) + 1,
+        bytes=0,
+    )
+    readme = write_readme(args.lang, cfg, args.pack_version, totals)
+    # the README states the total including itself: two passes settle its own size
+    for _ in range(3):
+        all_files = files_under(pack)
+        total = sum(f.stat().st_size for f in all_files)
+        if totals["bytes"] == total and totals["files"] == len(all_files):
+            break
+        totals["bytes"], totals["files"] = total, len(all_files)
+        readme = write_readme(args.lang, cfg, args.pack_version, totals)
+    print(f"wrote {readme}")
+    print(f"wrote {tsv} ({listed} files listed)")
+    print(f"pack: {totals['files']} files, {totals['bytes']:,} bytes "
+          f"(txt {totals['txt']}, inventoryitems {totals['inv']}, entpatch {totals['maps']} / {entvalues} values, "
+          f"textures {totals['tex']}, model textures {totals['models']}, overlay {totals['overlay']})")
+    if problems:
+        print("PACK RULE VIOLATIONS:")
+        for p in problems:
+            print(f"  {p}")
+        return 1
+    print("pack rules: OK (nothing identical to the game, no whole models or entity lumps)")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

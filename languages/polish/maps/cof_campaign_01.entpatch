@@ -1,0 +1,136 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map cof_campaign_01: 348 entities in the BSP entity lump; 24 value(s) in 17 entities; values are cp1250 bytes
+{
+"@entity" "145"
+"@classname" "trigger_checkbrush"
+"@model" "*2"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "147"
+"@classname" "trigger_checkbrush"
+"@model" "*3"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "149"
+"@classname" "trigger_checkbrush"
+"@model" "*4"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "151"
+"@classname" "trigger_checkbrush"
+"@model" "*5"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "155"
+"@classname" "trigger_checkbrush"
+"@model" "*6"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "157"
+"@classname" "trigger_checkbrush"
+"@model" "*7"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "166"
+"@classname" "trigger_checkbrush"
+"@model" "*8"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "227"
+"@classname" "inter_door"
+"@model" "*14"
+"@crc:unlockedmsg" "64707385"
+"unlockedmsg" "Drzwi s¹ teraz otwarte."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "228"
+"@classname" "inter_door"
+"@model" "*15"
+"@crc:unlockedmsg" "64707385"
+"unlockedmsg" "Drzwi s¹ teraz otwarte."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "229"
+"@classname" "inter_door"
+"@model" "*16"
+"@crc:unlockedmsg" "64707385"
+"unlockedmsg" "Drzwi s¹ teraz otwarte."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "230"
+"@classname" "inter_door"
+"@model" "*17"
+"@crc:unlockedmsg" "64707385"
+"unlockedmsg" "Drzwi s¹ teraz otwarte."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "231"
+"@classname" "inter_door"
+"@model" "*18"
+"@crc:unlockedmsg" "64707385"
+"unlockedmsg" "Drzwi s¹ teraz otwarte."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "232"
+"@classname" "inter_door"
+"@model" "*19"
+"@crc:unlockedmsg" "64707385"
+"unlockedmsg" "Drzwi s¹ teraz otwarte."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "236"
+"@classname" "inter_door"
+"@model" "*20"
+"@crc:unlockedmsg" "64707385"
+"unlockedmsg" "Drzwi s¹ teraz otwarte."
+"@crc:lockedmsg" "88b65c6b"
+"lockedmsg" "Simona nie ma w domu."
+}
+{
+"@entity" "309"
+"@classname" "trigger_checkbrush"
+"@model" "*28"
+"@crc:message" "e9801b84"
+"message" "Nasze samochody przesta³y dzia³aæ."
+}
+{
+"@entity" "311"
+"@classname" "trigger_checkbrush"
+"@model" "*29"
+"@crc:message" "e9801b84"
+"message" "Nasze samochody przesta³y dzia³aæ."
+}
+{
+"@entity" "347"
+"@classname" "cof_chapter"
+"@targetname" "chapterss"
+"@origin" "-675 -1124 -11"
+"@crc:message" "83e5c7ed"
+"message" "Rozdzia³ 9 - Gdzie jest Simon?"
+}

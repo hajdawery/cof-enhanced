@@ -1,0 +1,42 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_forest7: 344 entities in the BSP entity lump; 7 value(s) in 5 entities; values are cp1250 bytes
+{
+"@entity" "1"
+"@classname" "inter_door"
+"@model" "*1"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "109"
+"@classname" "trigger_checkbrush"
+"@model" "*6"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "111"
+"@classname" "trigger_checkbrush"
+"@model" "*7"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "113"
+"@classname" "trigger_checkbrush"
+"@model" "*8"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "191"
+"@classname" "inter_door"
+"@targetname" "exitfucka"
+"@model" "*11"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}

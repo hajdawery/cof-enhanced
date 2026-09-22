@@ -1,0 +1,54 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_cof_subway1st1: 285 entities in the BSP entity lump; 9 value(s) in 6 entities; values are cp1250 bytes
+{
+"@entity" "94"
+"@classname" "inter_door"
+"@model" "*17"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "96"
+"@classname" "inter_door"
+"@targetname" "eldoor2"
+"@model" "*19"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "6d045262"
+"lockedmsg" "Drzwi s¹ zamkniête na zamek elektryczny."
+}
+{
+"@entity" "126"
+"@classname" "cof_billboard"
+"@targetname" "tavlakart1"
+"@origin" "1202 -16 -427"
+"@crc:text" "2a53e1d8"
+"text" "We are in Saxon Avenue now. Musimy udaæ siê na Union Street."
+}
+{
+"@entity" "127"
+"@classname" "cof_billboard"
+"@targetname" "tavlastat1"
+"@origin" "1202 -66 -427"
+"@crc:text" "2a53e1d8"
+"text" "We are in Saxon Avenue now. Musimy udaæ siê na Union Street."
+}
+{
+"@entity" "164"
+"@classname" "inter_door"
+"@targetname" "eldoor1"
+"@model" "*36"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "6d045262"
+"lockedmsg" "Drzwi s¹ zamkniête na zamek elektryczny."
+}
+{
+"@entity" "184"
+"@classname" "inter_door"
+"@model" "*42"
+"@crc:lockedmsg" "fbc3571b"
+"lockedmsg" "Nie musimy wracaæ."
+}

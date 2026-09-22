@@ -1,0 +1,152 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_subway1st1: 576 entities in the BSP entity lump; 29 value(s) in 17 entities; values are cp1250 bytes
+{
+"@entity" "12"
+"@classname" "inter_door"
+"@model" "*3"
+"@crc:lockedmsg" "abcf2e39"
+"lockedmsg" "Drzwi s¹ zniszczone."
+}
+{
+"@entity" "56"
+"@classname" "inter_door"
+"@model" "*8"
+"@crc:lockedmsg" "828cc2a1"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "103"
+"@classname" "inter_door"
+"@model" "*13"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "132"
+"@classname" "inter_door"
+"@model" "*24"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "135"
+"@classname" "inter_door"
+"@targetname" "eldoor1"
+"@model" "*25"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "6d045262"
+"lockedmsg" "Drzwi s¹ zamkniête na zamek elektryczny."
+}
+{
+"@entity" "157"
+"@classname" "inter_door"
+"@targetname" "eldoor2"
+"@model" "*37"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "6d045262"
+"lockedmsg" "Drzwi s¹ zamkniête na zamek elektryczny."
+}
+{
+"@entity" "159"
+"@classname" "inter_door"
+"@targetname" "2eldoor2"
+"@model" "*38"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "6d045262"
+"lockedmsg" "Drzwi s¹ zamkniête na zamek elektryczny."
+}
+{
+"@entity" "195"
+"@classname" "inter_door"
+"@model" "*48"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "196"
+"@classname" "inter_door"
+"@model" "*49"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "197"
+"@classname" "inter_door"
+"@model" "*50"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "199"
+"@classname" "inter_door"
+"@model" "*51"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "201"
+"@classname" "inter_door"
+"@model" "*52"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "240"
+"@classname" "inter_door"
+"@targetname" "2eldoor1"
+"@model" "*55"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "6d045262"
+"lockedmsg" "Drzwi s¹ zamkniête na zamek elektryczny."
+}
+{
+"@entity" "255"
+"@classname" "trigger_checkbrush"
+"@targetname" "flowerattack"
+"@model" "*58"
+"@crc:message" "95182dbc"
+"message" "To coœ blokuje mi drogê."
+}
+{
+"@entity" "271"
+"@classname" "inter_door"
+"@model" "*59"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "341"
+"@classname" "cof_billboard"
+"@targetname" "tavlakart1"
+"@origin" "1202 -16 -427"
+"@crc:text" "bddfef8c"
+"text" "Jestem teraz na Saxon Avenue."
+}
+{
+"@entity" "342"
+"@classname" "cof_billboard"
+"@targetname" "tavlastat1"
+"@origin" "1202 -66 -427"
+"@crc:text" "361065a0"
+"text" "Mieszkam w Kirkville. Wiêc muszê siê tam jakoœ udaæ."
+}

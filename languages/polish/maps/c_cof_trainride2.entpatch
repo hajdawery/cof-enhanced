@@ -1,0 +1,11 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_cof_trainride2: 120 entities in the BSP entity lump; 2 value(s) in 1 entities; values are cp1250 bytes
+{
+"@entity" "25"
+"@classname" "inter_door"
+"@model" "*2"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}

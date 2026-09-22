@@ -1,0 +1,31 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map cof_campaign_01_p2: 225 entities in the BSP entity lump; 4 value(s) in 4 entities; values are cp1250 bytes
+{
+"@entity" "54"
+"@classname" "inter_door"
+"@model" "*11"
+"@crc:lockedmsg" "08b96603"
+"lockedmsg" "Drzwi przeciwpo¿arowe s¹ szczelnie zamkniête."
+}
+{
+"@entity" "55"
+"@classname" "inter_door"
+"@model" "*12"
+"@crc:lockedmsg" "08b96603"
+"lockedmsg" "Drzwi przeciwpo¿arowe s¹ szczelnie zamkniête."
+}
+{
+"@entity" "106"
+"@classname" "inter_door"
+"@model" "*50"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "223"
+"@classname" "cof_chapter"
+"@targetname" "chapterss"
+"@origin" "-497 1104 -53"
+"@crc:message" "905d4e42"
+"message" "Rozdzia³ 10 - Wiele myœli"
+}

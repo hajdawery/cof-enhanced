@@ -1,0 +1,28 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_cof_subway2st3: 362 entities in the BSP entity lump; 5 value(s) in 3 entities; values are cp1250 bytes
+{
+"@entity" "191"
+"@classname" "cof_billboard"
+"@targetname" "tavlastat1"
+"@origin" "-77 442 -507"
+"@crc:text" "32b2f81a"
+"text" "Jesteœmy teraz na Hansson Square."
+}
+{
+"@entity" "270"
+"@classname" "inter_door"
+"@model" "*20"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "271"
+"@classname" "inter_door"
+"@model" "*21"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "910b521b"
+"lockedmsg" "Dziwne. Drzwi nie mo¿na teraz otworzyæ."
+}

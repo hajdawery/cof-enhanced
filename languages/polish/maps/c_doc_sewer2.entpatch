@@ -1,0 +1,50 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_doc_sewer2: 514 entities in the BSP entity lump; 9 value(s) in 6 entities; values are cp1250 bytes
+{
+"@entity" "34"
+"@classname" "inter_door"
+"@model" "*8"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "36"
+"@classname" "inter_door"
+"@model" "*10"
+"@crc:lockedmsg" "48d3af80"
+"lockedmsg" "Coœ blokuje drzwi."
+}
+{
+"@entity" "43"
+"@classname" "inter_door"
+"@model" "*15"
+"@crc:lockedmsg" "83308681"
+"lockedmsg" "Drzwi s¹ zamkniête za pomoc¹ kodu."
+}
+{
+"@entity" "46"
+"@classname" "inter_door"
+"@model" "*17"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "53"
+"@classname" "inter_door"
+"@model" "*21"
+"@crc:lockedmsg" "89256ca5"
+"lockedmsg" "Nie ma potrzeby, by teraz wracaæ."
+}
+{
+"@entity" "58"
+"@classname" "inter_door"
+"@model" "*22"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}

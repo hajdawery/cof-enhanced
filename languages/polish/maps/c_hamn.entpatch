@@ -1,0 +1,73 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_hamn: 327 entities in the BSP entity lump; 11 value(s) in 9 entities; values are cp1250 bytes
+{
+"@entity" "14"
+"@classname" "inter_door"
+"@model" "*6"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "15"
+"@classname" "inter_door"
+"@model" "*7"
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "29"
+"@classname" "trigger_checkbrush"
+"@model" "*19"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "109"
+"@classname" "inter_door"
+"@targetname" "tjenafena"
+"@model" "*41"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "b6f637a7"
+"lockedmsg" "Te drewniane deski blokuj¹ drzwi."
+}
+{
+"@entity" "111"
+"@classname" "inter_door"
+"@model" "*42"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "147"
+"@classname" "inter_door"
+"@targetname" "fudoor2"
+"@model" "*52"
+"@crc:lockedmsg" "48d3af80"
+"lockedmsg" "Coœ blokuje drzwi."
+}
+{
+"@entity" "149"
+"@classname" "inter_door"
+"@targetname" "fudoor1"
+"@model" "*54"
+"@crc:lockedmsg" "adf8dee3"
+"lockedmsg" "Drzwi siê zaciê³y. Nie mogê ich otworzyæ."
+}
+{
+"@entity" "152"
+"@classname" "inter_door"
+"@model" "*56"
+"@crc:lockedmsg" "adf8dee3"
+"lockedmsg" "Drzwi siê zaciê³y. Nie mogê ich otworzyæ."
+}
+{
+"@entity" "154"
+"@classname" "inter_door"
+"@targetname" "fudoor3"
+"@model" "*57"
+"@crc:lockedmsg" "48d3af80"
+"lockedmsg" "Coœ blokuje drzwi."
+}

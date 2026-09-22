@@ -1,0 +1,53 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_basement: 713 entities in the BSP entity lump; 7 value(s) in 7 entities; values are cp1250 bytes
+{
+"@entity" "9"
+"@classname" "trigger_checkbrush"
+"@model" "*3"
+"@crc:message" "71654183"
+"message" "Nie muszê wracaæ na górê."
+}
+{
+"@entity" "41"
+"@classname" "inter_door"
+"@model" "*16"
+"@crc:lockedmsg" "1e6b2279"
+"lockedmsg" "Zamkn¹³ drzwi. Lepiej znajdê inn¹ drogê."
+}
+{
+"@entity" "236"
+"@classname" "inter_door"
+"@targetname" "elecdoor"
+"@model" "*63"
+"@crc:lockedmsg" "80ecd5e2"
+"lockedmsg" "Drzwi s¹ zamkniête. Obok znajduje siê klawiatura."
+}
+{
+"@entity" "298"
+"@classname" "trigger_checkbrush"
+"@model" "*87"
+"@crc:message" "9e8d7025"
+"message" "Schody siê zawali³y. Nie mogê wejœæ na górê."
+}
+{
+"@entity" "638"
+"@classname" "cof_chapter"
+"@targetname" "chapterlils"
+"@origin" "-3090 2984 526"
+"@crc:message" "4a049e9b"
+"message" "Rozdzia³ 2 - Kim jest ten Doktor?"
+}
+{
+"@entity" "644"
+"@classname" "trigger_checkbrush"
+"@model" "*123"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "647"
+"@classname" "trigger_checkbrush"
+"@model" "*124"
+"@crc:message" "b786aa96"
+"message" "Jest zbyt ciemno i niebezpiecznie, by siê tam wspinaæ."
+}

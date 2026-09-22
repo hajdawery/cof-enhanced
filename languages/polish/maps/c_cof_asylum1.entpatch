@@ -1,0 +1,73 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_cof_asylum1: 643 entities in the BSP entity lump; 10 value(s) in 10 entities; values are cp1250 bytes
+{
+"@entity" "5"
+"@classname" "inter_door"
+"@model" "*2"
+"@crc:lockedmsg" "a3365801"
+"lockedmsg" "Zamek jest rozbity. Ani drgn¹."
+}
+{
+"@entity" "91"
+"@classname" "inter_door"
+"@model" "*53"
+"@crc:lockedmsg" "fbc3571b"
+"lockedmsg" "Nie musimy wracaæ."
+}
+{
+"@entity" "93"
+"@classname" "inter_door"
+"@model" "*54"
+"@crc:lockedmsg" "a3365801"
+"lockedmsg" "Zamek jest rozbity. Ani drgn¹."
+}
+{
+"@entity" "198"
+"@classname" "inter_door"
+"@model" "*141"
+"@crc:lockedmsg" "a3365801"
+"lockedmsg" "Zamek jest rozbity. Ani drgn¹."
+}
+{
+"@entity" "199"
+"@classname" "inter_door"
+"@model" "*142"
+"@crc:lockedmsg" "a3365801"
+"lockedmsg" "Zamek jest rozbity. Ani drgn¹."
+}
+{
+"@entity" "269"
+"@classname" "inter_door"
+"@model" "*187"
+"@crc:lockedmsg" "b1346db4"
+"lockedmsg" "Drzwi s¹ zamkniête za pomoc¹ kodu."
+}
+{
+"@entity" "345"
+"@classname" "inter_door"
+"@targetname" "nerddoor1"
+"@model" "*190"
+"@crc:lockedmsg" "a3365801"
+"lockedmsg" "Zamek jest rozbity. Ani drgn¹."
+}
+{
+"@entity" "346"
+"@classname" "inter_door"
+"@model" "*191"
+"@crc:lockedmsg" "ca20163d"
+"lockedmsg" "Doktor zamkn¹³ drzwi."
+}
+{
+"@entity" "347"
+"@classname" "inter_door"
+"@model" "*192"
+"@crc:lockedmsg" "a3365801"
+"lockedmsg" "Zamek jest rozbity. Ani drgn¹."
+}
+{
+"@entity" "385"
+"@classname" "inter_door"
+"@model" "*200"
+"@crc:lockedmsg" "19a2ee0e"
+"lockedmsg" "Tylne drzwi s¹ zamkniête."
+}

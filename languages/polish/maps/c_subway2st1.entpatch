@@ -1,0 +1,102 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_subway2st1: 735 entities in the BSP entity lump; 16 value(s) in 12 entities; values are cp1250 bytes
+{
+"@entity" "27"
+"@classname" "inter_door"
+"@targetname" "lockshit2"
+"@model" "*1"
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "28"
+"@classname" "inter_door"
+"@model" "*2"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "491"
+"@classname" "inter_door"
+"@model" "*9"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "503"
+"@classname" "cof_billboard"
+"@targetname" "tavlakart1"
+"@origin" "-78 250 -291"
+"@crc:text" "3079a4fa"
+"text" "Jestem teraz na Hansson Square."
+}
+{
+"@entity" "504"
+"@classname" "cof_billboard"
+"@targetname" "tavlastat1"
+"@origin" "-78 200 -291"
+"@crc:text" "361065a0"
+"text" "Mieszkam w Kirkville. Wiêc muszê siê tam jakoœ udaæ."
+}
+{
+"@entity" "590"
+"@classname" "trigger_checkbrush"
+"@model" "*26"
+"@crc:message" "8e5d47f2"
+"message" "Nie wygl¹da na to, ¿eby by³ jednym z nich.."
+}
+{
+"@entity" "595"
+"@classname" "func_button"
+"@targetname" "buttkuk1"
+"@model" "*28"
+"@crc:unlockedmsg" "a2f17cf1"
+"unlockedmsg" "Bezpiecznik jest umieszczony."
+"@crc:lockedmsg" "5272cf9c"
+"lockedmsg" "Muszê umieœciæ tutaj bezpiecznik, aby otworzyæ drzwi."
+}
+{
+"@entity" "608"
+"@classname" "func_button"
+"@targetname" "buttkuk2"
+"@model" "*33"
+"@crc:unlockedmsg" "a2f17cf1"
+"unlockedmsg" "Bezpiecznik jest umieszczony."
+"@crc:lockedmsg" "5272cf9c"
+"lockedmsg" "Muszê umieœciæ tutaj bezpiecznik, aby otworzyæ drzwi."
+}
+{
+"@entity" "656"
+"@classname" "cof_chapter"
+"@targetname" "chapterx"
+"@origin" "-320 -1671 -123"
+"@crc:message" "5732d98a"
+"message" "Rozdzia³ 5 - Zostawiaj¹c to na dobre"
+}
+{
+"@entity" "721"
+"@classname" "inter_door"
+"@targetname" "shitdoor"
+"@model" "*50"
+"@crc:lockedmsg" "21cd12ae"
+"lockedmsg" "Drzwi s¹ zamkniête na zamek elektryczny."
+}
+{
+"@entity" "724"
+"@classname" "trigger_checkbrush"
+"@model" "*53"
+"@crc:message" "532e6944"
+"message" "Ta droga nie prowadzi do mojego domu."
+}
+{
+"@entity" "727"
+"@classname" "inter_door"
+"@targetname" "fuseddoor"
+"@model" "*56"
+"@crc:lockedmsg" "7d4a0798"
+"lockedmsg" "Potrzebujê bezpieczników obok tych drzwi."
+}

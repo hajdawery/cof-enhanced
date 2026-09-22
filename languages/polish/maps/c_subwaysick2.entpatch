@@ -1,0 +1,58 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_subwaysick2: 564 entities in the BSP entity lump; 7 value(s) in 7 entities; values are cp1250 bytes
+{
+"@entity" "532"
+"@classname" "cof_billboard"
+"@targetname" "skarta7"
+"@origin" "-1850 -346 -423"
+"@crc:text" "f99934d8"
+"text" "Muszê udaæ siê do wyjœcia."
+}
+{
+"@entity" "534"
+"@classname" "cof_billboard"
+"@targetname" "skarta6"
+"@origin" "-1019 -1311 -423"
+"@crc:text" "f99934d8"
+"text" "Muszê udaæ siê do wyjœcia."
+}
+{
+"@entity" "536"
+"@classname" "cof_billboard"
+"@targetname" "skarta5"
+"@origin" "-701 -225 -423"
+"@crc:text" "f99934d8"
+"text" "Muszê udaæ siê do wyjœcia."
+}
+{
+"@entity" "538"
+"@classname" "cof_billboard"
+"@targetname" "skarta4"
+"@origin" "170 -908 -423"
+"@crc:text" "f99934d8"
+"text" "Muszê udaæ siê do wyjœcia."
+}
+{
+"@entity" "540"
+"@classname" "cof_billboard"
+"@targetname" "skarta3"
+"@origin" "1441 -919 -423"
+"@crc:text" "f99934d8"
+"text" "Muszê udaæ siê do wyjœcia."
+}
+{
+"@entity" "542"
+"@classname" "cof_billboard"
+"@targetname" "skarta2"
+"@origin" "773 -1526 -423"
+"@crc:text" "f99934d8"
+"text" "Muszê udaæ siê do wyjœcia."
+}
+{
+"@entity" "544"
+"@classname" "cof_billboard"
+"@targetname" "skarta1"
+"@origin" "503 -2647 -423"
+"@crc:text" "f99934d8"
+"text" "Muszê udaæ siê do wyjœcia."
+}

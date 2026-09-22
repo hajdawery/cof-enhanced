@@ -1,0 +1,69 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_avlopp: 363 entities in the BSP entity lump; 13 value(s) in 8 entities; values are cp1250 bytes
+{
+"@entity" "21"
+"@classname" "trigger_checkbrush"
+"@model" "*16"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "49"
+"@classname" "inter_door"
+"@model" "*28"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "79"
+"@classname" "inter_door"
+"@model" "*44"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "107"
+"@classname" "inter_door"
+"@model" "*59"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "144"
+"@classname" "inter_door"
+"@model" "*71"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "195"
+"@classname" "func_button"
+"@targetname" "ladder1b"
+"@model" "*86"
+"@crc:unlockedmsg" "5f1fe7cb"
+"unlockedmsg" "Umieœci³eœ drabinê."
+"@crc:lockedmsg" "347a99cb"
+"lockedmsg" "Okno jest otwarte."
+}
+{
+"@entity" "206"
+"@classname" "inter_door"
+"@model" "*91"
+"@crc:lockedmsg" "34239584"
+"lockedmsg" "Coœ ciê¿kiego blokuje drzwi."
+}
+{
+"@entity" "283"
+"@classname" "inter_door"
+"@model" "*97"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}

@@ -1,0 +1,242 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_cof_alley: 563 entities in the BSP entity lump; 35 value(s) in 34 entities; values are cp1250 bytes
+{
+"@entity" "6"
+"@classname" "inter_door"
+"@model" "*4"
+"@crc:lockedmsg" "1167a3b6"
+"lockedmsg" "S¹ zamkniête."
+}
+{
+"@entity" "79"
+"@classname" "inter_door"
+"@model" "*32"
+"@crc:lockedmsg" "1167a3b6"
+"lockedmsg" "S¹ zamkniête."
+}
+{
+"@entity" "94"
+"@classname" "inter_door"
+"@model" "*42"
+"@crc:lockedmsg" "5c8fc4d2"
+"lockedmsg" "Klamka jest zablokowana."
+}
+{
+"@entity" "98"
+"@classname" "inter_door"
+"@model" "*45"
+"@crc:lockedmsg" "53077b56"
+"lockedmsg" "Zamek jest rozwalony. Nie otworz¹ siê."
+}
+{
+"@entity" "113"
+"@classname" "inter_door"
+"@model" "*56"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "163"
+"@classname" "inter_door"
+"@model" "*76"
+"@crc:lockedmsg" "cefb4488"
+"lockedmsg" "Nie mo¿emy teraz wróciæ. Musimy szukaæ doktora Purnella!"
+}
+{
+"@entity" "482"
+"@classname" "inter_door"
+"@model" "*141"
+"@crc:lockedmsg" "cbe6c720"
+"lockedmsg" "Brama jest zamkniêta."
+}
+{
+"@entity" "483"
+"@classname" "inter_door"
+"@model" "*142"
+"@crc:lockedmsg" "1167a3b6"
+"lockedmsg" "S¹ zamkniête."
+}
+{
+"@entity" "484"
+"@classname" "inter_door"
+"@model" "*143"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "485"
+"@classname" "inter_door"
+"@model" "*144"
+"@crc:lockedmsg" "797b6d6a"
+"lockedmsg" "Drzwi s¹ zablokowane."
+}
+{
+"@entity" "486"
+"@classname" "inter_door"
+"@model" "*145"
+"@crc:lockedmsg" "7dbd4ae5"
+"lockedmsg" "S¹ zamkniête i nie otwieraj¹ siê."
+}
+{
+"@entity" "487"
+"@classname" "inter_door"
+"@model" "*146"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "488"
+"@classname" "inter_door"
+"@model" "*147"
+"@crc:lockedmsg" "2f3be7a4"
+"lockedmsg" "Zamek jest rozwalony."
+}
+{
+"@entity" "489"
+"@classname" "inter_door"
+"@model" "*148"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "490"
+"@classname" "inter_door"
+"@model" "*149"
+"@crc:lockedmsg" "caad664b"
+"lockedmsg" "Nie otwieraj¹ siê."
+}
+{
+"@entity" "491"
+"@classname" "inter_door"
+"@model" "*150"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "492"
+"@classname" "inter_door"
+"@model" "*151"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "493"
+"@classname" "inter_door"
+"@model" "*152"
+"@crc:lockedmsg" "7dbd4ae5"
+"lockedmsg" "S¹ zamkniête i nie otwieraj¹ siê."
+}
+{
+"@entity" "494"
+"@classname" "inter_door"
+"@model" "*153"
+"@crc:lockedmsg" "b2d07aa9"
+"lockedmsg" "Drzwi siê zaciê³y."
+}
+{
+"@entity" "495"
+"@classname" "inter_door"
+"@model" "*154"
+"@crc:lockedmsg" "ff9950f5"
+"lockedmsg" "Utkn¹³."
+}
+{
+"@entity" "496"
+"@classname" "inter_door"
+"@model" "*155"
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "497"
+"@classname" "inter_door"
+"@model" "*156"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "498"
+"@classname" "inter_door"
+"@model" "*157"
+"@crc:lockedmsg" "caad664b"
+"lockedmsg" "Nie otwieraj¹ siê."
+}
+{
+"@entity" "499"
+"@classname" "inter_door"
+"@model" "*158"
+"@crc:lockedmsg" "4995f74a"
+"lockedmsg" "Klamka jest zablokowana. Nie otwieraj¹ siê."
+}
+{
+"@entity" "500"
+"@classname" "inter_door"
+"@model" "*159"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "501"
+"@classname" "inter_door"
+"@model" "*160"
+"@crc:lockedmsg" "1167a3b6"
+"lockedmsg" "S¹ zamkniête."
+}
+{
+"@entity" "502"
+"@classname" "inter_door"
+"@model" "*161"
+"@crc:lockedmsg" "3f9fc1d4"
+"lockedmsg" "Drzwi s¹ zablokowane. Nie otworz¹ siê."
+}
+{
+"@entity" "503"
+"@classname" "inter_door"
+"@model" "*162"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "504"
+"@classname" "inter_door"
+"@model" "*163"
+"@crc:lockedmsg" "1167a3b6"
+"lockedmsg" "S¹ zamkniête."
+}
+{
+"@entity" "505"
+"@classname" "inter_door"
+"@model" "*164"
+"@crc:lockedmsg" "b2d07aa9"
+"lockedmsg" "Drzwi siê zaciê³y."
+}
+{
+"@entity" "506"
+"@classname" "inter_door"
+"@model" "*165"
+"@crc:lockedmsg" "1d8dba45"
+"lockedmsg" "Klamka jest zablokowana. Nie otwieraj¹ siê."
+}
+{
+"@entity" "507"
+"@classname" "inter_door"
+"@model" "*166"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "508"
+"@classname" "inter_door"
+"@model" "*167"
+"@crc:lockedmsg" "3f9fc1d4"
+"lockedmsg" "Drzwi s¹ zablokowane. Nie otworz¹ siê."
+}
+{
+"@entity" "515"
+"@classname" "func_button"
+"@model" "*173"
+"@crc:unlockedmsg" "6b221a04"
+"unlockedmsg" "S¹ odblokowane."
+"@crc:lockedmsg" "05d6a8b5"
+"lockedmsg" "To drzwi wyjœciowe. Potrzebujê jednak klucza, by przez nie przejœæ."
+}

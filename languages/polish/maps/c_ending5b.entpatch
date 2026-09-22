@@ -1,0 +1,10 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_ending5b: 305 entities in the BSP entity lump; 1 value(s) in 1 entities; values are cp1250 bytes
+{
+"@entity" "292"
+"@classname" "trigger_checkbrush"
+"@targetname" "ladderblock"
+"@model" "*121"
+"@crc:message" "be321010"
+"message" "Muszê jakoœ dostaæ siê do tej drabiny."
+}

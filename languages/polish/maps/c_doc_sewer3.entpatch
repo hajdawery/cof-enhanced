@@ -1,0 +1,55 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_doc_sewer3: 197 entities in the BSP entity lump; 9 value(s) in 7 entities; values are cp1250 bytes
+{
+"@entity" "12"
+"@classname" "inter_door"
+"@model" "*9"
+"@crc:lockedmsg" "0334f1b8"
+"lockedmsg" "Najpierw potrzebujê klucza!"
+}
+{
+"@entity" "15"
+"@classname" "inter_door"
+"@model" "*12"
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "33"
+"@classname" "inter_door"
+"@model" "*19"
+"@crc:lockedmsg" "0334f1b8"
+"lockedmsg" "Najpierw potrzebujê klucza!"
+}
+{
+"@entity" "45"
+"@classname" "trigger_checkbrush"
+"@model" "*23"
+"@crc:message" "4318847c"
+"message" "Muszê znaleŸæ inn¹ drogê."
+}
+{
+"@entity" "74"
+"@classname" "inter_door"
+"@model" "*33"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "127"
+"@classname" "inter_door"
+"@model" "*43"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "191"
+"@classname" "inter_door"
+"@model" "*45"
+"@crc:lockedmsg" "d97a8f10"
+"lockedmsg" "Nie muszê wracaæ."
+}

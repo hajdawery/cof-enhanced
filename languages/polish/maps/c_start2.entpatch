@@ -1,0 +1,114 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_start2: 443 entities in the BSP entity lump; 20 value(s) in 14 entities; values are cp1250 bytes
+{
+"@entity" "6"
+"@classname" "inter_door"
+"@model" "*1"
+"@crc:lockedmsg" "13b76b28"
+"lockedmsg" "Brama jest zamkniêta. Ani drgnie."
+}
+{
+"@entity" "49"
+"@classname" "inter_door"
+"@model" "*6"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "50"
+"@classname" "inter_door"
+"@model" "*7"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "70"
+"@classname" "trigger_checkbrush"
+"@model" "*8"
+"@crc:message" "36265032"
+"message" "Nie potrzebujê tego teraz."
+}
+{
+"@entity" "71"
+"@classname" "trigger_checkbrush"
+"@model" "*9"
+"@crc:message" "36265032"
+"message" "Nie potrzebujê tego teraz."
+}
+{
+"@entity" "83"
+"@classname" "trigger_checkbrush"
+"@model" "*10"
+"@crc:message" "36265032"
+"message" "Nie potrzebujê tego teraz."
+}
+{
+"@entity" "100"
+"@classname" "trigger_checkbrush"
+"@model" "*11"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "114"
+"@classname" "trigger_checkbrush"
+"@model" "*12"
+"@crc:message" "36265032"
+"message" "Nie potrzebujê tego teraz."
+}
+{
+"@entity" "204"
+"@classname" "inter_door"
+"@targetname" "cafedoors"
+"@model" "*14"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "206"
+"@classname" "inter_door"
+"@targetname" "cafedoors2"
+"@model" "*15"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "227"
+"@classname" "inter_door"
+"@model" "*16"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "228"
+"@classname" "inter_door"
+"@model" "*17"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "437"
+"@classname" "trigger_checkbrush"
+"@model" "*47"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "438"
+"@classname" "trigger_checkbrush"
+"@model" "*48"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}

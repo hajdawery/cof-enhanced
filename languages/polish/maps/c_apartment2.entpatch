@@ -1,0 +1,93 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_apartment2: 467 entities in the BSP entity lump; 13 value(s) in 13 entities; values are cp1250 bytes
+{
+"@entity" "64"
+"@classname" "inter_door"
+"@model" "*45"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "65"
+"@classname" "inter_door"
+"@model" "*46"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "199"
+"@classname" "trigger_checkbrush"
+"@model" "*91"
+"@crc:message" "4cef09c0"
+"message" "Schody s¹ ca³kowicie zablokowane."
+}
+{
+"@entity" "236"
+"@classname" "inter_door"
+"@model" "*112"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "237"
+"@classname" "inter_door"
+"@model" "*113"
+"@crc:lockedmsg" "313cb454"
+"lockedmsg" "Drzwi siê zaciê³y. Nie mo¿na ich otworzyæ."
+}
+{
+"@entity" "238"
+"@classname" "inter_door"
+"@model" "*114"
+"@crc:lockedmsg" "313cb454"
+"lockedmsg" "Drzwi siê zaciê³y. Nie mo¿na ich otworzyæ."
+}
+{
+"@entity" "264"
+"@classname" "inter_door"
+"@model" "*124"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "265"
+"@classname" "inter_door"
+"@model" "*125"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "266"
+"@classname" "inter_door"
+"@model" "*126"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "267"
+"@classname" "inter_door"
+"@model" "*127"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "273"
+"@classname" "inter_door"
+"@model" "*130"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "275"
+"@classname" "inter_door"
+"@model" "*132"
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "306"
+"@classname" "inter_door"
+"@model" "*142"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}

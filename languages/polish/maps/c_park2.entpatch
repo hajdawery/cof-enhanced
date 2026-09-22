@@ -1,0 +1,167 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_park2: 395 entities in the BSP entity lump; 33 value(s) in 19 entities; values are cp1250 bytes
+{
+"@entity" "67"
+"@classname" "inter_door"
+"@model" "*7"
+"@crc:lockedmsg" "1167a3b6"
+"lockedmsg" "S¹ zamkniête."
+}
+{
+"@entity" "86"
+"@classname" "inter_door"
+"@model" "*18"
+"@crc:lockedmsg" "1167a3b6"
+"lockedmsg" "S¹ zamkniête."
+}
+{
+"@entity" "108"
+"@classname" "inter_door"
+"@model" "*24"
+"@crc:lockedmsg" "1167a3b6"
+"lockedmsg" "S¹ zamkniête."
+}
+{
+"@entity" "116"
+"@classname" "inter_door"
+"@targetname" "3dernn"
+"@model" "*30"
+"@crc:unlockedmsg" "64707385"
+"unlockedmsg" "Drzwi s¹ teraz otwarte."
+"@crc:lockedmsg" "b055c59b"
+"lockedmsg" "Drzwi s¹ zamkniête na kartê."
+}
+{
+"@entity" "119"
+"@classname" "inter_door"
+"@targetname" "2dernn"
+"@model" "*31"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+}
+{
+"@entity" "133"
+"@classname" "inter_door"
+"@model" "*39"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "b055c59b"
+"lockedmsg" "Drzwi s¹ zamkniête na kartê."
+}
+{
+"@entity" "135"
+"@classname" "inter_door"
+"@model" "*41"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "b055c59b"
+"lockedmsg" "Drzwi s¹ zamkniête na kartê."
+}
+{
+"@entity" "138"
+"@classname" "inter_door"
+"@model" "*43"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "b2d07aa9"
+"lockedmsg" "Drzwi siê zaciê³y."
+}
+{
+"@entity" "140"
+"@classname" "inter_door"
+"@model" "*45"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "b2d07aa9"
+"lockedmsg" "Drzwi siê zaciê³y."
+}
+{
+"@entity" "142"
+"@classname" "inter_door"
+"@model" "*47"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "2081d1b8"
+"lockedmsg" "Hmm.. Drzwi siê nie otwieraj¹..."
+}
+{
+"@entity" "146"
+"@classname" "inter_door"
+"@model" "*49"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "b055c59b"
+"lockedmsg" "Drzwi s¹ zamkniête na kartê."
+}
+{
+"@entity" "157"
+"@classname" "inter_door"
+"@model" "*51"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "b055c59b"
+"lockedmsg" "Drzwi s¹ zamkniête na kartê."
+}
+{
+"@entity" "160"
+"@classname" "inter_door"
+"@model" "*53"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "b055c59b"
+"lockedmsg" "Drzwi s¹ zamkniête na kartê."
+}
+{
+"@entity" "164"
+"@classname" "inter_door"
+"@model" "*56"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "b2d07aa9"
+"lockedmsg" "Drzwi siê zaciê³y."
+}
+{
+"@entity" "166"
+"@classname" "inter_door"
+"@model" "*58"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "b2d07aa9"
+"lockedmsg" "Drzwi siê zaciê³y."
+}
+{
+"@entity" "167"
+"@classname" "inter_door"
+"@model" "*59"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "b2d07aa9"
+"lockedmsg" "Drzwi siê zaciê³y."
+}
+{
+"@entity" "313"
+"@classname" "inter_door"
+"@model" "*73"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "95e7b116"
+"lockedmsg" "Winda utkwi³a, nie mogê jej u¿yæ."
+}
+{
+"@entity" "367"
+"@classname" "inter_door"
+"@targetname" "2dernn2"
+"@model" "*76"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+}
+{
+"@entity" "368"
+"@classname" "inter_door"
+"@targetname" "3dernn2"
+"@model" "*77"
+"@crc:unlockedmsg" "64707385"
+"unlockedmsg" "Drzwi s¹ teraz otwarte."
+"@crc:lockedmsg" "b055c59b"
+"lockedmsg" "Drzwi s¹ zamkniête na kartê."
+}

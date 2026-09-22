@@ -1,0 +1,3509 @@
+diff --git a/3rdparty/freevgui/font.cpp b/3rdparty/freevgui/font.cpp
+index 6763a23..2d6f68d 100644
+--- a/3rdparty/freevgui/font.cpp
++++ b/3rdparty/freevgui/font.cpp
+@@ -8,6 +8,7 @@
+ using namespace vgui;
+ 
+ static int staticFontId = 100;
++static vgui::TextSubstituteFn g_textSubstituteHook = nullptr;
+ static Dar<vgui::BaseFontPlat*> staticFontPlatDar;
+ 
+ // a debugging font, just draws boxes with character number inside
+@@ -170,6 +171,21 @@ void vgui::Font_SetCreatedHook( FontCreatedFn fn )
+ 	g_fontCreatedHook = fn;
+ }
+ 
++void vgui::Text_SetSubstituteHook( TextSubstituteFn fn )
++{
++	g_textSubstituteHook = fn;
++}
++
++const char *vgui::Text_Substitute( const char *str )
++{
++	if( !str || !g_textSubstituteHook )
++		return str;
++
++	const char *sub = g_textSubstituteHook( str );
++
++	return sub ? sub : str;
++}
++
+ vgui::Font *vgui::Font_Active( Font *font )
+ {
+ 	if( !font || !g_fontSubstituteHook )
+diff --git a/3rdparty/freevgui/font.h b/3rdparty/freevgui/font.h
+index c6f792e..aa363fb 100644
+--- a/3rdparty/freevgui/font.h
++++ b/3rdparty/freevgui/font.h
+@@ -64,6 +64,21 @@ void Font_SetSubstituteHook( FontSubstituteFn fn );
+ void Font_SetCreatedHook( FontCreatedFn fn );
+ Font *Font_Active( Font *font );
+ 
++// Cry of Fear language packs (cof_language). The captions compiled into
++// the game DLLs have no file slot at all, so they are swapped at draw
++// time from the active pack's table. The hook lives with the font hooks
++// above because it is installed from the same place and consumed by the
++// same text path; the platform layer routes it into the engine.
++//
++// TextImage::setText is the chokepoint: it runs before getTextSize() and
++// before wrapping, so the layout is computed from the text that is
++// actually drawn. Text_Substitute() returns its argument unchanged when
++// there is no hook, no pack, or no match.
++typedef const char *( *TextSubstituteFn )( const char *str );
++
++void Text_SetSubstituteHook( TextSubstituteFn fn );
++const char *Text_Substitute( const char *str );
++
+ }
+ 
+ #endif // VGUI_FONT_H
+diff --git a/3rdparty/freevgui/image.cpp b/3rdparty/freevgui/image.cpp
+index c67a9fe..96c57d0 100644
+--- a/3rdparty/freevgui/image.cpp
++++ b/3rdparty/freevgui/image.cpp
+@@ -719,6 +719,26 @@ Font *TextImage::getFont()
+ 
+ void TextImage::setText( int len, const char *str )
+ {
++	// Cry of Fear language packs (cof_language): every client label and
++	// TextPanel lands here before it is measured or wrapped, so this is where
++	// the pack's table replaces the English caption. Text_Substitute() hands
++	// back `str` itself when there is nothing to replace, so the stock path
++	// is byte for byte unchanged; a replacement may be longer than the
++	// buffer the caller sized for the English text.
++	if( str )
++	{
++		const char *sub = Text_Substitute( str );
++
++		if( sub != str )
++		{
++			int need = (int)strlen( sub ) + 1;
++
++			str = sub;
++			if( len < need )
++				len = need;
++		}
++	}
++
+ 	if( len > textBufferSize )
+ 	{
+ 		delete[] text;
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/coffont.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/coffont.cpp
+index f98fa45..83e39cf 100644
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/coffont.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/coffont.cpp
+@@ -489,12 +489,24 @@ Font *CofFontSubstitute( Font *font )
+ 	return sub ? (Font *)sub : font;
+ }
+ 
++// Cry of Fear language packs: the engine owns the table, this only
++// routes the call. A missing entry point (an older engine against a
++// newer support library) leaves the text alone.
++static const char *CofLangSubstitute( const char *str )
++{
++	if( !str || !g_engine || !g_engine->CofLangString )
++		return str;
++
++	return g_engine->CofLangString( str );
++}
++
+ } // anonymous namespace
+ 
+ void vgui::CofFont_Install( void )
+ {
+ 	Font_SetSubstituteHook( CofFontSubstitute );
+ 	Font_SetCreatedHook( CofFontCreated );
++	Text_SetSubstituteHook( CofLangSubstitute );
+ }
+ 
+ vgui::Font *vgui::CofFont_ForRole( const char *role )
+diff --git a/engine/client/cl_font.c b/engine/client/cl_font.c
+index 35c2939..c28af54 100644
+--- a/engine/client/cl_font.c
++++ b/engine/client/cl_font.c
+@@ -18,6 +18,7 @@ GNU General Public License for more details.
+ #include "client.h"
+ #include "qfont.h"
+ #include "swaplib.h"
++#include "cof_language.h"
+ 
+ le_struct_begin( charinfo_swap )
+ 	le_struct_field( charinfo, startoffset )
+@@ -250,6 +251,17 @@ int CL_DrawString( float x, float y, const char *s, const rgba_t color, cl_font_
+ 	if( !font || !font->valid )
+ 		return 0;
+ 
++	// Cry of Fear language packs: the captions compiled into client.dll and
++	// hl.dll have no file slot of any kind, so they are substituted here,
++	// at the last point before they become glyphs - but only for text the
++	// client DLL hands in (FONT_DRAW_COF_LANG, set by the engfuncs), never
++	// for the engine's own console and overlays. Returns s unchanged when
++	// no pack is active or nothing in its table matches. The width query
++	// below does the same, or the measured width would no longer match the
++	// drawn text.
++	if( FBitSet( flags, FONT_DRAW_COF_LANG ))
++		s = CoF_Lang_StringEngineFont( s, FBitSet( flags, FONT_DRAW_UTF8 ));
++
+ 	if( FBitSet( flags, FONT_DRAW_UTF8 ))
+ 		Con_UtfProcessChar( 0 ); // clear utf state
+ 
+@@ -340,6 +352,10 @@ void CL_DrawStringLen( cl_font_t *font, const char *s, int *width, int *height,
+ 	if( COM_StringEmptyOrNULL( s ))
+ 		return;
+ 
++	// see CL_DrawString
++	if( FBitSet( flags, FONT_DRAW_COF_LANG ))
++		s = CoF_Lang_StringEngineFont( s, FBitSet( flags, FONT_DRAW_UTF8 ));
++
+ 	if( FBitSet( flags, FONT_DRAW_UTF8 ))
+ 		Con_UtfProcessChar( 0 ); // reset utf state
+ 
+diff --git a/engine/client/dll_int/cl_game.c b/engine/client/dll_int/cl_game.c
+index 9fcfb43..6ab6b6c 100644
+--- a/engine/client/dll_int/cl_game.c
++++ b/engine/client/dll_int/cl_game.c
+@@ -37,6 +37,7 @@ GNU General Public License for more details.
+ #include "vgui_draw.h"
+ #include "sound.h"		// SND_STOP_LOOPING
+ #include "platform/platform.h"
++#include "cof_language.h"
+ 
+ #define MAX_LINELENGTH	80
+ #define TEXT_MSGNAME	"TextMessage"
+@@ -301,6 +302,11 @@ void CL_CenterPrint( const char *text, float y )
+ 
+ 	clgame.centerPrint.totalWidth = 0;
+ 	clgame.centerPrint.time = cl.mtime[0]; // allow pause for centerprint
++
++	// Cry of Fear language packs: a centre print is text from the game DLLs
++	// (pfnCenterPrint, svc_centerprint); it is drawn one UTF-8 character at
++	// a time below, so the table's engine-font UTF-8 variant goes in here
++	text = CoF_Lang_StringEngineFont( text, true );
+ 	Q_strncpy( clgame.centerPrint.message, text, sizeof( clgame.centerPrint.message ));
+ 
+ 	CL_DrawStringLen( font,
+@@ -2557,7 +2563,7 @@ int GAME_EXPORT pfnDrawConsoleString( int x, int y, char *string )
+ 	Vector4Copy( clgame.ds.textColor, color );
+ 	Vector4Set( clgame.ds.textColor, 255, 255, 255, 255 );
+ 
+-	return x + CL_DrawString( x, y, string, color, font, FONT_DRAW_UTF8 | FONT_DRAW_HUD );
++	return x + CL_DrawString( x, y, string, color, font, FONT_DRAW_UTF8 | FONT_DRAW_HUD | FONT_DRAW_COF_LANG );
+ }
+ 
+ /*
+@@ -2588,7 +2594,7 @@ void GAME_EXPORT pfnDrawConsoleStringLen( const char *pText, int *length, int *h
+ 	cl_font_t *font = Con_GetFont( con_fontsize.value );
+ 
+ 	if( height ) *height = font->charHeight;
+-	CL_DrawStringLen( font, pText, length, NULL, FONT_DRAW_UTF8 | FONT_DRAW_HUD );
++	CL_DrawStringLen( font, pText, length, NULL, FONT_DRAW_UTF8 | FONT_DRAW_HUD | FONT_DRAW_COF_LANG );
+ }
+ 
+ /*
+@@ -3601,7 +3607,7 @@ pfnDrawString
+ static int GAME_EXPORT pfnDrawString( int x, int y, const char *str, int r, int g, int b )
+ {
+ 	rgba_t color = { r, g, b, 255 };
+-	int flags = FONT_DRAW_HUD | FONT_DRAW_NOLF;
++	int flags = FONT_DRAW_HUD | FONT_DRAW_NOLF | FONT_DRAW_COF_LANG;
+ 
+ 	if( hud_utf8.value )
+ 		SetBits( flags, FONT_DRAW_UTF8 );
+@@ -3618,7 +3624,7 @@ pfnDrawStringReverse
+ static int GAME_EXPORT pfnDrawStringReverse( int x, int y, const char *str, int r, int g, int b )
+ {
+ 	rgba_t color = { r, g, b, 255 };
+-	int flags = FONT_DRAW_HUD | FONT_DRAW_NOLF;
++	int flags = FONT_DRAW_HUD | FONT_DRAW_NOLF | FONT_DRAW_COF_LANG;
+ 
+ 	if( hud_utf8.value )
+ 		SetBits( flags, FONT_DRAW_UTF8 );
+@@ -4667,6 +4673,14 @@ qboolean CL_LoadProgs( const char *name )
+ 		CL_CheckLoadedSDL2( name );
+ #endif
+ 
++	// Cry of Fear language packs: patch the client DLL's single
++	// KERNEL32!CreateFileW import so its txtfiles/, notes/ and
++	// inventoryitems/ reads can be redirected into the active pack.
++	// Installed unconditionally and inert until a pack is active, because
++	// the library is loaded before config.cfg has been exec'd.
++	// See engine/common/cof_language.c.
++	CoF_Lang_HookModule( clgame.hInstance, name );
++
+ 	// delayed vgui initialization for internal support
+ 	if( try_internal_vgui_support && VGui_LoadProgs( clgame.hInstance ))
+ 		VGui_Startup( refState.width, refState.height );
+diff --git a/engine/client/vgui/vgui_draw.c b/engine/client/vgui/vgui_draw.c
+index aaa5371..059d715 100644
+--- a/engine/client/vgui/vgui_draw.c
++++ b/engine/client/vgui/vgui_draw.c
+@@ -22,6 +22,7 @@ GNU General Public License for more details.
+ #include "ref_common.h"
+ #include "input.h"
+ #include "platform/platform.h"
++#include "cof_language.h"
+ 
+ #define VGUI_MAX_TEXTURES 1024
+ 
+@@ -323,6 +324,11 @@ static void GAME_EXPORT VGUI_CofPrint( const char *text )
+ 	else Sys_PrintLog( text );
+ }
+ 
++static const char *GAME_EXPORT VGUI_CofLangString( const char *str )
++{
++	return CoF_Lang_String( str );
++}
++
+ static int GAME_EXPORT VGUI_CofFontProbe( char *text, int size, char *role, int roleSize )
+ {
+ 	return CL_CoF_FontProbe( text, size, role, roleSize );
+@@ -443,6 +449,7 @@ static const vguiapi_t gEngfuncs =
+ 	VGUI_CofFontFile,
+ 	VGUI_CofFontProbe,
+ 	VGUI_CofPrint,
++	VGUI_CofLangString,
+ };
+ 
+ qboolean VGui_LoadProgs( HINSTANCE hInstance )
+diff --git a/engine/common/cof_entpatch.c b/engine/common/cof_entpatch.c
+new file mode 100644
+index 0000000..e5b5e74
+--- /dev/null
++++ b/engine/common/cof_entpatch.c
+@@ -0,0 +1,678 @@
++/*
++cof_entpatch.c - Cry of Fear language packs: entity patches (maps/<map>.entpatch)
++
++This program is free software: you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation, either version 3 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++
++====================================================================
++
++A language pack translates a map's in-world text (game_text messages, door
++"locked" lines, trigger hints, ...) with an entity PATCH rather than a whole
++replacement entity lump: only the translated key/value pairs, each addressed
++by a selector, applied to whatever entity string the map would otherwise
++load (the BSP lump, or a gamedir maps/<map>.ent override).
++
++	{
++	"@entity" "57"              index hint
++	"@classname" "game_text"    selectors (first value of that key, exact)
++	"@targetname" "hint3"
++	"@crc:message" "1a2b3c4d"   optional: CRC-32 of the value being replaced
++	"message" "Polski tekst"    set (first occurrence) or append
++	}
++	{ "@op" "remove" ...selectors... }   drop the selected entity
++	{ "@op" "add" "classname" "..." }    append a new entity
++
++Selection: the candidates are the (not yet removed) entities whose selectors
++all match; the one at @entity if any, else the only one, else the one nearest
++to @entity (a tie is ambiguous). A block that selects nothing, or a key whose
++current value fails its CRC, is skipped and logged - a patch never guesses.
++
++Splicing keeps every byte of the base string that is not a replaced value, so
++a pack .ent made by the old generator and base + .entpatch are byte-identical
++(checked for all 100 Polish maps in stage1/lang3-20260922).
++
++This file is plain C with no engine dependencies; the Python reference
++implementation is scripts/polish/entpatch.py and the two are tested against
++each other.
++====================================================================
++*/
++
++#include <stdlib.h>
++#include <string.h>
++#include <stdio.h>
++#include "cof_entpatch.h"
++
++typedef struct
++{
++	int ks, ke, vs, ve;	// key and value content spans (without quotes)
++} ep_pair_t;
++
++typedef struct
++{
++	int open, close;	// offsets of '{' and '}'
++	int first, count;	// pairs
++} ep_ent_t;
++
++typedef struct
++{
++	const char *p;
++	int len;
++	int set;
++} ep_val_t;
++
++typedef struct
++{
++	int ent;
++	int pk_s, pk_e, pv_s, pv_e;	// key and value spans in the PATCH buffer
++} ep_append_t;
++
++typedef struct
++{
++	char *data;
++	size_t len, size;
++	int failed;
++} ep_buf_t;
++
++typedef struct
++{
++	void *items;
++	int count, size;
++	size_t item;
++} ep_vec_t;
++
++static void *EP_VecPush( ep_vec_t *v )
++{
++	if( v->count == v->size )
++	{
++		int newsize = v->size ? v->size * 2 : 64;
++		void *n = realloc( v->items, (size_t)newsize * v->item );
++
++		if( !n )
++			return NULL;
++		v->items = n;
++		v->size = newsize;
++	}
++	memset( (char *)v->items + (size_t)v->count * v->item, 0, v->item );
++	return (char *)v->items + (size_t)v->count++ * v->item;
++}
++
++static void EP_Put( ep_buf_t *b, const char *p, size_t len )
++{
++	if( b->failed || !len )
++		return;
++
++	if( b->len + len + 1 > b->size )
++	{
++		size_t newsize = b->size ? b->size : 4096;
++		char *n;
++
++		while( newsize < b->len + len + 1 )
++			newsize *= 2;
++
++		n = realloc( b->data, newsize );
++		if( !n )
++		{
++			b->failed = 1;
++			return;
++		}
++		b->data = n;
++		b->size = newsize;
++	}
++
++	memcpy( b->data + b->len, p, len );
++	b->len += len;
++	b->data[b->len] = 0;
++}
++
++static unsigned int EP_Crc32( const char *p, int len )
++{
++	unsigned int crc = 0xFFFFFFFFu;
++	int i, k;
++
++	for( i = 0; i < len; i++ )
++	{
++		crc ^= (unsigned char)p[i];
++		for( k = 0; k < 8; k++ )
++			crc = ( crc >> 1 ) ^ ( 0xEDB88320u & ( 0u - ( crc & 1u )));
++	}
++	return crc ^ 0xFFFFFFFFu;
++}
++
++static void EP_Log( cof_entpatch_log_t log, void *ctx, const char *fmt, int a, int b, const char *s, int slen )
++{
++	char msg[512], str[128];
++	int n;
++
++	if( !log )
++		return;
++
++	n = slen < (int)sizeof( str ) - 1 ? slen : (int)sizeof( str ) - 1;
++	if( n < 0 ) n = 0;
++	if( s ) memcpy( str, s, (size_t)n );
++	str[n] = 0;
++
++	snprintf( msg, sizeof( msg ), fmt, a, b, str );
++	log( ctx, msg );
++}
++
++static int EP_IsSpace( char c )
++{
++	return c == ' ' || c == '\t' || c == '\r' || c == '\n';
++}
++
++// the base entity string: '{' ( '"' key '"' ws '"' value '"' )* '}' ...
++static int EP_ParseBase( const char *d, int n, ep_vec_t *ents, ep_vec_t *pairs )
++{
++	int i = 0;
++
++	while( 1 )
++	{
++		ep_ent_t *e;
++
++		while( i < n && EP_IsSpace( d[i] )) i++;
++		if( i >= n )
++			return 1;
++		if( d[i] != '{' )
++			return 0;
++
++		if( !( e = EP_VecPush( ents )))
++			return 0;
++		e->open = i++;
++		e->first = pairs->count;
++		e->count = 0;
++
++		while( 1 )
++		{
++			ep_pair_t *p;
++			const char *q;
++			int ks, ke, vs, ve;
++
++			while( i < n && EP_IsSpace( d[i] )) i++;
++			if( i >= n )
++				return 0;
++			if( d[i] == '}' )
++			{
++				// re-fetch: EP_VecPush may have moved the array
++				e = (ep_ent_t *)ents->items + ents->count - 1;
++				e->close = i++;
++				break;
++			}
++			if( d[i] != '"' )
++				return 0;
++			ks = i + 1;
++			q = memchr( d + ks, '"', (size_t)( n - ks ));
++			if( !q )
++				return 0;
++			ke = (int)( q - d );
++			i = ke + 1;
++
++			while( i < n && EP_IsSpace( d[i] )) i++;
++			if( i >= n || d[i] != '"' )
++				return 0;
++			vs = i + 1;
++			q = memchr( d + vs, '"', (size_t)( n - vs ));
++			if( !q )
++				return 0;
++			ve = (int)( q - d );
++			i = ve + 1;
++
++			if( !( p = EP_VecPush( pairs )))
++				return 0;
++			p->ks = ks; p->ke = ke; p->vs = vs; p->ve = ve;
++			e = (ep_ent_t *)ents->items + ents->count - 1;
++			e->count++;
++		}
++	}
++}
++
++// the patch: // comments, '{' ( '"' key '"' '"' value '"' )* '}' blocks
++static int EP_ParsePatch( const char *d, int n, ep_vec_t *blocks, ep_vec_t *pairs )
++{
++	int i = 0, inblock = 0, havekey = 0;
++	int ks = 0, ke = 0;
++	ep_ent_t *b = NULL;
++
++	while( i < n )
++	{
++		char c = d[i];
++
++		if( EP_IsSpace( c ))
++			i++;
++		else if( c == '/' && i + 1 < n && d[i + 1] == '/' )
++		{
++			while( i < n && d[i] != '\n' ) i++;
++		}
++		else if( c == '{' )
++		{
++			if( inblock || !( b = EP_VecPush( blocks )))
++				return 0;
++			b->first = pairs->count;
++			b->count = 0;
++			inblock = 1;
++			i++;
++		}
++		else if( c == '}' )
++		{
++			if( !inblock || havekey )
++				return 0;
++			inblock = 0;
++			i++;
++		}
++		else if( c == '"' )
++		{
++			const char *q = memchr( d + i + 1, '"', (size_t)( n - i - 1 ));
++			int s = i + 1, e;
++
++			if( !q || !inblock )
++				return 0;
++			e = (int)( q - d );
++			i = e + 1;
++
++			if( !havekey )
++			{
++				ks = s; ke = e;
++				havekey = 1;
++			}
++			else
++			{
++				ep_pair_t *p = EP_VecPush( pairs );
++
++				if( !p )
++					return 0;
++				p->ks = ks; p->ke = ke; p->vs = s; p->ve = e;
++				b = (ep_ent_t *)blocks->items + blocks->count - 1;
++				b->count++;
++				havekey = 0;
++			}
++		}
++		else return 0;
++	}
++
++	return !inblock;
++}
++
++static int EP_Eq( const char *a, int alen, const char *b, int blen )
++{
++	return alen == blen && !memcmp( a, b, (size_t)alen );
++}
++
++static int EP_EqStr( const char *a, int alen, const char *lit )
++{
++	return EP_Eq( a, alen, lit, (int)strlen( lit ));
++}
++
++static int EP_StartsWith( const char *a, int alen, const char *lit )
++{
++	int l = (int)strlen( lit );
++	return alen >= l && !memcmp( a, lit, (size_t)l );
++}
++
++// first pair of entity `e` whose key is k, or -1
++static int EP_FindKey( const char *base, const ep_ent_t *e, const ep_pair_t *pairs, const char *k, int klen )
++{
++	int j;
++
++	for( j = 0; j < e->count; j++ )
++	{
++		const ep_pair_t *p = &pairs[e->first + j];
++		if( EP_Eq( base + p->ks, p->ke - p->ks, k, klen ))
++			return e->first + j;
++	}
++	return -1;
++}
++
++static int EP_ParseInt( const char *s, int len, int *out )
++{
++	char tmp[32];
++	char *end;
++	long v;
++
++	if( len <= 0 || len >= (int)sizeof( tmp ))
++		return 0;
++	memcpy( tmp, s, (size_t)len );
++	tmp[len] = 0;
++	v = strtol( tmp, &end, 10 );
++	if( *end )
++		return 0;
++	*out = (int)v;
++	return 1;
++}
++
++char *CoF_EntPatch_Apply( const char *base, size_t baselen, const char *patch, size_t patchlen,
++	size_t *outlen, cof_entpatch_stats_t *stats, cof_entpatch_log_t log, void *ctx )
++{
++	ep_vec_t ents = { NULL, 0, 0, sizeof( ep_ent_t ) };
++	ep_vec_t bpairs = { NULL, 0, 0, sizeof( ep_pair_t ) };
++	ep_vec_t blocks = { NULL, 0, 0, sizeof( ep_ent_t ) };
++	ep_vec_t ppairs = { NULL, 0, 0, sizeof( ep_pair_t ) };
++	ep_vec_t appends = { NULL, 0, 0, sizeof( ep_append_t ) };
++	ep_vec_t adds = { NULL, 0, 0, sizeof( int ) };
++	ep_val_t *newval = NULL;
++	unsigned char *removed = NULL;
++	ep_buf_t out = { NULL, 0, 0, 0 };
++	cof_entpatch_stats_t st = { 0 };
++	const char *nul;
++	char *result = NULL;
++	int n, bi, i, cur;
++
++	if( outlen ) *outlen = 0;
++
++	nul = memchr( base, 0, baselen );
++	n = nul ? (int)( nul - base ) : (int)baselen;
++
++	if( !EP_ParseBase( base, n, &ents, &bpairs ))
++	{
++		EP_Log( log, ctx, "entity string could not be parsed%.0d%.0d%s", 0, 0, "", 0 );
++		goto done;
++	}
++	if( !EP_ParsePatch( patch, (int)patchlen, &blocks, &ppairs ))
++	{
++		EP_Log( log, ctx, "patch file could not be parsed%.0d%.0d%s", 0, 0, "", 0 );
++		goto done;
++	}
++
++	newval = calloc( (size_t)bpairs.count + 1, sizeof( *newval ));
++	removed = calloc( (size_t)ents.count + 1, 1 );
++	if( !newval || !removed )
++		goto done;
++
++	st.blocks = blocks.count;
++
++	for( bi = 0; bi < blocks.count; bi++ )
++	{
++		const ep_ent_t *b = (const ep_ent_t *)blocks.items + bi;
++		const ep_pair_t *bp = (const ep_pair_t *)ppairs.items + b->first;
++		const ep_ent_t *E = (const ep_ent_t *)ents.items;
++		const ep_pair_t *P = (const ep_pair_t *)bpairs.items;
++		const char *op = "edit";
++		int oplen = 4, hint = -1, badhint = 0;
++		int pick = -1, ncand = 0, best = -1, bestd = 0, tie = 0;
++
++		for( i = 0; i < b->count; i++ )
++		{
++			const char *k = patch + bp[i].ks;
++			int kl = bp[i].ke - bp[i].ks;
++
++			if( EP_EqStr( k, kl, "@op" ))
++			{
++				op = patch + bp[i].vs;
++				oplen = bp[i].ve - bp[i].vs;
++			}
++			else if( EP_EqStr( k, kl, "@entity" ))
++			{
++				if( !EP_ParseInt( patch + bp[i].vs, bp[i].ve - bp[i].vs, &hint ))
++					badhint = 1;
++			}
++		}
++
++		if( EP_EqStr( op, oplen, "add" ))
++		{
++			int *a = EP_VecPush( &adds );
++			if( !a ) goto done;
++			*a = bi;
++			st.added++;
++			continue;
++		}
++
++		if( !EP_EqStr( op, oplen, "edit" ) && !EP_EqStr( op, oplen, "remove" ))
++		{
++			EP_Log( log, ctx, "block %d: unknown @op \"%.0d%s\"", bi, 0, op, oplen );
++			st.skipped++;
++			continue;
++		}
++
++		if( badhint )
++		{
++			EP_Log( log, ctx, "block %d: bad @entity%.0d%s", bi, 0, "", 0 );
++			st.skipped++;
++			continue;
++		}
++
++		// candidates
++		for( i = 0; i < ents.count; i++ )
++		{
++			int j, ok = 1;
++
++			if( removed[i] )
++				continue;
++
++			for( j = 0; j < b->count && ok; j++ )
++			{
++				const char *k = patch + bp[j].ks;
++				int kl = bp[j].ke - bp[j].ks, pi;
++
++				if( kl < 1 || k[0] != '@' || EP_EqStr( k, kl, "@entity" ) || EP_EqStr( k, kl, "@op" ) || EP_StartsWith( k, kl, "@crc:" ))
++					continue;
++
++				pi = EP_FindKey( base, &E[i], P, k + 1, kl - 1 );
++				if( pi < 0 || !EP_Eq( base + P[pi].vs, P[pi].ve - P[pi].vs, patch + bp[j].vs, bp[j].ve - bp[j].vs ))
++					ok = 0;
++			}
++
++			if( !ok )
++				continue;
++
++			ncand++;
++			if( i == hint )
++				pick = i;
++
++			if( hint >= 0 )
++			{
++				int d = i > hint ? i - hint : hint - i;
++
++				if( best < 0 || d < bestd )
++				{
++					best = i; bestd = d; tie = 0;
++				}
++				else if( d == bestd )
++					tie = 1;
++			}
++			else best = i;
++		}
++
++		if( pick < 0 )
++		{
++			if( ncand == 0 )
++			{
++				EP_Log( log, ctx, "block %d (@entity %d): no entity matches%s", bi, hint, "", 0 );
++				st.skipped++;
++				continue;
++			}
++			if( ncand == 1 )
++				pick = best;
++			else if( hint < 0 )
++			{
++				EP_Log( log, ctx, "block %d: %d entities match and no @entity hint%s", bi, ncand, "", 0 );
++				st.skipped++;
++				continue;
++			}
++			else if( tie )
++			{
++				EP_Log( log, ctx, "block %d (@entity %d): ambiguous, two matches equally near%s", bi, hint, "", 0 );
++				st.skipped++;
++				continue;
++			}
++			else pick = best;
++		}
++
++		if( EP_EqStr( op, oplen, "remove" ))
++		{
++			removed[pick] = 1;
++			st.removed++;
++			continue;
++		}
++
++		// edit
++		for( i = 0; i < b->count; i++ )
++		{
++			const char *k = patch + bp[i].ks;
++			int kl = bp[i].ke - bp[i].ks, pi, j, crcidx = -1;
++
++			if( kl >= 1 && k[0] == '@' )
++				continue;
++
++			pi = EP_FindKey( base, &E[pick], P, k, kl );
++			if( pi < 0 )
++			{
++				ep_append_t *a = EP_VecPush( &appends );
++
++				if( !a ) goto done;
++				a->ent = pick;
++				a->pk_s = bp[i].ks; a->pk_e = bp[i].ke;
++				a->pv_s = bp[i].vs; a->pv_e = bp[i].ve;
++				st.edited++;
++				continue;
++			}
++
++			// the last "@crc:<key>" of the block wins
++			for( j = 0; j < b->count; j++ )
++			{
++				const char *ck = patch + bp[j].ks;
++				int ckl = bp[j].ke - bp[j].ks;
++
++				if( EP_StartsWith( ck, ckl, "@crc:" ) && EP_Eq( ck + 5, ckl - 5, k, kl ))
++					crcidx = j;
++			}
++
++			if( crcidx >= 0 )
++			{
++				const char *cv = newval[pi].set ? newval[pi].p : base + P[pi].vs;
++				int cvl = newval[pi].set ? newval[pi].len : P[pi].ve - P[pi].vs;
++				char want[16], have[16];
++				int wl = bp[crcidx].ve - bp[crcidx].vs, x;
++
++				snprintf( have, sizeof( have ), "%08x", EP_Crc32( cv, cvl ));
++				if( wl != 8 )
++					x = 0;
++				else
++				{
++					memcpy( want, patch + bp[crcidx].vs, 8 );
++					want[8] = 0;
++					for( x = 0; x < 8; x++ )
++						if( want[x] >= 'A' && want[x] <= 'F' ) want[x] = (char)( want[x] - 'A' + 'a' );
++					x = !strcmp( want, have );
++				}
++
++				if( !x )
++				{
++					EP_Log( log, ctx, "block %d: entity %d key \"%s\" has a different value (crc); not replaced", bi, pick - 0, k, kl );
++					st.skipped++;
++					continue;
++				}
++			}
++
++			newval[pi].p = patch + bp[i].vs;
++			newval[pi].len = bp[i].ve - bp[i].vs;
++			newval[pi].set = 1;
++			st.edited++;
++		}
++	}
++
++	// splice
++	cur = 0;
++	for( i = 0; i < ents.count; i++ )
++	{
++		const ep_ent_t *e = (const ep_ent_t *)ents.items + i;
++		const ep_pair_t *P = (const ep_pair_t *)bpairs.items;
++		const ep_append_t *A = (const ep_append_t *)appends.items;
++		int j, any = 0;
++
++		if( removed[i] )
++		{
++			int end = e->close + 1;
++
++			EP_Put( &out, base + cur, (size_t)( e->open - cur ));
++			if( end < n && base[end] == '\n' )
++				end++;
++			cur = end;
++			continue;
++		}
++
++		for( j = 0; j < e->count; j++ )
++		{
++			const ep_pair_t *p = &P[e->first + j];
++			const ep_val_t *v = &newval[e->first + j];
++
++			if( !v->set )
++				continue;
++			EP_Put( &out, base + cur, (size_t)( p->vs - cur ));
++			EP_Put( &out, v->p, (size_t)v->len );
++			cur = p->ve;
++		}
++
++		for( j = 0; j < appends.count; j++ )
++		{
++			if( A[j].ent != i )
++				continue;
++			if( !any )
++			{
++				EP_Put( &out, base + cur, (size_t)( e->close - cur ));
++				cur = e->close;
++				any = 1;
++			}
++			EP_Put( &out, "\"", 1 );
++			EP_Put( &out, patch + A[j].pk_s, (size_t)( A[j].pk_e - A[j].pk_s ));
++			EP_Put( &out, "\" \"", 3 );
++			EP_Put( &out, patch + A[j].pv_s, (size_t)( A[j].pv_e - A[j].pv_s ));
++			EP_Put( &out, "\"\n", 2 );
++		}
++	}
++	EP_Put( &out, base + cur, (size_t)( n - cur ));
++
++	if( adds.count && out.len && out.data[out.len - 1] != '\n' )
++		EP_Put( &out, "\n", 1 );
++
++	for( i = 0; i < adds.count; i++ )
++	{
++		const ep_ent_t *b = (const ep_ent_t *)blocks.items + ((int *)adds.items)[i];
++		const ep_pair_t *bp = (const ep_pair_t *)ppairs.items + b->first;
++		int j;
++
++		EP_Put( &out, "{\n", 2 );
++		for( j = 0; j < b->count; j++ )
++		{
++			if( bp[j].ke > bp[j].ks && patch[bp[j].ks] == '@' )
++				continue;
++			EP_Put( &out, "\"", 1 );
++			EP_Put( &out, patch + bp[j].ks, (size_t)( bp[j].ke - bp[j].ks ));
++			EP_Put( &out, "\" \"", 3 );
++			EP_Put( &out, patch + bp[j].vs, (size_t)( bp[j].ve - bp[j].vs ));
++			EP_Put( &out, "\"\n", 2 );
++		}
++		EP_Put( &out, "}\n", 2 );
++	}
++
++	if( out.failed )
++		goto done;
++
++	if( !out.data )	// empty result
++	{
++		out.data = calloc( 1, 1 );
++		if( !out.data )
++			goto done;
++	}
++
++	result = out.data;
++	out.data = NULL;
++	if( outlen ) *outlen = out.len;
++
++done:
++	free( out.data );
++	free( newval );
++	free( removed );
++	free( ents.items );
++	free( bpairs.items );
++	free( blocks.items );
++	free( ppairs.items );
++	free( appends.items );
++	free( adds.items );
++	if( stats ) *stats = st;
++	return result;
++}
+diff --git a/engine/common/cof_entpatch.h b/engine/common/cof_entpatch.h
+new file mode 100644
+index 0000000..7e61b96
+--- /dev/null
++++ b/engine/common/cof_entpatch.h
+@@ -0,0 +1,42 @@
++/*
++cof_entpatch.h - Cry of Fear language packs: entity patches (maps/<map>.entpatch)
++
++This program is free software: you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation, either version 3 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++*/
++#ifndef COF_ENTPATCH_H
++#define COF_ENTPATCH_H
++
++#include <stddef.h>
++
++typedef struct cof_entpatch_stats_s
++{
++	int	blocks;		// blocks in the patch file
++	int	edited;		// values replaced or appended
++	int	removed;	// entities removed
++	int	added;		// entities added
++	int	skipped;	// blocks or keys not applied (each one is logged)
++} cof_entpatch_stats_t;
++
++// receives one line per skipped block or key, and the reason a whole patch
++// was rejected (malformed base or patch)
++typedef void (*cof_entpatch_log_t)( void *ctx, const char *msg );
++
++// Apply an entity patch (format: docs/cof-language-pack-format.md, reference
++// implementation scripts/polish/entpatch.py) to the entity string `base`.
++// `base` may carry a trailing NUL, which is not part of the result. Returns
++// a malloc'd, NUL-terminated result (free() it) with its length (without the
++// NUL) in *outlen, or NULL when the base or the patch cannot be parsed.
++// Standalone: plain C, no engine dependencies, so it can be unit-tested
++// against the Python applier.
++char *CoF_EntPatch_Apply( const char *base, size_t baselen, const char *patch, size_t patchlen,
++	size_t *outlen, cof_entpatch_stats_t *stats, cof_entpatch_log_t log, void *ctx );
++
++#endif // COF_ENTPATCH_H
+diff --git a/engine/common/cof_language.c b/engine/common/cof_language.c
+new file mode 100644
+index 0000000..f668368
+--- /dev/null
++++ b/engine/common/cof_language.c
+@@ -0,0 +1,2070 @@
++/*
++cof_language.c - Cry of Fear native language packs (cof_language)
++
++This program is free software: you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation, either version 3 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++
++====================================================================
++
++A language pack is a folder under the game directory:
++
++	<gamedir>/languages/<code>/
++		manifest.txt                display_name, codepage, authors (key=value)
++		txt/txtfiles/languages/<code>/*.txt
++		txt/notes/languages/<code>/*.txt
++		inventoryitems/**.txt
++		maps/<map>.entpatch         translated entity key/values (cof_entpatch.c)
++		maps/<map>.ent              whole entity-lump override (older packs; wins)
++		textures/<texname>.tga      repainted world signs and posters
++		models/<model>/<tex>.bmp    repainted textures embedded in studio models
++		overlay/<gamedir>/**        same-path overlay (translated interface art)
++		strings/dll-strings.tsv     english <TAB> localised <TAB> ... (UTF-8)
++
++Three completely different mechanisms are needed, because Cry of Fear loads
++its localisable data three different ways (measured in
++stage1/polish-file-access-20260922/RESULTS.md):
++
++ 1. Assets the ENGINE loads (overlay art, per-map entity patches, repainted
++    world and model textures) are reachable from the engine filesystem. The
++    overlay folder is added to the search path at the highest priority after
++    every rescan; entity patches and texture overrides are probed by path,
++    because they do not live at their game-relative path inside the pack,
++    and are applied to the game's own data in memory (entity string at map
++    load, embedded model textures at model load).
++
++ 2. Text the GAME DLLs open themselves (txtfiles/, notes/, inventoryitems/)
++    is invisible to the engine filesystem: client.dll and hl.dll are linked
++    against the static MSVC runtime and every std::ifstream in them lands on
++    one KERNEL32!CreateFileW import thunk, with a path built from the bare
++    game directory and resolved by the CRT against the process current
++    directory. The engine patches that one import entry per module, in
++    memory, right after LoadLibrary, restores it before FreeLibrary, and
++    redirects read-only opens under those three folders into the pack.
++    Disk is untouched; English is never modified.
++
++ 3. Strings compiled into the DLLs' .rdata have no file slot at all, so they
++    are substituted at DRAW time from the pack's table - at
++    TextImage::setText for VGUI text and at CL_DrawString/CL_DrawStringLen
++    (client-DLL calls only) and the centre print for the engine font path.
++
++Everything here is language-generic. The only language-specific things are
++the folder name (cof_language) and the manifest's code page, which is pushed
++into cof_text_codepage so the Inter font layer decodes the pack's bytes.
++====================================================================
++*/
++
++#include "common.h"
++#include "library.h"
++#include "platform/platform.h"
++#include "cof_language.h"
++#include "cof_entpatch.h"
++#include "studio.h"
++#include "utflib.h"
++
++#if XASH_WIN32
++#include <windows.h>
++#endif
++
++static CVAR_DEFINE_AUTO( cof_language, "", FCVAR_ARCHIVE, "active Cry of Fear language pack, a folder name under <gamedir>/languages; empty is English and turns every part of this off" );
++static CVAR_DEFINE_AUTO( cof_language_strings, "1", FCVAR_ARCHIVE, "substitute the strings compiled into the game DLLs from the active pack's table at draw time" );
++static CVAR_DEFINE_AUTO( cof_language_files, "1", FCVAR_ARCHIVE, "redirect the game DLLs' own txtfiles/, notes/ and inventoryitems/ reads into the active pack" );
++static CVAR_DEFINE_AUTO( cof_language_trace, "0", 0, "developer: log every file the hooked game DLLs open through CreateFileW, redirected or not" );
++
++#define COF_LANG_MAX_PARTS	8	// placeholders in one table entry, + 1 literal
++#define COF_LANG_HASH		256
++#define COF_LANG_MAX_STRING	1024
++#define COF_LANG_MAX_HOOKS	4
++
++typedef struct cof_lang_entry_s
++{
++	struct cof_lang_entry_s	*hash_next;	// exact-match chain
++	struct cof_lang_entry_s	*fmt_next;	// format list, sorted by literal length
++	char			*src;		// English, as the DLL holds it
++	char			*dst;		// localised, in the pack's code page (VGUI)
++	char			*dst_utf8;	// localised, UTF-8, folded for the engine font
++	char			*dst_cp;	// localised, pack code page, folded for the engine font
++	int			src_len;
++	int			nparts;		// literal pieces of src; 1 == no placeholder
++	int			literal_len;	// total length of those pieces
++	char			*part[COF_LANG_MAX_PARTS + 1];
++	int			part_len[COF_LANG_MAX_PARTS + 1];
++} cof_lang_entry_t;
++
++#if XASH_WIN32
++typedef struct
++{
++	HMODULE		module;
++	ULONG_PTR	*slot;		// the IAT entry we wrote
++	ULONG_PTR	original;	// what it held before
++	char		tag[64];
++} cof_lang_hook_t;
++#endif
++
++static struct
++{
++	qboolean	initialized;
++	qboolean	active;
++	string		code;			// "polish", "" when off
++	char		dir[MAX_QPATH];		// "languages/polish"
++	char		display[64];
++	char		authors[256];
++	int		codepage;
++	qboolean	codepage_pending;	// cof_text_codepage did not exist yet
++
++	// string table
++	poolhandle_t		mempool;
++	int			num_entries;
++	cof_lang_entry_t	*hash[COF_LANG_HASH];
++	cof_lang_entry_t	*fmt_head;
++	int			num_fmt;
++	int			num_hits;
++
++#if XASH_WIN32
++	// everything the CreateFileW shim reads is guarded by this lock: the shim
++	// takes it shared, CoF_Lang_Apply takes it exclusive while it switches
++	// packs. The shim may run on any thread the game DLLs open files from.
++	SRWLOCK		lock;
++	DWORD		main_thread;
++	wchar_t		wcode[64];		// L"polish"
++	wchar_t		wgame[MAX_QPATH];	// L"cryoffear"
++
++	cof_lang_hook_t	hooks[COF_LANG_MAX_HOOKS];
++	volatile LONG	redirects;
++	volatile LONG	passthrough;		// a pack-class open the pack had no file for
++	volatile LONG	offthread;		// redirects not logged: not the main thread
++#endif
++} cof_lang;
++
++// the three code pages a pack may declare. Identical to the tables the font
++// layer decodes with (3rdparty/freevgui/platform/xash3d-fwgs/coffont.cpp);
++// there they map byte -> Unicode, here they are inverted at load time so the
++// pack's UTF-8 text becomes the bytes the 8-bit pipeline wants.
++static const unsigned short cof_cp1250[128] =
++{
++	0x20AC, 0x0000, 0x201A, 0x0000, 0x201E, 0x2026, 0x2020, 0x2021,
++	0x0000, 0x2030, 0x0160, 0x2039, 0x015A, 0x0164, 0x017D, 0x0179,
++	0x0000, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
++	0x0000, 0x2122, 0x0161, 0x203A, 0x015B, 0x0165, 0x017E, 0x017A,
++	0x00A0, 0x02C7, 0x02D8, 0x0141, 0x00A4, 0x0104, 0x00A6, 0x00A7,
++	0x00A8, 0x00A9, 0x015E, 0x00AB, 0x00AC, 0x00AD, 0x00AE, 0x017B,
++	0x00B0, 0x00B1, 0x02DB, 0x0142, 0x00B4, 0x00B5, 0x00B6, 0x00B7,
++	0x00B8, 0x0105, 0x015F, 0x00BB, 0x013D, 0x02DD, 0x013E, 0x017C,
++	0x0154, 0x00C1, 0x00C2, 0x0102, 0x00C4, 0x0139, 0x0106, 0x00C7,
++	0x010C, 0x00C9, 0x0118, 0x00CB, 0x011A, 0x00CD, 0x00CE, 0x010E,
++	0x0110, 0x0143, 0x0147, 0x00D3, 0x00D4, 0x0150, 0x00D6, 0x00D7,
++	0x0158, 0x016E, 0x00DA, 0x0170, 0x00DC, 0x00DD, 0x0162, 0x00DF,
++	0x0155, 0x00E1, 0x00E2, 0x0103, 0x00E4, 0x013A, 0x0107, 0x00E7,
++	0x010D, 0x00E9, 0x0119, 0x00EB, 0x011B, 0x00ED, 0x00EE, 0x010F,
++	0x0111, 0x0144, 0x0148, 0x00F3, 0x00F4, 0x0151, 0x00F6, 0x00F7,
++	0x0159, 0x016F, 0x00FA, 0x0171, 0x00FC, 0x00FD, 0x0163, 0x02D9,
++};
++
++static const unsigned short cof_cp1251[128] =
++{
++	0x0402, 0x0403, 0x201A, 0x0453, 0x201E, 0x2026, 0x2020, 0x2021,
++	0x20AC, 0x2030, 0x0409, 0x2039, 0x040A, 0x040C, 0x040B, 0x040F,
++	0x0452, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
++	0x0000, 0x2122, 0x0459, 0x203A, 0x045A, 0x045C, 0x045B, 0x045F,
++	0x00A0, 0x040E, 0x045E, 0x0408, 0x00A4, 0x0490, 0x00A6, 0x00A7,
++	0x0401, 0x00A9, 0x0404, 0x00AB, 0x00AC, 0x00AD, 0x00AE, 0x0407,
++	0x00B0, 0x00B1, 0x0406, 0x0456, 0x0491, 0x00B5, 0x00B6, 0x00B7,
++	0x0451, 0x2116, 0x0454, 0x00BB, 0x0458, 0x0405, 0x0455, 0x0457,
++	0x0410, 0x0411, 0x0412, 0x0413, 0x0414, 0x0415, 0x0416, 0x0417,
++	0x0418, 0x0419, 0x041A, 0x041B, 0x041C, 0x041D, 0x041E, 0x041F,
++	0x0420, 0x0421, 0x0422, 0x0423, 0x0424, 0x0425, 0x0426, 0x0427,
++	0x0428, 0x0429, 0x042A, 0x042B, 0x042C, 0x042D, 0x042E, 0x042F,
++	0x0430, 0x0431, 0x0432, 0x0433, 0x0434, 0x0435, 0x0436, 0x0437,
++	0x0438, 0x0439, 0x043A, 0x043B, 0x043C, 0x043D, 0x043E, 0x043F,
++	0x0440, 0x0441, 0x0442, 0x0443, 0x0444, 0x0445, 0x0446, 0x0447,
++	0x0448, 0x0449, 0x044A, 0x044B, 0x044C, 0x044D, 0x044E, 0x044F,
++};
++
++static const unsigned short cof_cp1252[128] =
++{
++	0x20AC, 0x0000, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021,
++	0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x0000, 0x017D, 0x0000,
++	0x0000, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
++	0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x0000, 0x017E, 0x0178,
++	0x00A0, 0x00A1, 0x00A2, 0x00A3, 0x00A4, 0x00A5, 0x00A6, 0x00A7,
++	0x00A8, 0x00A9, 0x00AA, 0x00AB, 0x00AC, 0x00AD, 0x00AE, 0x00AF,
++	0x00B0, 0x00B1, 0x00B2, 0x00B3, 0x00B4, 0x00B5, 0x00B6, 0x00B7,
++	0x00B8, 0x00B9, 0x00BA, 0x00BB, 0x00BC, 0x00BD, 0x00BE, 0x00BF,
++	0x00C0, 0x00C1, 0x00C2, 0x00C3, 0x00C4, 0x00C5, 0x00C6, 0x00C7,
++	0x00C8, 0x00C9, 0x00CA, 0x00CB, 0x00CC, 0x00CD, 0x00CE, 0x00CF,
++	0x00D0, 0x00D1, 0x00D2, 0x00D3, 0x00D4, 0x00D5, 0x00D6, 0x00D7,
++	0x00D8, 0x00D9, 0x00DA, 0x00DB, 0x00DC, 0x00DD, 0x00DE, 0x00DF,
++	0x00E0, 0x00E1, 0x00E2, 0x00E3, 0x00E4, 0x00E5, 0x00E6, 0x00E7,
++	0x00E8, 0x00E9, 0x00EA, 0x00EB, 0x00EC, 0x00ED, 0x00EE, 0x00EF,
++	0x00F0, 0x00F1, 0x00F2, 0x00F3, 0x00F4, 0x00F5, 0x00F6, 0x00F7,
++	0x00F8, 0x00F9, 0x00FA, 0x00FB, 0x00FC, 0x00FD, 0x00FE, 0x00FF,
++};
++
++// Latin Extended-A (U+0100..U+017F) folded to its base letter. The engine's
++// own fonts (console, HUD text atlases) are cp1252 or cp1251 sheets and have
++// no cell for most of these, so the engine-font variant of a pack string
++// reads "zolw" rather than "?o?w".
++static const char cof_fold_latin_ext_a[128 + 1] =
++	"AaAaAaCcCcCcCcDd" "DdEeEeEeEeEeGgGg" "GgGgHhHhIiIiIiIi" "IiIiJjKkkLlLlLlL"
++	"lLlNnNnNnnNnOoOo" "OoOoRrRrRrSsSsSs" "SsTtTtTtUuUuUuUu" "UuUuWwYyYZzZzZzs";
++
++/*
++====================
++CoF_Lang_Note
++
++The handful of once-per-session lines (hooks, activation, mount) go straight
++to Sys_Print: Con_Printf drops everything while host.allow_console is still
++false, which is exactly when the game DLLs are loaded and the pack applied.
++====================
++*/
++static void CoF_Lang_Note( const char *fmt, ... ) FORMAT_CHECK( 1 );
++static void CoF_Lang_Note( const char *fmt, ... )
++{
++	char buf[1024];
++	va_list args;
++
++	va_start( args, fmt );
++	Q_vsnprintf( buf, sizeof( buf ), fmt, args );
++	va_end( args );
++
++	Sys_Print( buf );
++}
++
++qboolean CoF_Lang_Active( void )
++{
++	return cof_lang.active;
++}
++
++const char *CoF_Lang_Code( void )
++{
++	return cof_lang.code;
++}
++
++/*
++====================
++CoF_Lang_EncodeByte
++
++One Unicode code point to one byte of the given code page. Returns 0 when
++the page has no cell for it, which the caller turns into '?'.
++====================
++*/
++static int CoF_Lang_EncodeByte( uint32_t uc, int codepage )
++{
++	const unsigned short *table;
++	int i;
++
++	if( uc < 0x80 )
++		return (int)uc;
++
++	switch( codepage )
++	{
++	case 1250: table = cof_cp1250; break;
++	case 1251: table = cof_cp1251; break;
++	default:   table = cof_cp1252; break;
++	}
++
++	for( i = 0; i < 128; i++ )
++	{
++		if( table[i] == uc )
++			return 0x80 + i;
++	}
++
++	return 0;
++}
++
++/*
++====================
++CoF_Lang_Fold
++
++What the engine's own fonts get: letters with no cell in a cp1252/cp1251
++sheet become their base letter, typographic punctuation becomes ASCII.
++Latin-1 and Cyrillic are left alone; the console maps those itself.
++====================
++*/
++static uint32_t CoF_Lang_Fold( uint32_t uc )
++{
++	if( uc >= 0x100 && uc <= 0x17F )
++		return (byte)cof_fold_latin_ext_a[uc - 0x100];
++
++	switch( uc )
++	{
++	case 0x2018: case 0x2019: case 0x201A: return '\'';
++	case 0x201C: case 0x201D: case 0x201E: return '"';
++	case 0x2013: case 0x2014: return '-';
++	case 0x2026: return '.';
++	case 0x00A0: return ' ';
++	}
++
++	return uc;
++}
++
++typedef enum
++{
++	COF_ENC_CODEPAGE = 0,	// the pack's code page, verbatim
++	COF_ENC_CODEPAGE_FOLDED,	// the pack's code page, folded for the engine font
++	COF_ENC_UTF8_FOLDED,	// UTF-8, folded for the engine font
++} cof_lang_enc_t;
++
++/*
++====================
++CoF_Lang_Convert
++
++The pack's TSV is UTF-8; the whole Cry of Fear text pipeline is one byte per
++glyph. Convert once at load so the client's byte pipeline and the font
++layer's code-page decode agree exactly.
++
++Also unescapes the four C escapes the pack generator writes for control
++characters it cannot put in a TSV cell (\n \t \r \\). Everything else stays
++literal, so a Windows path like models\costumes survives untouched.
++====================
++*/
++static void CoF_Lang_Convert( char *out, size_t size, const char *in, int codepage, cof_lang_enc_t enc )
++{
++	utfstate_t state;
++	size_t o = 0;
++
++	memset( &state, 0, sizeof( state ));
++
++	while( *in && o + 1 < size )
++	{
++		uint32_t uc;
++
++		if( in[0] == '\\' && in[1] )
++		{
++			char esc = 0;
++
++			switch( in[1] )
++			{
++			case 'n':  esc = '\n'; break;
++			case 't':  esc = '\t'; break;
++			case 'r':  esc = '\r'; break;
++			case '\\': esc = '\\'; break;
++			}
++
++			if( esc )
++			{
++				out[o++] = esc;
++				in += 2;
++				continue;
++			}
++		}
++
++		uc = Q_DecodeUTF8( &state, (uint32_t)(byte)*in++ );
++		if( !uc )
++			continue; // incomplete sequence, feed more
++
++		if( enc != COF_ENC_CODEPAGE )
++			uc = CoF_Lang_Fold( uc );
++
++		if( enc == COF_ENC_UTF8_FOLDED )
++		{
++			char tmp[4];
++			size_t n = Q_EncodeUTF8( tmp, uc );
++
++			if( !n || o + n + 1 > size )
++				break;
++
++			memcpy( out + o, tmp, n );
++			o += n;
++		}
++		else
++		{
++			int ch = CoF_Lang_EncodeByte( uc, codepage );
++			out[o++] = ch ? (char)ch : '?';
++		}
++	}
++
++	out[o] = '\0';
++}
++
++/*
++====================
++CoF_Lang_HashKey
++====================
++*/
++static uint CoF_Lang_HashKey( const char *s )
++{
++	uint h = 5381;
++
++	while( *s )
++		h = (( h << 5 ) + h ) ^ (byte)*s++;
++
++	return h & ( COF_LANG_HASH - 1 );
++}
++
++/*
++====================
++CoF_Lang_IsPlaceholder
++
++printf conversions as the game's strings use them: %s, %i, %d, %u, %f, %c,
++%x, optionally with flags, a width or a precision. "%%" is a literal
++percent and is not a placeholder. Returns the length of the conversion, or 0.
++====================
++*/
++static int CoF_Lang_IsPlaceholder( const char *s )
++{
++	int n = 1;
++
++	if( s[0] != '%' || s[1] == '%' )
++		return 0;
++
++	while( s[n] && (( s[n] >= '0' && s[n] <= '9' ) || s[n] == '.' || s[n] == '-' || s[n] == '+' ))
++		n++;
++
++	if( s[n] && Q_strchr( "sidufcxX", s[n] ))
++		return n + 1;
++
++	return 0;
++}
++
++/*
++====================
++CoF_Lang_SplitFormat
++
++Split an entry's English text at its placeholders. nparts == 1 means the
++entry is an exact-match one. Returns false for an entry that cannot be used
++as a format (too many placeholders, two adjacent ones, or not enough literal
++text to be distinctive).
++====================
++*/
++static qboolean CoF_Lang_SplitFormat( cof_lang_entry_t *e )
++{
++	const char *s = e->src;
++	const char *start = s;
++	int i;
++
++	e->nparts = 0;
++	e->literal_len = 0;
++
++	while( *s )
++	{
++		int n = CoF_Lang_IsPlaceholder( s );
++
++		if( !n )
++		{
++			s++;
++			continue;
++		}
++
++		if( e->nparts >= COF_LANG_MAX_PARTS )
++			return false;
++
++		e->part_len[e->nparts] = (int)( s - start );
++		e->part[e->nparts] = Mem_Calloc( cof_lang.mempool, e->part_len[e->nparts] + 1 );
++		memcpy( e->part[e->nparts], start, e->part_len[e->nparts] );
++		e->nparts++;
++
++		s += n;
++		start = s;
++	}
++
++	if( !e->nparts )
++	{
++		e->nparts = 1; // exact match only
++		return true;
++	}
++
++	// the trailing literal, possibly empty
++	e->part_len[e->nparts] = (int)( s - start );
++	e->part[e->nparts] = Mem_Calloc( cof_lang.mempool, e->part_len[e->nparts] + 1 );
++	memcpy( e->part[e->nparts], start, e->part_len[e->nparts] );
++	e->nparts++;
++
++	for( i = 0; i < e->nparts; i++ )
++	{
++		// two adjacent placeholders cannot be matched unambiguously
++		if( i > 0 && i < e->nparts - 1 && !e->part_len[i] )
++			return false;
++
++		e->literal_len += e->part_len[i];
++	}
++
++	// "%s" alone would match every string ever drawn
++	if( e->literal_len < 3 )
++		return false;
++
++	return true;
++}
++
++/*
++====================
++CoF_Lang_FreeStrings
++====================
++*/
++static void CoF_Lang_FreeStrings( void )
++{
++	if( cof_lang.mempool )
++		Mem_FreePool( &cof_lang.mempool );
++
++	cof_lang.mempool = 0;
++	memset( cof_lang.hash, 0, sizeof( cof_lang.hash ));
++	cof_lang.fmt_head = NULL;
++	cof_lang.num_entries = 0;
++	cof_lang.num_fmt = 0;
++	cof_lang.num_hits = 0;
++}
++
++static char *CoF_Lang_CopyString( const char *s )
++{
++	size_t len = Q_strlen( s );
++	char *p = Mem_Calloc( cof_lang.mempool, len + 1 );
++
++	memcpy( p, s, len );
++	return p;
++}
++
++/*
++====================
++CoF_Lang_AddEntry
++====================
++*/
++static void CoF_Lang_AddEntry( const char *english, const char *localised )
++{
++	cof_lang_entry_t *e, **prev;
++	char converted[COF_LANG_MAX_STRING];
++	char plain[COF_LANG_MAX_STRING];
++	char folded[COF_LANG_MAX_STRING];
++	uint key;
++
++	if( COM_StringEmptyOrNULL( english ) || COM_StringEmptyOrNULL( localised ))
++		return;
++
++	// the English side is 7-bit in every shipped pack, but it may carry the
++	// same control-byte prefixes the DLL strings do, so run it through the
++	// same unescaper. It is never folded: it must match the DLL bytes.
++	CoF_Lang_Convert( plain, sizeof( plain ), english, 1252, COF_ENC_CODEPAGE );
++	CoF_Lang_Convert( converted, sizeof( converted ), localised, cof_lang.codepage, COF_ENC_CODEPAGE );
++
++	if( !Q_strcmp( plain, converted ))
++		return; // kept in English by the pack author, nothing to do
++
++	key = CoF_Lang_HashKey( plain );
++
++	for( e = cof_lang.hash[key]; e; e = e->hash_next )
++	{
++		if( !Q_strcmp( e->src, plain ))
++			return; // first row wins, later duplicates are ignored
++	}
++
++	e = Mem_Calloc( cof_lang.mempool, sizeof( *e ));
++	e->src_len = Q_strlen( plain );
++	e->src = CoF_Lang_CopyString( plain );
++	e->dst = CoF_Lang_CopyString( converted );
++
++	CoF_Lang_Convert( folded, sizeof( folded ), localised, cof_lang.codepage, COF_ENC_UTF8_FOLDED );
++	e->dst_utf8 = CoF_Lang_CopyString( folded );
++	CoF_Lang_Convert( folded, sizeof( folded ), localised, cof_lang.codepage, COF_ENC_CODEPAGE_FOLDED );
++	e->dst_cp = CoF_Lang_CopyString( folded );
++
++	e->hash_next = cof_lang.hash[key];
++	cof_lang.hash[key] = e;
++	cof_lang.num_entries++;
++
++	if( !CoF_Lang_SplitFormat( e ) || e->nparts < 2 )
++		return; // exact-match only
++
++	// keep the format list sorted by descending literal length, so
++	// "You got the %s" is tried before "You got %s" and wins
++	for( prev = &cof_lang.fmt_head; *prev; prev = &( *prev )->fmt_next )
++	{
++		if(( *prev )->literal_len < e->literal_len )
++			break;
++	}
++
++	e->fmt_next = *prev;
++	*prev = e;
++	cof_lang.num_fmt++;
++}
++
++/*
++====================
++CoF_Lang_LoadStrings
++
++<pack>/strings/dll-strings.tsv: a header row, then
++english <TAB> localised <TAB> source_dll <TAB> file_offset <TAB> flagged
++====================
++*/
++static void CoF_Lang_LoadStrings( void )
++{
++	char path[MAX_QPATH];
++	fs_offset_t len = 0;
++	byte *raw;
++	char *p, *end;
++	qboolean first = true;
++
++	CoF_Lang_FreeStrings();
++
++	if( !cof_lang.active )
++		return;
++
++	cof_lang.mempool = Mem_AllocPool( "CoF language pack" );
++
++	Q_snprintf( path, sizeof( path ), "%s/strings/dll-strings.tsv", cof_lang.dir );
++	raw = FS_LoadFile( path, &len, true );
++
++	if( !raw )
++	{
++		CoF_Lang_Note( S_WARN "cof_language: %s not found, DLL strings stay in English\n", path );
++		return;
++	}
++
++	p = (char *)raw;
++	end = p + len;
++
++	while( p < end )
++	{
++		char *line = p;
++		char *tab1, *tab2;
++		size_t l;
++
++		while( p < end && *p != '\n' )
++			p++;
++
++		*p = '\0'; // FS_LoadFile leaves one terminator byte past the end
++		if( p < end )
++			p++;
++
++		l = Q_strlen( line );
++		if( l && line[l - 1] == '\r' )
++			line[l - 1] = '\0';
++
++		if( first )
++		{
++			first = false;
++
++			// a UTF-8 byte order mark, if an editor added one
++			if( (byte)line[0] == 0xEF && (byte)line[1] == 0xBB && (byte)line[2] == 0xBF )
++				line += 3;
++
++			if( !Q_strncmp( line, "english\t", 8 ))
++				continue; // header
++		}
++
++		if( !line[0] )
++			continue;
++
++		tab1 = Q_strchr( line, '\t' );
++		if( !tab1 )
++			continue;
++
++		*tab1++ = '\0';
++		tab2 = Q_strchr( tab1, '\t' );
++		if( tab2 )
++			*tab2 = '\0';
++
++		CoF_Lang_AddEntry( line, tab1 );
++	}
++
++	Mem_Free( raw );
++
++	CoF_Lang_Note( "cof_language: %i DLL strings (%i with placeholders) from %s\n", cof_lang.num_entries, cof_lang.num_fmt, path );
++}
++
++/*
++====================
++CoF_Lang_Rebuild
++
++Drop the captured argument text into the template's placeholders, left to
++right. A template with fewer placeholders than captures drops the rest; one
++with more drops its surplus placeholders rather than drawing "%s".
++====================
++*/
++static const char *CoF_Lang_Rebuild( const char *tmpl, const char **cap, const int *caplen, int ncap )
++{
++	static char	result[4][COF_LANG_MAX_STRING];
++	static int	which = 0;
++	const char *d = tmpl;
++	char *out;
++	size_t o = 0, room;
++	int used = 0;
++
++	which = ( which + 1 ) & 3;
++	out = result[which];
++	room = sizeof( result[0] );
++
++	while( *d && o + 1 < room )
++	{
++		int n = CoF_Lang_IsPlaceholder( d );
++
++		if( n )
++		{
++			if( used < ncap )
++			{
++				size_t c = caplen[used];
++
++				if( o + c + 1 >= room )
++					c = room - o - 1;
++
++				memcpy( out + o, cap[used], c );
++				o += c;
++			}
++
++			used++;
++			d += n;
++			continue;
++		}
++
++		out[o++] = *d++;
++	}
++
++	out[o] = '\0';
++	return out;
++}
++
++/*
++====================
++CoF_Lang_Lookup
++
++Exact match first, then the placeholder-aware formats: the entry's literal
++pieces must appear in order, the first one at the start and the last one at
++the end of the string, and what sits between them is captured.
++====================
++*/
++static const char *CoF_Lang_Lookup( const char *str, cof_lang_enc_t enc )
++{
++	cof_lang_entry_t *e;
++	uint key;
++	int len;
++
++	if( !cof_lang.active || !cof_language_strings.value || !cof_lang.mempool )
++		return str;
++
++	if( COM_StringEmptyOrNULL( str ))
++		return str;
++
++	len = Q_strlen( str );
++	if( len >= COF_LANG_MAX_STRING )
++		return str;
++
++	key = CoF_Lang_HashKey( str );
++
++	for( e = cof_lang.hash[key]; e; e = e->hash_next )
++	{
++		if( e->src_len == len && !Q_strcmp( e->src, str ))
++		{
++			cof_lang.num_hits++;
++			switch( enc )
++			{
++			case COF_ENC_UTF8_FOLDED: return e->dst_utf8;
++			case COF_ENC_CODEPAGE_FOLDED: return e->dst_cp;
++			default: return e->dst;
++			}
++		}
++	}
++
++	for( e = cof_lang.fmt_head; e; e = e->fmt_next )
++	{
++		const char *cap[COF_LANG_MAX_PARTS];
++		int caplen[COF_LANG_MAX_PARTS];
++		const char *s = str;
++		const char *tail;
++		int i, ncap = 0;
++		qboolean ok = true;
++
++		if( e->literal_len > len )
++			continue;
++
++		if( e->part_len[0] )
++		{
++			if( Q_strncmp( s, e->part[0], e->part_len[0] ))
++				continue;
++			s += e->part_len[0];
++		}
++
++		// everything between the first and the last literal piece
++		for( i = 1; i < e->nparts - 1; i++ )
++		{
++			const char *found = Q_strstr( s, e->part[i] );
++
++			if( !found )
++			{
++				ok = false;
++				break;
++			}
++
++			cap[ncap] = s;
++			caplen[ncap] = (int)( found - s );
++			ncap++;
++			s = found + e->part_len[i];
++		}
++
++		if( !ok )
++			continue;
++
++		// the trailing literal piece has to close the string
++		tail = str + len - e->part_len[e->nparts - 1];
++
++		if( tail < s )
++			continue;
++
++		if( e->part_len[e->nparts - 1] && Q_strncmp( tail, e->part[e->nparts - 1], e->part_len[e->nparts - 1] ))
++			continue;
++
++		cap[ncap] = s;
++		caplen[ncap] = (int)( tail - s );
++		ncap++;
++
++		cof_lang.num_hits++;
++
++		switch( enc )
++		{
++		case COF_ENC_UTF8_FOLDED: return CoF_Lang_Rebuild( e->dst_utf8, cap, caplen, ncap );
++		case COF_ENC_CODEPAGE_FOLDED: return CoF_Lang_Rebuild( e->dst_cp, cap, caplen, ncap );
++		default: return CoF_Lang_Rebuild( e->dst, cap, caplen, ncap );
++		}
++	}
++
++	return str;
++}
++
++const char *CoF_Lang_String( const char *str )
++{
++	return CoF_Lang_Lookup( str, COF_ENC_CODEPAGE );
++}
++
++const char *CoF_Lang_StringEngineFont( const char *str, qboolean utf8 )
++{
++	return CoF_Lang_Lookup( str, utf8 ? COF_ENC_UTF8_FOLDED : COF_ENC_CODEPAGE_FOLDED );
++}
++
++/*
++====================
++CoF_Lang_EntPatch
++
++maps/<map>.ent from the pack, when it carries one. The engine's "the patch
++must be newer than the .bsp" rule is not applied to it: the pack is data we
++install, and a copy that did not preserve timestamps would otherwise
++silently disable a whole map's translation.
++====================
++*/
++qboolean CoF_Lang_EntPatch( const char *entfilename, char *out, size_t size )
++{
++	if( !cof_lang.active || COM_StringEmptyOrNULL( entfilename ))
++		return false;
++
++	if( Q_snprintf( out, size, "%s/maps/%s", cof_lang.dir, COM_FileWithoutPath( entfilename )) < 0 )
++		return false;
++
++	if( !FS_FileExists( out, true ))
++		return false;
++
++	if( FS_FileExists( entfilename, true ))
++		Con_Printf( S_WARN "cof_language: %s replaces the game directory's own %s\n", out, entfilename );
++
++	Con_DPrintf( "[cof-lang] entity patch %s -> %s\n", entfilename, out );
++	return true;
++}
++
++/*
++====================
++CoF_Lang_ApplyEntityPatch
++
++maps/<map>.entpatch: the translated key/value pairs of one map, applied to
++the entity string the map loads anyway (BSP lump or gamedir .ent), after the
++normal .ent override logic. A pack that still carries a full maps/<map>.ent
++uses that instead (CoF_Lang_EntPatch) and its .entpatch is ignored.
++====================
++*/
++static void CoF_Lang_EntPatchLog( void *ctx, const char *msg )
++{
++	Con_Printf( S_WARN "cof_language: %s: %s\n", (const char *)ctx, msg );
++}
++
++char *CoF_Lang_ApplyEntityPatch( const char *entfilename, const char *entdata, size_t entdatasize, size_t *outsize )
++{
++	char ent[MAX_SYSPATH], path[MAX_SYSPATH];
++	cof_entpatch_stats_t st;
++	fs_offset_t patchsize;
++	byte *patch;
++	char *res, *out;
++	size_t len;
++
++	if( !cof_lang.active || COM_StringEmptyOrNULL( entfilename ) || !entdata || !outsize )
++		return NULL;
++
++	if( Q_snprintf( ent, sizeof( ent ), "%s/maps/%s", cof_lang.dir, COM_FileWithoutPath( entfilename )) < 0 )
++		return NULL;
++
++	if( FS_FileExists( ent, true ))
++		return NULL; // the pack's full .ent already replaced the string
++
++	Q_strncpy( path, ent, sizeof( path ));
++	COM_ReplaceExtension( path, ".entpatch", sizeof( path ));
++
++	if( !FS_FileExists( path, true ))
++		return NULL;
++
++	if(( patch = FS_LoadFile( path, &patchsize, true )) == NULL )
++		return NULL;
++
++	res = CoF_EntPatch_Apply( entdata, entdatasize, (const char *)patch, (size_t)patchsize, &len, &st, CoF_Lang_EntPatchLog, path );
++	Mem_Free( patch );
++
++	if( !res )
++	{
++		Con_Printf( S_WARN "cof_language: %s not applied\n", path );
++		return NULL;
++	}
++
++	out = Mem_Malloc( host.mempool, len + 1 );
++	memcpy( out, res, len + 1 );
++	free( res );
++
++	Con_Printf( "^2Applied entity patch:^7 %s (%d value(s), %d removed, %d added, %d skipped)\n",
++		path, st.edited, st.removed, st.added, st.skipped );
++
++	*outsize = len;
++	return out;
++}
++
++/*
++====================
++CoF_Lang_StudioTextures
++
++Texture overrides for studio models. The translated signs, newspapers, phone
++screens and book pages of Cry of Fear are textures EMBEDDED in .mdl files; a
++pack carries only the repainted textures, as
++
++	languages/<code>/models/<model path without .mdl>/<texture name>
++
++(8-bit indexed BMP, the texture's own width and height, up to 256 colours;
++the texture name keeps its own extension: ".../v_mobile/tex1.bmp"). They are
++written into the engine's private copy of the model right after it is read
++and before the renderer uploads the textures, so every consumer - the
++engine's renderer and the game client's own studio renderer - sees the pack's
++pixels. The model file, its CRC and everything but those texels stay as they
++are. A BMP of the wrong size or format is refused and logged.
++====================
++*/
++static int CoF_Lang_Le32( const byte *p )
++{
++	return (int)( p[0] | p[1] << 8 | p[2] << 16 | (uint)p[3] << 24 );
++}
++
++static qboolean CoF_Lang_ReadBMP8( const byte *buf, size_t size, int width, int height, byte *pixels, byte *palette )
++{
++	int offbits, hdrsize, w, h, bpp, compression, colors, rowsize, y;
++	qboolean topdown;
++
++	if( size < 54 || buf[0] != 'B' || buf[1] != 'M' )
++		return false;
++
++	offbits = CoF_Lang_Le32( buf + 10 );
++	hdrsize = CoF_Lang_Le32( buf + 14 );
++	w = CoF_Lang_Le32( buf + 18 );
++	h = CoF_Lang_Le32( buf + 22 );
++	bpp = buf[28] | buf[29] << 8;
++	compression = CoF_Lang_Le32( buf + 30 );
++	colors = CoF_Lang_Le32( buf + 46 );
++	topdown = h < 0;
++	if( topdown ) h = -h;
++
++	if( hdrsize < 40 || bpp != 8 || compression != 0 || w != width || h != height )
++		return false;
++	if( colors <= 0 || colors > 256 )
++		colors = 256;
++
++	rowsize = ( w + 3 ) & ~3;
++	if( offbits < 0 || (size_t)offbits + (size_t)rowsize * h > size )
++		return false;
++	if( 14 + (size_t)hdrsize + (size_t)colors * 4 > size )
++		return false;
++
++	memset( palette, 0, 768 );
++	for( y = 0; y < colors; y++ )
++	{
++		const byte *q = buf + 14 + hdrsize + y * 4; // B G R x
++		palette[y * 3 + 0] = q[2];
++		palette[y * 3 + 1] = q[1];
++		palette[y * 3 + 2] = q[0];
++	}
++
++	for( y = 0; y < h; y++ )
++	{
++		const byte *row = buf + offbits + (size_t)( topdown ? y : h - 1 - y ) * rowsize;
++		memcpy( pixels + (size_t)y * w, row, w );
++	}
++
++	return true;
++}
++
++void CoF_Lang_StudioTextures( const char *modelname, void *data, size_t size )
++{
++	studiohdr_t *phdr = data;
++	mstudiotexture_t *ptex;
++	char base[MAX_SYSPATH], path[MAX_SYSPATH]; // pack paths outgrow MAX_QPATH
++	int i, replaced = 0;
++
++	if( !cof_lang.active || !phdr || COM_StringEmptyOrNULL( modelname ))
++		return;
++
++	if( size < sizeof( studiohdr_t ) || phdr->numtextures <= 0 || phdr->textureindex <= 0 )
++		return;
++
++	if( (size_t)phdr->textureindex + (size_t)phdr->numtextures * sizeof( mstudiotexture_t ) > size )
++		return;
++
++	// "models/weapons/mobile/v_mobile.mdl" -> "models/weapons/mobile/v_mobile"
++	Q_strncpy( base, modelname, sizeof( base ));
++	COM_FixSlashes( base );
++	COM_StripExtension( base );
++	if( Q_strnicmp( base, "models/", 7 ))
++		return;
++
++	ptex = (mstudiotexture_t *)((byte *)phdr + phdr->textureindex );
++
++	for( i = 0; i < phdr->numtextures; i++, ptex++ )
++	{
++		size_t npix = (size_t)ptex->width * ptex->height;
++		fs_offset_t filesize;
++		byte *file, *pixels, palette[768];
++		char texname[sizeof( ptex->name ) + 1];
++
++		if( ptex->width <= 0 || ptex->height <= 0 || ptex->index <= 0 )
++			continue;
++		if( (size_t)ptex->index + npix + 768 > size )
++			continue; // this buffer does not hold the texels
++
++		Q_strncpy( texname, ptex->name, sizeof( texname ));
++		if( Q_snprintf( path, sizeof( path ), "%s/%s/%s%s", cof_lang.dir, base, texname,
++			Q_stristr( texname, ".bmp" ) ? "" : ".bmp" ) < 0 )
++			continue;
++
++		if( !FS_FileExists( path, true ))
++			continue;
++
++		if(( file = FS_LoadFile( path, &filesize, true )) == NULL )
++			continue;
++
++		pixels = Mem_Malloc( host.mempool, npix );
++		if( CoF_Lang_ReadBMP8( file, (size_t)filesize, ptex->width, ptex->height, pixels, palette ))
++		{
++			memcpy( (byte *)phdr + ptex->index, pixels, npix );
++			memcpy( (byte *)phdr + ptex->index + npix, palette, sizeof( palette ));
++			replaced++;
++			Con_DPrintf( "[cof-lang] model texture %s:%s -> %s\n", modelname, texname, path );
++		}
++		else Con_Printf( S_WARN "cof_language: %s is not an 8-bit %dx%d BMP; %s:%s left as it is\n",
++			path, ptex->width, ptex->height, modelname, texname );
++
++		Mem_Free( pixels );
++		Mem_Free( file );
++	}
++
++	if( replaced )
++		Con_Printf( "^2Model textures from the language pack:^7 %s (%d)\n", modelname, replaced );
++}
++
++/*
++====================
++CoF_Lang_TextureReplacement
++
++The pack's repainted signs and posters. These are a language override, not
++an "HD materials" opt-in, so they are probed before the stock materials/
++paths and without host_allow_materials.
++====================
++*/
++qboolean CoF_Lang_TextureReplacement( char *out, size_t size, const char *texname, const char *type )
++{
++	if( !cof_lang.active || COM_StringEmptyOrNULL( texname ))
++		return false;
++
++	if( Q_snprintf( out, size, "%s/textures/%s%s.tga", cof_lang.dir, texname, type ) < 0 )
++		return false;
++
++	if( !FS_FileExists( out, false ))
++		return false;
++
++	Con_DPrintf( "[cof-lang] texture override %s%s -> %s\n", texname, type, out );
++	return true;
++}
++
++/*
++====================
++CoF_Lang_GameFile
++
++The same redirect as the CreateFileW shim below, for the game DLLs' reads
++through the ENGINE filesystem (pfnLoadFileForMe / COM_LoadFile): some of
++their text (hints.txt, for one) is loaded that way rather than with the CRT.
++
++  txtfiles/[languages/<slot>/]<rest>  -> languages/<code>/txt/txtfiles/languages/<code>/<rest>
++                                       -> languages/<code>/txt/txtfiles/<rest>
++  notes/...                           -> the same under txt/notes/
++  inventoryitems/<rest>               -> languages/<code>/inventoryitems/<rest>
++
++`name` is gamedir-relative with forward slashes. Returns true and fills
++`out` only when the pack has the file.
++====================
++*/
++qboolean CoF_Lang_GameFile( const char *name, char *out, size_t size )
++{
++	static const struct { const char *folder; qboolean slot; } classes[] =
++	{
++		{ "txtfiles/", true }, { "notes/", true }, { "inventoryitems/", false },
++	};
++	const char *rest = NULL;
++	int cls, c;
++
++	if( cof_language_trace.value && !COM_StringEmptyOrNULL( name ))
++		CoF_Lang_Note( "[cof-lang] trace: LoadFileForMe %s\n", name );
++
++	if( !cof_lang.active || !cof_language_files.value || COM_StringEmptyOrNULL( name ))
++		return false;
++
++	if( name[0] == '.' && ( name[1] == '/' || name[1] == '\\' ))
++		name += 2;
++
++	for( cls = 0; cls < (int)ARRAYSIZE( classes ); cls++ )
++	{
++		if( !Q_strnicmp( name, classes[cls].folder, Q_strlen( classes[cls].folder )))
++		{
++			rest = name + Q_strlen( classes[cls].folder );
++			break;
++		}
++	}
++
++	if( !rest )
++		return false;
++
++	if( classes[cls].slot && !Q_strnicmp( rest, "languages/", 10 ))
++	{
++		const char *slash = Q_strchr( rest + 10, '/' );
++
++		if( slash )
++			rest = slash + 1;
++	}
++
++	if( !*rest || Q_strstr( rest, ".." ))
++		return false;
++
++	for( c = 0; c < ( classes[cls].slot ? 2 : 1 ); c++ )
++	{
++		int n;
++
++		if( !classes[cls].slot )
++			n = Q_snprintf( out, size, "%s/%s%s", cof_lang.dir, classes[cls].folder, rest );
++		else if( c == 0 )
++			n = Q_snprintf( out, size, "%s/txt/%slanguages/%s/%s", cof_lang.dir, classes[cls].folder, cof_lang.code, rest );
++		else
++			n = Q_snprintf( out, size, "%s/txt/%s%s", cof_lang.dir, classes[cls].folder, rest );
++
++		if( n < 0 || (size_t)n >= size )
++			continue;
++
++		if( FS_FileExists( out, true ))
++		{
++			Con_DPrintf( "[cof-lang] load %s -> %s\n", name, out );
++			return true;
++		}
++	}
++
++	return false;
++}
++
++/*
++====================
++The CreateFileW import shim
++====================
++*/
++#if XASH_WIN32
++typedef struct
++{
++	const char	*folder;	// the game-relative folder the DLL opens
++	qboolean	has_language_slot;
++} cof_lang_class_t;
++
++static const cof_lang_class_t cof_lang_classes[] =
++{
++	{ "txtfiles/",       true  },
++	{ "notes/",          true  },
++	{ "inventoryitems/", false },
++};
++
++static wchar_t CoF_Lang_WLower( wchar_t c )
++{
++	if( c == L'\\' )
++		return L'/';
++	if( c >= L'A' && c <= L'Z' )
++		return (wchar_t)( c - L'A' + L'a' );
++	return c;
++}
++
++// case- and slash-insensitive prefix test against an ASCII string
++static qboolean CoF_Lang_WStartsWithA( const wchar_t *s, const char *ascii )
++{
++	for( ; *ascii; s++, ascii++ )
++	{
++		if( CoF_Lang_WLower( *s ) != (wchar_t)CoF_Lang_WLower( (wchar_t)(byte)*ascii ))
++			return false;
++	}
++
++	return true;
++}
++
++// the same against a wide string, followed by a separator
++static size_t CoF_Lang_WSegment( const wchar_t *s, const wchar_t *seg )
++{
++	size_t n = 0;
++
++	for( ; seg[n]; n++ )
++	{
++		if( CoF_Lang_WLower( s[n] ) != CoF_Lang_WLower( seg[n] ))
++			return 0;
++	}
++
++	return CoF_Lang_WLower( s[n] ) == L'/' ? n + 1 : 0;
++}
++
++static qboolean CoF_Lang_WAppend( wchar_t *dst, size_t size, size_t *pos, const wchar_t *src, size_t len )
++{
++	if( *pos + len + 1 > size )
++		return false;
++
++	memcpy( dst + *pos, src, len * sizeof( wchar_t ));
++	*pos += len;
++	dst[*pos] = L'\0';
++	return true;
++}
++
++static qboolean CoF_Lang_WAppendA( wchar_t *dst, size_t size, size_t *pos, const char *src )
++{
++	for( ; *src; src++ )
++	{
++		if( *pos + 2 > size )
++			return false;
++		dst[( *pos )++] = (wchar_t)(byte)*src;
++	}
++
++	dst[*pos] = L'\0';
++	return true;
++}
++
++static qboolean CoF_Lang_WIsFile( const wchar_t *path )
++{
++	DWORD attr = GetFileAttributesW( path );
++
++	return attr != INVALID_FILE_ATTRIBUTES && !FBitSet( attr, FILE_ATTRIBUTE_DIRECTORY );
++}
++
++/*
++====================
++CoF_Lang_RedirectPathW
++
++  <prefix>cryoffear/txtfiles/[languages/<slot>/]<rest>
++      -> <prefix>cryoffear/languages/<code>/txt/txtfiles/languages/<code>/<rest>
++      -> <prefix>cryoffear/languages/<code>/txt/txtfiles/<rest>
++  (the same for notes/), and
++  <prefix>cryoffear/inventoryitems/<rest>
++      -> <prefix>cryoffear/languages/<code>/inventoryitems/<rest>
++
++The folder has to sit directly under the game directory segment (or open
++the path, which is how the server names hints.txt), so a "notes" folder
++somewhere in the install path can never match. The client's own
++languages/<slot>/ segment for the stock languages 2..7 is dropped: a pack's
++text always lives under its own languages/<code>/ folder whatever slot the
++client thinks it is using.
++
++Only read-only OPEN_EXISTING opens are ever touched, and only when the pack
++really has the file. Everything else falls through unchanged, which is what
++keeps SAVE\, config.cfg, scriptsettings.dat and maps\*.cfg writes out of it.
++
++Runs with cof_lang.lock held shared.
++====================
++*/
++static qboolean CoF_Lang_RedirectPathW( const wchar_t *name, DWORD access, DWORD disposition, wchar_t *out, size_t size, qboolean *class_hit )
++{
++	size_t i, n, pos, prefix_len = 0, folder_at = (size_t)-1;
++	const wchar_t *rest;
++	int cls = -1, c;
++
++	*class_hit = false;
++
++	if( !cof_lang.active || !cof_language_files.value )
++		return false;
++
++	if( !name || !name[0] )
++		return false;
++
++	if( FBitSet( access, GENERIC_WRITE | GENERIC_ALL | FILE_WRITE_DATA | FILE_APPEND_DATA ))
++		return false;
++
++	if( disposition != OPEN_EXISTING )
++		return false;
++
++	n = wcslen( name );
++	if( n < 6 || n > 512 )
++		return false;
++
++	// the class folder right after a "<gamedir>/" segment
++	for( i = 0; i < n && cls < 0; i++ )
++	{
++		size_t seg;
++
++		if( i > 0 && name[i - 1] != L'/' && name[i - 1] != L'\\' && name[i - 1] != L':' )
++			continue;
++
++		seg = CoF_Lang_WSegment( &name[i], cof_lang.wgame );
++		if( !seg )
++			continue;
++
++		for( c = 0; c < (int)ARRAYSIZE( cof_lang_classes ); c++ )
++		{
++			if( CoF_Lang_WStartsWithA( &name[i + seg], cof_lang_classes[c].folder ))
++			{
++				cls = c;
++				folder_at = i + seg;
++				prefix_len = i + seg;
++				break;
++			}
++		}
++	}
++
++	// or the class folder opening a bare relative path
++	for( c = 0; cls < 0 && c < (int)ARRAYSIZE( cof_lang_classes ); c++ )
++	{
++		if( CoF_Lang_WStartsWithA( name, cof_lang_classes[c].folder ))
++		{
++			cls = c;
++			folder_at = 0;
++			prefix_len = 0;
++		}
++	}
++
++	if( cls < 0 )
++		return false;
++
++	*class_hit = true;
++	rest = &name[folder_at + Q_strlen( cof_lang_classes[cls].folder )];
++
++	// the client's own languages/<slot>/ segment, if any
++	if( cof_lang_classes[cls].has_language_slot && CoF_Lang_WStartsWithA( rest, "languages/" ))
++	{
++		const wchar_t *slash = rest + 10;
++
++		while( *slash && *slash != L'/' && *slash != L'\\' )
++			slash++;
++
++		if( *slash )
++			rest = slash + 1;
++	}
++
++	if( !*rest )
++		return false;
++
++	// two candidates for the slotted classes, one for inventoryitems
++	for( c = 0; c < ( cof_lang_classes[cls].has_language_slot ? 2 : 1 ); c++ )
++	{
++		pos = 0;
++		out[0] = L'\0';
++
++		if( prefix_len )
++		{
++			if( !CoF_Lang_WAppend( out, size, &pos, name, prefix_len ))
++				return false;
++		}
++		else
++		{
++			// a bare path: put the game directory back in front of it, the
++			// CRT resolves both against the same current directory
++			if( !CoF_Lang_WAppend( out, size, &pos, cof_lang.wgame, wcslen( cof_lang.wgame )) ||
++				!CoF_Lang_WAppendA( out, size, &pos, "/" ))
++				return false;
++		}
++
++		if( !CoF_Lang_WAppendA( out, size, &pos, "languages/" ) ||
++			!CoF_Lang_WAppend( out, size, &pos, cof_lang.wcode, wcslen( cof_lang.wcode )) ||
++			!CoF_Lang_WAppendA( out, size, &pos, "/" ))
++			return false;
++
++		if( cof_lang_classes[cls].has_language_slot )
++		{
++			if( !CoF_Lang_WAppendA( out, size, &pos, "txt/" ) ||
++				!CoF_Lang_WAppendA( out, size, &pos, cof_lang_classes[cls].folder ))
++				return false;
++
++			if( c == 0 )
++			{
++				if( !CoF_Lang_WAppendA( out, size, &pos, "languages/" ) ||
++					!CoF_Lang_WAppend( out, size, &pos, cof_lang.wcode, wcslen( cof_lang.wcode )) ||
++					!CoF_Lang_WAppendA( out, size, &pos, "/" ))
++					return false;
++			}
++		}
++		else
++		{
++			if( !CoF_Lang_WAppendA( out, size, &pos, cof_lang_classes[cls].folder ))
++				return false;
++		}
++
++		if( !CoF_Lang_WAppend( out, size, &pos, rest, wcslen( rest )))
++			return false;
++
++		if( CoF_Lang_WIsFile( out ))
++			return true;
++	}
++
++	return false;
++}
++
++static void CoF_Lang_WideToUtf8( char *out, size_t size, const wchar_t *in )
++{
++	if( WideCharToMultiByte( CP_UTF8, 0, in, -1, out, (int)size, NULL, NULL ) <= 0 )
++		Q_strncpy( out, "<unprintable>", size );
++}
++
++/*
++====================
++CoF_Lang_CreateFileW
++
++What the game DLLs' CreateFileW import points at while hooked.
++
++Re-entrant and thread-safe: all state it needs is read under the shared
++side of cof_lang.lock into locals, the rewritten path lives on this call's
++stack, and the real open goes through the ENGINE's own CreateFileW import,
++which is never patched, so the shim can never call itself. Logging happens
++only on the main thread; other threads just count.
++====================
++*/
++static HANDLE WINAPI CoF_Lang_CreateFileW( LPCWSTR name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES sa,
++	DWORD disposition, DWORD flags, HANDLE template_file )
++{
++	wchar_t redirected[1024];
++	qboolean redirect, class_hit = false;
++	DWORD err = GetLastError();
++
++	AcquireSRWLockShared( &cof_lang.lock );
++	redirect = CoF_Lang_RedirectPathW( name, access, disposition, redirected, ARRAYSIZE( redirected ), &class_hit );
++	ReleaseSRWLockShared( &cof_lang.lock );
++
++	if( redirect )
++	{
++		InterlockedIncrement( &cof_lang.redirects );
++
++		if( GetCurrentThreadId( ) == cof_lang.main_thread )
++		{
++			if( host_developer.value )
++			{
++				char a[MAX_SYSPATH], b[MAX_SYSPATH];
++
++				CoF_Lang_WideToUtf8( a, sizeof( a ), name );
++				CoF_Lang_WideToUtf8( b, sizeof( b ), redirected );
++				Con_DPrintf( "[cof-lang] open %s -> %s\n", a, b );
++			}
++		}
++		else InterlockedIncrement( &cof_lang.offthread );
++
++		name = redirected;
++	}
++	else if( class_hit )
++	{
++		InterlockedIncrement( &cof_lang.passthrough );
++
++		if( host_developer.value >= DEV_EXTENDED && GetCurrentThreadId( ) == cof_lang.main_thread )
++		{
++			char a[MAX_SYSPATH];
++
++			CoF_Lang_WideToUtf8( a, sizeof( a ), name );
++			Con_Reportf( "[cof-lang] open %s (not in the pack, English)\n", a );
++		}
++	}
++
++	if( cof_language_trace.value && GetCurrentThreadId( ) == cof_lang.main_thread )
++	{
++		char a[MAX_SYSPATH];
++
++		CoF_Lang_WideToUtf8( a, sizeof( a ), name );
++		CoF_Lang_Note( "[cof-lang] trace: CreateFileW %s (access 0x%lx, disposition %lu)%s\n", a, access, disposition, redirect ? " [pack]" : "" );
++	}
++
++	// logging above may have touched the last-error value the CRT reads back
++	SetLastError( err );
++
++	return CreateFileW( name, access, share, sa, disposition, flags, template_file );
++}
++
++/*
++====================
++CoF_Lang_FindImportSlot
++
++The module's KERNEL32!CreateFileW import address table entry. Matched by
++name through the import name table; a module bound without one is matched
++by the resolved address instead.
++====================
++*/
++static ULONG_PTR *CoF_Lang_FindImportSlot( HMODULE module )
++{
++	byte *base = (byte *)module;
++	PIMAGE_DOS_HEADER dos = (PIMAGE_DOS_HEADER)base;
++	PIMAGE_NT_HEADERS nt;
++	PIMAGE_IMPORT_DESCRIPTOR desc;
++	IMAGE_DATA_DIRECTORY dir;
++	FARPROC real = GetProcAddress( GetModuleHandleA( "kernel32.dll" ), "CreateFileW" );
++
++	if( !base || dos->e_magic != IMAGE_DOS_SIGNATURE )
++		return NULL;
++
++	nt = (PIMAGE_NT_HEADERS)( base + dos->e_lfanew );
++	if( nt->Signature != IMAGE_NT_SIGNATURE )
++		return NULL;
++
++	dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
++	if( !dir.VirtualAddress || !dir.Size )
++		return NULL;
++
++	for( desc = (PIMAGE_IMPORT_DESCRIPTOR)( base + dir.VirtualAddress ); desc->Name; desc++ )
++	{
++		const char *dllname = (const char *)( base + desc->Name );
++		PIMAGE_THUNK_DATA names, addrs;
++		int i;
++
++		if( Q_stricmp( dllname, "kernel32.dll" ))
++			continue;
++
++		addrs = (PIMAGE_THUNK_DATA)( base + desc->FirstThunk );
++		names = desc->OriginalFirstThunk ? (PIMAGE_THUNK_DATA)( base + desc->OriginalFirstThunk ) : NULL;
++
++		for( i = 0; addrs[i].u1.Function; i++ )
++		{
++			if( names )
++			{
++				PIMAGE_IMPORT_BY_NAME by_name;
++
++				if( IMAGE_SNAP_BY_ORDINAL( names[i].u1.Ordinal ))
++					continue;
++
++				by_name = (PIMAGE_IMPORT_BY_NAME)( base + names[i].u1.AddressOfData );
++				if( !Q_strcmp( (const char *)by_name->Name, "CreateFileW" ))
++					return (ULONG_PTR *)&addrs[i].u1.Function;
++			}
++			else if( real && addrs[i].u1.Function == (ULONG_PTR)real )
++			{
++				return (ULONG_PTR *)&addrs[i].u1.Function;
++			}
++		}
++	}
++
++	return NULL;
++}
++
++static qboolean CoF_Lang_WriteSlot( ULONG_PTR *slot, ULONG_PTR value )
++{
++	DWORD old_protect;
++
++	if( !VirtualProtect( slot, sizeof( *slot ), PAGE_READWRITE, &old_protect ))
++		return false;
++
++	InterlockedExchangePointer( (PVOID volatile *)slot, (PVOID)value );
++	VirtualProtect( slot, sizeof( *slot ), old_protect, &old_protect );
++	FlushInstructionCache( GetCurrentProcess( ), slot, sizeof( *slot ));
++	return true;
++}
++#endif // XASH_WIN32
++
++/*
++====================
++CoF_Lang_HookModule
++
++Called right after LoadLibrary of client.dll (CL_LoadProgs) and of the
++server library (SV_LoadProgs), before any of their exports is called.
++====================
++*/
++void CoF_Lang_HookModule( void *hInstance, const char *name )
++{
++#if XASH_WIN32
++	dll_user_t *hInst = (dll_user_t *)hInstance;
++	const char *tag = COM_FileWithoutPath( name ? name : "?" );
++	ULONG_PTR *slot;
++	int i, free_slot = -1;
++
++	if( !hInst || !hInst->hInstance )
++		return;
++
++	if( hInst->custom_loader )
++	{
++		CoF_Lang_Note( S_WARN "[cof-lang] %s was loaded from an archive by the custom loader; its file reads cannot be redirected\n", tag );
++		return;
++	}
++
++	slot = CoF_Lang_FindImportSlot( (HMODULE)hInst->hInstance );
++	if( !slot )
++	{
++		CoF_Lang_Note( S_WARN "[cof-lang] %s: no KERNEL32!CreateFileW import, its text files cannot be redirected\n", tag );
++		return;
++	}
++
++	if( *slot == (ULONG_PTR)CoF_Lang_CreateFileW )
++		return; // already ours
++
++	for( i = 0; i < COF_LANG_MAX_HOOKS; i++ )
++	{
++		if( !cof_lang.hooks[i].module && free_slot < 0 )
++			free_slot = i;
++	}
++
++	if( free_slot < 0 )
++	{
++		CoF_Lang_Note( S_ERROR "[cof-lang] %s: hook table full\n", tag );
++		return;
++	}
++
++	cof_lang.hooks[free_slot].module = (HMODULE)hInst->hInstance;
++	cof_lang.hooks[free_slot].slot = slot;
++	cof_lang.hooks[free_slot].original = *slot;
++	Q_strncpy( cof_lang.hooks[free_slot].tag, tag, sizeof( cof_lang.hooks[free_slot].tag ));
++
++	if( !CoF_Lang_WriteSlot( slot, (ULONG_PTR)CoF_Lang_CreateFileW ))
++	{
++		CoF_Lang_Note( S_ERROR "[cof-lang] %s: cannot unprotect the import table (error %lu)\n", tag, GetLastError( ));
++		memset( &cof_lang.hooks[free_slot], 0, sizeof( cof_lang.hooks[free_slot] ));
++		return;
++	}
++
++	CoF_Lang_Note( "[cof-lang] %s: CreateFileW import hooked (IAT %p, was %p)\n", tag, (void *)slot, (void *)cof_lang.hooks[free_slot].original );
++#endif
++}
++
++/*
++====================
++CoF_Lang_UnhookModule
++
++Called from COM_FreeLibrary for every module, just before FreeLibrary.
++Puts the original import back if this module is one we hooked.
++====================
++*/
++void CoF_Lang_UnhookModule( void *module )
++{
++#if XASH_WIN32
++	int i;
++
++	if( !module )
++		return;
++
++	for( i = 0; i < COF_LANG_MAX_HOOKS; i++ )
++	{
++		cof_lang_hook_t *h = &cof_lang.hooks[i];
++
++		if( h->module != (HMODULE)module )
++			continue;
++
++		if( *h->slot == (ULONG_PTR)CoF_Lang_CreateFileW )
++		{
++			if( CoF_Lang_WriteSlot( h->slot, h->original ))
++				CoF_Lang_Note( "[cof-lang] %s: CreateFileW import restored\n", h->tag );
++			else
++				CoF_Lang_Note( S_WARN "[cof-lang] %s: could not restore the import (error %lu)\n", h->tag, GetLastError( ));
++		}
++
++		memset( h, 0, sizeof( *h ));
++	}
++#endif
++}
++
++/*
++====================
++CoF_Lang_ParseManifest
++
++<gamedir>/languages/<code>/manifest.txt, key=value lines. The engine reads
++display_name, codepage and authors; the rest is for people and tools.
++====================
++*/
++static qboolean CoF_Lang_ParseManifest( const char *code, char *display, size_t display_size, char *authors, size_t authors_size, int *codepage )
++{
++	char path[MAX_QPATH];
++	fs_offset_t len = 0;
++	byte *raw;
++	char *p, *end;
++
++	Q_snprintf( path, sizeof( path ), "languages/%s/manifest.txt", code );
++	raw = FS_LoadFile( path, &len, true );
++
++	if( !raw )
++		return false;
++
++	Q_strncpy( display, code, display_size );
++	authors[0] = '\0';
++	*codepage = 1252;
++
++	p = (char *)raw;
++	end = p + len;
++
++	while( p < end )
++	{
++		char *line = p;
++		char *eq;
++		size_t l;
++
++		while( p < end && *p != '\n' )
++			p++;
++
++		*p = '\0';
++		if( p < end )
++			p++;
++
++		l = Q_strlen( line );
++		if( l && line[l - 1] == '\r' )
++			line[l - 1] = '\0';
++
++		if( !line[0] || line[0] == '#' )
++			continue;
++
++		eq = Q_strchr( line, '=' );
++		if( !eq )
++			continue;
++
++		*eq++ = '\0';
++
++		if( !Q_stricmp( line, "display_name" ))
++			Q_strncpy( display, eq, display_size );
++		else if( !Q_stricmp( line, "codepage" ))
++			*codepage = Q_atoi( eq );
++		else if( !Q_stricmp( line, "authors" ))
++			Q_strncpy( authors, eq, authors_size );
++	}
++
++	Mem_Free( raw );
++
++	if( *codepage != 1250 && *codepage != 1251 && *codepage != 1252 )
++	{
++		CoF_Lang_Note( S_WARN "cof_language: pack %s declares code page %i, which the font layer has no table for; using 1252\n", code, *codepage );
++		*codepage = 1252;
++	}
++
++	return true;
++}
++
++/*
++====================
++CoF_Lang_Remount
++
++Add the pack's overlay folder to the search path at the highest priority.
++Called at the end of FS_Rescan_f, because a rescan rebuilds the search path
++from gameinfo and drops anything added before it.
++
++FWGS's own localisation mount (<gamedir>_<fs_language>, ui_language +
++fs_mount_l10n + fs_rescan) cannot be used: it only ever mounts a SIBLING of
++the game directory named after the language, while a pack lives inside the
++game directory under languages/<code>/overlay/<gamedir>/ - pointing it
++there would need a junction or a copy written into the install. Adding the
++directory ourselves writes nothing to disk and goes away with the next
++rescan.
++
++The pack's overlay/ is rooted at the game ROOT (it holds <gamedir>/... and
++platform/...), so the directory that lands on the search path is
++overlay/<gamedir>/. platform/ is deliberately not mounted: the only files in
++it are the Steam icons, and the platform directory is not this game's.
++====================
++*/
++void CoF_Lang_Remount( void )
++{
++	char buf[MAX_QPATH * 2];
++	search_t *t;
++
++	if( !cof_lang.active )
++		return;
++
++	Q_snprintf( buf, sizeof( buf ), "%s/overlay/%s/*", cof_lang.dir, FS_Gamedir());
++	t = FS_Search( buf, true, true );
++
++	if( !t )
++	{
++		Con_DPrintf( "[cof-lang] %s has no overlay/%s folder\n", cof_lang.code, FS_Gamedir());
++		return;
++	}
++
++	Mem_Free( t );
++
++	Q_snprintf( buf, sizeof( buf ), "%s/%s/overlay/%s/", FS_Gamedir(), cof_lang.dir, FS_Gamedir());
++
++	g_fsapi.AddGameDirectory( buf, FS_GAMEDIR_PATH | FS_NOWRITE_PATH | FS_CUSTOM_PATH );
++	CoF_Lang_Note( "[cof-lang] mounted %s at the top of the search path\n", buf );
++}
++
++/*
++====================
++CoF_Lang_Apply
++====================
++*/
++static void CoF_Lang_Apply( void )
++{
++	const char *code = cof_language.string;
++	char display[64], authors[256];
++	int codepage = 1252;
++	qboolean ok = false;
++
++	if( !cof_lang.initialized )
++		return;
++
++	if( !COM_StringEmpty( code ))
++	{
++		if( Q_strchr( code, '/' ) || Q_strchr( code, '\\' ) || Q_strchr( code, '.' ) || Q_strchr( code, ':' ) || Q_strlen( code ) >= 60 )
++			CoF_Lang_Note( S_ERROR "cof_language: \"%s\" is not a plain folder name\n", code );
++		else if( !CoF_Lang_ParseManifest( code, display, sizeof( display ), authors, sizeof( authors ), &codepage ))
++			CoF_Lang_Note( S_ERROR "cof_language: no pack at %s/languages/%s/manifest.txt, staying in English\n", FS_Gamedir(), code );
++		else ok = true;
++
++		if( !ok )
++		{
++			// clear the cvar so the frame check does not retry every frame
++			Cvar_DirectSet( &cof_language, "" );
++			code = cof_language.string;
++		}
++	}
++
++#if XASH_WIN32
++	AcquireSRWLockExclusive( &cof_lang.lock );
++#endif
++
++	cof_lang.active = ok;
++	Q_strncpy( cof_lang.code, ok ? code : "", sizeof( cof_lang.code ));
++
++	if( ok )
++	{
++		Q_snprintf( cof_lang.dir, sizeof( cof_lang.dir ), "languages/%s", code );
++		Q_strncpy( cof_lang.display, display, sizeof( cof_lang.display ));
++		Q_strncpy( cof_lang.authors, authors, sizeof( cof_lang.authors ));
++		cof_lang.codepage = codepage;
++	}
++	else
++	{
++		cof_lang.dir[0] = cof_lang.display[0] = cof_lang.authors[0] = '\0';
++		cof_lang.codepage = 1252;
++	}
++
++#if XASH_WIN32
++	{
++		const char *g = FS_Gamedir();
++		int i;
++
++		for( i = 0; cof_lang.code[i] && i < ARRAYSIZE( cof_lang.wcode ) - 1; i++ )
++			cof_lang.wcode[i] = (wchar_t)(byte)cof_lang.code[i];
++		cof_lang.wcode[i] = L'\0';
++
++		for( i = 0; g[i] && i < ARRAYSIZE( cof_lang.wgame ) - 1; i++ )
++			cof_lang.wgame[i] = (wchar_t)(byte)g[i];
++		cof_lang.wgame[i] = L'\0';
++	}
++
++	ReleaseSRWLockExclusive( &cof_lang.lock );
++#endif
++
++	// the font layer decodes the pack's bytes with this; English is 1252
++	if( Cvar_FindVar( "cof_text_codepage" ))
++	{
++		Cvar_Set( "cof_text_codepage", va( "%i", cof_lang.codepage ));
++		cof_lang.codepage_pending = false;
++	}
++	else cof_lang.codepage_pending = true; // set from the first frame
++
++	if( cof_lang.active )
++	{
++		CoF_Lang_Note( "cof_language: %s (%s, code page %i)%s%s\n", cof_lang.code, cof_lang.display, cof_lang.codepage,
++			COM_StringEmpty( cof_lang.authors ) ? "" : ", by ", cof_lang.authors );
++	}
++	else
++	{
++		CoF_Lang_Note( "cof_language: off, English\n" );
++	}
++
++	CoF_Lang_LoadStrings();
++
++	// rebuild the search path: this both drops the previous pack's overlay
++	// and puts the new one on, and it is exactly what the stock fs_rescan
++	// command does. CoF_Lang_Remount runs at the end of it.
++	FS_Rescan_f();
++}
++
++static void CoF_Lang_Apply_f( void )
++{
++	// force a full re-read even when the code did not change, so a pack
++	// edited on disk can be picked up without a restart
++	CoF_Lang_Apply();
++}
++
++static void CoF_Lang_List_f( void )
++{
++	search_t *t = FS_Search( "languages/*", true, true );
++	int i, found = 0;
++
++	Con_Printf( "language packs under %s/languages:\n", FS_Gamedir());
++
++	for( i = 0; t && i < t->numfilenames; i++ )
++	{
++		const char *code = COM_FileWithoutPath( t->filenames[i] );
++		char display[64], authors[256];
++		int codepage;
++
++		if( !CoF_Lang_ParseManifest( code, display, sizeof( display ), authors, sizeof( authors ), &codepage ))
++			continue;
++
++		Con_Printf( "  %-12s %s, code page %i%s%s%s\n", code, display, codepage,
++			COM_StringEmpty( authors ) ? "" : ", by ", authors,
++			!Q_stricmp( code, cof_lang.code ) ? "  (active)" : "" );
++		found++;
++	}
++
++	if( !found )
++		Con_Printf( "  (none)\n" );
++
++	if( t )
++		Mem_Free( t );
++}
++
++static void CoF_Lang_Status_f( void )
++{
++	if( !cof_lang.active )
++		Con_Printf( "cof_language: off, English\n" );
++	else
++		Con_Printf( "cof_language: %s (%s), code page %i, %i strings (%i formats), %i substitutions so far\n",
++			cof_lang.code, cof_lang.display, cof_lang.codepage, cof_lang.num_entries, cof_lang.num_fmt, cof_lang.num_hits );
++
++#if XASH_WIN32
++	{
++		int i;
++
++		for( i = 0; i < COF_LANG_MAX_HOOKS; i++ )
++		{
++			if( cof_lang.hooks[i].module )
++				Con_Printf( "  hook: %s CreateFileW at %p\n", cof_lang.hooks[i].tag, (void *)cof_lang.hooks[i].slot );
++		}
++
++		Con_Printf( "  redirected opens: %li (off the main thread: %li), pack-class opens left in English: %li\n",
++			cof_lang.redirects, cof_lang.offthread, cof_lang.passthrough );
++	}
++#endif
++}
++
++void CoF_Lang_Frame( void )
++{
++	if( !cof_lang.initialized )
++		return;
++
++	if( Q_strcmp( cof_lang.code, cof_language.string ))
++		CoF_Lang_Apply();
++
++	// the pack was applied before the client registered cof_text_codepage
++	// (CoF_Lang_EarlyApply), or config.cfg has since put an old value back
++	if( cof_lang.codepage_pending && Cvar_FindVar( "cof_text_codepage" ))
++	{
++		Cvar_Set( "cof_text_codepage", va( "%i", cof_lang.codepage ));
++		cof_lang.codepage_pending = false;
++	}
++}
++
++/*
++====================
++CoF_Lang_EarlyValue
++
++cof_language as the command line or config.cfg will set it, read before
++either has been executed: "+cof_language <code>" or "+set cof_language
++<code>" on the command line win over a cof_language line in config.cfg.
++====================
++*/
++static qboolean CoF_Lang_EarlyValue( char *out, size_t size )
++{
++	byte *raw;
++	char *p;
++	qboolean found = false;
++	int i;
++
++	for( i = 1; i < host.argc; i++ )
++	{
++		if( !Q_stricmp( host.argv[i], "+cof_language" ) && i + 1 < host.argc )
++		{
++			Q_strncpy( out, host.argv[i + 1], size );
++			found = true;
++		}
++		else if( !Q_stricmp( host.argv[i], "+set" ) && i + 2 < host.argc && !Q_stricmp( host.argv[i + 1], "cof_language" ))
++		{
++			Q_strncpy( out, host.argv[i + 2], size );
++			found = true;
++		}
++	}
++
++	if( found )
++	{
++		// "+set cof_language """ arrives as a literal pair of quotes
++		if( !Q_strcmp( out, "\"\"" ))
++			out[0] = '\0';
++		return true;
++	}
++
++	raw = FS_LoadFile( "config.cfg", NULL, true );
++	if( !raw )
++		return false;
++
++	for( p = (char *)raw; p && *p; )
++	{
++		char line[256], token[MAX_TOKEN];
++		char *end = Q_strchr( p, '\n' );
++		size_t len = end ? (size_t)( end - p ) : Q_strlen( p );
++		char *lp;
++
++		Q_strncpy( line, p, Q_min( len + 1, sizeof( line )));
++		p = end ? end + 1 : NULL;
++
++		lp = COM_ParseFile( line, token, sizeof( token ));
++		if( !lp || Q_stricmp( token, "cof_language" ))
++			continue;
++
++		token[0] = '\0';
++		COM_ParseFile( lp, token, sizeof( token ));
++		Q_strncpy( out, token, size );
++		found = true; // the last one wins, as it would when exec'd
++	}
++
++	Mem_Free( raw );
++	return found;
++}
++
++/*
++====================
++CoF_Lang_EarlyApply
++
++Called from Host_Main after the game directory is mounted and BEFORE the
++server and client libraries are loaded. The client builds its fonts, VGUI
++panels and art from HUD_Init / the first VidInit, before config.cfg is exec'd
++or the first frame runs; a pack applied only at the first frame would be too
++late for all of that and for anything else the game caches at init.
++====================
++*/
++void CoF_Lang_EarlyApply( void )
++{
++	char value[64];
++
++	if( !cof_lang.initialized || !CoF_Lang_EarlyValue( value, sizeof( value )))
++		return;
++
++	if( COM_StringEmpty( value ))
++		return; // English: nothing to do, and nothing to rescan
++
++	Cvar_DirectSet( &cof_language, value );
++	CoF_Lang_Apply();
++}
++
++void CoF_Lang_Init( void )
++{
++	if( cof_lang.initialized )
++		return;
++
++#if XASH_WIN32
++	InitializeSRWLock( &cof_lang.lock );
++	cof_lang.main_thread = GetCurrentThreadId( );
++#endif
++
++	Cvar_RegisterVariable( &cof_language );
++	Cvar_RegisterVariable( &cof_language_strings );
++	Cvar_RegisterVariable( &cof_language_files );
++	Cvar_RegisterVariable( &cof_language_trace );
++
++	Cmd_AddRestrictedCommand( "cof_language_apply", CoF_Lang_Apply_f, "re-read and re-mount the active Cry of Fear language pack" );
++	Cmd_AddCommand( "cof_language_list", CoF_Lang_List_f, "list the language packs found under <gamedir>/languages" );
++	Cmd_AddCommand( "cof_language_status", CoF_Lang_Status_f, "show the active language pack, its hooks and its counters" );
++
++	cof_lang.initialized = true;
++}
+diff --git a/engine/common/cof_language.h b/engine/common/cof_language.h
+new file mode 100644
+index 0000000..7aca685
+--- /dev/null
++++ b/engine/common/cof_language.h
+@@ -0,0 +1,94 @@
++/*
++cof_language.h - Cry of Fear native language packs (cof_language)
++
++This program is free software: you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation, either version 3 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++*/
++#ifndef COF_LANGUAGE_H
++#define COF_LANGUAGE_H
++
++// CL_DrawString / CL_DrawStringLen flag: the text comes from the client DLL
++// (pfnDrawConsoleString, pfnDrawString, ...) and may be substituted from the
++// active pack's table. Engine-owned text (console, notify, net graph) never
++// carries it, so a console line that happens to match a table entry is left
++// alone. Far above the stock FONT_DRAW_* bits in client.h (0..6).
++#define FONT_DRAW_COF_LANG BIT( 15 )
++
++// registered from FS_Init, so the cvar exists before any config is exec'd
++void CoF_Lang_Init( void );
++
++// called from Host_Main before the game libraries are loaded: applies the
++// pack cof_language will name once the command line and config.cfg run, so
++// text the client reads at init already comes from the pack
++void CoF_Lang_EarlyApply( void );
++
++// checked once per Host_Frame: applies the pack when cof_language changed
++void CoF_Lang_Frame( void );
++
++// (re-)mount the active pack's engine-loaded assets. Called at the end of
++// FS_Rescan_f, because a rescan rebuilds the whole search path from gameinfo
++// and would otherwise drop us.
++void CoF_Lang_Remount( void );
++
++// is a pack active, and which
++qboolean CoF_Lang_Active( void );
++const char *CoF_Lang_Code( void );
++
++// patch the KERNEL32!CreateFileW import of a just-loaded game DLL (client or
++// server), in memory. Safe with a NULL handle and on non-Windows builds; the
++// shim is installed unconditionally and passes everything through until a
++// pack is active.
++void CoF_Lang_HookModule( void *hInstance, const char *name );
++
++// put a hooked module's original import back; called from COM_FreeLibrary
++// with the raw module handle of every library just before it is unloaded
++void CoF_Lang_UnhookModule( void *module );
++
++// the game DLLs' own txtfiles/, notes/ and inventoryitems/ reads through the
++// engine filesystem (COM_LoadFileForMe): the pack's file for a gamedir-relative
++// name, when the pack has one
++qboolean CoF_Lang_GameFile( const char *name, char *out, size_t size );
++
++// "maps/c_subway.ent" -> "languages/polish/maps/c_subway.ent" when the pack
++// carries that override. Returns false and leaves `out` alone otherwise.
++qboolean CoF_Lang_EntPatch( const char *entfilename, char *out, size_t size );
++
++// maps/<map>.entpatch of the active pack (only when the pack has no
++// maps/<map>.ent of its own) applied to `entdata`, the entity string the map
++// would load otherwise. Returns a Mem_Malloc'd (host.mempool), NUL-terminated
++// string and its length, or NULL when there is nothing to apply or the patch
++// cannot be used (logged). See cof_entpatch.c for the format.
++char *CoF_Lang_ApplyEntityPatch( const char *entfilename, const char *entdata, size_t entdatasize, size_t *outsize );
++
++// a studio model just read into memory (`data`: the engine's own copy of the
++// .mdl, or its T.mdl, `size` bytes): every embedded texture the active pack
++// repaints (models/<model path without .mdl>/<texture name>, an 8-bit BMP of
++// the same size) gets the pack's pixels and palette before the renderer
++// uploads it. See cof_language.c.
++void CoF_Lang_StudioTextures( const char *modelname, void *data, size_t size );
++
++// "c2_bussback" -> "languages/polish/textures/c2_bussback.tga" when the pack
++// carries that sign override.
++qboolean CoF_Lang_TextureReplacement( char *out, size_t size, const char *texname, const char *type );
++
++// draw-time substitution of the strings compiled into client.dll / hl.dll.
++// Returns `str` itself when there is nothing to substitute, so the result is
++// always safe to draw. A rebuilt (formatted) result lives in a small ring of
++// static buffers: copy it before the fourth next call.
++//
++// CoF_Lang_String gives the pack's code-page bytes, for the VGUI text path,
++// whose Inter font layer decodes them with cof_text_codepage.
++// CoF_Lang_StringEngineFont gives the engine's own bitmap fonts a variant
++// they can draw: UTF-8 (utf8) or code-page bytes, with letters those sheets
++// have no cell for folded to their base letter.
++const char *CoF_Lang_String( const char *str );
++const char *CoF_Lang_StringEngineFont( const char *str, qboolean utf8 );
++
++#endif // COF_LANGUAGE_H
+diff --git a/engine/common/common.c b/engine/common/common.c
+index 50ebab6..2924d42 100644
+--- a/engine/common/common.c
++++ b/engine/common/common.c
+@@ -22,6 +22,7 @@ GNU General Public License for more details.
+ #include "const.h"
+ #include "client.h"
+ #include "library.h"
++#include "cof_language.h"
+ 
+ static const char *const file_exts[] =
+ {
+@@ -619,6 +620,15 @@ byte *GAME_EXPORT COM_LoadFileForMe( const char *filename, int *pLength )
+ 	Q_strncpy( name, filename, sizeof( name ));
+ 	COM_FixSlashes( name );
+ 
++	// Cry of Fear language packs: the game DLLs load part of their own text
++	// (hints.txt, inventoryitems/) through here rather than with the CRT
++	{
++		char packname[MAX_SYSPATH];
++
++		if( CoF_Lang_GameFile( name, packname, sizeof( packname )))
++			Q_strncpy( name, packname, sizeof( name ));
++	}
++
+ 	fs_offset_t iLength;
+ 	byte *pfile = g_fsapi.LoadFileMalloc( name, &iLength, false );
+ 	if( pLength ) *pLength = (int)iLength;
+diff --git a/engine/common/filesystem_engine.c b/engine/common/filesystem_engine.c
+index 9ed62eb..43e220f 100644
+--- a/engine/common/filesystem_engine.c
++++ b/engine/common/filesystem_engine.c
+@@ -26,6 +26,7 @@ GNU General Public License for more details.
+ #include "common.h"
+ #include "library.h"
+ #include "platform/platform.h"
++#include "cof_language.h"
+ 
+ #if XASH_WIN32
+ #include <direct.h>
+@@ -99,6 +100,11 @@ static uint32_t FS_MountFlags( void )
+ void FS_Rescan_f( void )
+ {
+ 	g_fsapi.Rescan( FS_MountFlags(), ui_language.string );
++
++	// Cry of Fear language packs: a rescan rebuilds the whole search path from
++	// gameinfo, so the active pack's overlay has to go back on top of it. This
++	// is also how a pack is mounted in the first place - see cof_language.c.
++	CoF_Lang_Remount();
+ }
+ 
+ static void FS_LoadVFSConfig( const char *gamedir )
+@@ -403,6 +409,12 @@ void FS_Init( void )
+ 	Cvar_RegisterVariable( &fs_mount_l10n );
+ 	Cvar_RegisterVariable( &ui_language );
+ 
++	// Cry of Fear language packs. Registered here so cof_language exists
++	// before any config is exec'd; the pack itself is applied from Host_Main
++	// just before the game libraries load (CoF_Lang_EarlyApply) and again
++	// from Host_Frame whenever cof_language changes.
++	CoF_Lang_Init();
++
+ 	if( !Sys_GetParmFromCmdLine( "-dll", host.gamedll ))
+ 		host.gamedll[0] = 0;
+ 
+diff --git a/engine/common/host.c b/engine/common/host.c
+index beb96cd..e363568 100644
+--- a/engine/common/host.c
++++ b/engine/common/host.c
+@@ -37,6 +37,7 @@ GNU General Public License for more details.
+ #include "render_api.h"	// decallist_t
+ #include "tests.h"
+ #include "library.h"
++#include "cof_language.h"
+ #include "platform/platform.h"
+ 
+ host_parm_t host;	// host parms
+@@ -665,6 +666,7 @@ void Host_Frame( double time )
+ 	if( host.framecount == 0 )
+ 		Con_DPrintf( "Time to first frame: %.3f seconds\n", t1 - host.starttime );
+ 
++	CoF_Lang_Frame ();   // Cry of Fear language pack, applied when cof_language changes
+ 	Host_InputFrame ();  // input frame
+ 	Host_ClientBegin (); // begin client
+ 	Host_GetCommands (); // dedicated in
+@@ -1238,6 +1240,10 @@ int EXPORT Host_Main( int argc, char **argv, const char *progname, int bChangeGa
+ 		Cvar_Get( "host_allow_changegame", "0", FCVAR_READ_ONLY, "allows to change games" );
+ 	}
+ 
++	// Cry of Fear language packs: before the game libraries load, so what the
++	// client reads at init already comes from the pack
++	CoF_Lang_EarlyApply();
++
+ 	SV_Init();
+ 	CL_Init();
+ 
+diff --git a/engine/common/mod_bmodel.c b/engine/common/mod_bmodel.c
+index aebf063..395aa9b 100644
+--- a/engine/common/mod_bmodel.c
++++ b/engine/common/mod_bmodel.c
+@@ -25,6 +25,7 @@ GNU General Public License for more details.
+ #include "server.h"			// LUMP_ error codes
+ #include "swaplib.h"
+ #include "ref_common.h"
++#include "cof_language.h"
+ #if defined( HAVE_OPENMP )
+ #include <omp.h>
+ #endif // HAVE_OPENMP
+@@ -2318,9 +2319,28 @@ static void Mod_LoadEntities( model_t *mod, const dbspmodel_t *bmod )
+ 		Q_strncpy( entfilename, mod->name, sizeof( entfilename ));
+ 		COM_ReplaceExtension( entfilename, ".ent", sizeof( entfilename ));
+ 
++		// Cry of Fear language packs: the pack carries the translated entity
++		// strings as its own maps/<map>.ent, at a path of its own rather than
++		// beside the .bsp. It wins over a gamedir patch of the same name, and
++		// the "newer than the bsp" rule is skipped for it - the pack is data
++		// we install, not something a mapper left lying about, and a file copy
++		// that did not preserve timestamps would otherwise silently disable
++		// the whole translation.
++		char packent[MAX_QPATH];
++
++		if( CoF_Lang_EntPatch( entfilename, packent, sizeof( packent )))
++		{
++			if(( entpatch = FS_LoadFile( packent, &entpatchsize, true )) != NULL )
++			{
++				Con_Printf( "^2Read entity patch:^7 %s\n", packent );
++				entdatasize = entpatchsize;
++				entdata = entpatch;
++			}
++		}
++
+ 		// make sure that entity patch is never than bsp
+ 		int ft1 = FS_FileTime( mod->name, false );
+-		int ft2 = FS_FileTime( entfilename, true );
++		int ft2 = entpatch ? -1 : FS_FileTime( entfilename, true );
+ 
+ 		if( ft2 != -1 )
+ 		{
+@@ -2335,6 +2355,21 @@ static void Mod_LoadEntities( model_t *mod, const dbspmodel_t *bmod )
+ 				entdata = entpatch;
+ 			}
+ 		}
++
++		// Cry of Fear language packs: a pack without its own maps/<map>.ent
++		// may carry maps/<map>.entpatch instead - only the translated
++		// key/value pairs - which is applied to whatever entity string the
++		// map loads now (the BSP lump or a gamedir .ent). See cof_entpatch.c.
++		size_t patchedsize;
++		byte *patched = (byte *)CoF_Lang_ApplyEntityPatch( entfilename, entdata, entdatasize, &patchedsize );
++
++		if( patched )
++		{
++			Mem_Free( entpatch );
++			entpatch = patched;
++			entdata = (char *)patched;
++			entdatasize = patchedsize;
++		}
+ 	}
+ 
+ 	// make sure that we really have null terminator
+@@ -2613,6 +2648,18 @@ static qboolean Mod_SearchForTextureReplacement( char *out, size_t size, const c
+ {
+ 	const char *subdirs[] = { modelname, "common" };
+ 
++	// Cry of Fear language packs: the pack's repainted signs and posters are
++	// a language override, not an "HD materials" opt-in, so they come first
++	// and do not need host_allow_materials. Every repainted miptex of a given
++	// name is byte-identical across the maps that use it (see the pack's
++	// README), so the pack keeps one file per texture name rather than a
++	// per-map materials/maps/<map>.bsp/ tree.
++	if( CoF_Lang_TextureReplacement( out, size, texname, type ))
++		return true;
++
++	if( !Mod_AllowMaterials( ))
++		return false;
++
+ 	for( int i = 0; i < ARRAYSIZE( subdirs ); i++ )
+ 	{
+ 		if( Q_snprintf( out, size, "materials/%s/%s%s.tga", subdirs[i], texname, type ) < 0 )
+@@ -2825,7 +2872,9 @@ static void Mod_LoadTextureData( model_t *mod, dbspmodel_t *bmod, int textureInd
+ 	if( safemtname[0] == '*' )
+ 		safemtname[0] = '!'; // replace unexpected symbol
+ 
+-	if( Mod_AllowMaterials( ))
++	// the language-pack probe inside Mod_SearchForTextureReplacement runs
++	// whether or not materials are allowed, so the gate has to let it through
++	if( Mod_AllowMaterials( ) || CoF_Lang_Active( ))
+ 	{
+ #if !XASH_DEDICATED
+ 		if( Mod_SearchForTextureReplacement( texpath, sizeof( texpath ), mod->name, safemtname, "" ))
+diff --git a/engine/common/mod_studio.c b/engine/common/mod_studio.c
+index 3dd78bd..b1faf58 100644
+--- a/engine/common/mod_studio.c
++++ b/engine/common/mod_studio.c
+@@ -15,6 +15,7 @@ GNU General Public License for more details.
+ 
+ #include "common.h"
+ #include "server.h"
++#include "cof_language.h"
+ #include "studio.h"
+ #include "r_studioint.h"
+ #include "library.h"
+@@ -1154,6 +1155,9 @@ void Mod_LoadStudioModel( model_t *mod, void *buffer, size_t buffersize, qboolea
+ 			byte *in, *out;
+ 			size_t size1, size2;
+ 
++			// Cry of Fear language packs: repainted textures, see below
++			CoF_Lang_StudioTextures( mod->name, thdr, size2_len );
++
+ 			// TODO: Mod_StudioLoadTextures will crash if passed a merged studio model!
+ 			ref.dllFuncs.Mod_StudioLoadTextures( mod, thdr );
+ 			textures_loaded = true;
+@@ -1189,6 +1193,12 @@ void Mod_LoadStudioModel( model_t *mod, void *buffer, size_t buffersize, qboolea
+ 		memcpy( mod->cache.data, buffer, phdr->length );
+ 		phdr = mod->cache.data;
+ 
++		// Cry of Fear language packs: the pack's repainted embedded textures
++		// (signs, newspapers, phone screens), written into this private copy
++		// before the renderer uploads them; `buffer` itself stays as read
++		// because it is what the model CRC is computed from
++		CoF_Lang_StudioTextures( mod->name, phdr, phdr->length );
++
+ #if !XASH_DEDICATED
+ 		if( !Host_IsDedicated( ))
+ 			ref.dllFuncs.Mod_StudioLoadTextures( mod, phdr );
+diff --git a/engine/platform/win32/lib_win.c b/engine/platform/win32/lib_win.c
+index b26af7a..fd4514f 100644
+--- a/engine/platform/win32/lib_win.c
++++ b/engine/platform/win32/lib_win.c
+@@ -18,6 +18,7 @@ GNU General Public License for more details.
+ #if XASH_LIB == LIB_WIN32
+ #include "lib_win.h"
+ #include "utflib.h"
++#include "cof_language.h"
+ 
+ static const wchar_t *FS_PathToWideChar( const char *path )
+ {
+@@ -507,6 +508,9 @@ void COM_FreeLibrary( void *hInstance )
+ 	else
+ #endif
+ 	{
++		// Cry of Fear language packs: a game DLL whose CreateFileW import was
++		// patched at load gets its original import back before it goes
++		CoF_Lang_UnhookModule( hInst->hInstance );
+ 		FreeLibrary( hInst->hInstance );
+ 	}
+ 
+diff --git a/engine/server/sv_game.c b/engine/server/sv_game.c
+index 281f246..a8292d8 100644
+--- a/engine/server/sv_game.c
++++ b/engine/server/sv_game.c
+@@ -23,6 +23,7 @@ GNU General Public License for more details.
+ #include "const.h"
+ #include "render_api.h"	// modelstate_t
+ #include "ref_common.h" // decals
++#include "cof_language.h"
+ 
+ // GameAPI functions declarations
+ static int GAME_EXPORT pfnModelIndex( const char *m );
+@@ -860,9 +861,18 @@ static char *SV_ReadEntityScript( const char *filename, int *flags )
+ 	// check for entfile too
+ 	Q_snprintf( entfilename, sizeof( entfilename ), "maps/%s.ent", filename );
+ 
++	// Cry of Fear language packs: the pack's own maps/<map>.ent wins, and is
++	// not subject to the "newer than the bsp" rule. See Mod_LoadEntities.
++	{
++		char packent[MAX_QPATH];
++
++		if( CoF_Lang_EntPatch( entfilename, packent, sizeof( packent )))
++			ents = (char *)FS_LoadFile( packent, NULL, true );
++	}
++
+ 	// make sure what entity patch is newer than bsp
+ 	ft1 = FS_FileTime( bspfilename, false );
+-	ft2 = FS_FileTime( entfilename, true );
++	ft2 = ents ? -1 : FS_FileTime( entfilename, true );
+ 
+ 	if( ft2 != -1 && ft1 < ft2 )
+ 	{
+@@ -880,6 +890,20 @@ static char *SV_ReadEntityScript( const char *filename, int *flags )
+ 	}
+ 	FS_Close( f ); // all done
+ 
++	// Cry of Fear language packs: the same entity patch Mod_LoadEntities
++	// applies, so the map validity check sees the entities the map spawns
++	if( ents )
++	{
++		size_t patchedsize;
++		char *patched = CoF_Lang_ApplyEntityPatch( entfilename, ents, Q_strlen( ents ), &patchedsize );
++
++		if( patched )
++		{
++			Mem_Free( ents );
++			ents = patched;
++		}
++	}
++
+ 	return ents;
+ }
+ 
+@@ -5234,6 +5258,13 @@ qboolean SV_LoadProgs( const char *name )
+ 		return false;
+ 	}
+ 
++	// Cry of Fear language packs: patch the server DLL's single
++	// KERNEL32!CreateFileW import so its txtfiles/ and notes/ reads can be
++	// redirected into the active pack. Installed unconditionally and inert
++	// until a pack is active, because the library is loaded long before
++	// cof_language is known. See engine/common/cof_language.c.
++	CoF_Lang_HookModule( svgame.hInstance, name );
++
+ 	// make sure what new dll functions is cleared
+ 	memset( &svgame.dllFuncs2, 0, sizeof( svgame.dllFuncs2 ));
+ 
+diff --git a/engine/vgui_api.h b/engine/vgui_api.h
+index a06d055..3c3318b 100644
+--- a/engine/vgui_api.h
++++ b/engine/vgui_api.h
+@@ -280,5 +280,14 @@ typedef struct  vguiapi_s
+ 	// log never sees, so the one line cof_hud_text_trace wants needs its own
+ 	// way out.
+ 	void	(*CofPrint)( const char *text );
++
++	// Cry of Fear language packs (cof_language). The captions compiled
++	// into client.dll have no file slot at all, so they are swapped at
++	// draw time from the active pack's table. TextImage::setText is the
++	// chokepoint: it runs before measurement and wrapping, so the layout
++	// is computed from the text that is actually drawn. Returns the
++	// argument unchanged when no pack is active or nothing matches, so
++	// the result is always safe to use. Valid until the next call.
++	const char *(*CofLangString)( const char *str );
+ } vguiapi_t;
+ #endif // VGUI_API_H

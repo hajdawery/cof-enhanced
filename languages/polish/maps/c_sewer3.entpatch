@@ -1,0 +1,155 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_sewer3: 1102 entities in the BSP entity lump; 26 value(s) in 19 entities; values are cp1250 bytes
+{
+"@entity" "104"
+"@classname" "inter_door"
+"@targetname" "doorsewlcks2"
+"@model" "*17"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "140"
+"@classname" "inter_door"
+"@targetname" "lockadehehea"
+"@model" "*27"
+"@crc:lockedmsg" "0334f1b8"
+"lockedmsg" "Najpierw potrzebujê klucza!"
+}
+{
+"@entity" "143"
+"@classname" "inter_door"
+"@model" "*30"
+"@crc:lockedmsg" "c001aa1e"
+"lockedmsg" "Zamkn¹³ drzwi."
+}
+{
+"@entity" "208"
+"@classname" "inter_door"
+"@targetname" "lockadeheheab"
+"@model" "*37"
+"@crc:lockedmsg" "0334f1b8"
+"lockedmsg" "Najpierw potrzebujê klucza!"
+}
+{
+"@entity" "246"
+"@classname" "trigger_checkbrush"
+"@model" "*44"
+"@crc:message" "4318847c"
+"message" "Muszê znaleŸæ inn¹ drogê."
+}
+{
+"@entity" "281"
+"@classname" "inter_door"
+"@model" "*57"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "365"
+"@classname" "inter_door"
+"@model" "*68"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "368"
+"@classname" "inter_door"
+"@model" "*70"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "430"
+"@classname" "trigger_checkbrush"
+"@model" "*95"
+"@crc:message" "8943e233"
+"message" "''Co o tym myœlisz?''"
+}
+{
+"@entity" "439"
+"@classname" "trigger_checkbrush"
+"@model" "*99"
+"@crc:message" "adf1af18"
+"message" "''Chcê tylko, ¿ebyœ zdech³... Po prostu... ZDECH£.''"
+}
+{
+"@entity" "445"
+"@classname" "inter_door"
+"@targetname" "door45"
+"@model" "*101"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "cc5d9492"
+"lockedmsg" "Drzwi same siê zamknê³y. Lepiej ju¿ pójdê."
+}
+{
+"@entity" "446"
+"@classname" "inter_door"
+"@model" "*102"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "471"
+"@classname" "inter_door"
+"@targetname" "doorsewlcks1"
+"@model" "*120"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "484"
+"@classname" "trigger_checkbrush"
+"@model" "*122"
+"@crc:message" "5844b2c5"
+"message" "''Nigdy tego nie chcia³em.''"
+}
+{
+"@entity" "854"
+"@classname" "trigger_checkbrush"
+"@model" "*146"
+"@crc:message" "97699413"
+"message" "''Podoba ci siê to?''"
+}
+{
+"@entity" "858"
+"@classname" "trigger_checkbrush"
+"@model" "*148"
+"@crc:message" "9adb8416"
+"message" "''Nic nie wiesz.''"
+}
+{
+"@entity" "862"
+"@classname" "trigger_checkbrush"
+"@model" "*150"
+"@crc:message" "39b53d0e"
+"message" "''Gdybyœ tylko móg³ to zrozumieæ.''"
+}
+{
+"@entity" "876"
+"@classname" "func_button"
+"@model" "*156"
+"@crc:lockedmsg" "7cb9a6e1"
+"lockedmsg" "Bêdê potrzebowa³ czegoœ ostrego, ¿eby wyj¹æ ten klucz."
+}
+{
+"@entity" "1063"
+"@classname" "cof_chapter"
+"@targetname" "chapterheh"
+"@origin" "-3313 199 -48"
+"@crc:message" "5937ca26"
+"message" "Rozdzia³ 3 - Miasto nie jest bezpieczne"
+}

@@ -1,0 +1,37 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_doc_basement: 544 entities in the BSP entity lump; 5 value(s) in 5 entities; values are cp1250 bytes
+{
+"@entity" "5"
+"@classname" "trigger_checkbrush"
+"@model" "*2"
+"@crc:message" "7931ecda"
+"message" "Winda siê zaciê³a."
+}
+{
+"@entity" "228"
+"@classname" "inter_door"
+"@model" "*61"
+"@crc:lockedmsg" "80ecd5e2"
+"lockedmsg" "Drzwi s¹ zamkniête. Obok znajduje siê klawiatura."
+}
+{
+"@entity" "283"
+"@classname" "trigger_checkbrush"
+"@model" "*79"
+"@crc:message" "9e8d7025"
+"message" "Schody siê zawali³y. Nie mogê wejœæ na górê."
+}
+{
+"@entity" "440"
+"@classname" "trigger_checkbrush"
+"@model" "*107"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "443"
+"@classname" "trigger_checkbrush"
+"@model" "*108"
+"@crc:message" "b786aa96"
+"message" "Jest zbyt ciemno i niebezpiecznie, by siê tam wspinaæ."
+}

@@ -1,0 +1,108 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_cof_stad: 450 entities in the BSP entity lump; 15 value(s) in 15 entities; values are cp1250 bytes
+{
+"@entity" "1"
+"@classname" "inter_door"
+"@model" "*1"
+"@crc:lockedmsg" "fbc3571b"
+"lockedmsg" "Nie musimy wracaæ."
+}
+{
+"@entity" "3"
+"@classname" "inter_door"
+"@model" "*2"
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "79"
+"@classname" "inter_door"
+"@model" "*5"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "192"
+"@classname" "cof_billboard"
+"@targetname" "tavlaparkbus"
+"@origin" "-1969 -591 -39"
+"@crc:text" "de714f66"
+"text" "Musimy udaæ siê na Union Street"
+}
+{
+"@entity" "336"
+"@classname" "trigger_checkbrush"
+"@model" "*17"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "337"
+"@classname" "trigger_checkbrush"
+"@model" "*18"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "338"
+"@classname" "trigger_checkbrush"
+"@model" "*19"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "339"
+"@classname" "trigger_checkbrush"
+"@model" "*20"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "340"
+"@classname" "trigger_checkbrush"
+"@model" "*21"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "341"
+"@classname" "trigger_checkbrush"
+"@model" "*22"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "342"
+"@classname" "trigger_checkbrush"
+"@model" "*23"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "343"
+"@classname" "trigger_checkbrush"
+"@model" "*24"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "344"
+"@classname" "trigger_checkbrush"
+"@model" "*25"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "345"
+"@classname" "trigger_checkbrush"
+"@model" "*26"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "346"
+"@classname" "trigger_checkbrush"
+"@model" "*27"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}

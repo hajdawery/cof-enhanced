@@ -1,0 +1,231 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_buscity: 650 entities in the BSP entity lump; 34 value(s) in 32 entities; values are cp1250 bytes
+{
+"@entity" "73"
+"@classname" "trigger_checkbrush"
+"@model" "*10"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "89"
+"@classname" "inter_door"
+"@model" "*15"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "129"
+"@classname" "inter_door"
+"@model" "*22"
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "136"
+"@classname" "inter_door"
+"@model" "*23"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "151"
+"@classname" "inter_door"
+"@model" "*26"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "160"
+"@classname" "inter_door"
+"@model" "*29"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "291"
+"@classname" "inter_door"
+"@model" "*43"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "292"
+"@classname" "inter_door"
+"@model" "*44"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "293"
+"@classname" "inter_door"
+"@model" "*45"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "294"
+"@classname" "inter_door"
+"@model" "*46"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "295"
+"@classname" "inter_door"
+"@model" "*47"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "296"
+"@classname" "inter_door"
+"@model" "*48"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "297"
+"@classname" "inter_door"
+"@model" "*49"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "298"
+"@classname" "inter_door"
+"@model" "*50"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "299"
+"@classname" "inter_door"
+"@model" "*51"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "300"
+"@classname" "inter_door"
+"@model" "*52"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "301"
+"@classname" "inter_door"
+"@model" "*53"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "302"
+"@classname" "inter_door"
+"@model" "*54"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "303"
+"@classname" "inter_door"
+"@model" "*55"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "304"
+"@classname" "inter_door"
+"@model" "*56"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "305"
+"@classname" "inter_door"
+"@model" "*57"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "306"
+"@classname" "inter_door"
+"@model" "*58"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "327"
+"@classname" "inter_door"
+"@model" "*61"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "333"
+"@classname" "inter_door"
+"@model" "*62"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "348"
+"@classname" "inter_door"
+"@model" "*63"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "349"
+"@classname" "inter_door"
+"@model" "*64"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "350"
+"@classname" "inter_door"
+"@model" "*65"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "351"
+"@classname" "inter_door"
+"@model" "*66"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "352"
+"@classname" "inter_door"
+"@model" "*67"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "353"
+"@classname" "inter_door"
+"@model" "*68"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "354"
+"@classname" "inter_door"
+"@model" "*69"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "601"
+"@classname" "cof_billboard"
+"@targetname" "tavlaparkbus"
+"@origin" "-1268 -113 240"
+"@crc:text" "56aca734"
+"text" "Jak mam wróciæ, ¿eby wzi¹æ bezpiecznik? Potrzebujê jeszcze jednego..."
+}

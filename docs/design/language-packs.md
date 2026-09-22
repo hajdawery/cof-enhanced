@@ -35,7 +35,9 @@ What switches when:
   panels and art the client builds at init already come from the pack;
 * **immediately**, on a change in a running game: the string table, the code
   page and every text file the game opens from then on;
-* **on the next map load**: repainted world textures and entity strings;
+* **on the next map load**: repainted world textures, entity patches, and the
+  model textures of models loaded from then on (a model already in memory
+  keeps its textures until it is loaded again);
 * **after a restart**: the client's VGUI art (it loads its panels once per
   session) and anything else the game DLLs cached at init.
 
@@ -45,9 +47,11 @@ What switches when:
 cryoffear/languages/<code>/
     manifest.txt                 key=value: display_name, codepage (1250/1251/1252),
                                  subtitle_language (client slot, section 7), authors, ...
-    overlay/cryoffear/**         same-path art and models (TGA, MDL)
-    maps/<map>.ent               entity-lump overrides
+    maps/<map>.entpatch          translated entity key/values (entity patches, section 3.2)
+    maps/<map>.ent               whole entity-lump override (older packs; wins over .entpatch)
     textures/<texname>.tga       repainted world textures (signs, posters)
+    models/<model>/<tex>.bmp     repainted textures embedded in studio models (8-bit BMP)
+    overlay/cryoffear/**         same-path interface art (TGA)
     txt/txtfiles/languages/<code>/*.txt
     txt/notes/languages/<code>/*.txt
     inventoryitems/**.txt
@@ -100,12 +104,20 @@ disk; the next rescan with the pack off simply does not add it.
 `maps/<map>.ent` and `textures/<name>.tga` are not at their game-relative path
 inside the pack, so they are probed by path:
 
-* `Mod_LoadEntities` (client model load) and `SV_ReadEntityScript` (server map
-  check) load `languages/<code>/maps/<map>.ent` when it exists. It wins over a
-  game-directory `.ent` of the same name (a warning says so), and the engine's
-  "entity patch must be newer than the .bsp" rule is **not** applied to it: the
-  pack is installed data, and a copy that did not keep timestamps would
-  otherwise silently switch a whole map back to English.
+* `Mod_LoadEntities` (client model load) and `SV_ReadEntityScript` (server
+  map check) apply `languages/<code>/maps/<map>.entpatch` to the entity
+  string the map loads anyway (the BSP lump, or a newer gamedir `.ent`),
+  after the normal override logic: selected entities get the translated
+  values, every other byte stays the game's (`engine/common/cof_entpatch.c`,
+  format in [`language-pack-format.md`](language-pack-format.md)).
+  A pack that still carries a full `maps/<map>.ent` uses that instead; it
+  wins over a game-directory `.ent`, and the "newer than the .bsp" rule is
+  not applied to it.
+* `Mod_LoadStudioModel` writes `languages/<code>/models/<model path without
+  .mdl>/<texture name>` (8-bit BMP, the texture's own size) over that
+  embedded texture's pixels and palette in the engine's copy of the model,
+  before the textures are uploaded (`CoF_Lang_StudioTextures`); the model
+  file and its CRC are untouched.
 * `Mod_SearchForTextureReplacement` probes `languages/<code>/textures/<name>.tga`
   first, before `materials/` and **without** `host_allow_materials` (a language
   override is not an HD-materials opt-in; the stock `materials/` probe still
@@ -318,7 +330,9 @@ sets both:
 **Round 2 (user decision): the game's six own languages are packs.**
 `languages/dutch`, `french`, `german`, `norwegian`, `spanish`, `swedish` are
 *minimal packs*: `manifest.txt` (display name in the language, `codepage=1252`,
-`subtitle_language=` 2 ... 7) and `strings/menu-strings.tsv`, nothing else. So
+`subtitle_language=` 2 ... 7) and `strings/menu-strings.tsv`, plus (since m7)
+a `LICENSE-NOTE.md` putting them under the project's GPL-3.0-or-later, since
+they hold no game text; nothing else. So
 *Deutsch* sets `cof_language german` and slot 4: the menu is German and the
 game reads its own `txtfiles/languages/german/` files (the engine finds no
 pack file for them and lets the open through - measured: `[cof-lang] open
@@ -460,7 +474,10 @@ screenshots): the Unlockables and Load lists needed shorter texts in several
 languages (the in-game hint page titles now appear quoted on their own,
 `Pause (%s)` / `Empl. %i` and similar). Translated rows: de 426, fr 431, es
 438, nl 426, no 438, sv 437 (the rest proper nouns, formats and words the
-language shares with English).
+language shares with English). m7 added the two strings of the Game page's
+*Show console notifications* checkbox to all seven (476 rows; the extractor
+now lists 474 keys, every pack covers all of them; the two co-op strings it
+reports as unused are harmless).
 
 **Polish.** `languages/polish/strings/menu-strings.tsv`: 474 rows (432 keys
 of the tree without the co-op round + 42 of `patches/cof-mainui-coop.patch`

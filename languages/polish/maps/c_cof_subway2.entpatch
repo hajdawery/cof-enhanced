@@ -1,0 +1,71 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_cof_subway2: 374 entities in the BSP entity lump; 10 value(s) in 9 entities; values are cp1250 bytes
+{
+"@entity" "78"
+"@classname" "inter_door"
+"@model" "*17"
+"@crc:lockedmsg" "fbc3571b"
+"lockedmsg" "Nie musimy wracaæ."
+}
+{
+"@entity" "85"
+"@classname" "inter_door"
+"@targetname" "generator_room"
+"@model" "*19"
+"@crc:unlockedmsg" "b9812ea5"
+"unlockedmsg" "Drzwi s¹ otwarte."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "255"
+"@classname" "inter_door"
+"@model" "*64"
+"@crc:lockedmsg" "1167a3b6"
+"lockedmsg" "S¹ zamkniête."
+}
+{
+"@entity" "256"
+"@classname" "trigger_checkbrush"
+"@model" "*65"
+"@crc:message" "9d89bccd"
+"message" "Klawiatura ju¿ nie dzia³a."
+}
+{
+"@entity" "297"
+"@classname" "inter_door"
+"@model" "*80"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "350"
+"@classname" "inter_door"
+"@model" "*94"
+"@crc:lockedmsg" "828cc2a1"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "361"
+"@classname" "cof_simpletext"
+"@targetname" "malfunc_sub1"
+"@origin" "-324 2544 -576"
+"@crc:message" "c9ad60fb"
+"message" "KOMUNIKAT: Poci¹g do Norcastle jest opóŸniony z powodu awarii sygna³u."
+}
+{
+"@entity" "362"
+"@classname" "cof_simpletext"
+"@targetname" "malfunc_sub2"
+"@origin" "-332 2544 -576"
+"@crc:message" "5e17bcbd"
+"message" "Prosimy o odsuniêcie siê od peronu i bramek,"
+}
+{
+"@entity" "363"
+"@classname" "cof_simpletext"
+"@targetname" "malfunc_sub3"
+"@origin" "-340 2544 -576"
+"@crc:message" "37962f83"
+"message" "poniewa¿ nastêpny poci¹g nie jest przeznaczony do u¿ytku publicznego."
+}

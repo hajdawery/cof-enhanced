@@ -1,0 +1,33 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_cof_forest7: 321 entities in the BSP entity lump; 5 value(s) in 4 entities; values are cp1250 bytes
+{
+"@entity" "88"
+"@classname" "trigger_checkbrush"
+"@model" "*2"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "90"
+"@classname" "trigger_checkbrush"
+"@model" "*3"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "92"
+"@classname" "trigger_checkbrush"
+"@model" "*4"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "150"
+"@classname" "inter_door"
+"@targetname" "exitfucka"
+"@model" "*6"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "fbc3571b"
+"lockedmsg" "Nie musimy wracaæ."
+}

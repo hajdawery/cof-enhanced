@@ -4,3 +4,7 @@
 languages/**/*.ent -text
 languages/**/*.tsv -text
 languages/**/*.txt -text
+languages/**/*.entpatch -text
+# LICENSE-NOTE.md is listed (with its SHA-256) in each pack's MANIFEST.tsv, so it
+# must keep its exact bytes as well.
+languages/**/LICENSE-NOTE.md -text

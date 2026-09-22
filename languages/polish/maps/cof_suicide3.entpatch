@@ -1,0 +1,10 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map cof_suicide3: 560 entities in the BSP entity lump; 1 value(s) in 1 entities; values are cp1250 bytes
+{
+"@entity" "198"
+"@classname" "inter_door"
+"@targetname" "inter_doors"
+"@model" "*9"
+"@crc:lockedmsg" "d30a6c54"
+"lockedmsg" "W drzwiach brakuje klamki."
+}

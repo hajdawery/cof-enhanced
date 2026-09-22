@@ -1,0 +1,65 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_hamn2: 309 entities in the BSP entity lump; 9 value(s) in 9 entities; values are cp1250 bytes
+{
+"@entity" "1"
+"@classname" "inter_door"
+"@model" "*1"
+"@crc:lockedmsg" "1167a3b6"
+"lockedmsg" "S¹ zamkniête."
+}
+{
+"@entity" "3"
+"@classname" "inter_door"
+"@model" "*3"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "5"
+"@classname" "inter_door"
+"@model" "*5"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "7"
+"@classname" "inter_door"
+"@model" "*7"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "9"
+"@classname" "inter_door"
+"@model" "*9"
+"@crc:lockedmsg" "1167a3b6"
+"lockedmsg" "S¹ zamkniête."
+}
+{
+"@entity" "61"
+"@classname" "trigger_checkbrush"
+"@model" "*32"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "123"
+"@classname" "inter_door"
+"@model" "*42"
+"@crc:lockedmsg" "f5d203fa"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "124"
+"@classname" "inter_door"
+"@model" "*43"
+"@crc:lockedmsg" "f5d203fa"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "125"
+"@classname" "inter_door"
+"@model" "*44"
+"@crc:lockedmsg" "f5d203fa"
+"lockedmsg" "Drzwi ani drgn¹."
+}

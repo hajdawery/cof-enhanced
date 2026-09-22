@@ -1,0 +1,485 @@
+# Cry of Fear: Enhanced - Norwegian (Bokmål) strings of the menu (MainUI with the Cry of Fear theme).
+# MACHINE-DRAFTED FOR REVIEW: written 2026-09-22 by an AI worker of this project, not by a
+# translator; please review.
+# Format: english <TAB> translation <TAB> where the English comes from; UTF-8; \n is a new line;
+# printf conversions (%s %d %i ...) must stay, in the same order. A row whose translation
+# equals the English changes nothing (kept so the check sees it as covered).
+# List the English with scripts/polish/extract-menu-strings.ps1 -MainUI <tree>\3rdparty\mainui
+# and check this file with the same script and -Pack languages\norwegian.
+english	translation	where
+CRY OF FEAR	CRY OF FEAR	menus/Main.cpp:68;menus/Main.cpp:77
+ENHANCED	ENHANCED	menus/Main.cpp:78
+Do you wish to stop playing now?	Vil du virkelig slutte å spille?	menus/Main.cpp:207;menus/Main.cpp:369
+QUIT	AVSLUTT	menus/Main.cpp:209
+Quit	Avslutt	menus/Main.cpp:211;menus/Main.cpp:369
+QUIT TO MENU	TIL HOVEDMENYEN	menus/Main.cpp:233
+Really disconnect?	Vil du virkelig koble fra?	menus/Main.cpp:235;menus/ConnectionProgress.cpp:240
+Starting a Hazard Course will exit\nany current game, OK to exit?	Treningen avslutter\ndet pågående spillet. Fortsette?	menus/Main.cpp:242
+Console	Konsoll	menus/Main.cpp:316;menus/ConnectionProgress.cpp:223
+Show console	Vis konsollen	menus/Main.cpp:316
+Resume game	Fortsett spillet	menus/Main.cpp:326
+Return to game.	Tilbake til spillet.	menus/Main.cpp:326
+Disconnect	Koble fra	menus/Main.cpp:331;menus/ConnectionProgress.cpp:236
+Disconnect from server	Koble fra serveren	menus/Main.cpp:331
+New Game	Nytt spill	menus/Main.cpp:336
+Start a new game.	Start et nytt spill.	menus/Main.cpp:336
+Training Room	Treningsrom	menus/Main.cpp:341
+Multiplayer	Flerspiller	menus/Main.cpp:347
+Options	Innstillinger	menus/Main.cpp:352;controls/YesNoMessageBox.cpp:325
+Change game settings, configure controls	Endre spillinnstillinger og kontroller	menus/Main.cpp:352
+Change game	Bytt spill	menus/Main.cpp:359
+Select a custom game	Velg et annet spill	menus/Main.cpp:359
+Previews	Forhåndsvisninger	menus/Main.cpp:364
+Find more about Valve's product lineup	Utforsk flere spill fra Valve	menus/Main.cpp:364
+Custom Campaign	Egen kampanje	menus/Main.cpp:487;menus/CryOfFear.cpp:748
+Play one of the campaigns in cryoffear/maps	Spill en av kampanjene i cryoffear/maps	menus/Main.cpp:487
+Join Server	Bli med på server	menus/Main.cpp:492
+Find and join a co-op server	Finn og bli med på en co-op-server	menus/Main.cpp:492
+Host Server	Start server	menus/Main.cpp:497
+Start a co-op server	Start en co-op-server	menus/Main.cpp:497
+Language	Språk	menus/Main.cpp:506;menus/CryOfFear.cpp:985;menus/AdvancedControls.cpp:703
+Choose the subtitle and document language	Velg språk for undertekster og dokumenter	menus/Main.cpp:506
+Unlockables	Opplåsbart	menus/Main.cpp:514;menus/CryOfFear.cpp:1897
+List the unlockables and open the gallery	Vis det som kan låses opp, og åpne galleriet	menus/Main.cpp:514
+Extras	Ekstra	menus/Main.cpp:523;menus/CryOfFear.cpp:1103
+Co-op, unlockables, soundtrack and community links	Co-op, opplåsbart, lydspor og lenker til fellesskapet	menus/Main.cpp:523
+Links	Lenker	menus/Main.cpp:528
+Soundtrack, merchandise and community links	Lydspor, produkter og lenker til fellesskapet	menus/Main.cpp:528
+Credits	Rulletekst	menus/Main.cpp:533;menus/CryOfFear.cpp:1272
+Who made Cry of Fear, this project and the Polish localisation	Skaperne av Cry of Fear, dette prosjektet og den polske oversettelsen	menus/Main.cpp:533
+Back	Tilbake	menus/Main.cpp:538
+Return to the main menu	Tilbake til hovedmenyen	menus/Main.cpp:538
+Quit to menu	Til hovedmenyen	menus/Main.cpp:543
+Leave the game and return to the main menu	Forlat spillet og gå tilbake til hovedmenyen	menus/Main.cpp:543
+Save Game	Lagre spill	menus/Main.cpp:553;menus/SaveLoad.cpp:107;menus/SaveLoad.cpp:139
+Save into one of the five shared Cry of Fear slots	Lagre i en av de fem delte lagringsplassene i Cry of Fear	menus/Main.cpp:553
+Load Game	Last inn spill	menus/Main.cpp:677;menus/Main.cpp:683;menus/Main.cpp:852;menus/CryOfFear.cpp:2174;menus/SaveLoad.cpp:100;menus/SaveLoad.cpp:138
+Load a previously saved game.	Last inn et lagret spill.	menus/Main.cpp:677;menus/Main.cpp:683;menus/Main.cpp:852
+Save\\Load Game	Lagre/Last inn	menus/Main.cpp:846
+Load a saved game, save the current game.	Last inn et lagret spill eller lagre det nåværende.	menus/Main.cpp:846
+Easy	Lett	menus/CryOfFear.cpp:151
+Medium	Normal	menus/CryOfFear.cpp:151
+Difficult	Vanskelig	menus/CryOfFear.cpp:151
+Nightmare	Mareritt	menus/CryOfFear.cpp:151
+Start a new game on Easy	Nytt spill på Lett	menus/CryOfFear.cpp:156
+Start a new game on Medium	Nytt spill på Normal	menus/CryOfFear.cpp:157
+Start a new game on Difficult	Nytt spill på Vanskelig	menus/CryOfFear.cpp:158
+Start a new game on Nightmare	Nytt spill på Mareritt	menus/CryOfFear.cpp:159
+Enable developer commentary	Slå på utviklerkommentarer	menus/CryOfFear.cpp:352;menus/CryOfFear.cpp:355
+[ON ]	[PÅ ]	menus/CryOfFear.cpp:355;menus/SaveLoad.cpp:188
+[OFF]	[AV ]	menus/CryOfFear.cpp:355;menus/SaveLoad.cpp:188
+Custom campaign: %s (first map %s)	Egen kampanje: %s (første kart %s)	menus/CryOfFear.cpp:375
+Cry of Fear	Cry of Fear	menus/CryOfFear.cpp:378
+Nightmare has to be unlocked in game (scriptsettings.dat line 83).	Mareritt må først låses opp i spillet (scriptsettings.dat, linje 83).	menus/CryOfFear.cpp:384
+Nightmare state is unknown: cryoffear/scriptsettings.dat is missing or line 83 is unreadable.	Status for Mareritt er ukjent: cryoffear/scriptsettings.dat mangler eller linje 83 kan ikke leses.	menus/CryOfFear.cpp:385
+Locked	Låst	menus/CryOfFear.cpp:387;menus/CryOfFear.cpp:1839
+Choose a difficulty	Velg vanskelighetsgrad	menus/CryOfFear.cpp:427
+NEW GAME	NYTT SPILL	menus/CryOfFear.cpp:433
+Play with the developer commentary track	Spill med utviklerkommentarer	menus/CryOfFear.cpp:476
+Skip prologue	Hopp over prologen	menus/CryOfFear.cpp:479
+Start at c_nightmare, past the three-minute intro sequence. The intro grants nothing, so nothing is lost	Start på c_nightmare, etter den tre minutter lange introen. Introen gir deg ingenting, så du går ikke glipp av noe	menus/CryOfFear.cpp:480
+Cancel	Avbryt	menus/CryOfFear.cpp:496;menus/CryOfFear.cpp:753;menus/Controls.cpp:263;menus/Controls.cpp:269;menus/VideoModes.cpp:991;menus/VideoModes.cpp:997;menus/LoadGame.cpp:462;menus/CreateGame.cpp:237;menus/CreateGame.cpp:307;controls/YesNoMessageBox.cpp:86
+Go back to the Main menu	Tilbake til hovedmenyen	menus/CryOfFear.cpp:496;menus/CryOfFear.cpp:1028;menus/CryOfFear.cpp:1147;menus/CryOfFear.cpp:1325;menus/Configuration.cpp:114;menus/SaveLoad.cpp:150
+Start	Start	menus/CryOfFear.cpp:500;menus/CreateGame.cpp:238
+Start a new game on the selected difficulty	Start et nytt spill på valgt vanskelighetsgrad	menus/CryOfFear.cpp:500
+CUSTOM CAMPAIGN	EGEN KAMPANJE	menus/CryOfFear.cpp:751
+Play	Spill	menus/CryOfFear.cpp:759
+From maps/*.custom	Fra maps/*.custom	menus/CryOfFear.cpp:768
+Campaign	Kampanje	menus/CryOfFear.cpp:777
+Author	Forfatter	menus/CryOfFear.cpp:778
+First map	Første kart	menus/CryOfFear.cpp:779
+%s\n\n%s\n\nFirst map: %s	%s\n\n%s\n\nFørste kart: %s	menus/CryOfFear.cpp:837
+English	English	menus/CryOfFear.cpp:854;menus/AdvancedControls.cpp:145
+Dutch	Nederlandsk	menus/CryOfFear.cpp:854
+French	Fransk	menus/CryOfFear.cpp:854
+German	Tysk	menus/CryOfFear.cpp:854
+Norwegian	Norsk	menus/CryOfFear.cpp:854
+Spanish	Spansk	menus/CryOfFear.cpp:854
+Swedish	Svensk	menus/CryOfFear.cpp:854
+Subtitle language: %s	Språk for undertekster: %s	menus/CryOfFear.cpp:969
+LANGUAGE	SPRÅK	menus/CryOfFear.cpp:988
+Set the subtitle and document language	Angi språk for undertekster og dokumenter	menus/CryOfFear.cpp:997;menus/CryOfFear.cpp:1007
+Close	Lukk	menus/CryOfFear.cpp:1020;menus/CryOfFear.cpp:1139;menus/CryOfFear.cpp:1317;menus/CryOfFear.cpp:1921;menus/Configuration.cpp:93;menus/AdvancedControls.cpp:804;menus/Audio.cpp:185;menus/SaveLoad.cpp:115;menus/ServerBrowser.cpp:1176
+Done	Ferdig	menus/CryOfFear.cpp:1028;menus/CryOfFear.cpp:1147;menus/CryOfFear.cpp:1325;menus/Configuration.cpp:114;menus/AdvancedControls.cpp:621;menus/InputDevices.cpp:81;menus/Video.cpp:78;menus/Audio.cpp:185;menus/SaveLoad.cpp:150;menus/ServerBrowser.cpp:1201;menus/ServerInfo.cpp:425;menus/ConnectionWarning.cpp:62
+Cry of Fear: Enhanced	Cry of Fear: Enhanced	menus/CryOfFear.cpp:1052
+Donate	Doner	menus/CryOfFear.cpp:1053
+Soundtrack 1	Lydspor 1	menus/CryOfFear.cpp:1054
+Soundtrack 2	Lydspor 2	menus/CryOfFear.cpp:1055
+Clothes	Klær	menus/CryOfFear.cpp:1056
+Afraid of Monsters DC	Afraid of Monsters DC	menus/CryOfFear.cpp:1057
+Facebook	Facebook	menus/CryOfFear.cpp:1058
+EXTRAS	EKSTRA	menus/CryOfFear.cpp:1106
+TEAM PSYKSKALLAR	TEAM PSYKSKALLAR	menus/CryOfFear.cpp:1217
+Andreas "ruMpel" Rönnberg and James "Minuit" Marchant	Andreas «ruMpel» Rönnberg og James «Minuit» Marchant	menus/CryOfFear.cpp:1218
+Creators of Cry of Fear	Skaperne av Cry of Fear	menus/CryOfFear.cpp:1219
+YouTube	YouTube	menus/CryOfFear.cpp:1221
+CRY OF FEAR: ENHANCED	CRY OF FEAR: ENHANCED	menus/CryOfFear.cpp:1224
+Community-driven	Et fellesskapsprosjekt	menus/CryOfFear.cpp:1225
+Project site	Prosjektside	menus/CryOfFear.cpp:1227
+CRY OF FEAR SPOLSZCZENIE (POLISH LOCALISATION)	CRY OF FEAR SPOLSZCZENIE (POLSK OVERSETTELSE)	menus/CryOfFear.cpp:1230
+Avioo - Tłumaczenie, grafiki, testowanie	Avioo - Tłumaczenie, grafiki, testowanie	menus/CryOfFear.cpp:1231
+Mixdedemon - Tłumaczenie	Mixdedemon - Tłumaczenie	menus/CryOfFear.cpp:1232
+hexag0n - Technikalia, testowanie	hexag0n - Technikalia, testowanie	menus/CryOfFear.cpp:1233
+Izonka - Testowanie	Izonka - Testowanie	menus/CryOfFear.cpp:1234
+Steam Workshop	Steam Workshop	menus/CryOfFear.cpp:1236
+CREDITS	RULLETEKST	menus/CryOfFear.cpp:1275
+Secret room, empty hint book, MP5	Hemmelig rom, tom hintbok, MP5	menus/CryOfFear.cpp:1497
+One flag for all three; MP5 via Steam group	Ett flagg for alle tre; MP5 via Steam	menus/CryOfFear.cpp:1498
+Unidentified flag (line 7)	Ukjent flagg (linje 7)	menus/CryOfFear.cpp:1501
+Unidentified flag (line 15)	Ukjent flagg (linje 15)	menus/CryOfFear.cpp:1505
+Unidentified flag (line 22)	Ukjent flagg (linje 22)	menus/CryOfFear.cpp:1509
+FAMAS with infinite ammo	FAMAS med uendelig ammunisjon	menus/CryOfFear.cpp:1513
+Unidentified flag (line 45)	Ukjent flagg (linje 45)	menus/CryOfFear.cpp:1517
+Unidentified flag (line 47)	Ukjent flagg (linje 47)	menus/CryOfFear.cpp:1521
+Unidentified flag (line 48)	Ukjent flagg (linje 48)	menus/CryOfFear.cpp:1525
+David Leatherhoff suit	David Leatherhoff-drakt	menus/CryOfFear.cpp:1529
+ModDB hoodie	ModDB-hettegenser	menus/CryOfFear.cpp:1533
+Hello Kitty suit	Hello Kitty-drakt	menus/CryOfFear.cpp:1537
+Afraid of Monsters suit	Afraid of Monsters-drakt	menus/CryOfFear.cpp:1541
+Camouflage hoodie	Kamuflasjehettegenser	menus/CryOfFear.cpp:1545
+Half Life Creations hoodie	Half-Life Creations-hettegenser	menus/CryOfFear.cpp:1549
+Black Metal suit	Black Metal-drakt	menus/CryOfFear.cpp:1553
+Team Psykskallar hoodie	Team Psykskallar-hettegenser	menus/CryOfFear.cpp:1557
+Awesome suit	Awesome-drakt	menus/CryOfFear.cpp:1561
+Sick Simon suit	Syk Simon-drakt	menus/CryOfFear.cpp:1565
+AoM Twitcher suit	AoM Twitcher-drakt	menus/CryOfFear.cpp:1569
+Custom hoodies	Egne hettegensere	menus/CryOfFear.cpp:1573
+David Leatherhoff's axe	David Leatherhoffs øks	menus/CryOfFear.cpp:1577
+Digital camera	Digitalkamera	menus/CryOfFear.cpp:1581
+Simon's book	Simons bok	menus/CryOfFear.cpp:1585
+Developer commentary	Utviklerkommentarer	menus/CryOfFear.cpp:1589
+Enable it on the New Game page once unlocked	Slå på under Nytt spill	menus/CryOfFear.cpp:1590
+Hidden package	Skjult pakke	menus/CryOfFear.cpp:1593
+Tied to the secret ending	Knyttet til den hemmelige slutten	menus/CryOfFear.cpp:1594
+Gasmask (night vision)	Gassmaske (nattsyn)	menus/CryOfFear.cpp:1597
+First hint page	Første hintside	menus/CryOfFear.cpp:1601
+In-game hint page "How To Unlock Book Pages"	«How To Unlock Book Pages»	menus/CryOfFear.cpp:1602
+Second hint page	Andre hintside	menus/CryOfFear.cpp:1605
+In-game hint page "Ranking System Explained"	«Ranking System Explained»	menus/CryOfFear.cpp:1606
+Third hint page	Tredje hintside	menus/CryOfFear.cpp:1609
+In-game hint page "How To Unlock Hoodies"	«How To Unlock Hoodies»	menus/CryOfFear.cpp:1610
+Fourth hint page	Fjerde hintside	menus/CryOfFear.cpp:1613
+In-game hint page "How To Unlock Secret Items"	«How To Unlock Secret Items»	menus/CryOfFear.cpp:1614
+Fifth hint page	Femte hintside	menus/CryOfFear.cpp:1617
+In-game hint page "How To Unlock Secret Weapons"	«How To Unlock Secret Weapons»	menus/CryOfFear.cpp:1618
+Unidentified flag (line 81)	Ukjent flagg (linje 81)	menus/CryOfFear.cpp:1621
+Doctor mode	Doktormodus	menus/CryOfFear.cpp:1625
+Nightmare difficulty	Vanskelighetsgrad Mareritt	menus/CryOfFear.cpp:1629
+Unlocked	Låst opp	menus/CryOfFear.cpp:1838
+UNLOCKABLES	OPPLÅSBART	menus/CryOfFear.cpp:1900
+Unlockable	Innhold	menus/CryOfFear.cpp:1902
+How to unlock	Slik låser du opp	menus/CryOfFear.cpp:1903
+Status	Status	menus/CryOfFear.cpp:1904
+Status comes from cryoffear/scriptsettings.dat: each flag is one 20-byte line, compared to the two tokens client.dll carries for it. "?" means the file is missing or the line matches neither.	Statusen kommer fra cryoffear/scriptsettings.dat: hvert flagg er en linje på 20 byte som sammenlignes med de to verdiene client.dll kjenner for det. «?» betyr at filen mangler eller at linjen ikke passer med noen av dem.	menus/CryOfFear.cpp:1912
+Open original gallery	Åpne originalgalleriet	menus/CryOfFear.cpp:1914
+Load the c_unlockables gallery map, the client's own screen	Last inn gallerikartet c_unlockables, spillets originale skjerm	menus/CryOfFear.cpp:1917
+GAME OVER	SPILLET ER SLUTT	menus/CryOfFear.cpp:1995
+Game over	Spillet er slutt	menus/CryOfFear.cpp:2172
+Exit	Avslutt	menus/CryOfFear.cpp:2179
+Check the Internet for updates?	Se etter oppdateringer på Internett?	menus/Configuration.cpp:56
+Game	Spill	menus/Configuration.cpp:71;menus/LoadGame.cpp:470
+Controls	Kontroller	menus/Configuration.cpp:71;menus/Configuration.cpp:102
+Audio	Lyd	menus/Configuration.cpp:71;menus/Configuration.cpp:104
+Video	Grafikk	menus/Configuration.cpp:71;menus/Configuration.cpp:106
+Aiming, mouse look, saves and language	Sikting, mus, lagring og språk	menus/Configuration.cpp:74
+Change keyboard and mouse settings	Endre tastatur- og musinnstillinger	menus/Configuration.cpp:75;menus/Configuration.cpp:102
+Change sound volume and quality	Endre lydvolum og lydkvalitet	menus/Configuration.cpp:76;menus/Configuration.cpp:104
+Change screen size, video mode and gamma	Endre oppløsning, skjermmodus og gamma	menus/Configuration.cpp:77;menus/Configuration.cpp:106
+OPTIONS	INNSTILLINGER	menus/Configuration.cpp:81
+Touch	Berøring	menus/Configuration.cpp:108
+Change touch settings and buttons	Endre berøringsinnstillinger og -knapper	menus/Configuration.cpp:108
+Joystick	Kontroller	menus/Configuration.cpp:110
+Change gamepad axis and button settings	Endre akser og knapper på kontrolleren	menus/Configuration.cpp:110
+Update	Oppdatering	menus/Configuration.cpp:112
+Check for updates	Se etter oppdateringer	menus/Configuration.cpp:112
+Auto	Auto	menus/AdvancedControls.cpp:77
+Hold	Hold inne	menus/AdvancedControls.cpp:97
+Toggle	Veksle	menus/AdvancedControls.cpp:97
+Nederlands	Nederlands	menus/AdvancedControls.cpp:132
+Français	Français	menus/AdvancedControls.cpp:132
+Deutsch	Deutsch	menus/AdvancedControls.cpp:132
+Norsk	Norsk	menus/AdvancedControls.cpp:132
+Español	Español	menus/AdvancedControls.cpp:132
+Svenska	Svenska	menus/AdvancedControls.cpp:132
+%s (subtitles)	%s (undertekster)	menus/AdvancedControls.cpp:282
+not installed	ikke installert	menus/AdvancedControls.cpp:298
+GAME	SPILL	menus/AdvancedControls.cpp:619
+Crosshair	Trådkors	menus/AdvancedControls.cpp:626
+Enable the weapon aiming crosshair	Vis trådkorset for våpenet	menus/AdvancedControls.cpp:626
+Reverse mouse	Inverter musen	menus/AdvancedControls.cpp:630
+Reverse mouse up-down axis	Inverter musens loddrette akse	menus/AdvancedControls.cpp:630
+Mouse look	Se med musen	menus/AdvancedControls.cpp:635
+Use the mouse to look around	Bruk musen til å se deg rundt	menus/AdvancedControls.cpp:635
+Look spring	Blikket fjærer tilbake	menus/AdvancedControls.cpp:641
+Causes the screen to 'spring' back to looking straight ahead when you move forward	Når du går fremover, går blikket tilbake til rett frem	menus/AdvancedControls.cpp:641
+Look strafe	Sidelengs med musen	menus/AdvancedControls.cpp:645
+In combination with your mouse look modifier, causes left-right movements to strafe instead of turn	Sammen med tasten for å se med musen flytter bevegelser til venstre og høyre deg sidelengs i stedet for å snu	menus/AdvancedControls.cpp:645
+Mouse filter	Musfilter	menus/AdvancedControls.cpp:649
+Smooth out mouse movement	Jevn ut musebevegelser	menus/AdvancedControls.cpp:649
+Auto-Aim	Automatisk sikting	menus/AdvancedControls.cpp:653
+Aims at enemies automatically.	Sikter automatisk på fiender.	menus/AdvancedControls.cpp:653
+Raw mouse input	Direkte musinndata	menus/AdvancedControls.cpp:657
+Take the mouse straight from the device, bypassing the operating system's pointer acceleration	Les musen direkte fra enheten, uten pekerakselerasjonen i operativsystemet	menus/AdvancedControls.cpp:657
+Mouse sensitivity	Musfølsomhet	menus/AdvancedControls.cpp:661
+Input devices	Inndataenheter	menus/AdvancedControls.cpp:665
+Toggle mouse, touch controls	Slå mus og berøringskontroller av eller på	menus/AdvancedControls.cpp:665
+Enable console	Slå på konsollen	menus/AdvancedControls.cpp:672
+Allow the developer console without the -console or -dev command line switch	Tillat utviklerkonsollen uten oppstartsvalget -console eller -dev	menus/AdvancedControls.cpp:673
+Pause menu saves	Lagring fra pausemenyen	menus/AdvancedControls.cpp:677
+Allow saving from the pause menu into the five shared Cry of Fear slots	Tillat lagring fra pausemenyen i de fem delte lagringsplassene i Cry of Fear	menus/AdvancedControls.cpp:678
+Show console notifications	Vis konsollvarsler	menus/AdvancedControls.cpp:705
+Show the newest console lines in the top-left corner during play	Viser de nyeste konsollinjene øverst til venstre under spillet	menus/AdvancedControls.cpp:706
+Subtitle language	Språk for undertekster	menus/AdvancedControls.cpp:682
+Language of the subtitles and the in-game documents	Språket i undertekstene og dokumentene i spillet	menus/AdvancedControls.cpp:686
+HUD scale	HUD-størrelse	menus/AdvancedControls.cpp:689
+Size of the in-game HUD, inventory and subtitles. Auto keeps them the same fraction of the screen at every resolution	Størrelsen på HUD, inventar og undertekster. Auto beholder samme andel av skjermen i alle oppløsninger	menus/AdvancedControls.cpp:693
+Aim down sights	Sikte med siktemidler	menus/AdvancedControls.cpp:696
+Hold: aim while the aim key is held. Toggle: press once to aim, press again to stop	Hold inne: sikt så lenge siktetasten holdes inne. Veksle: trykk én gang for å sikte og igjen for å slutte	menus/AdvancedControls.cpp:700
+Language of the menus and of the game's subtitles, documents and signs	Språket i menyene og i spillets undertekster, dokumenter og skilt	menus/AdvancedControls.cpp:707
+Text switches at once, signs on the next map; restart the game for the remaining art.	Tekst straks, skilt på neste kart, resten av grafikken etter omstart.	menus/AdvancedControls.cpp:713
+Save changed and go back to the Customize Menu	Lagre endringene og gå tilbake	menus/InputDevices.cpp:81
+Ignore mouse	Ignorer musen	menus/InputDevices.cpp:86
+Need for some servers. Will disable mouse in menu too	Nødvendig på noen servere. Slår også av musen i menyen	menus/InputDevices.cpp:86
+If you do not have touchscreen, or joystick, you will not be able to play without mouse.\nAre you sure to disable mouse?	Uten berøringsskjerm eller kontroller kan du ikke spille uten mus.\nVil du virkelig slå av musen?	menus/InputDevices.cpp:94
+Enable touch	Slå på berøring	menus/InputDevices.cpp:107
+On-screen controls for touchscreen	Kontroller på skjermen for berøringsskjerm	menus/InputDevices.cpp:107
+Enable the joystick	Slå på kontrolleren	menus/InputDevices.cpp:111
+Enable using game controller in game	Bruk en spillkontroller i spillet	menus/InputDevices.cpp:111
+Evdev input (root)	Evdev-inndata (root)	menus/InputDevices.cpp:115
+Press this to enable full mouse and keyboard control on Android	Slår på full mus- og tastaturstyring på Android	menus/InputDevices.cpp:115
+CONTROLS	KONTROLLER	menus/Controls.cpp:234
+Action	Handling	menus/Controls.cpp:238
+KEY/BUTTON	TAST/KNAPP	menus/Controls.cpp:239
+ALTERNATE	ALTERNATIV	menus/Controls.cpp:240
+Press a key or button	Trykk på en tast eller knapp	menus/Controls.cpp:242
+Reset all actions to use their default keys?	Tilbakestille alle handlinger til standardtastene?	menus/Controls.cpp:245
+Use Defaults	Standard	menus/Controls.cpp:252
+Adv. Controls	Avansert	menus/Controls.cpp:258
+OK	OK	menus/Controls.cpp:264;menus/Controls.cpp:268;menus/VideoOptions.cpp:171;menus/VideoOptions.cpp:203;menus/CreateGame.cpp:244;menus/ServerBrowser.cpp:1205;controls/YesNoMessageBox.cpp:83;controls/YesNoMessageBox.cpp:324
+PRESS A KEY	TRYKK PÅ EN TAST	menus/Controls.cpp:282
+Video options	Grafikkinnstillinger	menus/Video.cpp:76
+Set video options such as screen size, gamma and image quality.	Still inn skjermstørrelse, gamma og bildekvalitet.	menus/Video.cpp:76
+Video modes	Skjermmoduser	menus/Video.cpp:77
+Set video modes and configure 3D accelerators.	Still inn skjermmodus og 3D-akselerasjon.	menus/Video.cpp:77
+Go back to the previous menu	Tilbake til forrige meny	menus/Video.cpp:78
+Gamma	Gamma	menus/VideoModes.cpp:514;menus/VideoOptions.cpp:189
+Brightness	Lysstyrke	menus/VideoModes.cpp:519;menus/VideoOptions.cpp:197
+Contrast	Kontrast	menus/VideoModes.cpp:524
+Field of view	Synsfelt	menus/VideoModes.cpp:529
+The 4:3 base field of view; 90 is Cry of Fear's own. Ironsights and scripted cameras are not rescaled.	Grunnsynsfelt for 4:3; 90 er verdien i Cry of Fear. Sikting og skriptede kameraer endres ikke.	menus/VideoModes.cpp:533
+Viewmodel FOV	Våpenets synsfelt	menus/VideoModes.cpp:535
+Follow FOV	Som synsfeltet	menus/VideoModes.cpp:537
+Field of view of the held weapon only. At the lowest step it follows the world field of view, which is the stock look.	Synsfeltet for bare våpenet du holder. På laveste trinn følger det verdenens synsfelt, som i originalen.	menus/VideoModes.cpp:541
+Detail textures	Detaljteksturer	menus/VideoModes.cpp:543;menus/VideoOptions.cpp:209
+Use VBO	Bruk VBO	menus/VideoModes.cpp:544;menus/VideoOptions.cpp:213
+Water ripples	Krusninger i vann	menus/VideoModes.cpp:545;menus/VideoOptions.cpp:217
+Overbrights	Overlys	menus/VideoModes.cpp:546;menus/VideoOptions.cpp:221
+Texture filtering	Teksturfiltrering	menus/VideoModes.cpp:547;menus/VideoOptions.cpp:225
+Auto scale HUD	Skaler HUD automatisk	menus/VideoModes.cpp:548;menus/VideoOptions.cpp:229
+^1WARNING: This is an experimental option and turning it on might break mods!^7\n\nReload the game or reconnect to the server to apply the settings.	^1ADVARSEL: eksperimentelt valg, det kan ødelegge mods!^7\n\nStart spillet på nytt eller koble til serveren igjen for å ta i bruk innstillingene.	menus/VideoModes.cpp:550;menus/VideoOptions.cpp:233
+Not supported on your GPU	Støttes ikke av skjermkortet ditt	menus/VideoModes.cpp:726;menus/VideoOptions.cpp:371
+Keep this resolution? %i seconds remaining	Beholde denne oppløsningen? %i sekunder igjen	menus/VideoModes.cpp:913
+Windowed	Vindu	menus/VideoModes.cpp:933
+Fullscreen	Fullskjerm	menus/VideoModes.cpp:934
+Borderless	Uten ramme	menus/VideoModes.cpp:935
+VIDEO	GRAFIKK	menus/VideoModes.cpp:946
+Resolution	Oppløsning	menus/VideoModes.cpp:949
+Vertical sync	Vertikal synkronisering	menus/VideoModes.cpp:952
+Restart the game to apply changes	Start spillet på nytt for å ta i bruk endringene	menus/VideoModes.cpp:961
+Renderer	Renderer	menus/VideoModes.cpp:966
+Window mode	Vindusmodus	menus/VideoModes.cpp:973
+Apply	Bruk	menus/VideoModes.cpp:992;menus/VideoModes.cpp:996
+VIDEO OPTIONS	GRAFIKKINNSTILLINGER	menus/VideoOptions.cpp:170
+Screen size	Skjermstørrelse	menus/VideoOptions.cpp:181
+AUDIO	LYD	menus/Audio.cpp:128
+Sound effects volume	Volum for effekter	menus/Audio.cpp:130
+MP3 volume *	Musikkvolum *	menus/Audio.cpp:136
+Menu sounds	Menylyder	menus/Audio.cpp:145
+Volume of the menu's own button and rollover sounds	Volum for menyens knappe- og pekelyder	menus/Audio.cpp:146
+HEV suit volume	Volum for HEV-drakten	menus/Audio.cpp:153
+Disable DSP effects	Slå av DSP-effekter	menus/Audio.cpp:159
+Use Alpha DSP effects	Bruk Alpha-DSP-effekter	menus/Audio.cpp:163
+Mute when inactive	Demp i bakgrunnen	menus/Audio.cpp:167
+Enable vibration	Slå på vibrasjon	menus/Audio.cpp:171
+Vibration	Vibrasjon	menus/Audio.cpp:178
+No preview	Ingen forhåndsvisning	menus/LoadGame.cpp:235
+Slot %i	Plass %i	menus/LoadGame.cpp:273
+Empty	Tom	menus/LoadGame.cpp:300
+Current	Nåværende	menus/LoadGame.cpp:321
+New saved game	Nytt lagret spill	menus/LoadGame.cpp:322
+New	Ny	menus/LoadGame.cpp:323
+[quick]	[hurtig]	menus/LoadGame.cpp:394
+[autosave]	[autolagring]	menus/LoadGame.cpp:396
+Save	Lagret spill	menus/LoadGame.cpp:447;menus/LoadGame.cpp:475
+Load	Last inn	menus/LoadGame.cpp:452
+Delete	Slett	menus/LoadGame.cpp:457
+Time	Tid	menus/LoadGame.cpp:469;menus/ServerInfo.cpp:436
+Elapsed Time	Spilletid	menus/LoadGame.cpp:471
+Slot	Plass	menus/LoadGame.cpp:474
+Date	Dato	menus/LoadGame.cpp:476
+Delete this saved game?	Slette dette lagrede spillet?	menus/LoadGame.cpp:483
+Overwrite this saved game?	Overskrive dette lagrede spillet?	menus/LoadGame.cpp:487
+Overwrite	Overskriv	menus/LoadGame.cpp:488
+LOAD GAME	LAST INN SPILL	menus/LoadGame.cpp:496;menus/LoadGame.cpp:518
+DELETE SAVE	SLETT LAGRET SPILL	menus/LoadGame.cpp:497
+OVERWRITE SAVE	OVERSKRIV LAGRET SPILL	menus/LoadGame.cpp:498
+SAVE GAME	LAGRE SPILL	menus/LoadGame.cpp:518
+Cry of Fear uses five shared save slots. Turn on "Pause menu saves" in Options > Game to save from this menu.	Cry of Fear bruker fem delte lagringsplasser. Slå på «Lagring fra pausemenyen» under Innstillinger > Spill for å lagre her.	menus/SaveLoad.cpp:79
+Cry of Fear uses five shared save slots. Enable pause-menu saves to save from this menu.	Cry of Fear bruker fem delte lagringsplasser. Slå på lagring fra pausemenyen for å lagre her.	menus/SaveLoad.cpp:81
+During play, you can quickly save your game by pressing %s.\nLoad this game again by pressing %s.	Under spillet lagrer du raskt med %s.\nMed %s laster du inn dette spillet igjen.	menus/SaveLoad.cpp:84
+SAVE / LOAD	LAGRE / LAST INN	menus/SaveLoad.cpp:98
+Select a saved game in the list below, then click 'Load game'.	Velg et lagret spill i listen og klikk på «Last inn spill».	menus/SaveLoad.cpp:100;menus/SaveLoad.cpp:138
+Select 'New Saved Game' in the list to create a new file, or select\na previously saved game to overwrite a file.	Velg «Nytt lagret spill» for å lage en ny fil, eller velg\net eksisterende lagret spill for å overskrive det.	menus/SaveLoad.cpp:107;menus/SaveLoad.cpp:139
+Enable pause-menu saves	Slå på lagring fra pausemenyen	menus/SaveLoad.cpp:185;menus/SaveLoad.cpp:188
+Invalid maxplayers value entered.\nPlease enter a value from 2 to %d.	Ugyldig antall spillere.\nSkriv inn en verdi fra 2 til %d.	menus/CreateGame.cpp:122
+< Random Map >	< Tilfeldig kart >	menus/CreateGame.cpp:181
+Use NAT Bypass instead of direct mode	Bruk NAT-omgåelse i stedet for direkte tilkobling	menus/CreateGame.cpp:221
+HOST SERVER	START SERVER	menus/CreateGame.cpp:226
+Adv. Options	Avansert	menus/CreateGame.cpp:231;menus/ConnectionWarning.cpp:69
+START SERVER	START SERVEREN	menus/CreateGame.cpp:240
+Map	Kart	menus/CreateGame.cpp:249;menus/ServerBrowser.cpp:1214
+Title	Tittel	menus/CreateGame.cpp:250
+Server name	Servernavn	menus/CreateGame.cpp:253
+Max. Players:	Maks. spillere:	menus/CreateGame.cpp:264
+Password	Passord	menus/CreateGame.cpp:291;menus/ServerBrowser.cpp:1246
+Starting a new game will exit any current game, OK to exit?	Et nytt spill avslutter det pågående. Fortsette?	menus/CreateGame.cpp:303
+Invalid protocol while generating dummy info string	Ugyldig protokoll under oppretting av serverdata	menus/ServerBrowser.cpp:170
+%.f ms	%.f ms	menus/ServerBrowser.cpp:520
+any map	hvilket som helst kart	menus/ServerBrowser.cpp:684;menus/ServerBrowser.cpp:826;menus/ServerBrowser.cpp:1359
+Favorite	Favoritt	menus/ServerBrowser.cpp:811;menus/ServerBrowser.cpp:1161;menus/ServerBrowser.cpp:1197
+Unfavorite	Fjern fra favoritter	menus/ServerBrowser.cpp:816
+Invalid address	Ugyldig adresse	menus/ServerBrowser.cpp:1052
+Invalid protocol	Ugyldig protokoll	menus/ServerBrowser.cpp:1067
+Server already in favorites	Serveren er allerede i favoritter	menus/ServerBrowser.cpp:1079
+JOIN SERVER	BLI MED PÅ SERVER	menus/ServerBrowser.cpp:1153
+View game info	Vis spillinfo	menus/ServerBrowser.cpp:1162;menus/ServerBrowser.cpp:1196
+Create Server	Opprett server	menus/ServerBrowser.cpp:1164;menus/ServerBrowser.cpp:1186
+Refresh	Oppdater	menus/ServerBrowser.cpp:1174;menus/ServerBrowser.cpp:1198
+Add server	Legg til server	menus/ServerBrowser.cpp:1175;menus/ServerBrowser.cpp:1199
+Join	Bli med	menus/ServerBrowser.cpp:1178
+Join game	Bli med i spillet	menus/ServerBrowser.cpp:1183
+Join a network game will exit any current game, OK to exit?	Å bli med i et nettverksspill avslutter det pågående. Fortsette?	menus/ServerBrowser.cpp:1204
+Name	Navn	menus/ServerBrowser.cpp:1213
+Players	Spillere	menus/ServerBrowser.cpp:1215
+Ping	Ping	menus/ServerBrowser.cpp:1216
+IP	IP	menus/ServerBrowser.cpp:1217
+Direct	Direkte	menus/ServerBrowser.cpp:1225
+NAT	NAT	menus/ServerBrowser.cpp:1226
+Favorites	Favoritter	menus/ServerBrowser.cpp:1227
+History	Historikk	menus/ServerBrowser.cpp:1228
+Please enter a password	Skriv inn et passord	menus/ServerBrowser.cpp:1268
+Enter server Internet address\n(e.g., 209.255.10.255:27015)	Skriv inn serverens Internett-adresse\n(f.eks. 209.255.10.255:27015)	menus/ServerBrowser.cpp:1291
+ping	ping	menus/ServerBrowser.cpp:1304
+empty	tom	menus/ServerBrowser.cpp:1321
+not empty	ikke tom	menus/ServerBrowser.cpp:1322
+any	alle	menus/ServerBrowser.cpp:1323;menus/ServerBrowser.cpp:1342
+full	full	menus/ServerBrowser.cpp:1340
+not full	ikke full	menus/ServerBrowser.cpp:1341
+%.f ms.	%.f ms.	menus/ServerInfo.cpp:261
+Server hostname:	Servernavn:	menus/ServerInfo.cpp:394
+Server IP address:	Serverens IP-adresse:	menus/ServerInfo.cpp:405
+Server 'ping' time:	Serverens ping:	menus/ServerInfo.cpp:416
+??? ms.	??? ms.	menus/ServerInfo.cpp:421
+Player Name	Spillernavn	menus/ServerInfo.cpp:434
+Kills	Drap	menus/ServerInfo.cpp:435
+Server Rule	Serverregel	menus/ServerInfo.cpp:440
+Value	Verdi	menus/ServerInfo.cpp:441
+Precaching resources...	Laster inn ressurser...	menus/ConnectionProgress.cpp:59
+Downloading %s \nfrom %s	Laster ned %s \nfra %s	menus/ConnectionProgress.cpp:73
+%d of %d %s	%d av %d %s	menus/ConnectionProgress.cpp:74
+Starting local game server...	Starter lokal spillserver...	menus/ConnectionProgress.cpp:84;menus/ConnectionProgress.cpp:105;menus/ConnectionProgress.cpp:109
+Establishing network connection to server...	Kobler til serveren...	menus/ConnectionProgress.cpp:90;menus/ConnectionProgress.cpp:114
+Disconnected	Frakoblet	menus/ConnectionProgress.cpp:197
+Skip	Hopp over	menus/ConnectionProgress.cpp:248
+Changing level on server	Serveren bytter kart	menus/ConnectionProgress.cpp:390
+Parsing server info...	Leser serverinfo...	menus/ConnectionProgress.cpp:401
+Normal internet connection	Vanlig Internett-tilkobling	menus/ConnectionWarning.cpp:46
+DSL or PPTP with limited packet size	DSL eller PPTP med begrenset pakkestørrelse	menus/ConnectionWarning.cpp:51
+Slow connection mode (64kbps)	Treg tilkobling (64 kbps)	menus/ConnectionWarning.cpp:56
+Connection problem	Tilkoblingsproblem	menus/ConnectionWarning.cpp:81
+Too many lost packets while connecting!\nPlease select network settings	For mange tapte pakker under tilkobling!\nVelg nettverksinnstillinger	menus/ConnectionWarning.cpp:85
+NOTICE	MERK	controls/YesNoMessageBox.cpp:30;controls/MessageBox.cpp:25
+CONFIRM	BEKREFT	controls/YesNoMessageBox.cpp:30
+Built-in touch actions	Innebygde berøringshandlinger	model/KbActListModel.h:246
+Look (touchpad)	Se (styreflate)	model/KbActListModel.h:248
+Move (joystick)	Beveg (styrespak)	model/KbActListModel.h:249
+Move (centered joystick)	Beveg (sentrert styrespak)	model/KbActListModel.h:250
+Move (D-Pad)	Beveg (retningsknapper)	model/KbActListModel.h:251
+Vertical wheel	Loddrett hjul	model/KbActListModel.h:252
+Horizontal wheel	Vannrett hjul	model/KbActListModel.h:253
+CONTROLS - MOVEMENT	KONTROLLER - BEVEGELSE	gfx/shell/kb_act.lst:2
+Move forward	Fremover	gfx/shell/kb_act.lst:4
+Move back	Bakover	gfx/shell/kb_act.lst:5
+Run left	Til venstre	gfx/shell/kb_act.lst:6
+Run right	Til høyre	gfx/shell/kb_act.lst:7
+Sprint	Spurt	gfx/shell/kb_act.lst:8
+Dodge	Unnvik	gfx/shell/kb_act.lst:9
+Jump	Hopp	gfx/shell/kb_act.lst:10
+Crouch	Huk deg	gfx/shell/kb_act.lst:11
+CONTROLS - WEAPONS/ITEMS	KONTROLLER - VÅPEN/GJENSTANDER	gfx/shell/kb_act.lst:13
+Pickup/Interact with items	Plukk opp/Bruk	gfx/shell/kb_act.lst:15
+Primary Attack	Primærangrep	gfx/shell/kb_act.lst:16
+Secondary Attack	Sekundærangrep	gfx/shell/kb_act.lst:17
+Tertiary Attack	Sikt (tertiærangrep)	gfx/shell/kb_act.lst:18
+Toggle weapon function	Bytt våpenfunksjon	gfx/shell/kb_act.lst:19
+Reload	Lad om	gfx/shell/kb_act.lst:20
+Inventory	Inventar	gfx/shell/kb_act.lst:21
+See current objective	Vis nåværende mål	gfx/shell/kb_act.lst:22
+Quick slot 1	Hurtigplass 1	gfx/shell/kb_act.lst:23
+Quick slot 2	Hurtigplass 2	gfx/shell/kb_act.lst:24
+Quick slot 3	Hurtigplass 3	gfx/shell/kb_act.lst:25
+Flashlight (coop only)	Lommelykt (bare co-op)	gfx/shell/kb_act.lst:26
+CONTROLS - MISC	KONTROLLER - DIVERSE	gfx/shell/kb_act.lst:28
+Use voice chat (coop only)	Talechat (bare co-op)	gfx/shell/kb_act.lst:30
+Vote yes on votekick (coop only)	Stem ja til utkasting (bare co-op)	gfx/shell/kb_act.lst:31
+Vote no on votekick (coop only)	Stem nei til utkasting (bare co-op)	gfx/shell/kb_act.lst:32
+Follow me! (coop only)	Følg meg! (bare co-op)	gfx/shell/kb_act.lst:33
+Help me! (coop only)	Hjelp! (bare co-op)	gfx/shell/kb_act.lst:34
+Found something! (coop only)	Fant noe! (bare co-op)	gfx/shell/kb_act.lst:35
+Chat message	Chatmelding	gfx/shell/kb_act.lst:36
+Take screenshot	Ta skjermbilde	gfx/shell/kb_act.lst:37
+Pause game	Pause	gfx/shell/kb_act.lst:38
+Quit game	Avslutt spillet	gfx/shell/kb_act.lst:39
+Pause Save (%s)	Pause (%s)	engine/server/sv_save.c (title of a pause-menu save, in the Load list)
+DISCONNECT	KOBLE FRA	menus/Main.cpp:247
+Leave the co-op game and return to the main menu?	Forlate co-op-spillet og gå tilbake til hovedmenyen?	menus/Main.cpp:249
+Join a co-op game by address or on the local network	Bli med i et co-op-spill via adresse eller i lokalnettet	menus/Main.cpp:511
+Host a co-op game: story, Manhunt or survival	Start et co-op-spill: historie, Manhunt eller overlevelse	menus/Main.cpp:516
+Leave the co-op game and return to the main menu	Forlat co-op-spillet og gå tilbake til hovedmenyen	menus/Main.cpp:681
+Player	Spiller	menus/CoFCoop.cpp:175
+Story co-op	Historie i co-op	menus/CoFCoop.cpp:207
+Chapters 9 to 12, starting with "Where is Simon?".\nLobby: everyone gets ready, or the autostart time runs out.	Kapittel 9 til 12, fra «Where is Simon?».\nLobby: alle er klare, eller autostarttiden går ut.	menus/CoFCoop.cpp:208
+Manhunt	Manhunt	menus/CoFCoop.cpp:209
+The Manhunt campaign, from "A new beginning" to the cabin.\nLobby: everyone gets ready, or the autostart time runs out.	Manhunt-kampanjen, fra «A new beginning» til hytta.\nLobby: alle er klare, eller autostarttiden går ut.	menus/CoFCoop.cpp:210
+Survival 1	Overlevelse 1	menus/CoFCoop.cpp:211
+Survive for 30 minutes. No lobby: the game starts at once.\nThe next survival map follows.	Overlev i 30 minutter. Ingen lobby: spillet starter med en gang.\nDeretter kommer neste overlevelseskart.	menus/CoFCoop.cpp:212;menus/CoFCoop.cpp:214;menus/CoFCoop.cpp:216
+Survival 2	Overlevelse 2	menus/CoFCoop.cpp:213
+Survival 3	Overlevelse 3	menus/CoFCoop.cpp:215
+Survival 4	Overlevelse 4	menus/CoFCoop.cpp:217
+Survive for 30 minutes. No lobby: the game starts at once.\nThe first survival map follows.	Overlev i 30 minutter. Ingen lobby: spillet starter med en gang.\nDeretter kommer det første overlevelseskartet igjen.	menus/CoFCoop.cpp:218
+Host co-op	Start co-op	menus/CoFCoop.cpp:346
+HOST CO-OP	START CO-OP	menus/CoFCoop.cpp:349
+Your name	Navnet ditt	menus/CoFCoop.cpp:362;menus/CoFCoop.cpp:668
+Shown in the lobby and on the co-op player list	Vises i lobbyen og på co-op-spillerlisten	menus/CoFCoop.cpp:364;menus/CoFCoop.cpp:670
+The name of this game in server lists	Navnet på dette spillet i serverlister	menus/CoFCoop.cpp:368
+Empty for an open game; never saved	Tomt for et åpent spill; lagres aldri	menus/CoFCoop.cpp:373
+LAN only	Bare LAN	menus/CoFCoop.cpp:375
+Only players on the local network can join	Bare spillere i lokalnettet kan bli med	menus/CoFCoop.cpp:376
+Difficulty	Vanskelighetsgrad	menus/CoFCoop.cpp:378
+Nightmare appears once it is unlocked	Mareritt vises når det er låst opp	menus/CoFCoop.cpp:381
+Most players, you included (four slots)	Flest spillere, deg selv medregnet (fire plasser)	menus/CoFCoop.cpp:387
+Lobby autostart (seconds)	Autostart i lobbyen (sekunder)	menus/CoFCoop.cpp:389
+Start even if not all are ready; 0 = wait	Start selv om ikke alle er klare; 0 = vent	menus/CoFCoop.cpp:393
+Auto respawn (seconds)	Automatisk gjenoppstandelse (sekunder)	menus/CoFCoop.cpp:395
+Dead players come back after this long	Så lenge går det før døde spillere kommer tilbake	menus/CoFCoop.cpp:398
+Start the server on this campaign	Start serveren med denne kampanjen	menus/CoFCoop.cpp:417
+No co-op map is installed.	Ingen co-op-kart er installert.	menus/CoFCoop.cpp:471
+Join co-op	Bli med i co-op	menus/CoFCoop.cpp:659
+JOIN CO-OP	BLI MED I CO-OP	menus/CoFCoop.cpp:662
+Server address	Serveradresse	menus/CoFCoop.cpp:664
+IP or host name, optionally :port	IP eller vertsnavn, eventuelt med :port	menus/CoFCoop.cpp:666
+Ask the host for their address. The default port is 27015; over the Internet the host has to forward UDP 27015 to their computer.	Be verten om adressen. Standardporten er 27015; over Internett må verten videresende UDP 27015 til datamaskinen sin.	menus/CoFCoop.cpp:675
+LAN servers	LAN-servere	menus/CoFCoop.cpp:685
+Servers on the local network	Servere i lokalnettet	menus/CoFCoop.cpp:685
+Connect	Koble til	menus/CoFCoop.cpp:689
+Connect to this address	Koble til denne adressen	menus/CoFCoop.cpp:689

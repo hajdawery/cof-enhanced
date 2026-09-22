@@ -1,0 +1,485 @@
+# Cry of Fear: Enhanced - Spanish strings of the menu (MainUI with the Cry of Fear theme).
+# MACHINE-DRAFTED FOR REVIEW: written 2026-09-22 by an AI worker of this project, not by a
+# translator; please review.
+# Format: english <TAB> translation <TAB> where the English comes from; UTF-8; \n is a new line;
+# printf conversions (%s %d %i ...) must stay, in the same order. A row whose translation
+# equals the English changes nothing (kept so the check sees it as covered).
+# List the English with scripts/polish/extract-menu-strings.ps1 -MainUI <tree>\3rdparty\mainui
+# and check this file with the same script and -Pack languages\spanish.
+english	translation	where
+CRY OF FEAR	CRY OF FEAR	menus/Main.cpp:68;menus/Main.cpp:77
+ENHANCED	ENHANCED	menus/Main.cpp:78
+Do you wish to stop playing now?	¿Seguro que quieres dejar de jugar?	menus/Main.cpp:207;menus/Main.cpp:369
+QUIT	SALIR	menus/Main.cpp:209
+Quit	Salir	menus/Main.cpp:211;menus/Main.cpp:369
+QUIT TO MENU	SALIR AL MENÚ	menus/Main.cpp:233
+Really disconnect?	¿Seguro que quieres desconectarte?	menus/Main.cpp:235;menus/ConnectionProgress.cpp:240
+Starting a Hazard Course will exit\nany current game, OK to exit?	El entrenamiento cerrará\nla partida actual. ¿Continuar?	menus/Main.cpp:242
+Console	Consola	menus/Main.cpp:316;menus/ConnectionProgress.cpp:223
+Show console	Mostrar la consola	menus/Main.cpp:316
+Resume game	Continuar	menus/Main.cpp:326
+Return to game.	Volver al juego.	menus/Main.cpp:326
+Disconnect	Desconectar	menus/Main.cpp:331;menus/ConnectionProgress.cpp:236
+Disconnect from server	Desconectarse del servidor	menus/Main.cpp:331
+New Game	Nueva partida	menus/Main.cpp:336
+Start a new game.	Empezar una nueva partida.	menus/Main.cpp:336
+Training Room	Entrenamiento	menus/Main.cpp:341
+Multiplayer	Multijugador	menus/Main.cpp:347
+Options	Opciones	menus/Main.cpp:352;controls/YesNoMessageBox.cpp:325
+Change game settings, configure controls	Cambiar los ajustes del juego y los controles	menus/Main.cpp:352
+Change game	Cambiar de juego	menus/Main.cpp:359
+Select a custom game	Elegir otro juego	menus/Main.cpp:359
+Previews	Avances	menus/Main.cpp:364
+Find more about Valve's product lineup	Descubre otros juegos de Valve	menus/Main.cpp:364
+Custom Campaign	Campaña personalizada	menus/Main.cpp:487;menus/CryOfFear.cpp:748
+Play one of the campaigns in cryoffear/maps	Jugar una de las campañas de cryoffear/maps	menus/Main.cpp:487
+Join Server	Unirse a un servidor	menus/Main.cpp:492
+Find and join a co-op server	Buscar y unirse a un servidor cooperativo	menus/Main.cpp:492
+Host Server	Crear servidor	menus/Main.cpp:497
+Start a co-op server	Iniciar un servidor cooperativo	menus/Main.cpp:497
+Language	Idioma	menus/Main.cpp:506;menus/CryOfFear.cpp:985;menus/AdvancedControls.cpp:703
+Choose the subtitle and document language	Elegir el idioma de los subtítulos y documentos	menus/Main.cpp:506
+Unlockables	Desbloqueables	menus/Main.cpp:514;menus/CryOfFear.cpp:1897
+List the unlockables and open the gallery	Ver los desbloqueables y abrir la galería	menus/Main.cpp:514
+Extras	Extras	menus/Main.cpp:523;menus/CryOfFear.cpp:1103
+Co-op, unlockables, soundtrack and community links	Cooperativo, desbloqueables, banda sonora y enlaces de la comunidad	menus/Main.cpp:523
+Links	Enlaces	menus/Main.cpp:528
+Soundtrack, merchandise and community links	Banda sonora, productos y enlaces de la comunidad	menus/Main.cpp:528
+Credits	Créditos	menus/Main.cpp:533;menus/CryOfFear.cpp:1272
+Who made Cry of Fear, this project and the Polish localisation	Los creadores de Cry of Fear, de este proyecto y de la traducción al polaco	menus/Main.cpp:533
+Back	Volver	menus/Main.cpp:538
+Return to the main menu	Volver al menú principal	menus/Main.cpp:538
+Quit to menu	Salir al menú	menus/Main.cpp:543
+Leave the game and return to the main menu	Abandonar la partida y volver al menú principal	menus/Main.cpp:543
+Save Game	Guardar partida	menus/Main.cpp:553;menus/SaveLoad.cpp:107;menus/SaveLoad.cpp:139
+Save into one of the five shared Cry of Fear slots	Guardar en una de las cinco ranuras compartidas de Cry of Fear	menus/Main.cpp:553
+Load Game	Cargar partida	menus/Main.cpp:677;menus/Main.cpp:683;menus/Main.cpp:852;menus/CryOfFear.cpp:2174;menus/SaveLoad.cpp:100;menus/SaveLoad.cpp:138
+Load a previously saved game.	Cargar una partida guardada.	menus/Main.cpp:677;menus/Main.cpp:683;menus/Main.cpp:852
+Save\\Load Game	Guardar/Cargar	menus/Main.cpp:846
+Load a saved game, save the current game.	Cargar una partida o guardar la actual.	menus/Main.cpp:846
+Easy	Fácil	menus/CryOfFear.cpp:151
+Medium	Normal	menus/CryOfFear.cpp:151
+Difficult	Difícil	menus/CryOfFear.cpp:151
+Nightmare	Pesadilla	menus/CryOfFear.cpp:151
+Start a new game on Easy	Nueva partida en Fácil	menus/CryOfFear.cpp:156
+Start a new game on Medium	Nueva partida en Normal	menus/CryOfFear.cpp:157
+Start a new game on Difficult	Nueva partida en Difícil	menus/CryOfFear.cpp:158
+Start a new game on Nightmare	Nueva partida en Pesadilla	menus/CryOfFear.cpp:159
+Enable developer commentary	Activar los comentarios de los desarrolladores	menus/CryOfFear.cpp:352;menus/CryOfFear.cpp:355
+[ON ]	[SÍ ]	menus/CryOfFear.cpp:355;menus/SaveLoad.cpp:188
+[OFF]	[NO ]	menus/CryOfFear.cpp:355;menus/SaveLoad.cpp:188
+Custom campaign: %s (first map %s)	Campaña personalizada: %s (primer mapa %s)	menus/CryOfFear.cpp:375
+Cry of Fear	Cry of Fear	menus/CryOfFear.cpp:378
+Nightmare has to be unlocked in game (scriptsettings.dat line 83).	Primero hay que desbloquear Pesadilla en el juego (scriptsettings.dat, línea 83).	menus/CryOfFear.cpp:384
+Nightmare state is unknown: cryoffear/scriptsettings.dat is missing or line 83 is unreadable.	Estado de Pesadilla desconocido: falta cryoffear/scriptsettings.dat o la línea 83 no se puede leer.	menus/CryOfFear.cpp:385
+Locked	Bloqueado	menus/CryOfFear.cpp:387;menus/CryOfFear.cpp:1839
+Choose a difficulty	Elige la dificultad	menus/CryOfFear.cpp:427
+NEW GAME	NUEVA PARTIDA	menus/CryOfFear.cpp:433
+Play with the developer commentary track	Jugar con los comentarios de los desarrolladores	menus/CryOfFear.cpp:476
+Skip prologue	Saltar el prólogo	menus/CryOfFear.cpp:479
+Start at c_nightmare, past the three-minute intro sequence. The intro grants nothing, so nothing is lost	Empezar en c_nightmare, tras la introducción de tres minutos. La introducción no da nada, así que no pierdes nada	menus/CryOfFear.cpp:480
+Cancel	Cancelar	menus/CryOfFear.cpp:496;menus/CryOfFear.cpp:753;menus/Controls.cpp:263;menus/Controls.cpp:269;menus/VideoModes.cpp:991;menus/VideoModes.cpp:997;menus/LoadGame.cpp:462;menus/CreateGame.cpp:237;menus/CreateGame.cpp:307;controls/YesNoMessageBox.cpp:86
+Go back to the Main menu	Volver al menú principal	menus/CryOfFear.cpp:496;menus/CryOfFear.cpp:1028;menus/CryOfFear.cpp:1147;menus/CryOfFear.cpp:1325;menus/Configuration.cpp:114;menus/SaveLoad.cpp:150
+Start	Empezar	menus/CryOfFear.cpp:500;menus/CreateGame.cpp:238
+Start a new game on the selected difficulty	Empezar una nueva partida en la dificultad elegida	menus/CryOfFear.cpp:500
+CUSTOM CAMPAIGN	CAMPAÑA PERSONALIZADA	menus/CryOfFear.cpp:751
+Play	Jugar	menus/CryOfFear.cpp:759
+From maps/*.custom	De maps/*.custom	menus/CryOfFear.cpp:768
+Campaign	Campaña	menus/CryOfFear.cpp:777
+Author	Autor	menus/CryOfFear.cpp:778
+First map	Primer mapa	menus/CryOfFear.cpp:779
+%s\n\n%s\n\nFirst map: %s	%s\n\n%s\n\nPrimer mapa: %s	menus/CryOfFear.cpp:837
+English	English	menus/CryOfFear.cpp:854;menus/AdvancedControls.cpp:145
+Dutch	Neerlandés	menus/CryOfFear.cpp:854
+French	Francés	menus/CryOfFear.cpp:854
+German	Alemán	menus/CryOfFear.cpp:854
+Norwegian	Noruego	menus/CryOfFear.cpp:854
+Spanish	Español	menus/CryOfFear.cpp:854
+Swedish	Sueco	menus/CryOfFear.cpp:854
+Subtitle language: %s	Idioma de los subtítulos: %s	menus/CryOfFear.cpp:969
+LANGUAGE	IDIOMA	menus/CryOfFear.cpp:988
+Set the subtitle and document language	Establecer el idioma de los subtítulos y documentos	menus/CryOfFear.cpp:997;menus/CryOfFear.cpp:1007
+Close	Cerrar	menus/CryOfFear.cpp:1020;menus/CryOfFear.cpp:1139;menus/CryOfFear.cpp:1317;menus/CryOfFear.cpp:1921;menus/Configuration.cpp:93;menus/AdvancedControls.cpp:804;menus/Audio.cpp:185;menus/SaveLoad.cpp:115;menus/ServerBrowser.cpp:1176
+Done	Hecho	menus/CryOfFear.cpp:1028;menus/CryOfFear.cpp:1147;menus/CryOfFear.cpp:1325;menus/Configuration.cpp:114;menus/AdvancedControls.cpp:621;menus/InputDevices.cpp:81;menus/Video.cpp:78;menus/Audio.cpp:185;menus/SaveLoad.cpp:150;menus/ServerBrowser.cpp:1201;menus/ServerInfo.cpp:425;menus/ConnectionWarning.cpp:62
+Cry of Fear: Enhanced	Cry of Fear: Enhanced	menus/CryOfFear.cpp:1052
+Donate	Donar	menus/CryOfFear.cpp:1053
+Soundtrack 1	Banda sonora 1	menus/CryOfFear.cpp:1054
+Soundtrack 2	Banda sonora 2	menus/CryOfFear.cpp:1055
+Clothes	Ropa	menus/CryOfFear.cpp:1056
+Afraid of Monsters DC	Afraid of Monsters DC	menus/CryOfFear.cpp:1057
+Facebook	Facebook	menus/CryOfFear.cpp:1058
+EXTRAS	EXTRAS	menus/CryOfFear.cpp:1106
+TEAM PSYKSKALLAR	TEAM PSYKSKALLAR	menus/CryOfFear.cpp:1217
+Andreas "ruMpel" Rönnberg and James "Minuit" Marchant	Andreas «ruMpel» Rönnberg y James «Minuit» Marchant	menus/CryOfFear.cpp:1218
+Creators of Cry of Fear	Creadores de Cry of Fear	menus/CryOfFear.cpp:1219
+YouTube	YouTube	menus/CryOfFear.cpp:1221
+CRY OF FEAR: ENHANCED	CRY OF FEAR: ENHANCED	menus/CryOfFear.cpp:1224
+Community-driven	Un proyecto de la comunidad	menus/CryOfFear.cpp:1225
+Project site	Web del proyecto	menus/CryOfFear.cpp:1227
+CRY OF FEAR SPOLSZCZENIE (POLISH LOCALISATION)	CRY OF FEAR SPOLSZCZENIE (TRADUCCIÓN AL POLACO)	menus/CryOfFear.cpp:1230
+Avioo - Tłumaczenie, grafiki, testowanie	Avioo - Tłumaczenie, grafiki, testowanie	menus/CryOfFear.cpp:1231
+Mixdedemon - Tłumaczenie	Mixdedemon - Tłumaczenie	menus/CryOfFear.cpp:1232
+hexag0n - Technikalia, testowanie	hexag0n - Technikalia, testowanie	menus/CryOfFear.cpp:1233
+Izonka - Testowanie	Izonka - Testowanie	menus/CryOfFear.cpp:1234
+Steam Workshop	Steam Workshop	menus/CryOfFear.cpp:1236
+CREDITS	CRÉDITOS	menus/CryOfFear.cpp:1275
+Secret room, empty hint book, MP5	Sala secreta, libro de pistas vacío, MP5	menus/CryOfFear.cpp:1497
+One flag for all three; MP5 via Steam group	Un indicador para los tres; MP5 vía Steam	menus/CryOfFear.cpp:1498
+Unidentified flag (line 7)	Indicador desconocido (línea 7)	menus/CryOfFear.cpp:1501
+Unidentified flag (line 15)	Indicador desconocido (línea 15)	menus/CryOfFear.cpp:1505
+Unidentified flag (line 22)	Indicador desconocido (línea 22)	menus/CryOfFear.cpp:1509
+FAMAS with infinite ammo	FAMAS con munición infinita	menus/CryOfFear.cpp:1513
+Unidentified flag (line 45)	Indicador desconocido (línea 45)	menus/CryOfFear.cpp:1517
+Unidentified flag (line 47)	Indicador desconocido (línea 47)	menus/CryOfFear.cpp:1521
+Unidentified flag (line 48)	Indicador desconocido (línea 48)	menus/CryOfFear.cpp:1525
+David Leatherhoff suit	Traje de David Leatherhoff	menus/CryOfFear.cpp:1529
+ModDB hoodie	Sudadera de ModDB	menus/CryOfFear.cpp:1533
+Hello Kitty suit	Traje de Hello Kitty	menus/CryOfFear.cpp:1537
+Afraid of Monsters suit	Traje de Afraid of Monsters	menus/CryOfFear.cpp:1541
+Camouflage hoodie	Sudadera de camuflaje	menus/CryOfFear.cpp:1545
+Half Life Creations hoodie	Sudadera de Half-Life Creations	menus/CryOfFear.cpp:1549
+Black Metal suit	Traje Black Metal	menus/CryOfFear.cpp:1553
+Team Psykskallar hoodie	Sudadera de Team Psykskallar	menus/CryOfFear.cpp:1557
+Awesome suit	Traje Awesome	menus/CryOfFear.cpp:1561
+Sick Simon suit	Traje de Simon enfermo	menus/CryOfFear.cpp:1565
+AoM Twitcher suit	Traje de AoM Twitcher	menus/CryOfFear.cpp:1569
+Custom hoodies	Sudaderas personalizadas	menus/CryOfFear.cpp:1573
+David Leatherhoff's axe	Hacha de David Leatherhoff	menus/CryOfFear.cpp:1577
+Digital camera	Cámara digital	menus/CryOfFear.cpp:1581
+Simon's book	Libro de Simon	menus/CryOfFear.cpp:1585
+Developer commentary	Comentarios de los desarrolladores	menus/CryOfFear.cpp:1589
+Enable it on the New Game page once unlocked	Actívalo en Nueva partida	menus/CryOfFear.cpp:1590
+Hidden package	Paquete oculto	menus/CryOfFear.cpp:1593
+Tied to the secret ending	Ligado al final secreto	menus/CryOfFear.cpp:1594
+Gasmask (night vision)	Máscara de gas (visión nocturna)	menus/CryOfFear.cpp:1597
+First hint page	Primera página de pistas	menus/CryOfFear.cpp:1601
+In-game hint page "How To Unlock Book Pages"	«How To Unlock Book Pages»	menus/CryOfFear.cpp:1602
+Second hint page	Segunda página de pistas	menus/CryOfFear.cpp:1605
+In-game hint page "Ranking System Explained"	«Ranking System Explained»	menus/CryOfFear.cpp:1606
+Third hint page	Tercera página de pistas	menus/CryOfFear.cpp:1609
+In-game hint page "How To Unlock Hoodies"	«How To Unlock Hoodies»	menus/CryOfFear.cpp:1610
+Fourth hint page	Cuarta página de pistas	menus/CryOfFear.cpp:1613
+In-game hint page "How To Unlock Secret Items"	«How To Unlock Secret Items»	menus/CryOfFear.cpp:1614
+Fifth hint page	Quinta página de pistas	menus/CryOfFear.cpp:1617
+In-game hint page "How To Unlock Secret Weapons"	«How To Unlock Secret Weapons»	menus/CryOfFear.cpp:1618
+Unidentified flag (line 81)	Indicador desconocido (línea 81)	menus/CryOfFear.cpp:1621
+Doctor mode	Modo Doctor	menus/CryOfFear.cpp:1625
+Nightmare difficulty	Dificultad Pesadilla	menus/CryOfFear.cpp:1629
+Unlocked	Desbloqueado	menus/CryOfFear.cpp:1838
+UNLOCKABLES	DESBLOQUEABLES	menus/CryOfFear.cpp:1900
+Unlockable	Desbloqueable	menus/CryOfFear.cpp:1902
+How to unlock	Cómo desbloquearlo	menus/CryOfFear.cpp:1903
+Status	Estado	menus/CryOfFear.cpp:1904
+Status comes from cryoffear/scriptsettings.dat: each flag is one 20-byte line, compared to the two tokens client.dll carries for it. "?" means the file is missing or the line matches neither.	El estado sale de cryoffear/scriptsettings.dat: cada indicador es una línea de 20 bytes comparada con los dos valores que client.dll conoce. «?» significa que falta el archivo o que la línea no coincide con ninguno.	menus/CryOfFear.cpp:1912
+Open original gallery	Abrir la galería original	menus/CryOfFear.cpp:1914
+Load the c_unlockables gallery map, the client's own screen	Cargar el mapa de galería c_unlockables, la pantalla original del juego	menus/CryOfFear.cpp:1917
+GAME OVER	FIN DE LA PARTIDA	menus/CryOfFear.cpp:1995
+Game over	Fin de la partida	menus/CryOfFear.cpp:2172
+Exit	Salir	menus/CryOfFear.cpp:2179
+Check the Internet for updates?	¿Buscar actualizaciones en Internet?	menus/Configuration.cpp:56
+Game	Juego	menus/Configuration.cpp:71;menus/LoadGame.cpp:470
+Controls	Controles	menus/Configuration.cpp:71;menus/Configuration.cpp:102
+Audio	Audio	menus/Configuration.cpp:71;menus/Configuration.cpp:104
+Video	Vídeo	menus/Configuration.cpp:71;menus/Configuration.cpp:106
+Aiming, mouse look, saves and language	Apuntado, ratón, guardado e idioma	menus/Configuration.cpp:74
+Change keyboard and mouse settings	Cambiar los ajustes de teclado y ratón	menus/Configuration.cpp:75;menus/Configuration.cpp:102
+Change sound volume and quality	Cambiar el volumen y la calidad del sonido	menus/Configuration.cpp:76;menus/Configuration.cpp:104
+Change screen size, video mode and gamma	Cambiar la resolución, el modo de vídeo y la gamma	menus/Configuration.cpp:77;menus/Configuration.cpp:106
+OPTIONS	OPCIONES	menus/Configuration.cpp:81
+Touch	Táctil	menus/Configuration.cpp:108
+Change touch settings and buttons	Cambiar los ajustes y botones táctiles	menus/Configuration.cpp:108
+Joystick	Mando	menus/Configuration.cpp:110
+Change gamepad axis and button settings	Cambiar los ejes y botones del mando	menus/Configuration.cpp:110
+Update	Actualizar	menus/Configuration.cpp:112
+Check for updates	Buscar actualizaciones	menus/Configuration.cpp:112
+Auto	Auto	menus/AdvancedControls.cpp:77
+Hold	Mantener	menus/AdvancedControls.cpp:97
+Toggle	Alternar	menus/AdvancedControls.cpp:97
+Nederlands	Nederlands	menus/AdvancedControls.cpp:132
+Français	Français	menus/AdvancedControls.cpp:132
+Deutsch	Deutsch	menus/AdvancedControls.cpp:132
+Norsk	Norsk	menus/AdvancedControls.cpp:132
+Español	Español	menus/AdvancedControls.cpp:132
+Svenska	Svenska	menus/AdvancedControls.cpp:132
+%s (subtitles)	%s (subtítulos)	menus/AdvancedControls.cpp:282
+not installed	no instalado	menus/AdvancedControls.cpp:298
+GAME	JUEGO	menus/AdvancedControls.cpp:619
+Crosshair	Punto de mira	menus/AdvancedControls.cpp:626
+Enable the weapon aiming crosshair	Mostrar el punto de mira del arma	menus/AdvancedControls.cpp:626
+Reverse mouse	Invertir ratón	menus/AdvancedControls.cpp:630
+Reverse mouse up-down axis	Invertir el eje vertical del ratón	menus/AdvancedControls.cpp:630
+Mouse look	Mirar con el ratón	menus/AdvancedControls.cpp:635
+Use the mouse to look around	Usar el ratón para mirar alrededor	menus/AdvancedControls.cpp:635
+Look spring	Recentrar la vista	menus/AdvancedControls.cpp:641
+Causes the screen to 'spring' back to looking straight ahead when you move forward	Al avanzar, la vista vuelve a mirar al frente	menus/AdvancedControls.cpp:641
+Look strafe	Desplazamiento lateral con ratón	menus/AdvancedControls.cpp:645
+In combination with your mouse look modifier, causes left-right movements to strafe instead of turn	Con la tecla de mirar con el ratón, mover a izquierda y derecha desplaza en lateral en vez de girar	menus/AdvancedControls.cpp:645
+Mouse filter	Filtro del ratón	menus/AdvancedControls.cpp:649
+Smooth out mouse movement	Suavizar el movimiento del ratón	menus/AdvancedControls.cpp:649
+Auto-Aim	Apuntado automático	menus/AdvancedControls.cpp:653
+Aims at enemies automatically.	Apunta automáticamente a los enemigos.	menus/AdvancedControls.cpp:653
+Raw mouse input	Entrada directa del ratón	menus/AdvancedControls.cpp:657
+Take the mouse straight from the device, bypassing the operating system's pointer acceleration	Leer el ratón directamente del dispositivo, sin la aceleración del puntero del sistema	menus/AdvancedControls.cpp:657
+Mouse sensitivity	Sensibilidad del ratón	menus/AdvancedControls.cpp:661
+Input devices	Dispositivos de entrada	menus/AdvancedControls.cpp:665
+Toggle mouse, touch controls	Activar o desactivar el ratón y los controles táctiles	menus/AdvancedControls.cpp:665
+Enable console	Activar la consola	menus/AdvancedControls.cpp:672
+Allow the developer console without the -console or -dev command line switch	Permitir la consola de desarrollador sin los parámetros -console o -dev	menus/AdvancedControls.cpp:673
+Pause menu saves	Guardar desde la pausa	menus/AdvancedControls.cpp:677
+Allow saving from the pause menu into the five shared Cry of Fear slots	Permitir guardar desde el menú de pausa en las cinco ranuras compartidas de Cry of Fear	menus/AdvancedControls.cpp:678
+Show console notifications	Mostrar notificaciones de la consola	menus/AdvancedControls.cpp:705
+Show the newest console lines in the top-left corner during play	Muestra las últimas líneas de la consola en la esquina superior izquierda durante el juego	menus/AdvancedControls.cpp:706
+Subtitle language	Idioma de los subtítulos	menus/AdvancedControls.cpp:682
+Language of the subtitles and the in-game documents	Idioma de los subtítulos y de los documentos del juego	menus/AdvancedControls.cpp:686
+HUD scale	Tamaño del HUD	menus/AdvancedControls.cpp:689
+Size of the in-game HUD, inventory and subtitles. Auto keeps them the same fraction of the screen at every resolution	Tamaño del HUD, el inventario y los subtítulos. Auto mantiene la misma proporción de pantalla en cualquier resolución	menus/AdvancedControls.cpp:693
+Aim down sights	Apuntar con la mira	menus/AdvancedControls.cpp:696
+Hold: aim while the aim key is held. Toggle: press once to aim, press again to stop	Mantener: apuntas mientras mantienes la tecla. Alternar: pulsa una vez para apuntar y otra para dejar de hacerlo	menus/AdvancedControls.cpp:700
+Language of the menus and of the game's subtitles, documents and signs	Idioma de los menús y de los subtítulos, documentos y carteles del juego	menus/AdvancedControls.cpp:707
+Text switches at once, signs on the next map; restart the game for the remaining art.	Textos al instante, carteles en el siguiente mapa, el resto de gráficos al reiniciar.	menus/AdvancedControls.cpp:713
+Save changed and go back to the Customize Menu	Guardar los cambios y volver	menus/InputDevices.cpp:81
+Ignore mouse	Ignorar el ratón	menus/InputDevices.cpp:86
+Need for some servers. Will disable mouse in menu too	Necesario en algunos servidores. También desactiva el ratón en el menú	menus/InputDevices.cpp:86
+If you do not have touchscreen, or joystick, you will not be able to play without mouse.\nAre you sure to disable mouse?	Sin pantalla táctil ni mando no podrás jugar sin ratón.\n¿Seguro que quieres desactivarlo?	menus/InputDevices.cpp:94
+Enable touch	Activar controles táctiles	menus/InputDevices.cpp:107
+On-screen controls for touchscreen	Controles en pantalla para pantallas táctiles	menus/InputDevices.cpp:107
+Enable the joystick	Activar el mando	menus/InputDevices.cpp:111
+Enable using game controller in game	Usar un mando en el juego	menus/InputDevices.cpp:111
+Evdev input (root)	Entrada evdev (root)	menus/InputDevices.cpp:115
+Press this to enable full mouse and keyboard control on Android	Activa el control completo con ratón y teclado en Android	menus/InputDevices.cpp:115
+CONTROLS	CONTROLES	menus/Controls.cpp:234
+Action	Acción	menus/Controls.cpp:238
+KEY/BUTTON	TECLA/BOTÓN	menus/Controls.cpp:239
+ALTERNATE	ALTERNATIVA	menus/Controls.cpp:240
+Press a key or button	Pulsa una tecla o botón	menus/Controls.cpp:242
+Reset all actions to use their default keys?	¿Restablecer las teclas predeterminadas de todas las acciones?	menus/Controls.cpp:245
+Use Defaults	Predeterminado	menus/Controls.cpp:252
+Adv. Controls	Avanzado	menus/Controls.cpp:258
+OK	OK	menus/Controls.cpp:264;menus/Controls.cpp:268;menus/VideoOptions.cpp:171;menus/VideoOptions.cpp:203;menus/CreateGame.cpp:244;menus/ServerBrowser.cpp:1205;controls/YesNoMessageBox.cpp:83;controls/YesNoMessageBox.cpp:324
+PRESS A KEY	PULSA UNA TECLA	menus/Controls.cpp:282
+Video options	Opciones de vídeo	menus/Video.cpp:76
+Set video options such as screen size, gamma and image quality.	Ajustar el tamaño de pantalla, la gamma y la calidad de imagen.	menus/Video.cpp:76
+Video modes	Modos de vídeo	menus/Video.cpp:77
+Set video modes and configure 3D accelerators.	Ajustar el modo de vídeo y la aceleración 3D.	menus/Video.cpp:77
+Go back to the previous menu	Volver al menú anterior	menus/Video.cpp:78
+Gamma	Gamma	menus/VideoModes.cpp:514;menus/VideoOptions.cpp:189
+Brightness	Brillo	menus/VideoModes.cpp:519;menus/VideoOptions.cpp:197
+Contrast	Contraste	menus/VideoModes.cpp:524
+Field of view	Campo de visión	menus/VideoModes.cpp:529
+The 4:3 base field of view; 90 is Cry of Fear's own. Ironsights and scripted cameras are not rescaled.	Campo de visión base en 4:3; 90 es el de Cry of Fear. Apuntar con la mira y las cámaras con guion no cambian.	menus/VideoModes.cpp:533
+Viewmodel FOV	Campo de visión del arma	menus/VideoModes.cpp:535
+Follow FOV	Igual al campo	menus/VideoModes.cpp:537
+Field of view of the held weapon only. At the lowest step it follows the world field of view, which is the stock look.	Campo de visión solo del arma en mano. En el valor mínimo sigue al del mundo, como en el juego original.	menus/VideoModes.cpp:541
+Detail textures	Texturas de detalle	menus/VideoModes.cpp:543;menus/VideoOptions.cpp:209
+Use VBO	Usar VBO	menus/VideoModes.cpp:544;menus/VideoOptions.cpp:213
+Water ripples	Ondas en el agua	menus/VideoModes.cpp:545;menus/VideoOptions.cpp:217
+Overbrights	Sobrebrillo	menus/VideoModes.cpp:546;menus/VideoOptions.cpp:221
+Texture filtering	Filtrado de texturas	menus/VideoModes.cpp:547;menus/VideoOptions.cpp:225
+Auto scale HUD	Escalar HUD automáticamente	menus/VideoModes.cpp:548;menus/VideoOptions.cpp:229
+^1WARNING: This is an experimental option and turning it on might break mods!^7\n\nReload the game or reconnect to the server to apply the settings.	^1AVISO: opción experimental, ¡activarla puede romper mods!^7\n\nReinicia el juego o vuelve a conectarte al servidor para aplicar los ajustes.	menus/VideoModes.cpp:550;menus/VideoOptions.cpp:233
+Not supported on your GPU	Tu tarjeta gráfica no lo admite	menus/VideoModes.cpp:726;menus/VideoOptions.cpp:371
+Keep this resolution? %i seconds remaining	¿Mantener esta resolución? Quedan %i segundos	menus/VideoModes.cpp:913
+Windowed	Ventana	menus/VideoModes.cpp:933
+Fullscreen	Pantalla completa	menus/VideoModes.cpp:934
+Borderless	Sin bordes	menus/VideoModes.cpp:935
+VIDEO	VÍDEO	menus/VideoModes.cpp:946
+Resolution	Resolución	menus/VideoModes.cpp:949
+Vertical sync	Sincronización vertical	menus/VideoModes.cpp:952
+Restart the game to apply changes	Reinicia el juego para aplicar los cambios	menus/VideoModes.cpp:961
+Renderer	Renderizador	menus/VideoModes.cpp:966
+Window mode	Modo de ventana	menus/VideoModes.cpp:973
+Apply	Aplicar	menus/VideoModes.cpp:992;menus/VideoModes.cpp:996
+VIDEO OPTIONS	OPCIONES DE VÍDEO	menus/VideoOptions.cpp:170
+Screen size	Tamaño de pantalla	menus/VideoOptions.cpp:181
+AUDIO	AUDIO	menus/Audio.cpp:128
+Sound effects volume	Volumen de efectos	menus/Audio.cpp:130
+MP3 volume *	Volumen de la música *	menus/Audio.cpp:136
+Menu sounds	Sonidos del menú	menus/Audio.cpp:145
+Volume of the menu's own button and rollover sounds	Volumen de los sonidos de botones del menú	menus/Audio.cpp:146
+HEV suit volume	Volumen del traje HEV	menus/Audio.cpp:153
+Disable DSP effects	Desactivar efectos DSP	menus/Audio.cpp:159
+Use Alpha DSP effects	Efectos DSP Alpha	menus/Audio.cpp:163
+Mute when inactive	Silenciar en segundo plano	menus/Audio.cpp:167
+Enable vibration	Activar vibración	menus/Audio.cpp:171
+Vibration	Vibración	menus/Audio.cpp:178
+No preview	Sin vista previa	menus/LoadGame.cpp:235
+Slot %i	Ranura %i	menus/LoadGame.cpp:273
+Empty	Vacía	menus/LoadGame.cpp:300
+Current	Actual	menus/LoadGame.cpp:321
+New saved game	Nueva partida guardada	menus/LoadGame.cpp:322
+New	Nueva	menus/LoadGame.cpp:323
+[quick]	[rápida]	menus/LoadGame.cpp:394
+[autosave]	[autoguardado]	menus/LoadGame.cpp:396
+Save	Partida	menus/LoadGame.cpp:447;menus/LoadGame.cpp:475
+Load	Cargar	menus/LoadGame.cpp:452
+Delete	Borrar	menus/LoadGame.cpp:457
+Time	Hora	menus/LoadGame.cpp:469;menus/ServerInfo.cpp:436
+Elapsed Time	Tiempo de juego	menus/LoadGame.cpp:471
+Slot	Ranura	menus/LoadGame.cpp:474
+Date	Fecha	menus/LoadGame.cpp:476
+Delete this saved game?	¿Borrar esta partida guardada?	menus/LoadGame.cpp:483
+Overwrite this saved game?	¿Sobrescribir esta partida guardada?	menus/LoadGame.cpp:487
+Overwrite	Sobrescribir	menus/LoadGame.cpp:488
+LOAD GAME	CARGAR PARTIDA	menus/LoadGame.cpp:496;menus/LoadGame.cpp:518
+DELETE SAVE	BORRAR PARTIDA	menus/LoadGame.cpp:497
+OVERWRITE SAVE	SOBRESCRIBIR PARTIDA	menus/LoadGame.cpp:498
+SAVE GAME	GUARDAR PARTIDA	menus/LoadGame.cpp:518
+Cry of Fear uses five shared save slots. Turn on "Pause menu saves" in Options > Game to save from this menu.	Cry of Fear usa cinco ranuras compartidas. Activa «Guardar desde la pausa» en Opciones > Juego para guardar aquí.	menus/SaveLoad.cpp:79
+Cry of Fear uses five shared save slots. Enable pause-menu saves to save from this menu.	Cry of Fear usa cinco ranuras compartidas. Activa el guardado desde la pausa para guardar aquí.	menus/SaveLoad.cpp:81
+During play, you can quickly save your game by pressing %s.\nLoad this game again by pressing %s.	Durante el juego puedes guardar rápido con %s.\nVuelve a cargar esta partida con %s.	menus/SaveLoad.cpp:84
+SAVE / LOAD	GUARDAR / CARGAR	menus/SaveLoad.cpp:98
+Select a saved game in the list below, then click 'Load game'.	Elige una partida de la lista y pulsa «Cargar partida».	menus/SaveLoad.cpp:100;menus/SaveLoad.cpp:138
+Select 'New Saved Game' in the list to create a new file, or select\na previously saved game to overwrite a file.	Elige «Nueva partida guardada» para crear un archivo, o una\npartida existente para sobrescribirla.	menus/SaveLoad.cpp:107;menus/SaveLoad.cpp:139
+Enable pause-menu saves	Activar el guardado desde la pausa	menus/SaveLoad.cpp:185;menus/SaveLoad.cpp:188
+Invalid maxplayers value entered.\nPlease enter a value from 2 to %d.	Número de jugadores no válido.\nIntroduce un valor de 2 a %d.	menus/CreateGame.cpp:122
+< Random Map >	< Mapa aleatorio >	menus/CreateGame.cpp:181
+Use NAT Bypass instead of direct mode	Usar el paso de NAT en vez de la conexión directa	menus/CreateGame.cpp:221
+HOST SERVER	CREAR SERVIDOR	menus/CreateGame.cpp:226
+Adv. Options	Avanzado	menus/CreateGame.cpp:231;menus/ConnectionWarning.cpp:69
+START SERVER	INICIAR SERVIDOR	menus/CreateGame.cpp:240
+Map	Mapa	menus/CreateGame.cpp:249;menus/ServerBrowser.cpp:1214
+Title	Título	menus/CreateGame.cpp:250
+Server name	Nombre del servidor	menus/CreateGame.cpp:253
+Max. Players:	Jugadores máx.:	menus/CreateGame.cpp:264
+Password	Contraseña	menus/CreateGame.cpp:291;menus/ServerBrowser.cpp:1246
+Starting a new game will exit any current game, OK to exit?	Una nueva partida cerrará la actual. ¿Continuar?	menus/CreateGame.cpp:303
+Invalid protocol while generating dummy info string	Protocolo no válido al generar los datos del servidor	menus/ServerBrowser.cpp:170
+%.f ms	%.f ms	menus/ServerBrowser.cpp:520
+any map	cualquier mapa	menus/ServerBrowser.cpp:684;menus/ServerBrowser.cpp:826;menus/ServerBrowser.cpp:1359
+Favorite	Favorito	menus/ServerBrowser.cpp:811;menus/ServerBrowser.cpp:1161;menus/ServerBrowser.cpp:1197
+Unfavorite	Quitar de favoritos	menus/ServerBrowser.cpp:816
+Invalid address	Dirección no válida	menus/ServerBrowser.cpp:1052
+Invalid protocol	Protocolo no válido	menus/ServerBrowser.cpp:1067
+Server already in favorites	El servidor ya está en favoritos	menus/ServerBrowser.cpp:1079
+JOIN SERVER	UNIRSE A UN SERVIDOR	menus/ServerBrowser.cpp:1153
+View game info	Ver información	menus/ServerBrowser.cpp:1162;menus/ServerBrowser.cpp:1196
+Create Server	Crear servidor	menus/ServerBrowser.cpp:1164;menus/ServerBrowser.cpp:1186
+Refresh	Actualizar	menus/ServerBrowser.cpp:1174;menus/ServerBrowser.cpp:1198
+Add server	Añadir servidor	menus/ServerBrowser.cpp:1175;menus/ServerBrowser.cpp:1199
+Join	Unirse	menus/ServerBrowser.cpp:1178
+Join game	Unirse a la partida	menus/ServerBrowser.cpp:1183
+Join a network game will exit any current game, OK to exit?	Unirse a una partida en red cerrará la actual. ¿Continuar?	menus/ServerBrowser.cpp:1204
+Name	Nombre	menus/ServerBrowser.cpp:1213
+Players	Jugadores	menus/ServerBrowser.cpp:1215
+Ping	Ping	menus/ServerBrowser.cpp:1216
+IP	IP	menus/ServerBrowser.cpp:1217
+Direct	Directa	menus/ServerBrowser.cpp:1225
+NAT	NAT	menus/ServerBrowser.cpp:1226
+Favorites	Favoritos	menus/ServerBrowser.cpp:1227
+History	Historial	menus/ServerBrowser.cpp:1228
+Please enter a password	Introduce una contraseña	menus/ServerBrowser.cpp:1268
+Enter server Internet address\n(e.g., 209.255.10.255:27015)	Introduce la dirección del servidor\n(p. ej. 209.255.10.255:27015)	menus/ServerBrowser.cpp:1291
+ping	ping	menus/ServerBrowser.cpp:1304
+empty	vacío	menus/ServerBrowser.cpp:1321
+not empty	no vacío	menus/ServerBrowser.cpp:1322
+any	cualquiera	menus/ServerBrowser.cpp:1323;menus/ServerBrowser.cpp:1342
+full	lleno	menus/ServerBrowser.cpp:1340
+not full	no lleno	menus/ServerBrowser.cpp:1341
+%.f ms.	%.f ms.	menus/ServerInfo.cpp:261
+Server hostname:	Nombre del servidor:	menus/ServerInfo.cpp:394
+Server IP address:	Dirección IP del servidor:	menus/ServerInfo.cpp:405
+Server 'ping' time:	Ping del servidor:	menus/ServerInfo.cpp:416
+??? ms.	??? ms.	menus/ServerInfo.cpp:421
+Player Name	Jugador	menus/ServerInfo.cpp:434
+Kills	Bajas	menus/ServerInfo.cpp:435
+Server Rule	Regla del servidor	menus/ServerInfo.cpp:440
+Value	Valor	menus/ServerInfo.cpp:441
+Precaching resources...	Cargando recursos...	menus/ConnectionProgress.cpp:59
+Downloading %s \nfrom %s	Descargando %s \ndesde %s	menus/ConnectionProgress.cpp:73
+%d of %d %s	%d de %d %s	menus/ConnectionProgress.cpp:74
+Starting local game server...	Iniciando el servidor local...	menus/ConnectionProgress.cpp:84;menus/ConnectionProgress.cpp:105;menus/ConnectionProgress.cpp:109
+Establishing network connection to server...	Conectando con el servidor...	menus/ConnectionProgress.cpp:90;menus/ConnectionProgress.cpp:114
+Disconnected	Desconectado	menus/ConnectionProgress.cpp:197
+Skip	Saltar	menus/ConnectionProgress.cpp:248
+Changing level on server	Cambiando de mapa en el servidor	menus/ConnectionProgress.cpp:390
+Parsing server info...	Leyendo la información del servidor...	menus/ConnectionProgress.cpp:401
+Normal internet connection	Conexión a Internet normal	menus/ConnectionWarning.cpp:46
+DSL or PPTP with limited packet size	DSL o PPTP con tamaño de paquete limitado	menus/ConnectionWarning.cpp:51
+Slow connection mode (64kbps)	Conexión lenta (64 kbps)	menus/ConnectionWarning.cpp:56
+Connection problem	Problema de conexión	menus/ConnectionWarning.cpp:81
+Too many lost packets while connecting!\nPlease select network settings	¡Demasiados paquetes perdidos al conectar!\nElige los ajustes de red	menus/ConnectionWarning.cpp:85
+NOTICE	AVISO	controls/YesNoMessageBox.cpp:30;controls/MessageBox.cpp:25
+CONFIRM	CONFIRMAR	controls/YesNoMessageBox.cpp:30
+Built-in touch actions	Acciones táctiles integradas	model/KbActListModel.h:246
+Look (touchpad)	Mirar (panel táctil)	model/KbActListModel.h:248
+Move (joystick)	Moverse (joystick)	model/KbActListModel.h:249
+Move (centered joystick)	Moverse (joystick centrado)	model/KbActListModel.h:250
+Move (D-Pad)	Moverse (cruceta)	model/KbActListModel.h:251
+Vertical wheel	Rueda vertical	model/KbActListModel.h:252
+Horizontal wheel	Rueda horizontal	model/KbActListModel.h:253
+CONTROLS - MOVEMENT	CONTROLES - MOVIMIENTO	gfx/shell/kb_act.lst:2
+Move forward	Avanzar	gfx/shell/kb_act.lst:4
+Move back	Retroceder	gfx/shell/kb_act.lst:5
+Run left	Izquierda	gfx/shell/kb_act.lst:6
+Run right	Derecha	gfx/shell/kb_act.lst:7
+Sprint	Esprintar	gfx/shell/kb_act.lst:8
+Dodge	Esquivar	gfx/shell/kb_act.lst:9
+Jump	Saltar	gfx/shell/kb_act.lst:10
+Crouch	Agacharse	gfx/shell/kb_act.lst:11
+CONTROLS - WEAPONS/ITEMS	CONTROLES - ARMAS/OBJETOS	gfx/shell/kb_act.lst:13
+Pickup/Interact with items	Coger/Usar objetos	gfx/shell/kb_act.lst:15
+Primary Attack	Ataque principal	gfx/shell/kb_act.lst:16
+Secondary Attack	Ataque secundario	gfx/shell/kb_act.lst:17
+Tertiary Attack	Apuntar (ataque terciario)	gfx/shell/kb_act.lst:18
+Toggle weapon function	Cambiar función del arma	gfx/shell/kb_act.lst:19
+Reload	Recargar	gfx/shell/kb_act.lst:20
+Inventory	Inventario	gfx/shell/kb_act.lst:21
+See current objective	Ver el objetivo actual	gfx/shell/kb_act.lst:22
+Quick slot 1	Acceso rápido 1	gfx/shell/kb_act.lst:23
+Quick slot 2	Acceso rápido 2	gfx/shell/kb_act.lst:24
+Quick slot 3	Acceso rápido 3	gfx/shell/kb_act.lst:25
+Flashlight (coop only)	Linterna (solo cooperativo)	gfx/shell/kb_act.lst:26
+CONTROLS - MISC	CONTROLES - VARIOS	gfx/shell/kb_act.lst:28
+Use voice chat (coop only)	Chat de voz (solo cooperativo)	gfx/shell/kb_act.lst:30
+Vote yes on votekick (coop only)	Votar sí a la expulsión (solo cooperativo)	gfx/shell/kb_act.lst:31
+Vote no on votekick (coop only)	Votar no a la expulsión (solo cooperativo)	gfx/shell/kb_act.lst:32
+Follow me! (coop only)	¡Seguidme! (solo cooperativo)	gfx/shell/kb_act.lst:33
+Help me! (coop only)	¡Ayuda! (solo cooperativo)	gfx/shell/kb_act.lst:34
+Found something! (coop only)	¡He encontrado algo! (solo cooperativo)	gfx/shell/kb_act.lst:35
+Chat message	Mensaje de chat	gfx/shell/kb_act.lst:36
+Take screenshot	Captura de pantalla	gfx/shell/kb_act.lst:37
+Pause game	Pausa	gfx/shell/kb_act.lst:38
+Quit game	Salir del juego	gfx/shell/kb_act.lst:39
+Pause Save (%s)	Pausa (%s)	engine/server/sv_save.c (title of a pause-menu save, in the Load list)
+DISCONNECT	DESCONECTAR	menus/Main.cpp:247
+Leave the co-op game and return to the main menu?	¿Abandonar la partida cooperativa y volver al menú principal?	menus/Main.cpp:249
+Join a co-op game by address or on the local network	Unirse a una partida cooperativa por dirección o en la red local	menus/Main.cpp:511
+Host a co-op game: story, Manhunt or survival	Crear una partida cooperativa: historia, Manhunt o supervivencia	menus/Main.cpp:516
+Leave the co-op game and return to the main menu	Abandonar la partida cooperativa y volver al menú principal	menus/Main.cpp:681
+Player	Jugador	menus/CoFCoop.cpp:175
+Story co-op	Historia cooperativa	menus/CoFCoop.cpp:207
+Chapters 9 to 12, starting with "Where is Simon?".\nLobby: everyone gets ready, or the autostart time runs out.	Capítulos 9 a 12, desde «Where is Simon?».\nSala: todos están listos o se agota el tiempo de inicio automático.	menus/CoFCoop.cpp:208
+Manhunt	Manhunt	menus/CoFCoop.cpp:209
+The Manhunt campaign, from "A new beginning" to the cabin.\nLobby: everyone gets ready, or the autostart time runs out.	La campaña Manhunt, desde «A new beginning» hasta la cabaña.\nSala: todos están listos o se agota el tiempo de inicio automático.	menus/CoFCoop.cpp:210
+Survival 1	Supervivencia 1	menus/CoFCoop.cpp:211
+Survive for 30 minutes. No lobby: the game starts at once.\nThe next survival map follows.	Sobrevive 30 minutos. Sin sala: la partida empieza enseguida.\nDespués viene el siguiente mapa de supervivencia.	menus/CoFCoop.cpp:212;menus/CoFCoop.cpp:214;menus/CoFCoop.cpp:216
+Survival 2	Supervivencia 2	menus/CoFCoop.cpp:213
+Survival 3	Supervivencia 3	menus/CoFCoop.cpp:215
+Survival 4	Supervivencia 4	menus/CoFCoop.cpp:217
+Survive for 30 minutes. No lobby: the game starts at once.\nThe first survival map follows.	Sobrevive 30 minutos. Sin sala: la partida empieza enseguida.\nDespués se vuelve al primer mapa de supervivencia.	menus/CoFCoop.cpp:218
+Host co-op	Crear cooperativo	menus/CoFCoop.cpp:346
+HOST CO-OP	CREAR COOPERATIVO	menus/CoFCoop.cpp:349
+Your name	Tu nombre	menus/CoFCoop.cpp:362;menus/CoFCoop.cpp:668
+Shown in the lobby and on the co-op player list	Aparece en la sala y en la lista de jugadores	menus/CoFCoop.cpp:364;menus/CoFCoop.cpp:670
+The name of this game in server lists	Nombre de esta partida en las listas de servidores	menus/CoFCoop.cpp:368
+Empty for an open game; never saved	Vacía para una partida abierta; nunca se guarda	menus/CoFCoop.cpp:373
+LAN only	Solo LAN	menus/CoFCoop.cpp:375
+Only players on the local network can join	Solo pueden unirse jugadores de la red local	menus/CoFCoop.cpp:376
+Difficulty	Dificultad	menus/CoFCoop.cpp:378
+Nightmare appears once it is unlocked	Pesadilla aparece cuando se desbloquea	menus/CoFCoop.cpp:381
+Most players, you included (four slots)	Máximo de jugadores, tú incluido (cuatro plazas)	menus/CoFCoop.cpp:387
+Lobby autostart (seconds)	Inicio automático de la sala (segundos)	menus/CoFCoop.cpp:389
+Start even if not all are ready; 0 = wait	Empezar aunque no todos estén listos; 0 = esperar	menus/CoFCoop.cpp:393
+Auto respawn (seconds)	Reaparición automática (segundos)	menus/CoFCoop.cpp:395
+Dead players come back after this long	Tiempo tras el que vuelven los jugadores muertos	menus/CoFCoop.cpp:398
+Start the server on this campaign	Iniciar el servidor con esta campaña	menus/CoFCoop.cpp:417
+No co-op map is installed.	No hay ningún mapa cooperativo instalado.	menus/CoFCoop.cpp:471
+Join co-op	Unirse a cooperativo	menus/CoFCoop.cpp:659
+JOIN CO-OP	UNIRSE A COOPERATIVO	menus/CoFCoop.cpp:662
+Server address	Dirección del servidor	menus/CoFCoop.cpp:664
+IP or host name, optionally :port	IP o nombre de host, con :puerto opcional	menus/CoFCoop.cpp:666
+Ask the host for their address. The default port is 27015; over the Internet the host has to forward UDP 27015 to their computer.	Pide la dirección al anfitrión. El puerto por defecto es 27015; por Internet, el anfitrión tiene que redirigir UDP 27015 a su ordenador.	menus/CoFCoop.cpp:675
+LAN servers	Servidores LAN	menus/CoFCoop.cpp:685
+Servers on the local network	Servidores de la red local	menus/CoFCoop.cpp:685
+Connect	Conectar	menus/CoFCoop.cpp:689
+Connect to this address	Conectar a esta dirección	menus/CoFCoop.cpp:689

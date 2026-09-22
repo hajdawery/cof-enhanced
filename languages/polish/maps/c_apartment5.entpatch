@@ -1,0 +1,70 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_apartment5: 335 entities in the BSP entity lump; 10 value(s) in 9 entities; values are cp1250 bytes
+{
+"@entity" "58"
+"@classname" "inter_door"
+"@targetname" "fittansman"
+"@model" "*22"
+"@crc:lockedmsg" "7c264f70"
+"lockedmsg" "Co jest?! Ktoœ zablokowa³ drzwi!"
+}
+{
+"@entity" "149"
+"@classname" "inter_door"
+"@model" "*46"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "150"
+"@classname" "inter_door"
+"@model" "*47"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "151"
+"@classname" "inter_door"
+"@model" "*48"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "268"
+"@classname" "func_button"
+"@targetname" "ropebutton"
+"@model" "*68"
+"@crc:unlockedmsg" "0cc1f42c"
+"unlockedmsg" "Umieœci³eœ linê."
+"@crc:lockedmsg" "054565bb"
+"lockedmsg" "Potrzebujesz liny lub czegoœ do zejœcia na dó³."
+}
+{
+"@entity" "269"
+"@classname" "inter_door"
+"@targetname" "fittaea"
+"@model" "*69"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "271"
+"@classname" "inter_door"
+"@model" "*71"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "272"
+"@classname" "inter_door"
+"@model" "*72"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "273"
+"@classname" "trigger_checkbrush"
+"@model" "*73"
+"@crc:message" "807556aa"
+"message" "Widzê st¹d, ¿e nie ¿yje. Sam to sobie zrobi³?"
+}

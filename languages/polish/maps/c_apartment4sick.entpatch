@@ -1,0 +1,93 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_apartment4sick: 368 entities in the BSP entity lump; 13 value(s) in 13 entities; values are cp1250 bytes
+{
+"@entity" "54"
+"@classname" "inter_door"
+"@model" "*44"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "55"
+"@classname" "inter_door"
+"@model" "*45"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "145"
+"@classname" "trigger_checkbrush"
+"@model" "*68"
+"@crc:message" "4cef09c0"
+"message" "Schody s¹ ca³kowicie zablokowane."
+}
+{
+"@entity" "178"
+"@classname" "inter_door"
+"@model" "*83"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "179"
+"@classname" "inter_door"
+"@model" "*84"
+"@crc:lockedmsg" "313cb454"
+"lockedmsg" "Drzwi siê zaciê³y. Nie mo¿na ich otworzyæ."
+}
+{
+"@entity" "180"
+"@classname" "inter_door"
+"@model" "*85"
+"@crc:lockedmsg" "313cb454"
+"lockedmsg" "Drzwi siê zaciê³y. Nie mo¿na ich otworzyæ."
+}
+{
+"@entity" "182"
+"@classname" "inter_door"
+"@model" "*87"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "188"
+"@classname" "inter_door"
+"@model" "*90"
+"@crc:lockedmsg" "a09831eb"
+"lockedmsg" "Nie mogê ich otworzyæ przez tê ca³¹ wodê."
+}
+{
+"@entity" "196"
+"@classname" "inter_door"
+"@model" "*93"
+"@crc:lockedmsg" "b5a5f489"
+"lockedmsg" "Nie mogê otworzyæ tych drzwi, zablokowali je."
+}
+{
+"@entity" "223"
+"@classname" "inter_door"
+"@model" "*113"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "250"
+"@classname" "inter_door"
+"@model" "*129"
+"@crc:lockedmsg" "a09831eb"
+"lockedmsg" "Nie mogê ich otworzyæ przez tê ca³¹ wodê."
+}
+{
+"@entity" "253"
+"@classname" "inter_door"
+"@model" "*131"
+"@crc:lockedmsg" "a09831eb"
+"lockedmsg" "Nie mogê ich otworzyæ przez tê ca³¹ wodê."
+}
+{
+"@entity" "351"
+"@classname" "inter_door"
+"@model" "*155"
+"@crc:lockedmsg" "a09831eb"
+"lockedmsg" "Nie mogê ich otworzyæ przez tê ca³¹ wodê."
+}

@@ -1,0 +1,133 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_doc_city: 678 entities in the BSP entity lump; 20 value(s) in 18 entities; values are cp1250 bytes
+{
+"@entity" "36"
+"@classname" "inter_door"
+"@model" "*4"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "60"
+"@classname" "inter_door"
+"@model" "*5"
+"@crc:lockedmsg" "2c8ef5c2"
+"lockedmsg" "To jest z³a droga."
+}
+{
+"@entity" "168"
+"@classname" "inter_door"
+"@model" "*23"
+"@crc:lockedmsg" "d97a8f10"
+"lockedmsg" "Nie muszê wracaæ."
+}
+{
+"@entity" "262"
+"@classname" "cof_billboard"
+"@targetname" "tavlaparkbus"
+"@origin" "180 -1210 302"
+"@crc:text" "e726f4bd"
+"text" "Muszê znaleŸæ Simona."
+}
+{
+"@entity" "266"
+"@classname" "trigger_checkbrush"
+"@model" "*30"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "267"
+"@classname" "inter_door"
+"@model" "*31"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "268"
+"@classname" "inter_door"
+"@model" "*32"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "579"
+"@classname" "trigger_checkbrush"
+"@model" "*49"
+"@crc:message" "afd40d30"
+"message" "Ta droga jest ca³kowicie zablokowana. Muszê znaleŸæ jakieœ obejœcie."
+}
+{
+"@entity" "580"
+"@classname" "trigger_checkbrush"
+"@model" "*50"
+"@crc:message" "afd40d30"
+"message" "Ta droga jest ca³kowicie zablokowana. Muszê znaleŸæ jakieœ obejœcie."
+}
+{
+"@entity" "581"
+"@classname" "trigger_checkbrush"
+"@model" "*51"
+"@crc:message" "afd40d30"
+"message" "Ta droga jest ca³kowicie zablokowana. Muszê znaleŸæ jakieœ obejœcie."
+}
+{
+"@entity" "582"
+"@classname" "trigger_checkbrush"
+"@model" "*52"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "583"
+"@classname" "trigger_checkbrush"
+"@model" "*53"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "584"
+"@classname" "trigger_checkbrush"
+"@model" "*54"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "585"
+"@classname" "trigger_checkbrush"
+"@model" "*55"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "589"
+"@classname" "trigger_checkbrush"
+"@model" "*59"
+"@crc:message" "36265032"
+"message" "Nie potrzebujê tego teraz."
+}
+{
+"@entity" "591"
+"@classname" "trigger_checkbrush"
+"@model" "*61"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "592"
+"@classname" "trigger_checkbrush"
+"@model" "*62"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "594"
+"@classname" "trigger_checkbrush"
+"@model" "*64"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}

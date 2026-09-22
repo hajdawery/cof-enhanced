@@ -1,0 +1,252 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_college1dark: 391 entities in the BSP entity lump; 37 value(s) in 35 entities; values are cp1250 bytes
+{
+"@entity" "240"
+"@classname" "inter_door"
+"@model" "*10"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "241"
+"@classname" "inter_door"
+"@model" "*11"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "242"
+"@classname" "inter_door"
+"@model" "*12"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "243"
+"@classname" "inter_door"
+"@model" "*13"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "244"
+"@classname" "inter_door"
+"@model" "*14"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "245"
+"@classname" "inter_door"
+"@model" "*15"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "246"
+"@classname" "inter_door"
+"@model" "*16"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "247"
+"@classname" "inter_door"
+"@model" "*17"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "248"
+"@classname" "inter_door"
+"@model" "*18"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "249"
+"@classname" "inter_door"
+"@model" "*19"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "250"
+"@classname" "inter_door"
+"@model" "*20"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "251"
+"@classname" "inter_door"
+"@model" "*21"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "252"
+"@classname" "inter_door"
+"@model" "*22"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "253"
+"@classname" "inter_door"
+"@model" "*23"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "254"
+"@classname" "inter_door"
+"@model" "*24"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "255"
+"@classname" "inter_door"
+"@model" "*25"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "256"
+"@classname" "inter_door"
+"@model" "*26"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "257"
+"@classname" "inter_door"
+"@model" "*27"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "258"
+"@classname" "inter_door"
+"@model" "*28"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "259"
+"@classname" "inter_door"
+"@model" "*29"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "260"
+"@classname" "inter_door"
+"@model" "*30"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "261"
+"@classname" "inter_door"
+"@model" "*31"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "262"
+"@classname" "inter_door"
+"@model" "*32"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "263"
+"@classname" "inter_door"
+"@model" "*33"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "264"
+"@classname" "inter_door"
+"@model" "*34"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "265"
+"@classname" "inter_door"
+"@model" "*35"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "266"
+"@classname" "inter_door"
+"@model" "*36"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "268"
+"@classname" "inter_door"
+"@model" "*37"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "269"
+"@classname" "inter_door"
+"@model" "*38"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "271"
+"@classname" "inter_door"
+"@model" "*39"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "290"
+"@classname" "inter_door"
+"@targetname" "neegerdo"
+"@model" "*40"
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "291"
+"@classname" "inter_door"
+"@model" "*41"
+"@crc:unlockedmsg" "b9812ea5"
+"unlockedmsg" "Drzwi s¹ otwarte."
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "293"
+"@classname" "inter_door"
+"@model" "*42"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "335"
+"@classname" "inter_door"
+"@model" "*51"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "339"
+"@classname" "inter_door"
+"@model" "*53"
+"@crc:unlockedmsg" "b9812ea5"
+"unlockedmsg" "Drzwi s¹ otwarte."
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}

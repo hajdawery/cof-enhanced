@@ -22,8 +22,9 @@ TASK A -- language-slot text (txt/):
 
 TASK B -- inventory item texts (inventoryitems/):
     Copies all cryoffear/inventoryitems/**/*.txt (incl. ammo/, weapons/)
-    verbatim, EXCEPT two known-anomalous source files which are corrected
-    in-flight (see _load_inventory_item_bytes docstring):
+    verbatim, EXCEPT files byte-identical to the game's own (skipped: nine
+    untranslated weapons/weapon_*.txt in the Polish source) and two
+    known-anomalous source files which are corrected in-flight:
         weapons/weapon_sledgeshovel.txt  -- source is UTF-8, re-encoded to cp1250
         valve.txt                        -- source has a UTF-8-in-cp1250 mojibake
                                              bug ("ZawĂłr" -> "Zawór") fixed in-flight
@@ -37,6 +38,7 @@ require the game to run and never touches the read-only source trees.
 from __future__ import annotations
 
 import argparse
+import shutil
 import sys
 from pathlib import Path
 
@@ -85,6 +87,8 @@ def build_language_slot_text(lang: str, cfg: "lc.LanguageConfig") -> dict:
     """TASK A. Returns a small report dict for the caller to print/aggregate."""
     mod_root = cfg.mod_root
     out_base = lc.txt_dir(lang)
+    if out_base.exists():
+        shutil.rmtree(out_base)
 
     report = {
         "txtfiles_written": [],
@@ -131,7 +135,7 @@ def build_language_slot_text(lang: str, cfg: "lc.LanguageConfig") -> dict:
             data = src.read_bytes()
             _verify_cp1250_clean(data, f"{subdir}/{name}")
             dest = out_dir / name
-            lc.write_bytes_atomic(dest, data)
+            lc.write_pack_file(dest, data)
             report[report_key].append(str(dest))
 
     return report
@@ -172,7 +176,10 @@ def build_inventory_items(lang: str, cfg: "lc.LanguageConfig") -> dict:
     report = {
         "written": [],
         "anomalies_fixed": [],
+        "identical_skipped": [],
     }
+    if out_base.exists():
+        shutil.rmtree(out_base)
 
     for src in src_files:
         rel = src.relative_to(src_base).as_posix()
@@ -212,8 +219,14 @@ def build_inventory_items(lang: str, cfg: "lc.LanguageConfig") -> dict:
             _verify_cp1250_clean(data, rel)
             out_bytes = data
 
+        # never ship a file the game already has, byte for byte (nine
+        # weapons/weapon_*.txt of the Polish source are untouched game files)
+        if lc.game_identical(out_bytes) is not None:
+            report["identical_skipped"].append(rel)
+            continue
+
         dest = out_base / rel
-        lc.write_bytes_atomic(dest, out_bytes)
+        lc.write_pack_file(dest, out_bytes)
         report["written"].append(str(dest))
 
     return report
@@ -251,6 +264,7 @@ def main(argv: list[str] | None = None) -> int:
     report_b = build_inventory_items(args.lang, cfg)
     print(f"  inventoryitems: {len(report_b['written'])} files written")
     print(f"  anomalies fixed: {report_b['anomalies_fixed']}")
+    print(f"  skipped, byte-identical to the game: {len(report_b['identical_skipped'])} {report_b['identical_skipped']}")
 
     # Final sanity pass: every output file under both trees must decode
     # cleanly as cp1250.

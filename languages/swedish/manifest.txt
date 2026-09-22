@@ -1,0 +1,8 @@
+language_code=swedish
+display_name=Svenska
+codepage=1252
+codepage_name=cp1252
+subtitle_language=7
+pack_version=1.0.0
+notes=Minimal pack: only the menu's own strings (strings/menu-strings.tsv, machine-drafted for review). The game's text is the game's own Swedish set (txtfiles/languages/swedish, notes/languages/swedish), picked through the client subtitle slot 7; nothing is mounted and no DLL string is replaced.
+authors=Cry of Fear: Enhanced (menu strings, machine-drafted); the game's own Swedish text by Team Psykskallar

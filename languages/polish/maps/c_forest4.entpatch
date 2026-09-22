@@ -1,0 +1,24 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_forest4: 242 entities in the BSP entity lump; 3 value(s) in 3 entities; values are cp1250 bytes
+{
+"@entity" "13"
+"@classname" "inter_door"
+"@model" "*6"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "165"
+"@classname" "trigger_checkbrush"
+"@targetname" "checko"
+"@model" "*27"
+"@crc:message" "c9d74f66"
+"message" "Drzwi blokuje du¿e pud³o, które jest zbyt ciê¿kie, by je przesun¹æ."
+}
+{
+"@entity" "167"
+"@classname" "func_button"
+"@model" "*28"
+"@crc:lockedmsg" "72cfacfc"
+"lockedmsg" "Gdybym mia³ coœ ostrego, móg³bym przeci¹æ tê linê."
+}

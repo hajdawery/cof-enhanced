@@ -1,0 +1,107 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_asylum1day: 414 entities in the BSP entity lump; 16 value(s) in 14 entities; values are cp1250 bytes
+{
+"@entity" "1"
+"@classname" "inter_door"
+"@targetname" "staff_door1"
+"@model" "*1"
+"@crc:lockedmsg" "2c02e7d1"
+"lockedmsg" "Nie muszê tam wracaæ."
+}
+{
+"@entity" "2"
+"@classname" "inter_door"
+"@model" "*2"
+"@crc:lockedmsg" "a3365801"
+"lockedmsg" "Zamek jest rozbity. Ani drgn¹."
+}
+{
+"@entity" "3"
+"@classname" "inter_door"
+"@model" "*3"
+"@crc:lockedmsg" "2c02e7d1"
+"lockedmsg" "Nie muszê tam wracaæ."
+}
+{
+"@entity" "9"
+"@classname" "inter_door"
+"@model" "*9"
+"@crc:lockedmsg" "9285d611"
+"lockedmsg" "Drzwi s¹ zamkniête. Znajduje siê na nich tabliczka z napisem ''Kwatery personelu''."
+}
+{
+"@entity" "49"
+"@classname" "inter_door"
+"@model" "*47"
+"@crc:lockedmsg" "bed70cf1"
+"lockedmsg" "Nie muszê tam schodziæ."
+}
+{
+"@entity" "56"
+"@classname" "inter_door"
+"@model" "*50"
+"@crc:lockedmsg" "a3365801"
+"lockedmsg" "Zamek jest rozbity. Ani drgn¹."
+}
+{
+"@entity" "147"
+"@classname" "inter_door"
+"@model" "*125"
+"@crc:lockedmsg" "a3365801"
+"lockedmsg" "Zamek jest rozbity. Ani drgn¹."
+}
+{
+"@entity" "148"
+"@classname" "inter_door"
+"@model" "*126"
+"@crc:lockedmsg" "a3365801"
+"lockedmsg" "Zamek jest rozbity. Ani drgn¹."
+}
+{
+"@entity" "215"
+"@classname" "inter_door"
+"@targetname" "elecdoor"
+"@model" "*167"
+"@crc:lockedmsg" "b1346db4"
+"lockedmsg" "Drzwi s¹ zamkniête za pomoc¹ kodu."
+}
+{
+"@entity" "218"
+"@classname" "inter_door"
+"@targetname" "othersidem2"
+"@model" "*169"
+"@crc:unlockedmsg" "56e516d0"
+"unlockedmsg" "Otworzy³eœ bramê."
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "236"
+"@classname" "inter_door"
+"@model" "*171"
+"@crc:lockedmsg" "a3365801"
+"lockedmsg" "Zamek jest rozbity. Ani drgn¹."
+}
+{
+"@entity" "237"
+"@classname" "inter_door"
+"@model" "*172"
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "238"
+"@classname" "inter_door"
+"@model" "*173"
+"@crc:lockedmsg" "a3365801"
+"lockedmsg" "Zamek jest rozbity. Ani drgn¹."
+}
+{
+"@entity" "406"
+"@classname" "inter_door"
+"@model" "*186"
+"@crc:unlockedmsg" "64707385"
+"unlockedmsg" "Drzwi s¹ teraz otwarte."
+"@crc:lockedmsg" "19a2ee0e"
+"lockedmsg" "Tylne drzwi s¹ zamkniête."
+}

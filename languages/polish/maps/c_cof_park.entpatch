@@ -1,0 +1,79 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_cof_park: 374 entities in the BSP entity lump; 11 value(s) in 11 entities; values are cp1250 bytes
+{
+"@entity" "95"
+"@classname" "trigger_checkbrush"
+"@model" "*3"
+"@crc:message" "d9178ff9"
+"message" "Blokuje mi drogê."
+}
+{
+"@entity" "183"
+"@classname" "trigger_checkbrush"
+"@model" "*10"
+"@crc:message" "a8698635"
+"message" "Pos¹g konia."
+}
+{
+"@entity" "184"
+"@classname" "trigger_checkbrush"
+"@model" "*11"
+"@crc:message" "6ed31edd"
+"message" "Pos¹g lwa."
+}
+{
+"@entity" "185"
+"@classname" "trigger_checkbrush"
+"@model" "*12"
+"@crc:message" "eeeb5a6e"
+"message" "Pos¹g sowy."
+}
+{
+"@entity" "186"
+"@classname" "trigger_checkbrush"
+"@model" "*13"
+"@crc:message" "68435563"
+"message" "Pos¹g or³a."
+}
+{
+"@entity" "187"
+"@classname" "trigger_checkbrush"
+"@model" "*14"
+"@crc:message" "e60981bf"
+"message" "Prosty kompas wykonany z kamienia."
+}
+{
+"@entity" "303"
+"@classname" "trigger_checkbrush"
+"@model" "*16"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "304"
+"@classname" "trigger_checkbrush"
+"@model" "*17"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "305"
+"@classname" "trigger_checkbrush"
+"@model" "*18"
+"@crc:message" "33ca06e4"
+"message" "Cholera, blokuje mi drogê."
+}
+{
+"@entity" "306"
+"@classname" "trigger_checkbrush"
+"@model" "*19"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "307"
+"@classname" "trigger_checkbrush"
+"@model" "*20"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}

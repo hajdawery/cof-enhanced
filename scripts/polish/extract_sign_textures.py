@@ -1,22 +1,20 @@
 #!/usr/bin/env python3
-"""Extract the repainted sign/poster textures embedded in the Polish mod's BSP
-files as standalone TGA images, one file per unique texture name.
+"""Extract the repainted sign/poster textures embedded in the fan
+translation's BSP files as standalone TGA images, one file per texture name.
 
-Part 3 of 6 of the Cry of Fear native Polish language pack. See
-scripts/polish/README.md section "Engine texture-override path (part 3)" for
-the full engine-citation context on why this pack-internal ``textures/``
-folder maps to the real deploy path ``cryoffear/materials/common/<name>.tga``
-at runtime.
+Part 3 of the native language-pack generator suite. The engine side
+(patches/cof-language-packs.patch, CoF_Lang_TextureReplacement) probes
+languages/<code>/textures/<name>.tga before the embedded miptex of every world
+texture of that name.
 
-Source of truth for *which* 110 names to extract and *which* map to pull each
-one from is
-``stage1/polish-mod-analysis-20260922/bsp/texture_crossref.json``
-(``changed_texture_names`` + ``per_map``), cross-checked against
-``analysis.json``'s per-map ``textures.changed[].mod`` width/height records.
-BSP_ANALYSIS.md section 3 established that every repainted miptex blob is
-byte-identical across all maps that contain it, so extracting one
-representative map per name is sufficient (and this script spot-checks that
-assumption -- see ``_sanity_check_cross_map_identical``).
+Derived directly from the two BSP trees (lang3, 2026-09-22; no analysis
+files): for every map both trees have, every EMBEDDED miptex of the
+translation whose mip-0 indices + palette differ from the canonical map's
+miptex of the same name is a candidate. A name must resolve to one image
+across all maps (checked). A candidate identical to ANY canonical embedded
+miptex or WAD texture of that name is dropped as a copy of the game's own art
+(three such names in the Polish source: c2_statiosig1, c2_tbsignn5,
+c2_tbsignn6), so the folder only carries art the translators repainted.
 
 GoldSrc BSP TEXTURES lump (lump index 2) format, all little-endian:
 
@@ -29,17 +27,12 @@ Each dataofs[i] (if >= 0) points to a mip_t:
     uint32 width, height
     uint32 offsets[4]                 -- offset from START OF THIS mip_t
 
-If offsets[0] > 0 the texture is embedded: width*height bytes of palette
-index at dataofs[i]+offsets[0] (mip 0, row-major top-to-bottom), followed by
-mips 1-3 (half-size each), followed by a uint16 palette count (256) and then
-count*3 bytes of RGB palette.
+Mip 0 is width*height palette indices (row-major, top-down), followed by mips
+1-3, a uint16 palette count (256) and count*3 bytes of RGB palette.
 
-Alpha masking: a texture name starting with ``{`` uses palette index 255 as
-a transparency key (alpha=0 for that index, alpha=255 otherwise) per GoldSrc
-convention, and is written as a 32-bit BGRA TGA. All other textures are
-written as 24-bit BGR TGA. The engine only ever special-cases a leading
-``*``, never ``{``, when building the replacement path, so the literal ``{``
-is kept in the output filename.
+Alpha masking: a name starting with "{" uses palette index 255 as the
+transparency key and is written as a 32-bit BGRA TGA (alpha 0 for index 255);
+all others as 24-bit BGR. The literal "{" stays in the file name.
 
 Usage:
     python scripts/polish/extract_sign_textures.py --lang polish
@@ -47,7 +40,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import struct
 import sys
 from pathlib import Path
@@ -56,9 +48,6 @@ from typing import Optional
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import langpack_common  # noqa: E402
 
-ANALYSIS_BSP_DIR = langpack_common.ANALYSIS_ROOT / "bsp"
-CROSSREF_JSON = ANALYSIS_BSP_DIR / "texture_crossref.json"
-ANALYSIS_JSON = ANALYSIS_BSP_DIR / "analysis.json"
 
 LUMP_TEXTURES = 2
 BSP_HEADER_LUMP_COUNT = 15
@@ -227,206 +216,122 @@ def indices_to_bgra(indices: bytes, palette: bytes) -> bytes:
 # Main extraction
 # ---------------------------------------------------------------------------
 
-def load_crossref() -> dict:
-    with open(CROSSREF_JSON, "r", encoding="utf-8") as fh:
-        return json.load(fh)
-
-
-def load_analysis() -> dict:
-    with open(ANALYSIS_JSON, "r", encoding="utf-8") as fh:
-        return json.load(fh)
-
-
-def build_representative_map(crossref: dict) -> dict[str, str]:
-    """name -> one map filename from per_map that contains it (first hit,
-    in per_map's insertion order, which is deterministic)."""
-    per_map = crossref["per_map"]
-    rep: dict[str, str] = {}
-    for mapname, names in per_map.items():
-        for n in names:
-            if n not in rep:
-                rep[n] = mapname
-    return rep
-
-
-def build_analysis_dims(analysis: dict) -> dict[tuple[str, str], tuple[int, int]]:
-    """(mapname, texname) -> (width, height) from analysis.json's mod dims."""
-    out: dict[tuple[str, str], tuple[int, int]] = {}
-    for m in analysis["maps"]:
-        mapname = m["map"]
-        changed = m.get("textures", {}).get("changed") or []
-        for entry in changed:
-            name = entry["name"]
-            mod_variants = entry.get("mod") or []
-            if not mod_variants:
-                continue
-            w, h, _has_mip0 = mod_variants[0]
-            out[(mapname, name)] = (w, h)
+def embedded_miptex(lump: bytes) -> dict:
+    """lowercase name -> mip0 + palette of every embedded miptex (first one wins)."""
+    out = {}
+    nummiptex = struct.unpack_from("<i", lump, 0)[0]
+    for doff in struct.unpack_from(f"<{nummiptex}i", lump, 4):
+        if doff < 0:
+            continue
+        try:
+            name, _w, _h, mip0, palette = extract_miptex(lump, doff)
+        except ValueError:
+            continue
+        out.setdefault(name.lower(), mip0 + palette)
     return out
 
 
-def sanity_check_cross_map_identical(crossref: dict, mod_maps_dir: Path, name: str) -> Optional[bool]:
-    """Pick a texture name that appears in >=2 maps, extract raw mip0+palette
-    bytes from two different maps, and compare. Returns True/False/None
-    (None if fewer than 2 maps contain it)."""
-    maps_with_name = [m for m, names in crossref["per_map"].items() if name in names]
-    if len(maps_with_name) < 2:
-        return None
-    blobs = []
-    for mapname in maps_with_name[:2]:
-        lump = read_texture_lump(mod_maps_dir / mapname)
-        doff = find_miptex_offset(lump, name)
-        _n, _w, _h, mip0, palette = extract_miptex(lump, doff)
-        blobs.append(mip0 + palette)
-    return blobs[0] == blobs[1]
+def wad_miptex(wad_path: Path) -> dict:
+    data = wad_path.read_bytes()
+    if data[:4] not in (b"WAD2", b"WAD3"):
+        return {}
+    num, diro = struct.unpack_from("<ii", data, 4)
+    out = {}
+    for i in range(num):
+        e = diro + 32 * i
+        filepos, _disk, _size, typ = struct.unpack_from("<iiiB", data, e)
+        if typ != 0x43:
+            continue
+        try:
+            name, _w, _h, mip0, palette = extract_miptex(data, filepos)
+        except (ValueError, struct.error):
+            continue
+        out.setdefault(name.lower(), mip0 + palette)
+    return out
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--lang", default="polish", help="language code (default: polish)")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--lang", required=True, help="language code from langpack_common.LANGUAGES")
     args = ap.parse_args()
 
     cfg = langpack_common.get_language(args.lang)
     mod_maps_dir = cfg.mod_root / "cryoffear" / "maps"
+    canon_game = langpack_common.CANONICAL_ROOT / "cryoffear"
     out_dir = langpack_common.textures_dir(args.lang)
     out_dir.mkdir(parents=True, exist_ok=True)
+    for stale in out_dir.glob("*.tga"):
+        stale.unlink()
 
-    crossref = load_crossref()
-    names = crossref["changed_texture_names"]
-    assert len(names) == len(set(names)), "duplicate names in changed_texture_names"
-    assert len(names) == 110, f"expected 110 names, got {len(names)}"
+    # every canonical image of every name: embedded in any map, or in a WAD
+    canon_any = {}
+    for bsp in sorted((canon_game / "maps").glob("*.bsp")):
+        for name, blob in embedded_miptex(read_texture_lump(bsp)).items():
+            canon_any.setdefault(name, set()).add(blob)
+    for wad in sorted(canon_game.glob("*.wad")):
+        for name, blob in wad_miptex(wad).items():
+            canon_any.setdefault(name, set()).add(blob)
 
-    braced = sorted(n for n in names if n.startswith("{"))
-    print(f"Alpha-masked ({{-prefixed) names: {braced}")
+    # candidates: translation map vs the same canonical map, per name
+    cand = {}
+    display = {}
+    dims = {}
+    for mod_bsp in sorted(mod_maps_dir.glob("*.bsp"), key=lambda p: p.name.lower()):
+        canon_bsp = langpack_common.find_ci(canon_game / "maps" / mod_bsp.name)
+        if canon_bsp is None:
+            continue
+        mlump = read_texture_lump(mod_bsp)
+        clump = embedded_miptex(read_texture_lump(canon_bsp))
+        nummiptex = struct.unpack_from("<i", mlump, 0)[0]
+        seen = set()
+        for doff in struct.unpack_from(f"<{nummiptex}i", mlump, 4):
+            if doff < 0:
+                continue
+            try:
+                name, w, h, mip0, palette = extract_miptex(mlump, doff)
+            except ValueError:
+                continue
+            key = name.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            blob = mip0 + palette
+            if clump.get(key) == blob:
+                continue
+            cand.setdefault(key, {}).setdefault(blob, []).append(mod_bsp.name)
+            display.setdefault(key, name)
+            dims[key] = (w, h)
 
-    rep_map = build_representative_map(crossref)
-    missing_rep = [n for n in names if n not in rep_map]
-    if missing_rep:
-        raise SystemExit(f"No representative map found for: {missing_rep}")
-
-    analysis = load_analysis()
-    analysis_dims = build_analysis_dims(analysis)
-
-    # Cache parsed TEXTURES lumps per map (many names share a representative map).
-    lump_cache: dict[str, bytes] = {}
+    conflicts = {k: v for k, v in cand.items() if len(v) > 1}
+    game_copies = sorted(k for k, v in cand.items() if len(v) == 1 and next(iter(v)) in canon_any.get(k, set()))
 
     written = []
-    dim_mismatches = []
-    parse_failures = []
-
-    for name in names:
-        mapname = rep_map[name]
-        try:
-            lump = lump_cache.get(mapname)
-            if lump is None:
-                lump = read_texture_lump(mod_maps_dir / mapname)
-                lump_cache[mapname] = lump
-            doff = find_miptex_offset(lump, name)
-            mip_name, width, height, mip0, palette = extract_miptex(lump, doff)
-        except Exception as exc:  # noqa: BLE001
-            parse_failures.append((name, mapname, str(exc)))
+    for key in sorted(cand):
+        if key in conflicts or key in game_copies:
             continue
-
-        expected = analysis_dims.get((mapname, name))
-        if expected is not None and expected != (width, height):
-            dim_mismatches.append((name, mapname, expected, (width, height)))
-
+        (blob, maps), = cand[key].items()
+        w, h = dims[key]
+        mip0, palette = blob[:w * h], blob[w * h:]
+        name = display[key]
         is_alpha = name.startswith("{")
-        if is_alpha:
-            pixels = indices_to_bgra(mip0, palette)
-        else:
-            pixels = indices_to_bgr(mip0, palette)
-
+        pixels = indices_to_bgra(mip0, palette) if is_alpha else indices_to_bgr(mip0, palette)
         out_path = out_dir / f"{name}.tga"
-        write_tga(out_path, width, height, pixels, has_alpha=is_alpha)
-        written.append((name, mapname, width, height, is_alpha))
+        write_tga(out_path, w, h, pixels, has_alpha=is_alpha)
+        if langpack_common.game_identical(out_path.read_bytes()):
+            raise SystemExit(f"{out_path}: byte-identical to a game file")
+        hdr, px = read_tga_pixels(out_path)
+        if (hdr["width"], hdr["height"]) != (w, h) or px != pixels:
+            raise SystemExit(f"{out_path}: re-read mismatch")
+        written.append((name, maps[0], len(maps)))
 
-    print(f"Wrote {len(written)} / {len(names)} textures to {out_dir}")
-
-    if parse_failures:
-        print("PARSE FAILURES:")
-        for name, mapname, err in parse_failures:
-            print(f"  {name} (from {mapname}): {err}")
-
-    if dim_mismatches:
-        print("DIMENSION MISMATCHES vs analysis.json:")
-        for name, mapname, expected, got in dim_mismatches:
-            print(f"  {name} (from {mapname}): expected {expected}, got {got}")
-
-    # --- Self-verification pass: re-read every written TGA -----------------
-    verify_errors = []
-    alpha_report = []
-    out_files = sorted(out_dir.glob("*.tga"))
-    if len(out_files) != 110:
-        verify_errors.append(f"Expected 110 output files, found {len(out_files)}")
-
-    written_by_name = {w[0]: w for w in written}
-    for f in out_files:
-        name = f.stem
-        if name not in written_by_name:
-            verify_errors.append(f"Unexpected extra output file: {f.name}")
-            continue
-        _n, mapname, exp_w, exp_h, is_alpha = written_by_name[name]
-        hdr, pixel_data = read_tga_pixels(f)
-        if hdr["width"] != exp_w or hdr["height"] != exp_h:
-            verify_errors.append(
-                f"{f.name}: header dims {(hdr['width'], hdr['height'])} != expected {(exp_w, exp_h)}"
-            )
-        exp_depth = 32 if is_alpha else 24
-        if hdr["depth"] != exp_depth:
-            verify_errors.append(f"{f.name}: depth {hdr['depth']} != expected {exp_depth}")
-        if not (hdr["descriptor"] & 0x20):
-            verify_errors.append(f"{f.name}: top-down bit not set in image descriptor")
-
-        if is_alpha:
-            bpp = 4
-            npix = hdr["width"] * hdr["height"]
-            alpha_bytes = pixel_data[3::bpp]
-            transparent_count = sum(1 for a in alpha_bytes if a == 0)
-            opaque_count = npix - transparent_count
-            if transparent_count > 0:
-                # verify alpha=0 exactly where pixel used palette index 255
-                lump = lump_cache[mapname]
-                doff = find_miptex_offset(lump, name)
-                _n2, _w2, _h2, mip0, _pal = extract_miptex(lump, doff)
-                idx255_count = sum(1 for b in mip0 if b == 255)
-                if idx255_count != transparent_count:
-                    verify_errors.append(
-                        f"{f.name}: transparent pixel count {transparent_count} != "
-                        f"palette-index-255 usage count {idx255_count}"
-                    )
-                alpha_report.append((name, transparent_count, npix))
-            else:
-                alpha_report.append((name, 0, npix))
-
-    print("\nAlpha-masked texture verification:")
-    for name, transparent_count, npix in alpha_report:
-        if transparent_count > 0:
-            print(f"  {name}: {transparent_count}/{npix} pixels transparent (index 255 used) - OK")
-        else:
-            print(f"  {name}: index 255 NOT used in this image (0 transparent pixels) - not an error")
-
-    if verify_errors:
-        print("\nVERIFICATION ERRORS:")
-        for e in verify_errors:
-            print(f"  {e}")
-    else:
-        print("\nSelf-verification: all checks passed.")
-
-    # --- Cross-map identical sanity check -----------------------------------
-    print("\nCross-map identical sanity check:")
-    checked = 0
-    for name in names:
-        maps_with_name = [m for m, ns in crossref["per_map"].items() if name in ns]
-        if len(maps_with_name) >= 2:
-            result = sanity_check_cross_map_identical(crossref, mod_maps_dir, name)
-            print(f"  {name}: compared {maps_with_name[0]} vs {maps_with_name[1]} -> "
-                  f"{'IDENTICAL' if result else 'DIFFERENT!'}")
-            checked += 1
-            if checked >= 3:
-                break
-
-    if parse_failures or dim_mismatches or verify_errors:
+    print(f"Wrote {len(written)} repainted textures to {out_dir}")
+    for name, first, n in written:
+        print(f"  {name}.tga  (from {first}; {n} map(s))")
+    print(f"Dropped as identical to the game's own art: {len(game_copies)} {[display[k] for k in game_copies]}")
+    if conflicts:
+        print("CONFLICTS (one name, several different images; not written):")
+        for k, v in conflicts.items():
+            print(f"  {display[k]}: " + "; ".join(",".join(m) for m in v.values()))
         return 1
     return 0
 

@@ -1,0 +1,18 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_attic: 254 entities in the BSP entity lump; 2 value(s) in 2 entities; values are cp1250 bytes
+{
+"@entity" "4"
+"@classname" "inter_door"
+"@targetname" "door2change"
+"@model" "*2"
+"@crc:lockedmsg" "3b15aa03"
+"lockedmsg" "Nie mogê teraz odejœæ."
+}
+{
+"@entity" "147"
+"@classname" "cof_chapter"
+"@targetname" "chapterss"
+"@origin" "-387 780 288"
+"@crc:message" "a84c26f6"
+"message" "Rozdzia³ 7 - Bezpieczny tylko w domu"
+}

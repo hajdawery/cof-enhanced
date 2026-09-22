@@ -1,0 +1,158 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_doc_apartment3sick: 381 entities in the BSP entity lump; 23 value(s) in 22 entities; values are cp1250 bytes
+{
+"@entity" "18"
+"@classname" "inter_door"
+"@model" "*6"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "32"
+"@classname" "inter_door"
+"@model" "*8"
+"@crc:lockedmsg" "af53ac6f"
+"lockedmsg" "Nie mogê wezwaæ windy. Gdzieœ musia³a utkn¹æ."
+}
+{
+"@entity" "37"
+"@classname" "inter_door"
+"@model" "*10"
+"@crc:lockedmsg" "af53ac6f"
+"lockedmsg" "Nie mogê wezwaæ windy. Gdzieœ musia³a utkn¹æ."
+}
+{
+"@entity" "50"
+"@classname" "inter_door"
+"@model" "*16"
+"@crc:lockedmsg" "af53ac6f"
+"lockedmsg" "Nie mogê wezwaæ windy. Gdzieœ musia³a utkn¹æ."
+}
+{
+"@entity" "59"
+"@classname" "inter_door"
+"@model" "*25"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "160"
+"@classname" "inter_door"
+"@model" "*55"
+"@crc:lockedmsg" "6f51e789"
+"lockedmsg" "Drzwi s¹ w jakiœ sposób zamkniête."
+}
+{
+"@entity" "161"
+"@classname" "inter_door"
+"@model" "*56"
+"@crc:lockedmsg" "828cc2a1"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "162"
+"@classname" "inter_door"
+"@model" "*57"
+"@crc:lockedmsg" "828cc2a1"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "175"
+"@classname" "inter_door"
+"@model" "*60"
+"@crc:lockedmsg" "af53ac6f"
+"lockedmsg" "Nie mogê wezwaæ windy. Gdzieœ musia³a utkn¹æ."
+}
+{
+"@entity" "187"
+"@classname" "inter_door"
+"@model" "*64"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "188"
+"@classname" "inter_door"
+"@model" "*65"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "189"
+"@classname" "inter_door"
+"@model" "*66"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "190"
+"@classname" "inter_door"
+"@model" "*67"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "191"
+"@classname" "inter_door"
+"@model" "*68"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "192"
+"@classname" "inter_door"
+"@model" "*69"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "193"
+"@classname" "inter_door"
+"@model" "*70"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "197"
+"@classname" "inter_door"
+"@model" "*74"
+"@crc:lockedmsg" "13492c39"
+"lockedmsg" "Drzwi s¹ ca³kowicie zablokowane."
+}
+{
+"@entity" "198"
+"@classname" "inter_door"
+"@model" "*75"
+"@crc:lockedmsg" "af53ac6f"
+"lockedmsg" "Nie mogê wezwaæ windy. Gdzieœ musia³a utkn¹æ."
+}
+{
+"@entity" "204"
+"@classname" "inter_door"
+"@model" "*79"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "318"
+"@classname" "trigger_checkbrush"
+"@model" "*98"
+"@crc:message" "cadd0ad8"
+"message" "Korytarz jest ca³kowicie zablokowany. Nie mogê przejœæ."
+}
+{
+"@entity" "319"
+"@classname" "trigger_checkbrush"
+"@model" "*99"
+"@crc:message" "d9178ff9"
+"message" "Blokuje mi drogê."
+}
+{
+"@entity" "320"
+"@classname" "trigger_checkbrush"
+"@model" "*100"
+"@crc:message" "56a19dd2"
+"message" "Co siê sta³o z tymi wszystkimi rzeczami?"
+}

@@ -1,0 +1,47 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_asylum1dark: 324 entities in the BSP entity lump; 7 value(s) in 6 entities; values are cp1250 bytes
+{
+"@entity" "4"
+"@classname" "inter_door"
+"@targetname" "staff_door1"
+"@model" "*2"
+"@crc:unlockedmsg" "4038b172"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "f45c6132"
+"lockedmsg" "S¹ zamkniête z drugiej strony."
+}
+{
+"@entity" "7"
+"@classname" "inter_door"
+"@model" "*3"
+"@crc:lockedmsg" "a3365801"
+"lockedmsg" "Zamek jest rozbity. Ani drgn¹."
+}
+{
+"@entity" "98"
+"@classname" "inter_door"
+"@model" "*55"
+"@crc:lockedmsg" "a3365801"
+"lockedmsg" "Zamek jest rozbity. Ani drgn¹."
+}
+{
+"@entity" "189"
+"@classname" "inter_door"
+"@model" "*134"
+"@crc:lockedmsg" "a3365801"
+"lockedmsg" "Zamek jest rozbity. Ani drgn¹."
+}
+{
+"@entity" "219"
+"@classname" "inter_door"
+"@model" "*146"
+"@crc:lockedmsg" "d97a8f10"
+"lockedmsg" "Nie muszê wracaæ."
+}
+{
+"@entity" "310"
+"@classname" "inter_door"
+"@model" "*156"
+"@crc:lockedmsg" "19a2ee0e"
+"lockedmsg" "Tylne drzwi s¹ zamkniête."
+}

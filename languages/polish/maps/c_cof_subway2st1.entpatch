@@ -1,0 +1,59 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_cof_subway2st1: 633 entities in the BSP entity lump; 9 value(s) in 7 entities; values are cp1250 bytes
+{
+"@entity" "26"
+"@classname" "inter_door"
+"@targetname" "lockshit2"
+"@model" "*1"
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "27"
+"@classname" "inter_door"
+"@model" "*2"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "482"
+"@classname" "inter_door"
+"@model" "*6"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "488"
+"@classname" "cof_billboard"
+"@targetname" "tavlakart1"
+"@origin" "-78 250 -291"
+"@crc:text" "32b2f81a"
+"text" "Jesteœmy teraz na Hansson Square."
+}
+{
+"@entity" "489"
+"@classname" "cof_billboard"
+"@targetname" "tavlastat1"
+"@origin" "-78 200 -291"
+"@crc:text" "aadb5760"
+"text" "Musimy udaæ siê na Union Street."
+}
+{
+"@entity" "537"
+"@classname" "inter_door"
+"@targetname" "shitdoor"
+"@model" "*25"
+"@crc:lockedmsg" "fbc3571b"
+"lockedmsg" "Nie musimy wracaæ."
+}
+{
+"@entity" "543"
+"@classname" "trigger_checkbrush"
+"@model" "*27"
+"@crc:message" "532e6944"
+"message" "Ta droga nie prowadzi do mojego domu."
+}

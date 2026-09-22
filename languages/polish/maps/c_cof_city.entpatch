@@ -1,0 +1,127 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_cof_city: 451 entities in the BSP entity lump; 19 value(s) in 17 entities; values are cp1250 bytes
+{
+"@entity" "1"
+"@classname" "inter_door"
+"@model" "*1"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "31"
+"@classname" "inter_door"
+"@model" "*2"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "179"
+"@classname" "cof_billboard"
+"@targetname" "tavlaparkbus"
+"@origin" "180 -1210 302"
+"@crc:text" "aadb5760"
+"text" "Musimy udaæ siê na Union Street."
+}
+{
+"@entity" "180"
+"@classname" "trigger_checkbrush"
+"@model" "*7"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "181"
+"@classname" "trigger_checkbrush"
+"@model" "*8"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "182"
+"@classname" "trigger_checkbrush"
+"@model" "*9"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "183"
+"@classname" "trigger_checkbrush"
+"@model" "*10"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "184"
+"@classname" "trigger_checkbrush"
+"@model" "*11"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "185"
+"@classname" "trigger_checkbrush"
+"@model" "*12"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "186"
+"@classname" "trigger_checkbrush"
+"@model" "*13"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "187"
+"@classname" "trigger_checkbrush"
+"@model" "*14"
+"@crc:message" "afd40d30"
+"message" "Ta droga jest ca³kowicie zablokowana. Muszê znaleŸæ jakieœ obejœcie."
+}
+{
+"@entity" "188"
+"@classname" "trigger_checkbrush"
+"@model" "*15"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "189"
+"@classname" "trigger_checkbrush"
+"@model" "*16"
+"@crc:message" "afd40d30"
+"message" "Ta droga jest ca³kowicie zablokowana. Muszê znaleŸæ jakieœ obejœcie."
+}
+{
+"@entity" "190"
+"@classname" "trigger_checkbrush"
+"@model" "*17"
+"@crc:message" "afd40d30"
+"message" "Ta droga jest ca³kowicie zablokowana. Muszê znaleŸæ jakieœ obejœcie."
+}
+{
+"@entity" "191"
+"@classname" "trigger_checkbrush"
+"@model" "*18"
+"@crc:message" "36265032"
+"message" "Nie potrzebujê tego teraz."
+}
+{
+"@entity" "192"
+"@classname" "inter_door"
+"@targetname" "bclockeddoor"
+"@model" "*19"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "193"
+"@classname" "inter_door"
+"@model" "*20"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}

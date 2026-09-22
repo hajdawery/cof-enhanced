@@ -1,0 +1,18 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_cof_foresttrail2: 486 entities in the BSP entity lump; 3 value(s) in 2 entities; values are cp1250 bytes
+{
+"@entity" "343"
+"@classname" "func_button"
+"@model" "*67"
+"@crc:lockedmsg" "98e54727"
+"lockedmsg" "Drzwi s¹ szczelnie zamkniête. Do ich otwarcia potrzebny jest klucz."
+"@crc:unlockedmsg" "64707385"
+"unlockedmsg" "Drzwi s¹ teraz otwarte."
+}
+{
+"@entity" "355"
+"@classname" "inter_door"
+"@model" "*71"
+"@crc:lockedmsg" "8fce733e"
+"lockedmsg" "Drzwi s¹ skute ³añcuchami. Nie otwieraj¹ siê."
+}

@@ -1,0 +1,73 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map cof_suicide2: 630 entities in the BSP entity lump; 10 value(s) in 10 entities; values are cp1250 bytes
+{
+"@entity" "135"
+"@classname" "cof_billboard"
+"@targetname" "tavlaparkbus"
+"@origin" "-1969 -591 -39"
+"@crc:text" "280f8932"
+"text" "Bêdê musia³ przejœæ przez system metra, aby dotrzeæ do Hansson Square."
+}
+{
+"@entity" "225"
+"@classname" "trigger_checkbrush"
+"@model" "*8"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "226"
+"@classname" "trigger_checkbrush"
+"@model" "*9"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "227"
+"@classname" "trigger_checkbrush"
+"@model" "*10"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "228"
+"@classname" "trigger_checkbrush"
+"@model" "*11"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "229"
+"@classname" "trigger_checkbrush"
+"@model" "*12"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "230"
+"@classname" "trigger_checkbrush"
+"@model" "*13"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "231"
+"@classname" "trigger_checkbrush"
+"@model" "*14"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "232"
+"@classname" "trigger_checkbrush"
+"@model" "*15"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "233"
+"@classname" "trigger_checkbrush"
+"@model" "*16"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}

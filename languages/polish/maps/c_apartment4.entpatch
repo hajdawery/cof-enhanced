@@ -1,0 +1,159 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_apartment4: 512 entities in the BSP entity lump; 23 value(s) in 22 entities; values are cp1250 bytes
+{
+"@entity" "54"
+"@classname" "inter_door"
+"@model" "*44"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "55"
+"@classname" "inter_door"
+"@model" "*45"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "151"
+"@classname" "trigger_checkbrush"
+"@model" "*73"
+"@crc:message" "4cef09c0"
+"message" "Schody s¹ ca³kowicie zablokowane."
+}
+{
+"@entity" "178"
+"@classname" "inter_door"
+"@model" "*87"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "179"
+"@classname" "inter_door"
+"@model" "*88"
+"@crc:lockedmsg" "313cb454"
+"lockedmsg" "Drzwi siê zaciê³y. Nie mo¿na ich otworzyæ."
+}
+{
+"@entity" "180"
+"@classname" "inter_door"
+"@model" "*89"
+"@crc:lockedmsg" "313cb454"
+"lockedmsg" "Drzwi siê zaciê³y. Nie mo¿na ich otworzyæ."
+}
+{
+"@entity" "182"
+"@classname" "inter_door"
+"@model" "*91"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "190"
+"@classname" "inter_door"
+"@model" "*96"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "197"
+"@classname" "inter_door"
+"@model" "*98"
+"@crc:lockedmsg" "b5a5f489"
+"lockedmsg" "Nie mogê otworzyæ tych drzwi, zablokowali je."
+}
+{
+"@entity" "206"
+"@classname" "inter_door"
+"@model" "*103"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+}
+{
+"@entity" "231"
+"@classname" "inter_door"
+"@model" "*119"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+}
+{
+"@entity" "233"
+"@classname" "inter_door"
+"@model" "*120"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+}
+{
+"@entity" "237"
+"@classname" "inter_door"
+"@model" "*123"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "257"
+"@classname" "inter_door"
+"@model" "*135"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+}
+{
+"@entity" "260"
+"@classname" "inter_door"
+"@model" "*137"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+}
+{
+"@entity" "274"
+"@classname" "inter_door"
+"@model" "*150"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+}
+{
+"@entity" "277"
+"@classname" "inter_door"
+"@model" "*152"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+}
+{
+"@entity" "291"
+"@classname" "trigger_checkbrush"
+"@model" "*158"
+"@crc:message" "d9178ff9"
+"message" "Blokuje mi drogê."
+}
+{
+"@entity" "293"
+"@classname" "inter_door"
+"@model" "*159"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+}
+{
+"@entity" "296"
+"@classname" "inter_door"
+"@model" "*161"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+}
+{
+"@entity" "297"
+"@classname" "inter_door"
+"@model" "*162"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+}
+{
+"@entity" "299"
+"@classname" "trigger_checkbrush"
+"@targetname" "nanna"
+"@model" "*163"
+"@crc:message" "f45c6132"
+"message" "S¹ zamkniête z drugiej strony."
+}

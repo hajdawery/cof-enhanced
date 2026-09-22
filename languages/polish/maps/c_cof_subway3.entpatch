@@ -1,0 +1,56 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_cof_subway3: 329 entities in the BSP entity lump; 9 value(s) in 7 entities; values are cp1250 bytes
+{
+"@entity" "13"
+"@classname" "inter_door"
+"@model" "*4"
+"@crc:lockedmsg" "fbc3571b"
+"lockedmsg" "Nie musimy wracaæ."
+}
+{
+"@entity" "253"
+"@classname" "func_valve"
+"@origin" "-878 877 -278"
+"@model" "*49"
+"@crc:unlockedmsg" "905cfe9e"
+"unlockedmsg" "Umieœci³eœ zawór."
+"@crc:lockedmsg" "b71c2e1b"
+"lockedmsg" "Wygl¹da na to, ¿e mogê tu umieœciæ zawór."
+}
+{
+"@entity" "272"
+"@classname" "func_button"
+"@model" "*57"
+"@crc:unlockedmsg" "6b221a04"
+"unlockedmsg" "S¹ odblokowane."
+"@crc:lockedmsg" "05d6a8b5"
+"lockedmsg" "To drzwi wyjœciowe. Potrzebujê jednak klucza, by przez nie przejœæ."
+}
+{
+"@entity" "300"
+"@classname" "inter_door"
+"@model" "*59"
+"@crc:lockedmsg" "f1e4bfcc"
+"lockedmsg" "Drzwi s¹ zablokowane i nie otwieraj¹ siê."
+}
+{
+"@entity" "301"
+"@classname" "inter_door"
+"@model" "*60"
+"@crc:lockedmsg" "d2e61641"
+"lockedmsg" "Zaci¹³ siê."
+}
+{
+"@entity" "302"
+"@classname" "inter_door"
+"@model" "*61"
+"@crc:lockedmsg" "14bb2a0e"
+"lockedmsg" "Klamka siê nie obraca."
+}
+{
+"@entity" "303"
+"@classname" "inter_door"
+"@model" "*62"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}

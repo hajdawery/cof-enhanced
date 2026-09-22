@@ -1,0 +1,175 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_hamn3: 313 entities in the BSP entity lump; 25 value(s) in 24 entities; values are cp1250 bytes
+{
+"@entity" "16"
+"@classname" "inter_door"
+"@targetname" "doortc1"
+"@model" "*6"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "100"
+"@classname" "inter_door"
+"@model" "*42"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "101"
+"@classname" "inter_door"
+"@model" "*43"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "102"
+"@classname" "inter_door"
+"@model" "*44"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "104"
+"@classname" "inter_door"
+"@model" "*46"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "108"
+"@classname" "inter_door"
+"@model" "*50"
+"@crc:lockedmsg" "506aaeb7"
+"lockedmsg" "Drzwi ani drgn¹"
+}
+{
+"@entity" "135"
+"@classname" "cof_billboard"
+"@targetname" "tavlaparkbus"
+"@origin" "850 -1236 47"
+"@crc:text" "dbaeb80a"
+"text" "Jestem teraz na Harbor Road, niedaleko Harbor College."
+}
+{
+"@entity" "154"
+"@classname" "inter_door"
+"@targetname" "2doortc1"
+"@model" "*71"
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "227"
+"@classname" "trigger_checkbrush"
+"@model" "*98"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "228"
+"@classname" "trigger_checkbrush"
+"@model" "*99"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "229"
+"@classname" "trigger_checkbrush"
+"@model" "*100"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "230"
+"@classname" "trigger_checkbrush"
+"@model" "*101"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "231"
+"@classname" "trigger_checkbrush"
+"@model" "*102"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "232"
+"@classname" "trigger_checkbrush"
+"@model" "*103"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "233"
+"@classname" "trigger_checkbrush"
+"@model" "*104"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "234"
+"@classname" "trigger_checkbrush"
+"@model" "*105"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "235"
+"@classname" "trigger_checkbrush"
+"@model" "*106"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "236"
+"@classname" "trigger_checkbrush"
+"@model" "*107"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "237"
+"@classname" "trigger_checkbrush"
+"@model" "*108"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "238"
+"@classname" "trigger_checkbrush"
+"@model" "*109"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "239"
+"@classname" "trigger_checkbrush"
+"@model" "*110"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "240"
+"@classname" "trigger_checkbrush"
+"@model" "*111"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "241"
+"@classname" "trigger_checkbrush"
+"@model" "*112"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "309"
+"@classname" "func_button"
+"@model" "*122"
+"@crc:unlockedmsg" "b1b91bb6"
+"unlockedmsg" "Wys³a³em ju¿ paczkê."
+"@crc:lockedmsg" "cc62a42d"
+"lockedmsg" "Hmm, skrzynka pocztowa? Zastanawiam siê, czy mogê coœ wys³aæ."
+}

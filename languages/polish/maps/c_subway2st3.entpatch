@@ -1,0 +1,90 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_subway2st3: 473 entities in the BSP entity lump; 17 value(s) in 10 entities; values are cp1250 bytes
+{
+"@entity" "214"
+"@classname" "cof_billboard"
+"@targetname" "tavlakart1"
+"@origin" "-77 492 -507"
+"@crc:text" "3079a4fa"
+"text" "Jestem teraz na Hansson Square."
+}
+{
+"@entity" "215"
+"@classname" "cof_billboard"
+"@targetname" "tavlastat1"
+"@origin" "-77 442 -507"
+"@crc:text" "361065a0"
+"text" "Mieszkam w Kirkville. Wiêc muszê siê tam jakoœ udaæ."
+}
+{
+"@entity" "301"
+"@classname" "func_button"
+"@targetname" "buttkuk1"
+"@model" "*28"
+"@crc:unlockedmsg" "a2f17cf1"
+"unlockedmsg" "Bezpiecznik jest umieszczony."
+"@crc:lockedmsg" "548a8a21"
+"lockedmsg" "Muszê umieœciæ tutaj bezpiecznik, aby otworzyæ bramê."
+}
+{
+"@entity" "314"
+"@classname" "func_button"
+"@targetname" "buttkuk2"
+"@model" "*33"
+"@crc:unlockedmsg" "a2f17cf1"
+"unlockedmsg" "Bezpiecznik jest umieszczony."
+"@crc:lockedmsg" "548a8a21"
+"lockedmsg" "Muszê umieœciæ tutaj bezpiecznik, aby otworzyæ bramê."
+}
+{
+"@entity" "428"
+"@classname" "inter_door"
+"@model" "*53"
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "433"
+"@classname" "inter_door"
+"@model" "*54"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "910b521b"
+"lockedmsg" "Dziwne. Drzwi nie mo¿na teraz otworzyæ."
+}
+{
+"@entity" "434"
+"@classname" "inter_door"
+"@model" "*55"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "437"
+"@classname" "inter_door"
+"@model" "*56"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "438"
+"@classname" "func_button"
+"@model" "*57"
+"@crc:unlockedmsg" "dd020233"
+"unlockedmsg" "Po³o¿y³eœ stopê."
+"@crc:lockedmsg" "814cc5c0"
+"lockedmsg" "''Chcê odzyskaæ moj¹ stopê'' Zastanawiam siê, co to mo¿e oznaczaæ?"
+}
+{
+"@entity" "439"
+"@classname" "inter_door"
+"@model" "*58"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}

@@ -1,0 +1,65 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_trainride: 389 entities in the BSP entity lump; 14 value(s) in 7 entities; values are cp1250 bytes
+{
+"@entity" "213"
+"@classname" "inter_door"
+"@model" "*195"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "214"
+"@classname" "inter_door"
+"@model" "*196"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "216"
+"@classname" "inter_door"
+"@model" "*197"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "219"
+"@classname" "inter_door"
+"@model" "*198"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "295"
+"@classname" "inter_door"
+"@model" "*203"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "305"
+"@classname" "inter_door"
+"@model" "*206"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "311"
+"@classname" "func_button"
+"@model" "*207"
+"@crc:unlockedmsg" "dd020233"
+"unlockedmsg" "Po³o¿y³eœ stopê."
+"@crc:lockedmsg" "814cc5c0"
+"lockedmsg" "''Chcê odzyskaæ moj¹ stopê'' Zastanawiam siê, co to mo¿e oznaczaæ?"
+}

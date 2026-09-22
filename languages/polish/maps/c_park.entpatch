@@ -1,0 +1,107 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_park: 383 entities in the BSP entity lump; 17 value(s) in 14 entities; values are cp1250 bytes
+{
+"@entity" "124"
+"@classname" "trigger_checkbrush"
+"@model" "*31"
+"@crc:message" "d9178ff9"
+"message" "Blokuje mi drogê."
+}
+{
+"@entity" "125"
+"@classname" "inter_door"
+"@targetname" "fittsaftse"
+"@model" "*32"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "222"
+"@classname" "inter_door"
+"@model" "*50"
+"@crc:unlockedmsg" "57386292"
+"unlockedmsg" "Otworzy³eœ."
+"@crc:lockedmsg" "1167a3b6"
+"lockedmsg" "S¹ zamkniête."
+}
+{
+"@entity" "228"
+"@classname" "inter_door"
+"@model" "*51"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "240"
+"@classname" "trigger_checkbrush"
+"@model" "*56"
+"@crc:message" "a8698635"
+"message" "Pos¹g konia."
+}
+{
+"@entity" "241"
+"@classname" "trigger_checkbrush"
+"@model" "*57"
+"@crc:message" "6ed31edd"
+"message" "Pos¹g lwa."
+}
+{
+"@entity" "242"
+"@classname" "trigger_checkbrush"
+"@model" "*58"
+"@crc:message" "eeeb5a6e"
+"message" "Pos¹g sowy."
+}
+{
+"@entity" "243"
+"@classname" "trigger_checkbrush"
+"@model" "*59"
+"@crc:message" "68435563"
+"message" "Pos¹g or³a."
+}
+{
+"@entity" "244"
+"@classname" "trigger_checkbrush"
+"@model" "*60"
+"@crc:message" "e60981bf"
+"message" "Prosty kompas wykonany z kamienia."
+}
+{
+"@entity" "279"
+"@classname" "trigger_checkbrush"
+"@model" "*67"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "280"
+"@classname" "trigger_checkbrush"
+"@model" "*68"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "281"
+"@classname" "trigger_checkbrush"
+"@model" "*69"
+"@crc:message" "33ca06e4"
+"message" "Cholera, blokuje mi drogê."
+}
+{
+"@entity" "282"
+"@classname" "trigger_checkbrush"
+"@model" "*70"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "283"
+"@classname" "trigger_checkbrush"
+"@model" "*71"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}

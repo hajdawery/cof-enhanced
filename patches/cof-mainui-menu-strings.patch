@@ -1,0 +1,860 @@
+diff --git a/3rdparty/mainui/BaseMenu.cpp b/3rdparty/mainui/BaseMenu.cpp
+index eea2fe8..d7d4294 100644
+--- a/3rdparty/mainui/BaseMenu.cpp
++++ b/3rdparty/mainui/BaseMenu.cpp
+@@ -329,6 +329,9 @@ int UI_DrawString( HFont font, int x, int y, int w, int h,
+ 	if( !string || !string[0] )
+ 		return x;
+ 
++	// the active language pack's translation (MenuStrings.cpp)
++	string = UI_LangText( string );
++
+ 	if( flags & ETF_SHADOW )
+ 	{
+ 		shadowModulate = PackAlpha( uiColorBlack, UnpackAlpha( color ));
+@@ -674,6 +677,12 @@ void UI_UpdateMenu( float flTime )
+ 		loadStuff = false;
+ 	}
+ 
++	// Cry of Fear language packs: the menu's own strings follow cof_language;
++	// on a change the open pages are laid out again, since their widths
++	// depend on the text (MenuStrings.cpp)
++	if( UI_LangFrame( ))
++		uiStatic.menu.VidInit( true );
++
+ 	UI_DrawFinalCredits ();
+ 
+ 	// also moved opening main menu here from SetActiveMenu, so
+diff --git a/3rdparty/mainui/MenuStrings.cpp b/3rdparty/mainui/MenuStrings.cpp
+index 4976934..2b480f1 100644
+--- a/3rdparty/mainui/MenuStrings.cpp
++++ b/3rdparty/mainui/MenuStrings.cpp
+@@ -556,3 +556,679 @@ void UI_FreeCustomStrings( void )
+ {
+ 	Localize_Free();
+ }
++
++/*
++==============================================================================
++
++Cry of Fear: the menu's own strings from the active language pack
++
++The engine's archived cof_language names a pack under <gamedir>/languages/
++(docs/cof-language-packs.md). The pack's strings/menu-strings.tsv translates
++this menu library's own text:
++
++	<English, exactly as the menu draws it><TAB><translation>[<TAB>notes...]
++
++UTF-8 without or with a BOM; a line that is not valid UTF-8 is read in the
++code page the pack's manifest.txt declares (1250, 1251 or 1252). Lines that
++start with '#' and a first line whose first cell is "english" are skipped;
++\n, \t and \\ are unescaped on both sides; an empty translation, or one equal
++to the English, is ignored. A key with printf conversions (%s %d %i %u %f %c
++%x) also matches formatted text: its literal pieces must appear in order,
++the first at the start and the last at the end; the text in between goes into
++the translation's own conversions left to right (surplus ones are dropped),
++and a captured piece that is itself a key is translated too. Longer literal
++keys are tried first. The same rules as the engine's DLL string table.
++
++The key is the English as drawn - for a "#GameUI_..." token, the English value
++the game's resource file gives it - so pack authors work from what they see;
++scripts/polish/extract-menu-strings.ps1 lists every one of them.
++
++The lookup is applied where text is drawn and measured (UI_DrawString,
++CFontManager::GetTextWide and GetTextHeightExt), not inside L(): every page
++resolves its L() strings once, the first time it opens, so a lookup there
++could not follow a change of cof_language in a running game. At the draw
++layer UI_LangFrame notices the change, reloads the table and BaseMenu.cpp
++re-lays out the open pages, whose widths depend on the text. Editable text
++(CMenuField) is held out with UI_LangHold.
++
++==============================================================================
++*/
++
++#define LANG_MAX_CONV	8
++#define LANG_OUT_SIZE	2048
++#define LANG_RING	16
++
++struct langPattern_t
++{
++	const char	*value;			// translation, UTF-8 (owned)
++	char		*pieces;		// the key's literal pieces, back to back (owned)
++	const char	*piece[LANG_MAX_CONV + 1];
++	int		pieceLen[LANG_MAX_CONV + 1];
++	int		numConv;
++	int		literal;		// total literal bytes, longer keys first
++};
++
++static CUtlHashMap<const char *, const char *> s_langExact;
++static langPattern_t *s_langPatterns;
++static int s_langNumPatterns;
++static char s_langCode[64];
++static bool s_langLoaded;
++static int s_langHold;
++static char s_langRing[LANG_RING][LANG_OUT_SIZE];
++static int s_langRingPos;
++
++// 0x80..0xFF of the three code pages the engine's font layer knows
++static const unsigned short s_langCP1250[128] =
++{
++	0x20AC, 0xFFFD, 0x201A, 0xFFFD, 0x201E, 0x2026, 0x2020, 0x2021, 0xFFFD, 0x2030, 0x0160, 0x2039, 0x015A, 0x0164, 0x017D, 0x0179,
++	0xFFFD, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014, 0xFFFD, 0x2122, 0x0161, 0x203A, 0x015B, 0x0165, 0x017E, 0x017A,
++	0x00A0, 0x02C7, 0x02D8, 0x0141, 0x00A4, 0x0104, 0x00A6, 0x00A7, 0x00A8, 0x00A9, 0x015E, 0x00AB, 0x00AC, 0x00AD, 0x00AE, 0x017B,
++	0x00B0, 0x00B1, 0x02DB, 0x0142, 0x00B4, 0x00B5, 0x00B6, 0x00B7, 0x00B8, 0x0105, 0x015F, 0x00BB, 0x013D, 0x02DD, 0x013E, 0x017C,
++	0x0154, 0x00C1, 0x00C2, 0x0102, 0x00C4, 0x0139, 0x0106, 0x00C7, 0x010C, 0x00C9, 0x0118, 0x00CB, 0x011A, 0x00CD, 0x00CE, 0x010E,
++	0x0110, 0x0143, 0x0147, 0x00D3, 0x00D4, 0x0150, 0x00D6, 0x00D7, 0x0158, 0x016E, 0x00DA, 0x0170, 0x00DC, 0x00DD, 0x0162, 0x00DF,
++	0x0155, 0x00E1, 0x00E2, 0x0103, 0x00E4, 0x013A, 0x0107, 0x00E7, 0x010D, 0x00E9, 0x0119, 0x00EB, 0x011B, 0x00ED, 0x00EE, 0x010F,
++	0x0111, 0x0144, 0x0148, 0x00F3, 0x00F4, 0x0151, 0x00F6, 0x00F7, 0x0159, 0x016F, 0x00FA, 0x0171, 0x00FC, 0x00FD, 0x0163, 0x02D9,
++};
++
++static const unsigned short s_langCP1251[128] =
++{
++	0x0402, 0x0403, 0x201A, 0x0453, 0x201E, 0x2026, 0x2020, 0x2021, 0x20AC, 0x2030, 0x0409, 0x2039, 0x040A, 0x040C, 0x040B, 0x040F,
++	0x0452, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014, 0xFFFD, 0x2122, 0x0459, 0x203A, 0x045A, 0x045C, 0x045B, 0x045F,
++	0x00A0, 0x040E, 0x045E, 0x0408, 0x00A4, 0x0490, 0x00A6, 0x00A7, 0x0401, 0x00A9, 0x0404, 0x00AB, 0x00AC, 0x00AD, 0x00AE, 0x0407,
++	0x00B0, 0x00B1, 0x0406, 0x0456, 0x0491, 0x00B5, 0x00B6, 0x00B7, 0x0451, 0x2116, 0x0454, 0x00BB, 0x0458, 0x0405, 0x0455, 0x0457,
++	0x0410, 0x0411, 0x0412, 0x0413, 0x0414, 0x0415, 0x0416, 0x0417, 0x0418, 0x0419, 0x041A, 0x041B, 0x041C, 0x041D, 0x041E, 0x041F,
++	0x0420, 0x0421, 0x0422, 0x0423, 0x0424, 0x0425, 0x0426, 0x0427, 0x0428, 0x0429, 0x042A, 0x042B, 0x042C, 0x042D, 0x042E, 0x042F,
++	0x0430, 0x0431, 0x0432, 0x0433, 0x0434, 0x0435, 0x0436, 0x0437, 0x0438, 0x0439, 0x043A, 0x043B, 0x043C, 0x043D, 0x043E, 0x043F,
++	0x0440, 0x0441, 0x0442, 0x0443, 0x0444, 0x0445, 0x0446, 0x0447, 0x0448, 0x0449, 0x044A, 0x044B, 0x044C, 0x044D, 0x044E, 0x044F,
++};
++
++static const unsigned short s_langCP1252[32] =
++{
++	0x20AC, 0xFFFD, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0xFFFD, 0x017D, 0xFFFD,
++	0xFFFD, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014, 0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0xFFFD, 0x017E, 0x0178,
++};
++
++static bool Lang_IsUTF8( const char *s )
++{
++	const unsigned char *p = (const unsigned char *)s;
++
++	while( *p )
++	{
++		int n;
++
++		if( *p < 0x80 ) { p++; continue; }
++		else if(( *p & 0xE0 ) == 0xC0 && *p >= 0xC2 ) n = 1;
++		else if(( *p & 0xF0 ) == 0xE0 ) n = 2;
++		else if(( *p & 0xF8 ) == 0xF0 && *p <= 0xF4 ) n = 3;
++		else return false;
++
++		for( p++; n > 0; n--, p++ )
++		{
++			if(( *p & 0xC0 ) != 0x80 )
++				return false;
++		}
++	}
++
++	return true;
++}
++
++// one byte string in the pack's code page to UTF-8
++static void Lang_CodepageToUTF8( char *out, size_t size, const char *in, int codepage )
++{
++	size_t o = 0;
++
++	for( const unsigned char *p = (const unsigned char *)in; *p && o + 4 < size; p++ )
++	{
++		unsigned int uc = *p;
++
++		if( uc >= 0x80 )
++		{
++			if( codepage == 1250 )
++				uc = s_langCP1250[uc - 0x80];
++			else if( codepage == 1251 )
++				uc = s_langCP1251[uc - 0x80];
++			else if( uc < 0xA0 )
++				uc = s_langCP1252[uc - 0x80];
++		}
++
++		if( uc < 0x80 )
++			out[o++] = (char)uc;
++		else if( uc < 0x800 )
++		{
++			out[o++] = (char)( 0xC0 | ( uc >> 6 ));
++			out[o++] = (char)( 0x80 | ( uc & 0x3F ));
++		}
++		else
++		{
++			out[o++] = (char)( 0xE0 | ( uc >> 12 ));
++			out[o++] = (char)( 0x80 | (( uc >> 6 ) & 0x3F ));
++			out[o++] = (char)( 0x80 | ( uc & 0x3F ));
++		}
++	}
++
++	out[o] = 0;
++}
++
++static void Lang_Unescape( char *s )
++{
++	char *d = s;
++
++	for( ; *s; s++ )
++	{
++		if( s[0] == '\\' && ( s[1] == 'n' || s[1] == 't' || s[1] == 'r' || s[1] == '\\' ))
++		{
++			s++;
++			*d++ = *s == 'n' ? '\n' : *s == 't' ? '\t' : *s == 'r' ? '\r' : '\\';
++			continue;
++		}
++		*d++ = *s;
++	}
++
++	*d = 0;
++}
++
++// length of the printf conversion starting at s ('%'), or 0 if there is none
++static int Lang_ConversionLength( const char *s )
++{
++	const char *p = s + 1;
++
++	while( *p && strchr( "-+ #0", *p ))
++		p++;
++	while( *p >= '0' && *p <= '9' )
++		p++;
++	if( *p == '.' )
++	{
++		p++;
++		while( *p >= '0' && *p <= '9' )
++			p++;
++	}
++	while( *p == 'l' || *p == 'h' )
++		p++;
++
++	if( *p && strchr( "sdiufcxX", *p ))
++		return (int)( p - s ) + 1;
++
++	return 0;
++}
++
++static void Lang_Free( void )
++{
++	FOR_EACH_HASHMAP( s_langExact, i )
++	{
++		delete[] (char *)s_langExact.Key( i );
++		delete[] (char *)s_langExact.Element( i );
++	}
++	s_langExact.Purge();
++
++	for( int i = 0; i < s_langNumPatterns; i++ )
++	{
++		delete[] (char *)s_langPatterns[i].value;
++		delete[] s_langPatterns[i].pieces;
++	}
++	delete[] s_langPatterns;
++	s_langPatterns = NULL;
++	s_langNumPatterns = 0;
++}
++
++// split a key into literal pieces around its conversions; false = exact only
++static bool Lang_ParsePattern( langPattern_t *pat, const char *key )
++{
++	size_t len = strlen( key );
++	char *buf = new char[len + LANG_MAX_CONV + 2];
++	char *d = buf;
++	int n = 0;
++
++	memset( pat, 0, sizeof( *pat ));
++	pat->pieces = buf;
++	pat->piece[0] = d;
++
++	for( const char *s = key; *s; )
++	{
++		if( s[0] == '%' && s[1] == '%' )
++		{
++			*d++ = '%';
++			s += 2;
++			continue;
++		}
++
++		int conv = s[0] == '%' ? Lang_ConversionLength( s ) : 0;
++
++		if( !conv )
++		{
++			*d++ = *s++;
++			continue;
++		}
++
++		if( n >= LANG_MAX_CONV )
++			break;
++
++		*d++ = 0;
++		pat->pieceLen[n] = (int)strlen( pat->piece[n] );
++		pat->literal += pat->pieceLen[n];
++		n++;
++		pat->piece[n] = d;
++		s += conv;
++	}
++
++	*d = 0;
++	pat->pieceLen[n] = (int)strlen( pat->piece[n] );
++	pat->literal += pat->pieceLen[n];
++	pat->numConv = n;
++
++	// two adjacent conversions cannot be told apart, and a key of almost
++	// nothing but conversions would match far too much
++	bool ok = n > 0 && pat->literal >= 3;
++
++	for( int i = 1; ok && i < n; i++ )
++	{
++		if( !pat->pieceLen[i] )
++			ok = false;
++	}
++
++	if( !ok )
++	{
++		delete[] buf;
++		pat->pieces = NULL;
++	}
++
++	return ok;
++}
++
++static int Lang_ReadCodepage( const char *code )
++{
++	char path[128];
++	int length = 0, codepage = 1252;
++
++	snprintf( path, sizeof( path ), "languages/%s/manifest.txt", code );
++	char *raw = (char *)EngFuncs::COM_LoadFile( path, &length );
++
++	if( !raw )
++		return codepage;
++
++	for( const char *p = raw, *end = raw + length; p < end; )
++	{
++		const char *line = p;
++
++		while( p < end && *p != '\n' )
++			p++;
++		if( p < end )
++			p++;
++
++		if( end - line > 9 && !strnicmp( line, "codepage=", 9 ))
++		{
++			codepage = atoi( line + 9 );
++			break;
++		}
++	}
++
++	EngFuncs::COM_FreeFile( raw );
++	return codepage;
++}
++
++static void Lang_Load( const char *code )
++{
++	char path[128];
++	int length = 0, exact = 0, skipped = 0;
++	int codepage = 0;
++
++	Lang_Free();
++	Q_strncpy( s_langCode, code, sizeof( s_langCode ));
++	s_langLoaded = true;
++
++	if( !code[0] )
++		return;
++
++	// a pack code is a plain folder name, the rule the engine applies
++	if( strpbrk( code, ".:\\/" ))
++	{
++		Con_Printf( "menu strings: \"%s\" is not a pack folder name, the menu stays in English\n", code );
++		return;
++	}
++
++	snprintf( path, sizeof( path ), "languages/%s/strings/menu-strings.tsv", code );
++	char *raw = (char *)EngFuncs::COM_LoadFile( path, &length );
++
++	if( !raw )
++	{
++		Con_Printf( "menu strings: no %s, the menu stays in English\n", path );
++		return;
++	}
++
++	// a private, terminated copy the lines are cut in place from
++	char *text = new char[length + 1];
++	memcpy( text, raw, length );
++	text[length] = 0;
++	EngFuncs::COM_FreeFile( raw );
++
++	char *p = text;
++	if( (unsigned char)p[0] == 0xEF && (unsigned char)p[1] == 0xBB && (unsigned char)p[2] == 0xBF )
++		p += 3;
++
++	int maxPatterns = 0;
++	for( char *s = p; *s; s++ )
++	{
++		if( *s == '\n' )
++			maxPatterns++;
++	}
++	s_langPatterns = new langPattern_t[maxPatterns + 1];
++
++	bool first = true;
++
++	while( *p )
++	{
++		char *line = p;
++
++		while( *p && *p != '\n' )
++			p++;
++		if( *p )
++			*p++ = 0;
++
++		size_t n = strlen( line );
++		if( n && line[n - 1] == '\r' )
++			line[n - 1] = 0;
++
++		if( !line[0] || line[0] == '#' )
++			continue;
++
++		char *value = strchr( line, '\t' );
++		if( !value )
++		{
++			skipped++;
++			continue;
++		}
++		*value++ = 0;
++
++		char *tail = strchr( value, '\t' );
++		if( tail )
++			*tail = 0;
++
++		if( first )
++		{
++			first = false;
++			if( !stricmp( line, "english" ))
++				continue;
++		}
++
++		char key[LANG_OUT_SIZE], val[LANG_OUT_SIZE];
++
++		if( Lang_IsUTF8( line ) && Lang_IsUTF8( value ))
++		{
++			Q_strncpy( key, line, sizeof( key ));
++			Q_strncpy( val, value, sizeof( val ));
++		}
++		else
++		{
++			if( !codepage )
++				codepage = Lang_ReadCodepage( code );
++			Lang_CodepageToUTF8( key, sizeof( key ), line, codepage );
++			Lang_CodepageToUTF8( val, sizeof( val ), value, codepage );
++		}
++
++		Lang_Unescape( key );
++		Lang_Unescape( val );
++
++		if( !key[0] || !val[0] || !strcmp( key, val ))
++			continue;
++
++		// the first of duplicate rows wins
++		if( s_langExact.Find( key ) != s_langExact.InvalidIndex( ))
++			continue;
++
++		s_langExact.Insert( StringCopy( key ), StringCopy( val ));
++		exact++;
++
++		langPattern_t pat;
++		if( strchr( key, '%' ) && Lang_ParsePattern( &pat, key ))
++		{
++			pat.value = StringCopy( val );
++			s_langPatterns[s_langNumPatterns++] = pat;
++		}
++	}
++
++	delete[] text;
++
++	// longer literal text first, so "You got the %s" beats "You got %s"
++	for( int i = 1; i < s_langNumPatterns; i++ )
++	{
++		langPattern_t t = s_langPatterns[i];
++		int j = i - 1;
++
++		while( j >= 0 && s_langPatterns[j].literal < t.literal )
++		{
++			s_langPatterns[j + 1] = s_langPatterns[j];
++			j--;
++		}
++		s_langPatterns[j + 1] = t;
++	}
++
++	Con_Printf( "menu strings: %s: %d strings, %d of them with conversions%s\n",
++		path, exact, s_langNumPatterns, skipped ? " (some lines had no tab and were skipped)" : "" );
++}
++
++static bool Lang_Match( const langPattern_t *pat, const char *text, int len, const char **cap, int *capLen )
++{
++	if( len < pat->literal )
++		return false;
++
++	if( strncmp( text, pat->piece[0], pat->pieceLen[0] ))
++		return false;
++
++	const char *pos = text + pat->pieceLen[0];
++	const char *last = text + len - pat->pieceLen[pat->numConv];
++
++	if( last < pos || strncmp( last, pat->piece[pat->numConv], pat->pieceLen[pat->numConv] ))
++		return false;
++
++	for( int i = 1; i < pat->numConv; i++ )
++	{
++		const char *found = NULL;
++
++		// every capture holds at least one byte
++		for( const char *s = pos + 1; s + pat->pieceLen[i] <= last; s++ )
++		{
++			if( !strncmp( s, pat->piece[i], pat->pieceLen[i] ))
++			{
++				found = s;
++				break;
++			}
++		}
++
++		if( !found )
++			return false;
++
++		cap[i - 1] = pos;
++		capLen[i - 1] = (int)( found - pos );
++		pos = found + pat->pieceLen[i];
++	}
++
++	if( last <= pos )
++		return false;
++
++	cap[pat->numConv - 1] = pos;
++	capLen[pat->numConv - 1] = (int)( last - pos );
++	return true;
++}
++
++static const char *Lang_Format( const langPattern_t *pat, const char **cap, const int *capLen )
++{
++	char *out = s_langRing[s_langRingPos];
++	size_t o = 0;
++	int k = 0;
++
++	s_langRingPos = ( s_langRingPos + 1 ) % LANG_RING;
++
++	for( const char *s = pat->value; *s && o + 1 < LANG_OUT_SIZE; )
++	{
++		if( s[0] == '%' && s[1] == '%' )
++		{
++			out[o++] = '%';
++			s += 2;
++			continue;
++		}
++
++		int conv = s[0] == '%' ? Lang_ConversionLength( s ) : 0;
++
++		if( !conv )
++		{
++			out[o++] = *s++;
++			continue;
++		}
++
++		s += conv;
++
++		if( k >= pat->numConv )
++			continue;	// surplus conversions are removed, never drawn
++
++		// a captured piece that is itself a key is translated too
++		char piece[LANG_OUT_SIZE];
++		int n = Q_min( capLen[k], (int)sizeof( piece ) - 1 );
++
++		memcpy( piece, cap[k], n );
++		piece[n] = 0;
++		k++;
++
++		const char *put = piece;
++		int i = s_langExact.Find( piece );
++		if( i != s_langExact.InvalidIndex( ))
++			put = s_langExact[i];
++
++		for( ; *put && o + 1 < LANG_OUT_SIZE; put++ )
++			out[o++] = *put;
++	}
++
++	out[o] = 0;
++	return out;
++}
++
++/*
++=================
++UI_LangText
++
++The active pack's translation of a string the menu is about to draw or
++measure, or the string itself.
++=================
++*/
++static const char *Lang_Lookup( const char *text )
++{
++	int i = s_langExact.Find( text );
++
++	if( i != s_langExact.InvalidIndex( ))
++		return s_langExact[i];
++
++	if( !s_langNumPatterns )
++		return NULL;
++
++	int len = (int)strlen( text );
++
++	if( len >= LANG_OUT_SIZE )
++		return NULL;
++
++	for( int j = 0; j < s_langNumPatterns; j++ )
++	{
++		const char *cap[LANG_MAX_CONV];
++		int capLen[LANG_MAX_CONV];
++
++		if( Lang_Match( &s_langPatterns[j], text, len, cap, capLen ))
++			return Lang_Format( &s_langPatterns[j], cap, capLen );
++	}
++
++	return NULL;
++}
++
++const char *UI_LangText( const char *text )
++{
++	if( !text || !text[0] || s_langHold > 0 || !s_langExact.Count( ))
++		return text;
++
++	const char *out = Lang_Lookup( text );
++
++	if( out )
++		return out;
++
++	// text wrapped in ^N colour codes (the Controls list builds its rows as
++	// "^6<label>^7") is looked up without them; the translation is drawn
++	// plain, which is what the theme draws those rows as anyway
++	if( !strchr( text, '^' ))
++		return text;
++
++	char plain[LANG_OUT_SIZE];
++	size_t n = 0;
++
++	for( const char *s = text; *s && n + 1 < sizeof( plain ); s++ )
++	{
++		if( IsColorString( s ))
++		{
++			s++;
++			continue;
++		}
++		plain[n++] = *s;
++	}
++	plain[n] = 0;
++
++	if( !n || !strcmp( plain, text ))
++		return text;
++
++	out = Lang_Lookup( plain );
++	return out ? out : text;
++}
++
++void UI_LangHold( bool hold )
++{
++	s_langHold += hold ? 1 : -1;
++
++	if( s_langHold < 0 )
++		s_langHold = 0;
++}
++
++/*
++=================
++UI_LangFrame
++
++Loads the table of the pack cof_language names the first time and whenever
++it changes. Returns true when the language changed after the first load, so
++the caller re-lays out the open pages.
++=================
++*/
++bool UI_LangFrame( void )
++{
++	const char *code = EngFuncs::GetCvarString( "cof_language" );
++
++	if( !code )
++		code = "";
++
++	if( s_langLoaded && !strcmp( code, s_langCode ))
++		return false;
++
++	bool changed = s_langLoaded;
++
++	Lang_Load( code );
++	return changed;
++}
++
++/*
++=================
++menu_cof_strings [reload]
++
++Status of the menu string table; "reload" re-reads it from disk (for pack
++authors editing menu-strings.tsv with the game running).
++=================
++*/
++static void UI_LangStrings_f( void )
++{
++	if( EngFuncs::CmdArgc() > 1 && !stricmp( EngFuncs::CmdArgv( 1 ), "reload" ))
++	{
++		s_langLoaded = false;
++		UI_LangFrame();
++	}
++
++	Con_Printf( "menu strings: cof_language \"%s\", %d strings, %d with conversions\n",
++		s_langCode, s_langExact.Count(), s_langNumPatterns );
++
++	if( EngFuncs::CmdArgc() > 1 && stricmp( EngFuncs::CmdArgv( 1 ), "reload" ))
++	{
++		const char *probe = EngFuncs::CmdArgv( 1 );
++		Con_Printf( "menu strings: \"%s\" -> \"%s\"\n", probe, UI_LangText( probe ));
++	}
++}
++
++ADD_COMMAND( menu_cof_strings, UI_LangStrings_f );
+diff --git a/3rdparty/mainui/Theme.cpp b/3rdparty/mainui/Theme.cpp
+index 53a66d1..8637992 100644
+--- a/3rdparty/mainui/Theme.cpp
++++ b/3rdparty/mainui/Theme.cpp
+@@ -16,6 +16,7 @@ GNU General Public License for more details.
+ #include "Utils.h"
+ #include "Theme.h"
+ #include "menus/CryOfFear.h"
++#include "utflib.h"
+ 
+ bool g_bThemeActive = false;
+ 
+@@ -504,23 +505,35 @@ void UI_ThemeMessagePanelSize( const char *str, int *w, int *h )
+ // is not expressible through it. The logo is the one place the look wants it.
+ // ---------------------------------------------------------------------------
+ 
++//
++// Both go through the language pack's table (UI_LangText, MenuStrings.cpp) and
++// decode UTF-8 the way UI_DrawString does, so a translated title ("KONIEC
++// GRY", or Cyrillic) is measured and drawn letter by letter like the English.
+ int UI_ThemeDrawTracked( int font, int x, int y, const char *str,
+ 	unsigned int color, int charH, int tracking )
+ {
+ 	int start = x;
++	utfstate_t state;
+ 
+ 	if( !str )
+ 		return 0;
+ 
++	str = UI_LangText( str );
++
+ 	for( const char *p = str; *p; p++ )
+ 	{
+-		if( *p == ' ' )
++		uint32_t ch = state.Decode( (uint8_t)*p );
++
++		if( !ch )
++			continue; // inside a multi-byte sequence
++
++		if( ch == ' ' )
+ 		{
+ 			x += g_FontMgr->GetCharacterWidthScaled( font, ' ', charH ) + tracking;
+ 			continue;
+ 		}
+ 
+-		x += g_FontMgr->DrawCharacter( font, (unsigned char)*p, Point( x, y ), charH, color );
++		x += g_FontMgr->DrawCharacter( font, ch, Point( x, y ), charH, color );
+ 		x += tracking;
+ 	}
+ 
+@@ -530,12 +543,20 @@ int UI_ThemeDrawTracked( int font, int x, int y, const char *str,
+ int UI_ThemeTrackedWidth( int font, const char *str, int charH, int tracking )
+ {
+ 	int w = 0;
++	utfstate_t state;
+ 
+ 	if( !str )
+ 		return 0;
+ 
++	str = UI_LangText( str );
++
+ 	for( const char *p = str; *p; p++ )
+-		w += g_FontMgr->GetCharacterWidthScaled( font, (unsigned char)*p, charH ) + tracking;
++	{
++		uint32_t ch = state.Decode( (uint8_t)*p );
++
++		if( ch )
++			w += g_FontMgr->GetCharacterWidthScaled( font, ch, charH ) + tracking;
++	}
+ 
+ 	return w > 0 ? w - tracking : 0;
+ }
+diff --git a/3rdparty/mainui/Utils.h b/3rdparty/mainui/Utils.h
+index 97b9b8b..87ef195 100644
+--- a/3rdparty/mainui/Utils.h
++++ b/3rdparty/mainui/Utils.h
+@@ -149,6 +149,21 @@ const char *L( const char *szStr ) __attribute__(( format_arg( 1 ))); // L means
+ #else
+ const char *L( const char *szStr ); // L means Localize!
+ #endif
++
++// Cry of Fear language packs: the menu's own strings from
++// languages/<cof_language>/strings/menu-strings.tsv (MenuStrings.cpp).
++// UI_LangText is applied where text is drawn and measured; UI_LangFrame
++// reloads the table when cof_language changes (true = re-lay out the pages);
++// UI_LangHold keeps editable text out of it.
++const char *UI_LangText( const char *text );
++bool UI_LangFrame( void );
++void UI_LangHold( bool hold );
++class CUILangHold
++{
++public:
++	CUILangHold() { UI_LangHold( true ); }
++	~CUILangHold() { UI_LangHold( false ); }
++};
+ void UI_FreeCustomStrings( void );
+ 
+ inline size_t Q_strncpy( char *dst, const char *src, size_t size )
+diff --git a/3rdparty/mainui/controls/Field.cpp b/3rdparty/mainui/controls/Field.cpp
+index 63e9162..509fdc8 100644
+--- a/3rdparty/mainui/controls/Field.cpp
++++ b/3rdparty/mainui/controls/Field.cpp
+@@ -484,6 +484,10 @@ void CMenuField::Draw( void )
+ 		UI_DrawString( font, m_scPos.x, textHeight, m_scSize.w, m_scChSize, szName, uiColorHelp, m_scChSize, QM_LEFT, textflags | ETF_FORCECOL );
+ 	}
+ 
++	// the label above is menu text; what follows is what the player typed,
++	// which the language pack's string table must never replace
++	CUILangHold langHold;
++
+ 	if( iFlags & QMF_GRAYED )
+ 	{
+ 		UI_DrawString( font, newPos, m_scSize, text, uiColorDkGrey, m_scChSize, eTextAlignment, textflags | ETF_FORCECOL );
+diff --git a/3rdparty/mainui/font/FontManager.cpp b/3rdparty/mainui/font/FontManager.cpp
+index 6fb5c3a..758ff35 100644
+--- a/3rdparty/mainui/font/FontManager.cpp
++++ b/3rdparty/mainui/font/FontManager.cpp
+@@ -441,6 +441,10 @@ int CFontManager::GetTextWide(HFont font, const char *text, int size)
+ {
+ 	int wide;
+ 
++	// measure what UI_DrawString will draw: the language pack's translation
++	if( size < 0 )
++		text = UI_LangText( text );
++
+ 	GetTextSize( font, text, &wide, NULL, size );
+ 
+ 	return wide;
+@@ -477,6 +481,9 @@ int CFontManager::GetTextHeightExt( HFont fontHandle, const char *text, int heig
+ 		return 0;
+ 	}
+ 
++	if( size < 0 )
++		text = UI_LangText( text );
++
+ 	const char *text2 = text;
+ 	int y = 0;
+ 
+@@ -517,7 +524,9 @@ void CFontManager::UploadTextureForFont(CBaseFont *font)
+ 	charRange_t range[] =
+ 	{
+ 	{ 0x0021, 0x007E, NULL, 0 }, // ascii printable range
+-	{ 0x00C0, 0x00FF, NULL, 0 }, // latin-1 supplement (letters only)
++	// Cry of Fear language packs: from 0xA1, so the menu also has the Latin-1
++	// punctuation its translations need (Spanish inverted marks, French guillemets)
++	{ 0x00A1, 0x00FF, NULL, 0 }, // latin-1 supplement
+ 	{ 0x0100, 0x017F, NULL, 0 }, // latin extended a
+ 	{ 0x0400, 0x045F, NULL, 0 }, // cyrillic range
+ 	{ 0, 0, table_cp1251, V_ARRAYSIZE( table_cp1251 ) }, // cp1251

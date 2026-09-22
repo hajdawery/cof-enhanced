@@ -1,0 +1,16 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_apartmentsick: 478 entities in the BSP entity lump; 2 value(s) in 2 entities; values are cp1250 bytes
+{
+"@entity" "354"
+"@classname" "trigger_checkbrush"
+"@model" "*204"
+"@crc:message" "2791d7ca"
+"message" "Nie mogê otworzyæ drzwi! Rury je blokuj¹."
+}
+{
+"@entity" "363"
+"@classname" "trigger_checkbrush"
+"@model" "*207"
+"@crc:message" "b8c40161"
+"message" "Nie mogê ich otworzyæ. Zaciê³y siê?"
+}

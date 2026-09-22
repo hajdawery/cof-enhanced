@@ -1,0 +1,170 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_park3: 663 entities in the BSP entity lump; 23 value(s) in 22 entities; values are cp1250 bytes
+{
+"@entity" "167"
+"@classname" "inter_door"
+"@model" "*14"
+"@crc:unlockedmsg" "20915f3d"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "7ba741aa"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "170"
+"@classname" "cof_billboard"
+"@targetname" "tavla1"
+"@origin" "245 -53 666"
+"@crc:text" "e9d90ff8"
+"text" "S¹ na nim œlady krwi. Powinienem to sprawdziæ."
+}
+{
+"@entity" "243"
+"@classname" "cof_billboard"
+"@targetname" "tavlaparkbus"
+"@origin" "1590 -238 738"
+"@crc:text" "cd6de105"
+"text" "Wygl¹da na to, ¿e mogê pojechaæ skrótem przez TL Trading do Saxon Avenue."
+}
+{
+"@entity" "260"
+"@classname" "func_button"
+"@targetname" "bdig_4"
+"@model" "*23"
+"@crc:lockedmsg" "bea0c775"
+"lockedmsg" "Coœ tu jest. Powinienem spróbowaæ kopaæ."
+}
+{
+"@entity" "261"
+"@classname" "func_button"
+"@targetname" "bdig_3"
+"@model" "*24"
+"@crc:lockedmsg" "bea0c775"
+"lockedmsg" "Coœ tu jest. Powinienem spróbowaæ kopaæ."
+}
+{
+"@entity" "262"
+"@classname" "func_button"
+"@targetname" "bdig_2"
+"@model" "*25"
+"@crc:lockedmsg" "bea0c775"
+"lockedmsg" "Coœ tu jest. Powinienem spróbowaæ kopaæ."
+}
+{
+"@entity" "263"
+"@classname" "func_button"
+"@targetname" "bdig_5"
+"@model" "*26"
+"@crc:lockedmsg" "bea0c775"
+"lockedmsg" "Coœ tu jest. Powinienem spróbowaæ kopaæ."
+}
+{
+"@entity" "264"
+"@classname" "func_button"
+"@targetname" "bdig_6"
+"@model" "*27"
+"@crc:lockedmsg" "bea0c775"
+"lockedmsg" "Coœ tu jest. Powinienem spróbowaæ kopaæ."
+}
+{
+"@entity" "265"
+"@classname" "func_button"
+"@targetname" "bdig_1"
+"@model" "*28"
+"@crc:lockedmsg" "bea0c775"
+"lockedmsg" "Coœ tu jest. Powinienem spróbowaæ kopaæ."
+}
+{
+"@entity" "372"
+"@classname" "inter_door"
+"@targetname" "chdoor12"
+"@model" "*32"
+"@crc:lockedmsg" "48d3af80"
+"lockedmsg" "Coœ blokuje drzwi."
+}
+{
+"@entity" "374"
+"@classname" "inter_door"
+"@targetname" "chdoor22"
+"@model" "*33"
+"@crc:lockedmsg" "48d3af80"
+"lockedmsg" "Coœ blokuje drzwi."
+}
+{
+"@entity" "501"
+"@classname" "cof_chapter"
+"@targetname" "chapterlehe"
+"@origin" "1780 -256 667"
+"@crc:message" "aeaa5a36"
+"message" "Rozdzia³ 4 - Zatopiony w smutku"
+}
+{
+"@entity" "502"
+"@classname" "trigger_checkbrush"
+"@model" "*49"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "503"
+"@classname" "trigger_checkbrush"
+"@model" "*50"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "504"
+"@classname" "trigger_checkbrush"
+"@model" "*51"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "505"
+"@classname" "trigger_checkbrush"
+"@model" "*52"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "506"
+"@classname" "trigger_checkbrush"
+"@model" "*53"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "509"
+"@classname" "func_button"
+"@targetname" "gatebutton"
+"@model" "*56"
+"@crc:lockedmsg" "8d30c5c8"
+"lockedmsg" "Dzwoni mi telefon."
+}
+{
+"@entity" "513"
+"@classname" "trigger_checkbrush"
+"@model" "*60"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "514"
+"@classname" "trigger_checkbrush"
+"@model" "*61"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "515"
+"@classname" "trigger_checkbrush"
+"@model" "*62"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "516"
+"@classname" "trigger_checkbrush"
+"@model" "*63"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}

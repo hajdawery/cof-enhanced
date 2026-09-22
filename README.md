@@ -112,6 +112,11 @@ engine, the menu and the UI library around them.
 - **Deutsch, Español, Français, Nederlands, Norsk, Svenska** - the game's own
   subtitles in those languages, plus a translated menu.
 - The menu switches language instantly; signs change on the next map.
+- A pack holds only what its translators authored: text, the entity values
+  they changed (applied to the game's maps at load), and the textures and
+  images they repainted; it never ships a map, an entity list, a model or any
+  file identical to the game. Format:
+  [docs/design/language-pack-format.md](docs/design/language-pack-format.md).
 
 **Co-op**
 - *Host co-op* and *Join co-op* pages (Story co-op, Manhunt, Survival 1-4) that
@@ -265,7 +270,9 @@ The full copyright notices for all of these are in
 - Fonts (Inter and the atlases generated from it): **SIL Open Font License 1.1**.
 - Language packs: not GPL; translation data shared with the translators'
   permission, for use with a legally owned copy of Cry of Fear (each pack's
-  README and `LICENSE-NOTE.md`).
+  README and `LICENSE-NOTE.md`). The six menu-only packs (Deutsch, Español,
+  Français, Nederlands, Norsk, Svenska) hold no game text and are
+  GPL-3.0-or-later.
 - The emblem: original artwork by haej, redistributable unmodified with the
   project.
 - Cry of Fear itself belongs to Team Psykskallar and is not in this repository.

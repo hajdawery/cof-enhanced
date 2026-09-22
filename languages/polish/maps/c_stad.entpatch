@@ -1,0 +1,121 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_stad: 518 entities in the BSP entity lump; 17 value(s) in 16 entities; values are cp1250 bytes
+{
+"@entity" "1"
+"@classname" "inter_door"
+"@targetname" "doornen2"
+"@model" "*1"
+"@crc:lockedmsg" "737c97bd"
+"lockedmsg" "Drzwi same siê zamknê³y!"
+}
+{
+"@entity" "3"
+"@classname" "inter_door"
+"@model" "*2"
+"@crc:lockedmsg" "7151cf5e"
+"lockedmsg" "Drzwi s¹ zamkniête."
+}
+{
+"@entity" "138"
+"@classname" "inter_door"
+"@targetname" "shitdoor"
+"@model" "*6"
+"@crc:lockedmsg" "7adc702a"
+"lockedmsg" "Po lewej stronie znajduje siê skrzynka bezpieczników."
+}
+{
+"@entity" "194"
+"@classname" "cof_billboard"
+"@targetname" "tavlaparkbus"
+"@origin" "-1969 -591 -39"
+"@crc:text" "280f8932"
+"text" "Bêdê musia³ przejœæ przez system metra, aby dotrzeæ do Hansson Square."
+}
+{
+"@entity" "299"
+"@classname" "func_button"
+"@targetname" "elbutton1"
+"@model" "*26"
+"@crc:unlockedmsg" "a2f17cf1"
+"unlockedmsg" "Bezpiecznik jest umieszczony."
+"@crc:lockedmsg" "5272cf9c"
+"lockedmsg" "Muszê umieœciæ tutaj bezpiecznik, aby otworzyæ drzwi."
+}
+{
+"@entity" "386"
+"@classname" "trigger_checkbrush"
+"@model" "*33"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "387"
+"@classname" "trigger_checkbrush"
+"@model" "*34"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "388"
+"@classname" "trigger_checkbrush"
+"@model" "*35"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "389"
+"@classname" "trigger_checkbrush"
+"@model" "*36"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "390"
+"@classname" "trigger_checkbrush"
+"@model" "*37"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "391"
+"@classname" "trigger_checkbrush"
+"@model" "*38"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "392"
+"@classname" "trigger_checkbrush"
+"@model" "*39"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "393"
+"@classname" "trigger_checkbrush"
+"@model" "*40"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "394"
+"@classname" "trigger_checkbrush"
+"@model" "*41"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "395"
+"@classname" "trigger_checkbrush"
+"@model" "*42"
+"@crc:message" "cb3f8c68"
+"message" "Wnêtrze jest zniszczone. To nie bêdzie dzia³aæ."
+}
+{
+"@entity" "495"
+"@classname" "inter_door"
+"@targetname" "doornen"
+"@model" "*47"
+"@crc:lockedmsg" "737c97bd"
+"lockedmsg" "Drzwi same siê zamknê³y!"
+}

@@ -1,0 +1,95 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_cof_park2: 342 entities in the BSP entity lump; 19 value(s) in 11 entities; values are cp1250 bytes
+{
+"@entity" "4"
+"@classname" "inter_door"
+"@model" "*3"
+"@crc:lockedmsg" "fbc3571b"
+"lockedmsg" "Nie musimy wracaæ."
+}
+{
+"@entity" "80"
+"@classname" "inter_door"
+"@model" "*15"
+"@crc:lockedmsg" "1167a3b6"
+"lockedmsg" "S¹ zamkniête."
+}
+{
+"@entity" "82"
+"@classname" "inter_door"
+"@model" "*17"
+"@crc:lockedmsg" "5b81aec3"
+"lockedmsg" "Drzwi ani drgn¹."
+}
+{
+"@entity" "108"
+"@classname" "inter_door"
+"@model" "*27"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "b2d07aa9"
+"lockedmsg" "Drzwi siê zaciê³y."
+}
+{
+"@entity" "110"
+"@classname" "inter_door"
+"@model" "*29"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "b2d07aa9"
+"lockedmsg" "Drzwi siê zaciê³y."
+}
+{
+"@entity" "112"
+"@classname" "inter_door"
+"@model" "*31"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "b2d07aa9"
+"lockedmsg" "Drzwi siê zaciê³y."
+}
+{
+"@entity" "114"
+"@classname" "inter_door"
+"@model" "*33"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "b055c59b"
+"lockedmsg" "Drzwi s¹ zamkniête na kartê."
+}
+{
+"@entity" "123"
+"@classname" "inter_door"
+"@model" "*36"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "b2d07aa9"
+"lockedmsg" "Drzwi siê zaciê³y."
+}
+{
+"@entity" "124"
+"@classname" "inter_door"
+"@model" "*37"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "b2d07aa9"
+"lockedmsg" "Drzwi siê zaciê³y."
+}
+{
+"@entity" "242"
+"@classname" "inter_door"
+"@model" "*46"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "95e7b116"
+"lockedmsg" "Winda utkwi³a, nie mogê jej u¿yæ."
+}
+{
+"@entity" "258"
+"@classname" "inter_door"
+"@model" "*47"
+"@crc:unlockedmsg" "e46ad334"
+"unlockedmsg" "Otworzy³eœ drzwi."
+"@crc:lockedmsg" "b2d07aa9"
+"lockedmsg" "Drzwi siê zaciê³y."
+}

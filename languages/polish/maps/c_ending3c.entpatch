@@ -1,0 +1,53 @@
+// Cry of Fear: Enhanced entity patch (entpatch 1); format: scripts/polish/entpatch.py, docs/cof-language-pack-format.md
+// map c_ending3c: 759 entities in the BSP entity lump; 9 value(s) in 5 entities; values are cp1250 bytes
+{
+"@entity" "23"
+"@classname" "func_valve"
+"@targetname" "fvalve1"
+"@origin" "-1648 -951 -2641"
+"@model" "*5"
+"@crc:unlockedmsg" "fa951eaf"
+"unlockedmsg" "Zawór jest umieszczony i mo¿na go obracaæ."
+"@crc:lockedmsg" "04d9132b"
+"lockedmsg" "Muszê umieœciæ tutaj zawór."
+}
+{
+"@entity" "32"
+"@classname" "func_valve"
+"@targetname" "fvalve2"
+"@origin" "-1631 -1321 -2641"
+"@model" "*7"
+"@crc:unlockedmsg" "fa951eaf"
+"unlockedmsg" "Zawór jest umieszczony i mo¿na go obracaæ."
+"@crc:lockedmsg" "04d9132b"
+"lockedmsg" "Muszê umieœciæ tutaj zawór."
+}
+{
+"@entity" "34"
+"@classname" "func_valve"
+"@targetname" "fvalve3"
+"@origin" "-2021 -1338 -2641"
+"@model" "*8"
+"@crc:unlockedmsg" "fa951eaf"
+"unlockedmsg" "Zawór jest umieszczony i mo¿na go obracaæ."
+"@crc:lockedmsg" "04d9132b"
+"lockedmsg" "Muszê umieœciæ tutaj zawór."
+}
+{
+"@entity" "36"
+"@classname" "func_valve"
+"@targetname" "fvalve4"
+"@origin" "-2038 -968 -2641"
+"@model" "*9"
+"@crc:unlockedmsg" "fa951eaf"
+"unlockedmsg" "Zawór jest umieszczony i mo¿na go obracaæ."
+"@crc:lockedmsg" "04d9132b"
+"lockedmsg" "Muszê umieœciæ tutaj zawór."
+}
+{
+"@entity" "609"
+"@classname" "inter_door"
+"@model" "*57"
+"@crc:lockedmsg" "d97a8f10"
+"lockedmsg" "Nie muszê wracaæ."
+}
