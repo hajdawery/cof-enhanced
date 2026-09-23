@@ -137,20 +137,21 @@ engine, the menu and the UI library around them.
 
 ## Install and uninstall
 
-> **Coming with the first public release.** The installer does not exist yet;
-> this is how it is meant to work.
-
-1. Download the release from the project site or the GitHub releases page.
-2. Run the patcher. It finds your Steam copy of Cry of Fear and checks that it
-   is the Steam version.
-3. It backs up the three game files it replaces (`CoFLaunchApp.exe`,
-   `vgui.dll`, `FileSystem_Stdio.dll`), copies in the new engine, menu, fonts
-   and language packs, and creates two small files from your own install.
+1. Download `cof-enhanced-<version>.zip` from the GitHub releases page.
+2. Open your Cry of Fear folder (in Steam: right-click Cry of Fear > Manage >
+   Browse local files) and extract the whole zip into it, so that
+   `Install.cmd` sits next to `CoFLaunchApp.exe`.
+3. Double-click `Install.cmd`. It checks that this is the Steam version, backs
+   up the three game files it replaces (`CoFLaunchApp.exe`, `vgui.dll`,
+   `FileSystem_Stdio.dll`) into `cof-enhanced-backup`, copies in the new
+   engine, menu, fonts and language packs, writes two small files from your own
+   install, and checks every file. No administrator rights are needed.
 4. Start Cry of Fear from Steam as usual.
 
-To uninstall, run the uninstaller the patcher leaves behind: it restores the
-three backed-up files and removes everything it added. Your saves are never
-touched either way (backing them up first is still a good idea).
+To uninstall, double-click `Uninstall.cmd` in the same folder: it restores the
+three backed-up files and removes everything it added. Running `Install.cmd`
+again upgrades in place and keeps the backup. Your saves are never touched
+either way (backing them up first is still a good idea).
 
 Want it before then? You can [build it yourself](docs/dev/building.md).
 
@@ -216,7 +217,7 @@ Campaign. Playing through them has not been tested widely.
 ## Reporting bugs
 
 Open an issue at <https://github.com/hajdawery/cof-enhanced/issues>. Please include
-the version line from the bottom-right corner of the main menu
+the version line from the top-right corner of the main menu
 (`cofenhanced ...`), your resolution and HUD scale, what you did and what
 happened, and a screenshot if it is visual. More in
 [CONTRIBUTING.md](CONTRIBUTING.md).

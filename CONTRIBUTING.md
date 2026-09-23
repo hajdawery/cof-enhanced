@@ -7,7 +7,7 @@ and patches are all welcome.
 
 Open an issue at <https://github.com/hajdawery/cof-enhanced/issues> with:
 
-* the version line from the bottom-right corner of the main menu
+* the version line from the top-right corner of the main menu
   (`cofenhanced <version> (<milestone>, <commit>)`);
 * your resolution, window mode and HUD scale, and the language if it is not
   English;

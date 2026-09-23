@@ -8,3 +8,5 @@ languages/**/*.entpatch -text
 # LICENSE-NOTE.md is listed (with its SHA-256) in each pack's MANIFEST.tsv, so it
 # must keep its exact bytes as well.
 languages/**/LICENSE-NOTE.md -text
+# Batch files must keep CRLF line endings or cmd.exe misreads labels.
+release/installer/*.cmd text eol=crlf

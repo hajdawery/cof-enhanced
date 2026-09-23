@@ -57,22 +57,38 @@ came from the earlier `stage1\deploy-working-overlay-20260921.ps1` and
 
 ## Public release
 
-Nothing has been released publicly yet. What a release archive contains, and
-what it must never contain, is fixed in
+What a release archive contains, and what it must never contain, is fixed in
 [`release/RELEASE-MANIFEST.md`](../../release/RELEASE-MANIFEST.md); the licence
 obligations behind it are in [LICENSING.md section 6](../../LICENSING.md#6-what-every-release-and-the-patcher-must-contain).
-In short: build the whole [patch stack](patch-stack.md) end to end from the
-pinned sources, stage it, fill the [player README template](../player-README-template.md),
-attach a source archive, and publish free of charge.
+The first public build is **0.4.0-test1** (tag `v0.4.0-test1`, a GitHub
+pre-release). The steps:
 
-The **patcher** (planned, not written yet) is a self-extracting installer that:
+1. Bump `VERSION` (line 1 the version, line 2 the milestone) and commit it.
+2. Build the whole [patch stack](patch-stack.md) end to end into a private
+   tree, run `scripts\write-cof-version.ps1` against it (the stamp must not end
+   in `+`), build `xash`, `vgui`, `ref_gl`, `menu` and `filesystem_stdio`, and
+   the launcher with `scripts\build-cof-launcher.ps1`.
+3. Stage the binaries in `stage1\releases\v<version>\` (game-folder layout,
+   PDBs under `pdb\`, `SHA256SUMS.txt`, and `BUILD-INFO.txt` with
+   `binaries_commit=` and `stamp=`).
+4. Commit anything else the release needs (docs, installer), then run
+   `scripts\build-release.ps1 -Version <v> -Binaries stage1\releases\v<v>
+   -OutDir <dist> -EngineTree <private tree> -CanonicalGame <untouched game>`
+   on the clean checkout. It refuses tracked changes, checks every binary and
+   language pack against its hashes, refuses PDBs and game files, and writes
+   `cof-enhanced-<v>.zip`, `cof-enhanced-<v>-source.zip` and `SHA256SUMS.txt`.
+   It also refuses when anything compiled into a binary (patches, launcher,
+   `VERSION`, gamedata, packs) changed after `binaries_commit`.
+5. Test the zip on a scratch copy of the game (never the play runtime):
+   extract, `Install.cmd`, one launch, `Install.cmd` again, `Uninstall.cmd`,
+   compare with the canonical game; `Install.cmd` in a wrong folder must refuse.
+6. Tag the release commit (annotated), push, and create the GitHub release as
+   a draft pre-release with the three files; the owner publishes it.
 
-1. finds and verifies the player's Steam install of Cry of Fear (retail 1.6
-   `hl.dll` / `client.dll` hashes);
-2. backs up the three files it replaces (`CoFLaunchApp.exe`, `vgui.dll`,
-   `FileSystem_Stdio.dll`) and never deletes one;
-3. copies the release overlay with hash checks;
-4. generates the game-derived files locally from the player's own install
-   (`cryoffear\maps\c_game_menu1.ent`, `cryoffear\gameinfo.txt` with our keys
-   merged in) - nothing derived from game data ships in the archive;
-5. writes an uninstaller that restores the backups and removes what it added.
+The installer itself (`release/installer/`): `Install.cmd` runs
+`cof-enhanced\install.ps1`, which checks the folder (`CoFLaunchApp.exe`, the
+Steam `hl.dll`), backs up the game files it replaces into
+`cof-enhanced-backup\` once, copies the payload, writes `gameinfo.txt` and
+`maps\c_game_menu1.ent` from the player's own files, and verifies everything
+against `MANIFEST.sha256`; `Uninstall.cmd` reverses it. Details in the release
+manifest, section 0.
