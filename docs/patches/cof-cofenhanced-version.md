@@ -1,8 +1,8 @@
 # The `cofenhanced` build stamp
 
-> **Current values (2026-09-22 docs pass):** the examples below were written at
-> milestone 3 (`0.3`, `m3`). `VERSION` now reads `0.4` / `m6`, so a fresh build
-> stamps `cofenhanced 0.4 (m6, <commit>)`. The no-header fallback path is still
+> **Current values (2026-09-23, first public test build):** the examples below
+> were written at milestone 3 (`0.3`, `m3`). `VERSION` now reads `0.4.0-test1` /
+> `m7`, so a fresh build stamps `cofenhanced 0.4.0-test1 (m7, <commit>)`. The no-header fallback path is still
 > **unverified** (not compiled), as stated below.
 
 The engine draws Xash3D's own version line in the bottom-right corner
