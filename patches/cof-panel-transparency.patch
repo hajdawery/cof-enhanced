@@ -1,0 +1,910 @@
+diff --git a/engine/vgui_api.h b/engine/vgui_api.h
+--- a/engine/vgui_api.h
++++ b/engine/vgui_api.h
+@@ -229,6 +229,17 @@
+ 	COF_PANEL_HUD		= 1 << 17,	// CHUDControl, the HUD container (not modal)
+ };
+ 
++// Cry of Fear world behind the panels (cof_panel_transparent): what the
++// engine tells the support library, once per painted frame, through
++// CofPanelConfig below. See engine/client/cof_panel_transparency.c.
++typedef struct
++{
++	int	transparent;	// skip the client's black backdrops behind its in-play panels
++	int	plateAlpha;	// 0-255 opacity of the backgroundtoall.tga plate while they are skipped
++	int	hideHud;	// 0 keep the HUD container, 1 hide it, 2 hide the pieces that overlap the panel
++	int	trace;		// cof_panel_trace level
++} cof_vgui_panel_cfg_t;
++
+ typedef struct  vguiapi_s
+ {
+ 	int	initialized;
+@@ -326,5 +337,13 @@
+ 	// Returns the cof_panel_trace level: at 2 and above the support library
+ 	// also names every panel class the first time it sees one on screen.
+ 	int	(*CofPanelReport)( unsigned int visible );
++
++	// Cry of Fear world behind the panels (cof_panel_transparent). The
++	// settings, and 0 while the feature is off; and the base name of the
++	// gfx/vgui TGA the client loaded through COM_LoadFile just before the
++	// BitmapTGA being built now (one shot, 0 when nothing is latched), which
++	// is how the backgroundtoall.tga plate is recognised.
++	int	(*CofPanelConfig)( cof_vgui_panel_cfg_t *out );
++	int	(*CofImageLatch)( char *buf, int size );
+ } vguiapi_t;
+ #endif // VGUI_API_H
+diff --git a/engine/client/vgui/vgui_draw.c b/engine/client/vgui/vgui_draw.c
+--- a/engine/client/vgui/vgui_draw.c
++++ b/engine/client/vgui/vgui_draw.c
+@@ -409,6 +409,8 @@
+ }
+ 
+ int CL_CoF_PanelReport( unsigned int visible ); // cof_panel_pause.c
++int CL_CoF_PanelConfig( cof_vgui_panel_cfg_t *out ); // cof_panel_transparency.c
++int CL_CoF_PanelImageLatch( char *buf, int size ); // cof_panel_transparency.c
+ 
+ static const vguiapi_t gEngfuncs =
+ {
+@@ -453,6 +455,8 @@
+ 	VGUI_CofPrint,
+ 	VGUI_CofLangString,
+ 	CL_CoF_PanelReport,
++	CL_CoF_PanelConfig,
++	CL_CoF_PanelImageLatch,
+ };
+ 
+ qboolean VGui_LoadProgs( HINSTANCE hInstance )
+diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
+--- a/engine/client/cl_main.c
++++ b/engine/client/cl_main.c
+@@ -6162,6 +6162,7 @@
+ 	Cvar_RegisterVariable( &cof_ui_death_menu );
+ 	Cvar_RegisterVariable( &cof_ui_death_keep_running );
+ 	{ void CL_CoF_PanelPauseInit( void ); CL_CoF_PanelPauseInit(); } // cof_panel_pause, cof_panel_trace, cof_panel_status; engine\client\cof_panel_pause.c
++	{ void CL_CoF_PanelTransparencyInit( void ); CL_CoF_PanelTransparencyInit(); } // cof_panel_transparent, cof_panel_plate_alpha, cof_panel_hide_hud; engine\client\cof_panel_transparency.c
+ 	Cvar_RegisterVariable( &cof_mp3_stop_on_map );
+ 	Cvar_RegisterVariable( &cof_hud_chapter_rule_hide );
+ 	Cvar_RegisterVariable( &cof_sky_reset_per_map );
+diff --git a/engine/client/dll_int/cl_game.c b/engine/client/dll_int/cl_game.c
+--- a/engine/client/dll_int/cl_game.c
++++ b/engine/client/dll_int/cl_game.c
+@@ -1818,6 +1818,8 @@
+ this call is the stock engfunc.
+ =============
+ */
++void CL_CoF_PanelImageLoad( const char *filename ); // cof_panel_transparency.c
++
+ static byte *GAME_EXPORT CL_CoF_LoadFile( const char *filename, int usehunk, int *pLength )
+ {
+ 	const char	*name;
+@@ -1848,6 +1850,10 @@
+ 			CL_CoF_FontLatch( scheme );
+ 		}
+ 	}
++
++	// Cry of Fear world behind the panels: the name of the VGUI picture the
++	// BitmapTGA built next comes from (the backgroundtoall.tga plate)
++	CL_CoF_PanelImageLoad( filename );
+ 
+ 	return COM_LoadFile( filename, usehunk, pLength );
+ }
+diff --git a/engine/client/cof_panel_transparency.c b/engine/client/cof_panel_transparency.c
+new file mode 100644
+--- /dev/null
++++ b/engine/client/cof_panel_transparency.c
+@@ -0,0 +1,132 @@
++/*
++cof_panel_transparency.c - Cry of Fear: the live world behind the in-play panels
++
++This program is free software: you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation, either version 3 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++
++====================================================================
++
++cof_panel_transparent  (saved, default 1)
++cof_panel_plate_alpha  (saved, default 200)
++cof_panel_hide_hud     (saved, default 2)
++
++The engine renders the live 3D world every frame behind every Cry of Fear
++panel; what the player sees as black is an extra full-screen opaque panel the
++client puts behind the art (the inventory's backdrop child, the note's own
++background, the tape recorder page's four masks, and the same pattern for the
++phone, keypad, computer, statue, landline, documents list and billboard). With
++cof_panel_transparent 1 the VGUI support library skips exactly those fills
++while such a panel is open (3rdparty/freevgui/platform/xash3d-fwgs/
++cofbackdrop.cpp), so the world shows around the art. Telescope masks, cutscene
++masks and letterbox bars belong to other panels and are never touched; the
++note's half-transparent layer stays.
++
++What is left to decide is handed to the library through
++vguiapi_t::CofPanelConfig:
++
++  * the rusty 800x600 plate gfx/vgui/backgroundtoall.tga, which is opaque, is
++    drawn at cof_panel_plate_alpha (0-255 opacity) so it stays a readable
++    frame without hiding the world;
++  * the HUD container (health and stamina bars, hint bar, message strip) was
++    hidden by the black before and now shows. cof_panel_hide_hud: 0 = keep all
++    of it, 1 = hide all of it while a panel is open, 2 = hide only the pieces
++    that overlap the open panel's art (the default).
++
++The plate is recognised by name: the client loads every VGUI picture through
++the engine's COM_LoadFile (cl_game.c, CL_CoF_LoadFile) immediately before it
++builds the BitmapTGA from the bytes, so the file name latched here names the
++bitmap the library constructs next (vguiapi_t::CofImageLatch), the same
++technique the Inter font roles use for the font strips.
++
++Research: stage1/controller-research-20260923/RESULTS.md, Q1.
++*/
++
++#include "common.h"
++#include "client.h"
++#include "vgui_api.h"
++
++static CVAR_DEFINE_AUTO( cof_panel_transparent, "1", FCVAR_ARCHIVE, "Cry of Fear: show the live world behind the inventory, notes, tape recorder page and the other in-play panels instead of their black backdrop (0 = black, as the original)" );
++static CVAR_DEFINE_AUTO( cof_panel_plate_alpha, "200", FCVAR_ARCHIVE, "Cry of Fear: opacity 0-255 of the rusty plate (backgroundtoall.tga) behind the in-play panels while cof_panel_transparent is on" );
++static CVAR_DEFINE_AUTO( cof_panel_hide_hud, "2", FCVAR_ARCHIVE, "Cry of Fear: while an in-play panel shows the world behind it, 0 = keep the HUD, 1 = hide the HUD, 2 = hide only HUD pieces that overlap the panel" );
++
++static string	cof_panel_image;	// the last gfx/vgui/*.tga the client loaded
++
++/*
++====================
++CL_CoF_PanelImageLoad
++
++Called for every COM_LoadFile the client makes. Remembers the base name of a
++gfx/vgui TGA, forgets it for anything else, so a latch never outlives the
++load it belongs to.
++====================
++*/
++void CL_CoF_PanelImageLoad( const char *filename )
++{
++	const char	*name;
++
++	cof_panel_image[0] = '\0';
++
++	if( COM_StringEmptyOrNULL( filename ) || !Q_stristr( filename, "vgui" ))
++		return;
++
++	name = COM_FileWithoutPath( filename );
++
++	if( !name || Q_stricmp( COM_FileExtension( name ), "tga" ))
++		return;
++
++	Q_strncpy( cof_panel_image, name, sizeof( cof_panel_image ));
++	COM_StripExtension( cof_panel_image );
++}
++
++/*
++====================
++CL_CoF_PanelImageLatch
++
++vguiapi_t::CofImageLatch: consume the latched name. One shot.
++====================
++*/
++int CL_CoF_PanelImageLatch( char *buf, int size )
++{
++	if( !buf || size <= 0 || !cof_panel_image[0] )
++		return 0;
++
++	Q_strncpy( buf, cof_panel_image, size );
++	cof_panel_image[0] = '\0';
++
++	return 1;
++}
++
++/*
++====================
++CL_CoF_PanelConfig
++
++vguiapi_t::CofPanelConfig: the transparency settings, read once per painted
++frame. Returns 0 while the feature is off.
++====================
++*/
++int CL_CoF_PanelConfig( cof_vgui_panel_cfg_t *out )
++{
++	if( !out )
++		return 0;
++
++	out->transparent = cof_panel_transparent.value != 0.0f;
++	out->plateAlpha = bound( 0, (int)cof_panel_plate_alpha.value, 255 );
++	out->hideHud = bound( 0, (int)cof_panel_hide_hud.value, 2 );
++	out->trace = (int)Cvar_VariableValue( "cof_panel_trace" );
++
++	return out->transparent;
++}
++
++void CL_CoF_PanelTransparencyInit( void )
++{
++	Cvar_RegisterVariable( &cof_panel_transparent );
++	Cvar_RegisterVariable( &cof_panel_plate_alpha );
++	Cvar_RegisterVariable( &cof_panel_hide_hud );
++}
+diff --git a/3rdparty/freevgui/panel.h b/3rdparty/freevgui/panel.h
+--- a/3rdparty/freevgui/panel.h
++++ b/3rdparty/freevgui/panel.h
+@@ -229,6 +229,14 @@
+ typedef void ( *PanelSolveFn )( Panel *panel );
+ void Panel_SetSolveHook( PanelSolveFn fn );
+ 
++// Cry of Fear (cof_panel_transparent): the platform layer may skip painting a
++// visible panel's whole subtree (skipTraverse, checked at the top of
++// paintTraverse) or only its background fill (skipBackground, checked in
++// Panel::paintBackground). Both return true to skip. The panel stays visible,
++// laid out and hit-testable; only its pixels are left out.
++typedef bool ( *PanelPaintFilterFn )( Panel *panel );
++void Panel_SetPaintFilters( PanelPaintFilterFn skipTraverse, PanelPaintFilterFn skipBackground );
++
+ class CLASSEXPORT FocusNavGroup
+ {
+ 	friend class Panel;
+diff --git a/3rdparty/freevgui/panel.cpp b/3rdparty/freevgui/panel.cpp
+--- a/3rdparty/freevgui/panel.cpp
++++ b/3rdparty/freevgui/panel.cpp
+@@ -739,6 +739,15 @@
+ 	g_panelSolveHook = fn;
+ }
+ 
++static vgui::PanelPaintFilterFn g_panelSkipTraverse = nullptr;
++static vgui::PanelPaintFilterFn g_panelSkipBackground = nullptr;
++
++void vgui::Panel_SetPaintFilters( PanelPaintFilterFn skipTraverse, PanelPaintFilterFn skipBackground )
++{
++	g_panelSkipTraverse = skipTraverse;
++	g_panelSkipBackground = skipBackground;
++}
++
+ void Panel::solve()
+ {
+ 	screenOrigin[0] = origin[0];
+@@ -776,6 +785,10 @@
+ 
+ void Panel::paintTraverse( bool repaint )
+ {
++	// Cry of Fear (cof_panel_transparent), see Panel_SetPaintFilters()
++	if( visible && g_panelSkipTraverse && g_panelSkipTraverse( this ))
++		return;
++
+ 	if( visible )
+ 	{
+ 		if( pendingRepaint )
+@@ -828,6 +841,10 @@
+ void Panel::paintBackground()
+ {
+ 	int r, g, b, a, w, h;
++
++	// Cry of Fear (cof_panel_transparent), see Panel_SetPaintFilters()
++	if( g_panelSkipBackground && g_panelSkipBackground( this ))
++		return;
+ 
+ 	getPaintSize( w, h );
+ 	getBgColor( r, g, b, a );
+diff --git a/3rdparty/freevgui/image.h b/3rdparty/freevgui/image.h
+--- a/3rdparty/freevgui/image.h
++++ b/3rdparty/freevgui/image.h
+@@ -107,6 +107,14 @@
+ };
+ CHECK_STRUCT_SIZE( BitmapTGA, 48, 64, 64 );
+ 
++// Cry of Fear (cof_panel_transparent): the platform layer may watch every
++// BitmapTGA being built and adjust the colour a Bitmap is drawn with. The
++// class sizes are ABI-fixed (the game library allocates them), so this is a
++// pair of free hooks, not new members.
++typedef void ( *BitmapCreatedFn )( Bitmap *bitmap );
++typedef void ( *BitmapPaintFn )( Bitmap *bitmap, Panel *panel, int &r, int &g, int &b, int &a );
++void Bitmap_SetHooks( BitmapCreatedFn created, BitmapPaintFn paint );
++
+ class CLASSEXPORT TextImage : public Image
+ {
+ public:
+diff --git a/3rdparty/freevgui/image.cpp b/3rdparty/freevgui/image.cpp
+--- a/3rdparty/freevgui/image.cpp
++++ b/3rdparty/freevgui/image.cpp
+@@ -228,6 +228,15 @@
+ 	panel = nullptr;
+ }
+ 
++static vgui::BitmapCreatedFn g_bitmapCreatedHook = nullptr;
++static vgui::BitmapPaintFn g_bitmapPaintHook = nullptr;
++
++void vgui::Bitmap_SetHooks( BitmapCreatedFn created, BitmapPaintFn paint )
++{
++	g_bitmapCreatedHook = created;
++	g_bitmapPaintHook = paint;
++}
++
+ Bitmap::Bitmap() :
+ 	id( 0 ),
+ 	uploaded( false ),
+@@ -261,6 +270,10 @@
+ 	int r, g, b, a;
+ 	c.getColor( r, g, b, a );
+ 
++	// Cry of Fear (cof_panel_transparent), see Bitmap_SetHooks()
++	if( g_bitmapPaintHook )
++		g_bitmapPaintHook( this, p, r, g, b, a );
++
+ 	drawSetTexture( id );
+ 	drawSetColor( r, g, b, a );
+ 
+@@ -298,6 +311,10 @@
+ BitmapTGA::BitmapTGA(InputStream *is, bool invertAlpha)
+ {
+ 	loadTGA( is, invertAlpha );
++
++	// Cry of Fear (cof_panel_transparent), see Bitmap_SetHooks()
++	if( g_bitmapCreatedHook )
++		g_bitmapCreatedHook( this );
+ }
+ 
+ bool BitmapTGA::loadTGA( InputStream *is, bool invertAlpha )
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp
+@@ -91,6 +91,10 @@
+ 	// (cofpanels.cpp), after input has had its chance to open or close one
+ 	CofPanels_Frame( panel );
+ 
++	// Cry of Fear: which black to leave out, how to draw the plate and which
++	// HUD pieces to hide while such a panel is open (cofbackdrop.cpp)
++	CofBackdrop_Frame( panel );
++
+ 	panel->setBounds( 0, 0, width, height );
+ 	panel->repaint();
+ 	panel->paintTraverse();
+@@ -134,4 +138,7 @@
+ 
+ 	// Cry of Fear engine-rasterised VGUI fonts (coffont.cpp)
+ 	CofFont_Install();
++
++	// Cry of Fear: the live world behind the in-play panels (cofbackdrop.cpp)
++	CofBackdrop_Install();
+ }
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/support.h b/3rdparty/freevgui/platform/xash3d-fwgs/support.h
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/support.h
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/support.h
+@@ -67,6 +67,10 @@
+ unsigned int CofPanels_Class( Panel *panel );
+ unsigned int CofPanels_Visible( void );
+ const char *CofPanels_ClassName( Panel *panel, char *buf, size_t size ); // traces only
++
++// Cry of Fear: the live world behind the in-play panels (cofbackdrop.cpp)
++void CofBackdrop_Install( void );
++void CofBackdrop_Frame( Panel *root );
+ 
+ // input entry points the engine calls (input.cpp)
+ void XashMouse( VGUI_MouseAction action, int code );
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp
+@@ -882,7 +882,26 @@
+ 		//                                     It keeps the SemiBold face.
+ 		//   longer than MAX_MESSAGE_LINES  NO - the intro text card and the
+ 		//                                     credits roll, as before.
+-		if( backingAlpha > 0 && !topBand && ( textYTarget < 0 || runIsShortEnough( )))
++		// Cry of Fear (cof_panel_transparent): the strip is only as opaque as
++		// the most opaque glyph on its line. The client fades captions by
++		// their text alpha (VGUI1: 255 is invisible), and a strip drawn at
++		// full strength under fully faded text was a dark bar under the
++		// billboard and the tape recorder page - invisible on the old black
++		// backdrop, plain to see over the live world.
++		int	lineOpacity = 0;
++
++		for( int j = 0; j < line.count; j++ )
++		{
++			int opacity = 255 - backingGlyphs[line.first + j].color[3];
++
++			if( opacity > lineOpacity )
++				lineOpacity = opacity;
++		}
++
++		if( lineOpacity > 255 )
++			lineOpacity = 255;
++
++		if( backingAlpha > 0 && lineOpacity > 0 && !topBand && ( textYTarget < 0 || runIsShortEnough( )))
+ 		{
+ 			// padding from the glyph height, so it follows the display the
+ 			// same way the rest of milestone 4 does, and the same shape the
+@@ -895,7 +914,7 @@
+ 
+ 			int saved[4] = { drawColor[0], drawColor[1], drawColor[2], drawColor[3] };
+ 
+-			drawSetColor( 0, 0, 0, 255 - backingAlpha );
++			drawSetColor( 0, 0, 0, 255 - backingAlpha * lineOpacity / 255 );
+ 			drawFilledRect( line.minx - translate[0] - padx, line.y - translate[1] - pady,
+ 				line.maxx - translate[0] + padx, line.y - translate[1] + line.tall + pady );
+ 			drawSetColor( saved[0], saved[1], saved[2], saved[3] );
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/cofbackdrop.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/cofbackdrop.cpp
+new file mode 100644
+--- /dev/null
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/cofbackdrop.cpp
+@@ -0,0 +1,484 @@
++// SPDX-License-Identifier: BSD-3-Clause
++// Cry of Fear: the live world behind the in-play panels (cof_panel_transparent)
++
++#include <string.h>
++#include "vgui_internal.h"
++#include "support.h"
++#include "image.h"
++
++using namespace vgui;
++
++/*
++The engine renders the live world every frame behind every Cry of Fear panel.
++What hides it is black the client paints on purpose, measured per panel
++(stage1/controller-research-20260923/RESULTS.md, Q1.2):
++
++	inventory, phone, keypad, computer,     a child plain vgui::Panel covering
++	statue, landline, documents list,       the whole panel, background
++	billboard                               (0,0,0,0) = opaque black
++	note, user document                     the panel's own background,
++	                                        (0,0,0,0), full screen
++	tape recorder page (CSaveLoad)          four plain vgui::Panel masks
++	                                        around the picture, (0,0,0,0)
++
++(VGUI1 colours: alpha 0 is opaque, 255 invisible.) While one of those panels
++is visible and cof_panel_transparent is on, exactly those fills are skipped:
++a background fill is left out only when it is opaque black AND it is either
++the owner panel's own full-screen background or a plain vgui::Panel directly
++below the owner that covers the owner (or any plain mask of the tape page).
++Everything else - the telescope's and the cutscene's masks, the letterbox
++bars (other panels), the note's half-transparent (0,0,0,128) layer, the
++save slot strips (0,0,0,1) - is drawn as before.
++
++Two things the black used to hide need a decision, both taken from the engine
++through vguiapi_t::CofPanelConfig:
++
++  * the 800x600 rusty plate gfx/vgui/backgroundtoall.tga is opaque; it is
++    drawn at cofPanelConfig.plateAlpha. It is recognised by name when the
++    client builds it (vguiapi_t::CofImageLatch) and by size when it is drawn.
++  * the HUD container (CHUDControl: bars, hint bar, message strip) is painted
++    before the panels and now shows. hideHud 0 keeps it, 1 hides it, 2 hides
++    only the pieces whose rectangle overlaps the open panel's art. Measured at
++    1920x1080 (cof_panel_trace 3): the health and stamina bars (32x160 at
++    32,920 and 64,920) and the top hint bar never overlap, the message strip
++    (1920x64 at 0,540: pickups and subtitles) always does. The letterbox bars
++    (plain black panels of the same container) are never hidden.
++*/
++
++namespace
++{
++
++// panels whose black this file may skip
++const unsigned int COF_BACKDROP_OWNERS = COF_PANEL_INVENTORY | COF_PANEL_DOCUMENTS | COF_PANEL_NOTE
++	| COF_PANEL_USERDOC | COF_PANEL_BILLBOARD | COF_PANEL_SAVELOAD | COF_PANEL_PHONE
++	| COF_PANEL_TELEPHONE | COF_PANEL_COMPUTER | COF_PANEL_KEYPAD | COF_PANEL_STATUE;
++
++enum
++{
++	COF_MAX_OWNERS = 8,
++	COF_MAX_ART = 32,
++	COF_MAX_PLATES = 64,
++};
++
++struct CofRect
++{
++	int x0, y0, x1, y1;
++};
++
++struct CofBackdropState
++{
++	cof_vgui_panel_cfg_t	cfg;
++	bool		active;			// a backdrop owner is up and the feature is on
++	Panel		*owners[COF_MAX_OWNERS];
++	int		numOwners;
++	Panel		*hud;			// the HUD container, when found
++	CofRect		art[COF_MAX_ART];	// what the open panels draw, solved coordinates
++	int		numArt;
++
++	// per-frame counters, for the trace
++	int		skippedFills;
++	int		platesDrawn;
++	int		hudHidden;
++
++	// what the trace printed last
++	bool		loggedActive;
++	unsigned int	loggedOwners;
++	int		loggedFills, loggedPlates, loggedHud;
++	unsigned int	dumpedOwners;
++};
++
++CofBackdropState g_bd;
++
++// every bitmap built from backgroundtoall.tga; a bitmap is never freed while
++// its panel exists, and a stale entry is caught by the size check anyway
++const Bitmap	*g_plates[COF_MAX_PLATES];
++int		g_numPlates = 0;
++
++bool CofCovers( Panel *panel, Panel *outer )
++{
++	int	pw, ph, ow, oh;
++
++	panel->getSize( pw, ph );
++	outer->getSize( ow, oh );
++
++	return pw >= ow && ph >= oh;
++}
++
++bool CofIsOwner( Panel *panel )
++{
++	for( int i = 0; i < g_bd.numOwners; i++ )
++	{
++		if( g_bd.owners[i] == panel )
++			return true;
++	}
++
++	return false;
++}
++
++bool CofIsOpaqueBlack( Panel *panel )
++{
++	int	r, g, b, a;
++
++	panel->getBgColor( r, g, b, a );
++
++	return r == 0 && g == 0 && b == 0 && a == 0;
++}
++
++// the client's black behind an open owner panel
++bool CofIsBackdrop( Panel *panel )
++{
++	Panel *parent;
++
++	if( !CofIsOpaqueBlack( panel ))
++		return false;
++
++	// the owner's own full-screen background: the note, the user document
++	parent = panel->getParent();
++
++	if( CofIsOwner( panel ))
++		return parent && CofCovers( panel, parent );
++
++	// a plain panel right below the owner: the full-screen backdrop child,
++	// or one of the tape recorder page's masks
++	if( !parent || !CofIsOwner( parent ) || CofPanels_Class( panel ) != COF_CLASS_PLAIN_PANEL )
++		return false;
++
++	return CofCovers( panel, parent ) || CofPanels_Class( parent ) == COF_PANEL_SAVELOAD;
++}
++
++void CofSolvedRect( Panel *panel, CofRect &r )
++{
++	const int *origin = CofPanelAccess::screenOrigin( panel );
++	const int *size = CofPanelAccess::size( panel );
++
++	r.x0 = origin[0];
++	r.y0 = origin[1];
++	r.x1 = origin[0] + size[0];
++	r.y1 = origin[1] + size[1];
++}
++
++bool CofOverlapsArt( Panel *panel )
++{
++	CofRect r;
++
++	CofSolvedRect( panel, r );
++
++	for( int i = 0; i < g_bd.numArt; i++ )
++	{
++		const CofRect &a = g_bd.art[i];
++
++		if( r.x0 < a.x1 && a.x0 < r.x1 && r.y0 < a.y1 && a.y0 < r.y1 )
++			return true;
++	}
++
++	return false;
++}
++
++// the HUD pieces cof_panel_hide_hud leaves out
++bool CofHudPieceHidden( Panel *panel )
++{
++	if( !g_bd.active || !g_bd.cfg.hideHud || !g_bd.hud )
++		return false;
++
++	if( CofPanelAccess::parent( panel ) != g_bd.hud )
++		return false;
++
++	// the cutscene letterbox bars (plain black panels of the HUD container)
++	// are never touched, whatever the mode
++	if( CofPanels_Class( panel ) == COF_CLASS_PLAIN_PANEL && CofIsOpaqueBlack( panel ))
++		return false;
++
++	if( g_bd.cfg.hideHud == 2 && !CofOverlapsArt( panel ))
++		return false;
++
++	return true;
++}
++
++// skipTraverse filter
++bool CofSkipTraverse( Panel *panel )
++{
++	if( !CofHudPieceHidden( panel ))
++		return false;
++
++	g_bd.hudHidden++;
++	return true;
++}
++
++// skipBackground filter: the black itself
++bool CofSkipBackground( Panel *panel )
++{
++	if( !g_bd.active || !CofIsBackdrop( panel ))
++		return false;
++
++	g_bd.skippedFills++;
++	return true;
++}
++
++// case-insensitive, ASCII: the client's own file names mix cases
++bool CofNameIs( const char *name, const char *want )
++{
++	for( ; *name && *want; name++, want++ )
++	{
++		char a = *name, b = *want;
++
++		if( a >= 'A' && a <= 'Z' ) a += 'a' - 'A';
++		if( b >= 'A' && b <= 'Z' ) b += 'a' - 'A';
++		if( a != b )
++			return false;
++	}
++
++	return !*name && !*want;
++}
++
++bool CofIsPlate( Bitmap *bitmap )
++{
++	int w, h;
++
++	for( int i = 0; i < g_numPlates; i++ )
++	{
++		if( g_plates[i] != bitmap )
++			continue;
++
++		bitmap->getSize( w, h );
++		return w == 800 && h == 600;
++	}
++
++	return false;
++}
++
++void CofBitmapCreated( Bitmap *bitmap )
++{
++	char name[64];
++
++	if( !g_engine || !g_engine->CofImageLatch )
++		return;
++
++	if( !g_engine->CofImageLatch( name, sizeof( name )))
++		return;
++
++	if( !CofNameIs( name, "backgroundtoall" ))
++		return;
++
++	for( int i = 0; i < g_numPlates; i++ )
++	{
++		if( g_plates[i] == bitmap )
++			return;
++	}
++
++	if( g_numPlates < COF_MAX_PLATES )
++		g_plates[g_numPlates++] = bitmap;
++	else
++		g_plates[COF_MAX_PLATES - 1] = bitmap; // newest wins
++}
++
++void CofBitmapPaint( Bitmap *bitmap, Panel *panel, int &r, int &g, int &b, int &a )
++{
++	Panel	*owner;
++	int	opacity;
++
++	(void)r; (void)g; (void)b;
++
++	if( !g_bd.active || !panel || !CofIsPlate( bitmap ))
++		return;
++
++	// the plate hangs right below an open owner panel
++	owner = CofPanelAccess::parent( panel );
++
++	if( !owner || !CofIsOwner( owner ))
++		return;
++
++	// VGUI1 alpha: 0 opaque, 255 invisible
++	opacity = ( 255 - a ) * g_bd.cfg.plateAlpha / 255;
++	a = 255 - opacity;
++
++	g_bd.platesDrawn++;
++}
++
++// cof_panel_trace 3: the open panels' trees and the HUD container's pieces,
++// once per change of the open panels, to see what is skipped and why
++void CofDumpTree( Panel *panel, int depth, int maxDepth )
++{
++	char		name[128], line[320];
++	const int	*origin = CofPanelAccess::screenOrigin( panel );
++	const int	*size = CofPanelAccess::size( panel );
++	int		r, g, b, a;
++
++	panel->getBgColor( r, g, b, a );
++
++	snprintf( line, sizeof( line ), "[cof-panel] %*sd%d %s vis %d rect %d,%d %dx%d bg %d,%d,%d,%d%s%s\n",
++		depth * 2, "", depth, CofPanels_ClassName( panel, name, sizeof( name )), panel->isVisible( ) ? 1 : 0,
++		origin[0], origin[1], size[0], size[1], r, g, b, a,
++		CofIsBackdrop( panel ) ? " BACKDROP" : "",
++		( CofPanelAccess::parent( panel ) != g_bd.hud || !panel->isVisible( )) ? ""
++			: CofHudPieceHidden( panel ) ? " HUD-HIDDEN" : " HUD-KEPT" );
++	g_engine->CofPrint( line );
++
++	if( depth >= maxDepth )
++		return;
++
++	for( int i = 0; i < panel->getChildCount(); i++ )
++	{
++		Panel *child = panel->getChild( i );
++
++		if( child && child->isVisible( ))
++			CofDumpTree( child, depth + 1, maxDepth );
++	}
++}
++
++void CofTrace( void )
++{
++	unsigned int	owners = 0;
++
++	for( int i = 0; i < g_bd.numOwners; i++ )
++		owners |= CofPanels_Class( g_bd.owners[i] );
++
++	if( g_bd.active == g_bd.loggedActive && owners == g_bd.loggedOwners
++		&& g_bd.skippedFills == g_bd.loggedFills && g_bd.platesDrawn == g_bd.loggedPlates
++		&& g_bd.hudHidden == g_bd.loggedHud )
++		return;
++
++	g_bd.loggedActive = g_bd.active;
++	g_bd.loggedOwners = owners;
++	g_bd.loggedFills = g_bd.skippedFills;
++	g_bd.loggedPlates = g_bd.platesDrawn;
++	g_bd.loggedHud = g_bd.hudHidden;
++
++	if( g_bd.cfg.trace <= 0 || !g_engine || !g_engine->CofPrint )
++		return;
++
++	if( g_bd.cfg.trace >= 3 && g_bd.active && owners != g_bd.dumpedOwners )
++	{
++		for( int i = 0; i < g_bd.numOwners; i++ )
++			CofDumpTree( g_bd.owners[i], 2, 4 );
++		if( g_bd.hud )
++			CofDumpTree( g_bd.hud, 2, 3 );
++		for( int i = 0; i < g_bd.numArt; i++ )
++		{
++			char art[128];
++
++			snprintf( art, sizeof( art ), "[cof-panel] art rect %d: %d,%d - %d,%d\n", i,
++				g_bd.art[i].x0, g_bd.art[i].y0, g_bd.art[i].x1, g_bd.art[i].y1 );
++			g_engine->CofPrint( art );
++		}
++	}
++	g_bd.dumpedOwners = g_bd.active ? owners : 0;
++
++	char line[256];
++
++	snprintf( line, sizeof( line ),
++		"[cof-panel] world behind panels: %s owners 0x%x, per frame %d black fills skipped, %d plates at alpha %d, %d HUD pieces hidden (mode %d, %d art rects)\n",
++		g_bd.active ? "ON" : "off", owners, g_bd.skippedFills, g_bd.platesDrawn,
++		g_bd.cfg.plateAlpha, g_bd.hudHidden, g_bd.cfg.hideHud, g_bd.numArt );
++	g_engine->CofPrint( line );
++}
++
++} // anonymous namespace
++
++/*
++================
++CofBackdrop_Install
++
++Called once from the support API entry point.
++================
++*/
++void vgui::CofBackdrop_Install( void )
++{
++	Panel_SetPaintFilters( CofSkipTraverse, CofSkipBackground );
++	Bitmap_SetHooks( CofBitmapCreated, CofBitmapPaint );
++}
++
++/*
++================
++CofBackdrop_Frame
++
++Once per painted frame, after CofPanels_Frame and before the tree is painted:
++read the settings, find the open owner panels, the HUD container and the
++rectangles the open panels draw, and report what the previous frame did.
++================
++*/
++void vgui::CofBackdrop_Frame( Panel *root )
++{
++	// what the previous frame did, then start counting again
++	CofTrace();
++	g_bd.skippedFills = g_bd.platesDrawn = g_bd.hudHidden = 0;
++
++	g_bd.active = false;
++	g_bd.numOwners = 0;
++	g_bd.numArt = 0;
++	g_bd.hud = nullptr;
++	memset( &g_bd.cfg, 0, sizeof( g_bd.cfg ));
++
++	if( !g_engine || !g_engine->CofPanelConfig || !g_engine->CofPanelConfig( &g_bd.cfg ))
++		return;
++
++	if( !root || !( CofPanels_Visible() & COF_BACKDROP_OWNERS ))
++		return;
++
++	// root -> client viewport -> panels
++	for( int i = 0; i < root->getChildCount(); i++ )
++	{
++		Panel *viewport = root->getChild( i );
++
++		if( !viewport || !viewport->isVisible( ))
++			continue;
++
++		for( int j = 0; j < viewport->getChildCount(); j++ )
++		{
++			Panel		*panel = viewport->getChild( j );
++			unsigned int	cls;
++
++			if( !panel )
++				continue;
++
++			cls = CofPanels_Class( panel );
++
++			if( cls == COF_PANEL_HUD )
++			{
++				g_bd.hud = panel;
++				continue;
++			}
++
++			if( !( cls & COF_BACKDROP_OWNERS ) || !panel->isVisible( ) || g_bd.numOwners >= COF_MAX_OWNERS )
++				continue;
++
++			g_bd.owners[g_bd.numOwners++] = panel;
++		}
++	}
++
++	g_bd.active = g_bd.numOwners > 0;
++
++	// the art: every visible child of an owner that is not full-screen (the
++	// backdrop, the note's dimming layer) - the plate, the frames, the picture.
++	// Full-width children are left out too: they are the caption labels
++	// (1920x64 at the bottom of the note and the billboard, transparent,
++	// their text centred), and counting their whole width would hide the
++	// health bars in the corner under an empty stretch of label.
++	for( int i = 0; i < g_bd.numOwners; i++ )
++	{
++		Panel	*owner = g_bd.owners[i];
++		int	ownerWide, ownerTall;
++
++		owner->getSize( ownerWide, ownerTall );
++
++		for( int j = 0; j < owner->getChildCount() && g_bd.numArt < COF_MAX_ART; j++ )
++		{
++			Panel	*child = owner->getChild( j );
++			int	childWide, childTall;
++
++			// the black itself (the tape page's masks do not cover the
++			// page, but they are not art)
++			if( !child || !child->isVisible( ) || CofCovers( child, owner ) || CofIsBackdrop( child ))
++				continue;
++
++			child->getSize( childWide, childTall );
++
++			if( childWide >= ownerWide )
++				continue;
++
++			CofSolvedRect( child, g_bd.art[g_bd.numArt] );
++
++			if( g_bd.art[g_bd.numArt].x1 > g_bd.art[g_bd.numArt].x0 && g_bd.art[g_bd.numArt].y1 > g_bd.art[g_bd.numArt].y0 )
++				g_bd.numArt++;
++		}
++	}
++}

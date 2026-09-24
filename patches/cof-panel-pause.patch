@@ -1,0 +1,821 @@
+diff --git a/engine/vgui_api.h b/engine/vgui_api.h
+--- a/engine/vgui_api.h
++++ b/engine/vgui_api.h
+@@ -203,6 +203,32 @@
+ 				// being cut at the label's edges. Global, like trace
+ } cof_vgui_font_t;
+ 
++// Cry of Fear panel pause (cof_panel_pause): the client's in-play panels the
++// support library recognises by their class (the MSVC run-time type
++// information client.dll carries), one bit each, reported every painted frame
++// through CofPanelReport below. See engine/client/cof_panel_pause.c.
++enum
++{
++	COF_PANEL_INVENTORY	= 1 << 0,	// CRECBInventory
++	COF_PANEL_DOCUMENTS	= 1 << 1,	// CDocuments, the notes list
++	COF_PANEL_NOTE		= 1 << 2,	// CNoteDocument
++	COF_PANEL_USERDOC	= 1 << 3,	// CUserDocument
++	COF_PANEL_BILLBOARD	= 1 << 4,	// CVGUIBillboard
++	COF_PANEL_YESNO		= 1 << 5,	// CYesno
++	COF_PANEL_SAVELOAD	= 1 << 6,	// CSaveLoad, the tape recorder's SAVED GAMES page
++	COF_PANEL_SAVECONFIRM	= 1 << 7,	// CSave, its confirm box
++	COF_PANEL_PHONE		= 1 << 8,	// CPhone
++	COF_PANEL_TELEPHONE	= 1 << 9,	// CTelephone, the landline
++	COF_PANEL_COMPUTER	= 1 << 10,	// CComputer
++	COF_PANEL_PADLOCK	= 1 << 11,	// CPadlock
++	COF_PANEL_PUZZLEBAR	= 1 << 12,	// CPuzzleBar, the boiler puzzle
++	COF_PANEL_KEYPAD	= 1 << 13,	// CKeypad
++	COF_PANEL_STATUE	= 1 << 14,	// CAnimalStatue
++	COF_PANEL_TEXTWINDOW	= 1 << 15,	// CParanoiaTextPanel
++	COF_PANEL_OTHER		= 1 << 16,	// any other modal client panel (menu-map pages, game over, gallery)
++	COF_PANEL_HUD		= 1 << 17,	// CHUDControl, the HUD container (not modal)
++};
++
+ typedef struct  vguiapi_s
+ {
+ 	int	initialized;
+@@ -294,5 +320,11 @@
+ 	// argument unchanged when no pack is active or nothing matches, so
+ 	// the result is always safe to use. Valid until the next call.
+ 	const char *(*CofLangString)( const char *str );
++
++	// Cry of Fear panel pause (cof_panel_pause): the COF_PANEL_* bits of the
++	// client panels that are visible right now, sent once per painted frame.
++	// Returns the cof_panel_trace level: at 2 and above the support library
++	// also names every panel class the first time it sees one on screen.
++	int	(*CofPanelReport)( unsigned int visible );
+ } vguiapi_t;
+ #endif // VGUI_API_H
+diff --git a/engine/client/vgui/vgui_draw.c b/engine/client/vgui/vgui_draw.c
+--- a/engine/client/vgui/vgui_draw.c
++++ b/engine/client/vgui/vgui_draw.c
+@@ -407,6 +407,8 @@
+ 	Cvar_RegisterVariable( &vgui_utf8 );
+ 	Cvar_RegisterVariable( &vgui_key_layout );
+ }
++
++int CL_CoF_PanelReport( unsigned int visible ); // cof_panel_pause.c
+ 
+ static const vguiapi_t gEngfuncs =
+ {
+@@ -450,6 +452,7 @@
+ 	VGUI_CofFontProbe,
+ 	VGUI_CofPrint,
+ 	VGUI_CofLangString,
++	CL_CoF_PanelReport,
+ };
+ 
+ qboolean VGui_LoadProgs( HINSTANCE hInstance )
+diff --git a/engine/common/common.h b/engine/common/common.h
+--- a/engine/common/common.h
++++ b/engine/common/common.h
+@@ -766,10 +766,21 @@
+ // page is up and the world is meant to keep running and sounding behind it.
+ // Defined in cl_main.c; read by SV_IsSimulating and SV_ExecuteClientMessage.
+ qboolean CL_CoF_DeathWorldLive( void );
++// Cry of Fear panel pause (cof_panel_pause): true while a safe in-play panel
++// keeps the single-player world stopped. Defined in cof_panel_pause.c; read by
++// SV_IsSimulating and SV_ExecuteClientMessage.
++qboolean CL_CoF_PanelPaused( void );
++// Cry of Fear panel identity: the modal client panels on screen by class
++// (COF_PANEL_* bits of vgui_api.h, the HUD container left out); *reporting is
++// false when no fresh report exists (older vgui.dll, no VGUI frame painted).
++// Defined in cof_panel_pause.c; the one "panel open" source for the gamepad
++// code (cof_gamepad.c).
++unsigned int CL_CoF_PanelsOnScreen( qboolean *reporting );
+ #else
+ static inline qboolean CL_Initialized( void ) { return false; }
+ static inline qboolean CL_IsInGame( void ) { return true; } // always true for dedicated
+ static inline qboolean CL_CoF_DeathWorldLive( void ) { return false; } // no client, no death page
++static inline qboolean CL_CoF_PanelPaused( void ) { return false; } // no client, no panels
+ static inline qboolean CL_IsInConsole( void ) { return false; }
+ static inline qboolean CL_IsIntermission( void ) { return false; }
+ static inline qboolean CL_DisableVisibility( void ) { return false; }
+diff --git a/engine/server/sv_main.c b/engine/server/sv_main.c
+--- a/engine/server/sv_main.c
++++ b/engine/server/sv_main.c
+@@ -619,6 +619,11 @@
+ 
+ 	// allow to freeze everything in singleplayer
+ 	if( svs.maxclients <= 1 && sv.playersonly )
++		return false;
++
++	// Cry of Fear panel pause (cof_panel_pause): a safe in-play panel stops
++	// the single-player world the same way the engine menu does
++	if( svs.maxclients <= 1 && CL_CoF_PanelPaused( ))
+ 		return false;
+ 
+ 	if( !sv.paused && CL_IsInGame( ))
+diff --git a/engine/server/sv_client.c b/engine/server/sv_client.c
+--- a/engine/server/sv_client.c
++++ b/engine/server/sv_client.c
+@@ -3350,7 +3350,9 @@
+ 	// Cry of Fear death page (cof_ui_death_keep_running): the world keeps
+ 	// running behind GAME OVER but the player does not - CL_IsInGame() is
+ 	// deliberately true there, so the input gate has to be named explicitly.
+-	if( sv.paused || !CL_IsInGame() || CL_CoF_DeathWorldLive() || SV_PlayerIsFrozen( player ))
++	// Cry of Fear panel pause (cof_panel_pause): the player stands still with
++	// the world while a safe panel is open.
++	if( sv.paused || !CL_IsInGame() || CL_CoF_DeathWorldLive() || CL_CoF_PanelPaused() || SV_PlayerIsFrozen( player ))
+ 	{
+ 		for( i = 0; i < numcmds; i++ )
+ 		{
+diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
+--- a/engine/client/cl_main.c
++++ b/engine/client/cl_main.c
+@@ -6161,6 +6161,7 @@
+ 	Cvar_RegisterVariable( &cof_ui_remote_end_menu );
+ 	Cvar_RegisterVariable( &cof_ui_death_menu );
+ 	Cvar_RegisterVariable( &cof_ui_death_keep_running );
++	{ void CL_CoF_PanelPauseInit( void ); CL_CoF_PanelPauseInit(); } // cof_panel_pause, cof_panel_trace, cof_panel_status; engine\client\cof_panel_pause.c
+ 	Cvar_RegisterVariable( &cof_mp3_stop_on_map );
+ 	Cvar_RegisterVariable( &cof_hud_chapter_rule_hide );
+ 	Cvar_RegisterVariable( &cof_sky_reset_per_map );
+diff --git a/engine/client/cof_panel_pause.c b/engine/client/cof_panel_pause.c
+new file mode 100644
+--- /dev/null
++++ b/engine/client/cof_panel_pause.c
+@@ -0,0 +1,277 @@
++/*
++cof_panel_pause.c - Cry of Fear: stop the single-player world while a safe panel is open
++
++This program is free software: you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation, either version 3 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++
++====================================================================
++
++cof_panel_pause (saved, default 0)
++
++Cry of Fear never stops the world for its in-play panels: while the inventory,
++a note or the tape recorder's SAVED GAMES page is open, monsters keep moving
++and attacking. With cof_panel_pause 1, in single player, the server stops
++simulating while one of the "tier 1" panels below is on screen, exactly the
++way it already stops for the engine menu or the console:
++
++	inventory          CRECBInventory
++	documents list     CDocuments
++	note               CNoteDocument
++	user document      CUserDocument
++	billboard          CVGUIBillboard
++	YES/NO question    CYesno
++	tape recorder page CSaveLoad, and its confirm box CSave
++
++It never stops for the phone (CPhone), the landline (CTelephone), the computer
++(CComputer), the padlock (CPadlock) or the boiler puzzle (CPuzzleBar): what
++those panels wait for is scripted in the world (a call that answers, a door a
++keypad opens) or is the live 3D scene itself, and their clock-based debounces
++would never expire while the server clock stands still. Any of them on screen
++wins over a tier 1 panel. The keypad, the animal statue and the text window
++(tier 2 in the research) and every other modal client panel are left alone.
++
++Which panel is open is not guessed from a cursor or a message: the VGUI
++support library identifies every visible panel below the client's viewport by
++its class (the MSVC run-time type information client.dll carries) and reports
++one bit per class each painted frame, through vguiapi_t::CofPanelReport. The
++report goes stale after COF_PANEL_REPORT_FRAMES host frames without a painted
++VGUI frame (engine menu, console, loading), so nothing can stay paused on an
++old report. It is counted in frames, not seconds: one slow frame (a
++screenshot being written, a texture upload) must not let the world run.
++
++The mechanism is the one the engine menu already uses in single player:
++SV_IsSimulating() returns false (no entity thinks, no physics, the server clock
++stops), string commands from the client keep running (inventoryequip,
++closedocument, the tape recorder's unfreezesave all arrive and are handled at
++once) and SV_ExecuteClientMessage() zeroes the player's movement. It is NOT the
++`pause` command: cl.paused is never set, so the client clock, the sound mixer,
++the MP3 stream and the client's own music keep running, and the HUD draws.
++
++The same report is the engine's one answer to "which Cry of Fear panel is
++open": CL_CoF_PanelsOnScreen() hands it to the gamepad code (cof_gamepad.c),
++which freezes the sticks, routes START/B/A/X and moves its cursor while a
++modal panel is up.
++
++Research: stage1/controller-research-20260923/RESULTS.md, Q2.
++*/
++
++#include "common.h"
++#include "client.h"
++#include "server.h"
++#include "vgui_api.h"
++
++#define COF_PANEL_REPORT_FRAMES	2	// host frames a support-library report stays valid
++
++// safe to pause: nothing behind them needs the world to think while they are up
++#define COF_PANEL_TIER1		( COF_PANEL_INVENTORY|COF_PANEL_DOCUMENTS|COF_PANEL_NOTE|COF_PANEL_USERDOC \
++				| COF_PANEL_BILLBOARD|COF_PANEL_YESNO|COF_PANEL_SAVELOAD|COF_PANEL_SAVECONFIRM )
++
++// never pause while any of these is up, even together with a tier 1 panel
++#define COF_PANEL_LIVE		( COF_PANEL_PHONE|COF_PANEL_TELEPHONE|COF_PANEL_COMPUTER|COF_PANEL_PADLOCK \
++				| COF_PANEL_PUZZLEBAR|COF_PANEL_KEYPAD|COF_PANEL_STATUE|COF_PANEL_TEXTWINDOW|COF_PANEL_OTHER )
++
++static CVAR_DEFINE_AUTO( cof_panel_pause, "0", FCVAR_ARCHIVE, "Cry of Fear: in single player, stop the world while the inventory, a note, the documents list, a billboard, a YES/NO question or the tape recorder page is open (never for the phone, landline, computer, padlock or boiler puzzle)" );
++static CVAR_DEFINE_AUTO( cof_panel_trace, "0", 0, "developer: log every change of the visible Cry of Fear panels and of the panel pause, with the server clock (2 = also name each VGUI panel class the first time it is on screen)" );
++
++static const struct
++{
++	unsigned int	bit;
++	const char	*name;
++} cof_panel_names[] =
++{
++	{ COF_PANEL_INVENTORY,   "inventory" },
++	{ COF_PANEL_DOCUMENTS,   "documents" },
++	{ COF_PANEL_NOTE,        "note" },
++	{ COF_PANEL_USERDOC,     "userdoc" },
++	{ COF_PANEL_BILLBOARD,   "billboard" },
++	{ COF_PANEL_YESNO,       "yesno" },
++	{ COF_PANEL_SAVELOAD,    "tapepage" },
++	{ COF_PANEL_SAVECONFIRM, "saveconfirm" },
++	{ COF_PANEL_PHONE,       "phone" },
++	{ COF_PANEL_TELEPHONE,   "landline" },
++	{ COF_PANEL_COMPUTER,    "computer" },
++	{ COF_PANEL_PADLOCK,     "padlock" },
++	{ COF_PANEL_PUZZLEBAR,   "puzzlebar" },
++	{ COF_PANEL_KEYPAD,      "keypad" },
++	{ COF_PANEL_STATUE,      "statue" },
++	{ COF_PANEL_TEXTWINDOW,  "textwindow" },
++	{ COF_PANEL_OTHER,       "othermodal" },
++	{ COF_PANEL_HUD,         "hud" },
++};
++
++static struct
++{
++	unsigned int	visible;	// last report from the support library
++	uint		frame;		// host.framecount of that report
++	unsigned int	logged;		// last set of panels the trace printed
++	qboolean	paused;		// last answer of CL_CoF_PanelPaused
++	qboolean	reported;	// the support library has reported at least once
++} cof_panels;
++
++static const char *CL_CoF_PanelNames( unsigned int bits, char *buf, size_t size )
++{
++	size_t	i;
++
++	buf[0] = '\0';
++
++	for( i = 0; i < ARRAYSIZE( cof_panel_names ); i++ )
++	{
++		if( !FBitSet( bits, cof_panel_names[i].bit ))
++			continue;
++
++		if( buf[0] )
++			Q_strncat( buf, ",", size );
++		Q_strncat( buf, cof_panel_names[i].name, size );
++	}
++
++	if( !buf[0] )
++		Q_strncpy( buf, "none", size );
++
++	return buf;
++}
++
++/*
++====================
++CL_CoF_PanelsVisible
++
++The panels on screen according to the latest report, or none when it is
++stale (no VGUI frame painted lately: menu, console, loading).
++====================
++*/
++static unsigned int CL_CoF_PanelsVisible( void )
++{
++	if( !cof_panels.reported || host.framecount - cof_panels.frame > COF_PANEL_REPORT_FRAMES )
++		return 0;
++
++	return cof_panels.visible;
++}
++
++/*
++====================
++CL_CoF_PanelsOnScreen
++
++The modal Cry of Fear panels on screen, by class (the HUD container left
++out). *reporting says whether the support library has sent a fresh report:
++false with a vgui.dll that has no panel report, or while no VGUI frame is
++painted (engine menu, console, loading) - the caller then has no class
++answer and may fall back on its own signal.
++====================
++*/
++unsigned int CL_CoF_PanelsOnScreen( qboolean *reporting )
++{
++	const qboolean fresh = cof_panels.reported && host.framecount - cof_panels.frame <= COF_PANEL_REPORT_FRAMES;
++
++	if( reporting )
++		*reporting = fresh;
++
++	return fresh ? ( cof_panels.visible & ~COF_PANEL_HUD ) : 0;
++}
++
++/*
++====================
++CL_CoF_PanelReport
++
++vguiapi_t::CofPanelReport: the support library's view of the client's panels,
++one COF_PANEL_* bit per visible class, once per painted frame. Returns the
++trace level, so the library can name the classes it sees at level 2.
++====================
++*/
++int CL_CoF_PanelReport( unsigned int visible )
++{
++	cof_panels.visible = visible;
++	cof_panels.frame = host.framecount;
++	cof_panels.reported = true;
++
++	// the HUD container is always there; only the modal panels are news
++	visible &= ~COF_PANEL_HUD;
++
++	if( visible != cof_panels.logged )
++	{
++		if( cof_panel_trace.value != 0.0f )
++		{
++			char	was[256], now[256];
++
++			Con_Printf( "[cof-panel] panels %s -> %s (sv.time %.3f worldframes %i simulating %i)\n",
++				CL_CoF_PanelNames( cof_panels.logged, was, sizeof( was )),
++				CL_CoF_PanelNames( visible, now, sizeof( now )),
++				sv.time, sv.framecount, sv.simulating ? 1 : 0 );
++		}
++
++		cof_panels.logged = visible;
++	}
++
++	return (int)cof_panel_trace.value;
++}
++
++/*
++====================
++CL_CoF_PanelPaused
++
++True while cof_panel_pause should keep the single-player world stopped. Read
++by SV_IsSimulating() and SV_ExecuteClientMessage().
++====================
++*/
++qboolean CL_CoF_PanelPaused( void )
++{
++	unsigned int	visible;
++	qboolean	paused = false;
++
++	if( cof_panel_pause.value != 0.0f
++		&& cls.state == ca_active && cls.key_dest == key_game
++		&& cl.maxclients <= 1 && !cl.background
++		&& SV_Active( ) && svs.maxclients <= 1 )
++	{
++		visible = CL_CoF_PanelsVisible( );
++		paused = FBitSet( visible, COF_PANEL_TIER1 ) && !FBitSet( visible, COF_PANEL_LIVE );
++	}
++
++	if( paused != cof_panels.paused )
++	{
++		if( cof_panel_trace.value != 0.0f )
++		{
++			char	now[256];
++
++			Con_Printf( "[cof-panel] pause %s (%s; sv.time %.3f worldframes %i)\n",
++				paused ? "ON" : "OFF",
++				CL_CoF_PanelNames( CL_CoF_PanelsVisible( ) & ~COF_PANEL_HUD, now, sizeof( now )),
++				sv.time, sv.framecount );
++		}
++
++		cof_panels.paused = paused;
++	}
++
++	return paused;
++}
++
++/*
++====================
++CL_CoF_PanelStatus_f
++
++cfg-only test hook: one line with everything the panel pause depends on.
++====================
++*/
++static void CL_CoF_PanelStatus_f( void )
++{
++	char	now[256];
++
++	Con_Printf( "[cof-panel] %s panels %s pause %s (cvar %g) sv.time %.3f worldframes %i simulating %i ingame %i maxclients %i report %i frames old\n",
++		Cmd_Argc() > 1 ? Cmd_Argv( 1 ) : "status",
++		CL_CoF_PanelNames( CL_CoF_PanelsVisible( ) & ~COF_PANEL_HUD, now, sizeof( now )),
++		CL_CoF_PanelPaused( ) ? "ON" : "off", cof_panel_pause.value,
++		sv.time, sv.framecount, sv.simulating ? 1 : 0, CL_IsInGame( ) ? 1 : 0,
++		cl.maxclients, cof_panels.reported ? (int)( host.framecount - cof_panels.frame ) : -1 );
++}
++
++void CL_CoF_PanelPauseInit( void )
++{
++	Cvar_RegisterVariable( &cof_panel_pause );
++	Cvar_RegisterVariable( &cof_panel_trace );
++	Cmd_AddCommand( "cof_panel_status", CL_CoF_PanelStatus_f, "developer: print the Cry of Fear panels on screen, the panel pause and the server clock" );
++}
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp
+@@ -87,6 +87,10 @@
+ 
+ 	staticApp.externalTick();
+ 
++	// Cry of Fear panel pause: which client panels are on screen this frame
++	// (cofpanels.cpp), after input has had its chance to open or close one
++	CofPanels_Frame( panel );
++
+ 	panel->setBounds( 0, 0, width, height );
+ 	panel->repaint();
+ 	panel->paintTraverse();
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/support.h b/3rdparty/freevgui/platform/xash3d-fwgs/support.h
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/support.h
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/support.h
+@@ -58,6 +58,15 @@
+ int  CofUI_ToDeviceY( int layoutY );
+ int  CofUI_ToLayoutY( int deviceY );
+ void CofUI_SolvePanel( Panel *panel );
++
++// Cry of Fear panel identification (cofpanels.cpp): the client's in-play
++// panels told apart by class, COF_PANEL_* bits from vgui_api.h, plus this
++// library's own plain panel
++static const unsigned int COF_CLASS_PLAIN_PANEL = 1u << 31;
++void CofPanels_Frame( Panel *root );
++unsigned int CofPanels_Class( Panel *panel );
++unsigned int CofPanels_Visible( void );
++const char *CofPanels_ClassName( Panel *panel, char *buf, size_t size ); // traces only
+ 
+ // input entry points the engine calls (input.cpp)
+ void XashMouse( VGUI_MouseAction action, int code );
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/cofpanels.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/cofpanels.cpp
+new file mode 100644
+--- /dev/null
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/cofpanels.cpp
+@@ -0,0 +1,314 @@
++// SPDX-License-Identifier: BSD-3-Clause
++// Cry of Fear panel identification (cof_panel_pause)
++
++#include <string.h>
++#include "vgui_internal.h"
++#include "support.h"
++
++using namespace vgui;
++
++/*
++Which of the client's in-play panels is on screen, told apart by class.
++
++Every Cry of Fear panel is a VGUI1 panel the client (client.dll, built with
++MSVC and run-time type information) creates below its viewport:
++
++	d0 root (this library's)
++	 d1 client viewport          TeamFortressViewport
++	  d2 inventory               CRECBInventory
++	  d2 HUD container           CHUDControl
++	  d2 tape recorder page      CSaveLoad
++	  d2 ...                     one per panel, 57 in all
++
++A panel's class is read from the complete object locator MSVC places in front
++of every vtable (vtable[-1] -> signature 0, offset, cdOffset, type descriptor;
++the type descriptor holds the decorated name ".?AVCRECBInventory@@"). Nothing
++here depends on an address inside client.dll, and every pointer is checked for
++readability before it is followed, so an object without type information (or a
++future client) simply is not recognised. Results are cached per vtable.
++
++The walk runs once per painted frame, before the tree is painted, and hands
++the engine one COF_PANEL_* bit per visible recognised class
++(vguiapi_t::CofPanelReport). A panel counts only when it and every panel above
++it are visible; the walk stops at depth 3.
++*/
++
++namespace vgui
++{
++bool CofMemReadable( const void *ptr, size_t size ); // cofmem.cpp
++}
++
++namespace
++{
++
++struct CofClassName
++{
++	const char	*decorated;
++	unsigned int	bit;
++};
++
++const CofClassName g_cofClasses[] =
++{
++	{ ".?AVCRECBInventory@@",     COF_PANEL_INVENTORY },
++	{ ".?AVCDocuments@@",         COF_PANEL_DOCUMENTS },
++	{ ".?AVCNoteDocument@@",      COF_PANEL_NOTE },
++	{ ".?AVCUserDocument@@",      COF_PANEL_USERDOC },
++	{ ".?AVCVGUIBillboard@@",     COF_PANEL_BILLBOARD },
++	{ ".?AVCYesno@@",             COF_PANEL_YESNO },
++	{ ".?AVCSaveLoad@@",          COF_PANEL_SAVELOAD },
++	{ ".?AVCSave@@",              COF_PANEL_SAVECONFIRM },
++	{ ".?AVCPhone@@",             COF_PANEL_PHONE },
++	{ ".?AVCTelephone@@",         COF_PANEL_TELEPHONE },
++	{ ".?AVCComputer@@",          COF_PANEL_COMPUTER },
++	{ ".?AVCPadlock@@",           COF_PANEL_PADLOCK },
++	{ ".?AVCPuzzleBar@@",         COF_PANEL_PUZZLEBAR },
++	{ ".?AVCKeypad@@",            COF_PANEL_KEYPAD },
++	{ ".?AVCAnimalStatue@@",      COF_PANEL_STATUE },
++	{ ".?AVCParanoiaTextPanel@@", COF_PANEL_TEXTWINDOW },
++	// the remaining modal panels of TeamFortressViewport::UpdateCursorState:
++	// menu-map pages the engine menu replaced, the old game over page, the
++	// gallery - never paused, but they must veto a pause if they are up
++	{ ".?AVCDifficulty@@",        COF_PANEL_OTHER },
++	{ ".?AVCGameMenu@@",          COF_PANEL_OTHER },
++	{ ".?AVCGameOver@@",          COF_PANEL_OTHER },
++	{ ".?AVCLanguage@@",          COF_PANEL_OTHER },
++	{ ".?AVCClothesMenu@@",       COF_PANEL_OTHER },
++	{ ".?AVCUnlockables@@",       COF_PANEL_OTHER },
++	{ ".?AVCBookMenu@@",          COF_PANEL_OTHER },
++	{ ".?AVCVGUIExtraMenu@@",     COF_PANEL_OTHER },
++	{ ".?AVCCommandMenu@@",       COF_PANEL_OTHER },
++	{ ".?AVCHUDControl@@",        COF_PANEL_HUD },
++	// this library's own plain panel, which the client uses for its backdrops
++	{ ".?AVPanel@vgui@@",         COF_CLASS_PLAIN_PANEL },
++};
++
++struct CofVtableEntry
++{
++	const void	*vtable;
++	unsigned int	bits;
++	const char	*name;	// decorated name in the owning module, for the trace
++};
++
++enum { COF_VTABLE_CACHE = 256 };
++
++CofVtableEntry	g_cofVtables[COF_VTABLE_CACHE];
++int		g_cofVtableCount = 0;
++
++struct CofPanelFrame
++{
++	unsigned int	visible;
++	int		trace;
++};
++
++CofPanelFrame	g_cofFrame = { 0, 0 };
++
++// copy a NUL-terminated string that lives in another module, checking every
++// page it touches; false when it is unreadable or does not end in time
++bool CofCopyName( const char *src, char *dst, size_t size )
++{
++	for( size_t i = 0; i < size; i++ )
++	{
++		if( i == 0 || (((size_t)( src + i )) & 0xFFF ) == 0 )
++		{
++			if( !CofMemReadable( src + i, 1 ))
++				return false;
++		}
++
++		dst[i] = src[i];
++
++		if( !dst[i] )
++			return true;
++	}
++
++	return false;
++}
++
++// the decorated class name of a polymorphic object built by an MSVC module
++// with run-time type information, or null
++const char *CofRttiName( const void *object, char *buf, size_t size )
++{
++#if defined( _MSC_VER ) && defined( _M_IX86 )
++	const void * const	*vtable;
++	const unsigned int	*locator;
++	const char		*descriptor;
++
++	if( !CofMemReadable( object, sizeof( void * )))
++		return nullptr;
++
++	vtable = *(const void * const * const *)object;
++
++	if( !CofMemReadable( vtable - 1, sizeof( void * )))
++		return nullptr;
++
++	locator = (const unsigned int *)vtable[-1];
++
++	// signature, offset, cdOffset, pTypeDescriptor, pClassDescriptor
++	if( !CofMemReadable( locator, 5 * sizeof( unsigned int )) || locator[0] != 0 )
++		return nullptr;
++
++	descriptor = (const char *)(size_t)locator[3];
++
++	// pVFTable, spare, name[]
++	if( !CofMemReadable( descriptor, 2 * sizeof( void * )))
++		return nullptr;
++
++	if( !CofCopyName( descriptor + 2 * sizeof( void * ), buf, size ))
++		return nullptr;
++
++	if( strncmp( buf, ".?AV", 4 ) && strncmp( buf, ".?AU", 4 ))
++		return nullptr;
++
++	return buf;
++#else
++	(void)object;
++	(void)buf;
++	(void)size;
++	return nullptr;
++#endif
++}
++
++const CofVtableEntry *CofLookup( Panel *panel )
++{
++	static CofVtableEntry	unknown = { nullptr, 0, nullptr };
++	const void	*vtable;
++	char		name[128];
++	const char	*rtti;
++	CofVtableEntry	entry;
++
++	if( !panel )
++		return &unknown;
++
++	vtable = *(const void * const *)panel;
++
++	for( int i = 0; i < g_cofVtableCount; i++ )
++	{
++		if( g_cofVtables[i].vtable == vtable )
++			return &g_cofVtables[i];
++	}
++
++	entry.vtable = vtable;
++	entry.bits = 0;
++	entry.name = nullptr;
++
++	rtti = CofRttiName( panel, name, sizeof( name ));
++
++	if( rtti )
++	{
++		for( size_t i = 0; i < sizeof( g_cofClasses ) / sizeof( g_cofClasses[0] ); i++ )
++		{
++			if( !strcmp( rtti, g_cofClasses[i].decorated ))
++			{
++				entry.bits = g_cofClasses[i].bit;
++				entry.name = g_cofClasses[i].decorated;
++				break;
++			}
++		}
++
++		if( g_cofFrame.trace >= 2 && g_engine && g_engine->CofPrint )
++		{
++			char line[192];
++
++			snprintf( line, sizeof( line ), "[cof-panel] class %s vtable %p%s\n",
++				rtti, vtable, entry.bits ? "" : " (not a Cry of Fear panel of interest)" );
++			g_engine->CofPrint( line );
++		}
++	}
++
++	if( g_cofVtableCount >= COF_VTABLE_CACHE )
++	{
++		static CofVtableEntry scratch;
++
++		scratch = entry;
++		return &scratch;
++	}
++
++	g_cofVtables[g_cofVtableCount] = entry;
++	return &g_cofVtables[g_cofVtableCount++];
++}
++
++void CofWalk( Panel *panel, int depth )
++{
++	int count = panel->getChildCount();
++
++	for( int i = 0; i < count; i++ )
++	{
++		Panel *child = panel->getChild( i );
++
++		if( !child || !child->isVisible( ))
++			continue;
++
++		g_cofFrame.visible |= CofLookup( child )->bits & ~COF_CLASS_PLAIN_PANEL;
++
++		if( depth < 3 )
++			CofWalk( child, depth + 1 );
++	}
++}
++
++} // anonymous namespace
++
++/*
++================
++CofPanels_Class
++
++The COF_PANEL_* bit of a panel's class (COF_CLASS_PLAIN_PANEL for this
++library's own vgui::Panel), 0 when it is none of them.
++================
++*/
++unsigned int vgui::CofPanels_Class( Panel *panel )
++{
++	return CofLookup( panel )->bits;
++}
++
++/*
++================
++CofPanels_ClassName
++
++The decorated class name of any panel, for developer traces only (not cached).
++================
++*/
++const char *vgui::CofPanels_ClassName( Panel *panel, char *buf, size_t size )
++{
++	const char *name = panel ? CofRttiName( panel, buf, size ) : nullptr;
++
++	return name ? name : "?";
++}
++
++/*
++================
++CofPanels_Visible
++
++The bits the last CofPanels_Frame found on screen.
++================
++*/
++unsigned int vgui::CofPanels_Visible( void )
++{
++	return g_cofFrame.visible;
++}
++
++/*
++================
++CofPanels_Frame
++
++Once per painted frame, before the tree is painted: find the visible
++recognised panels and tell the engine.
++================
++*/
++void vgui::CofPanels_Frame( Panel *root )
++{
++	g_cofFrame.visible = 0;
++
++	if( root && root->isVisible( ))
++		CofWalk( root, 1 );
++
++	if( g_engine && g_engine->CofPanelReport )
++	{
++		int trace = g_engine->CofPanelReport( g_cofFrame.visible );
++
++		// the class names are printed on a cache miss: forget the cache when
++		// the level-2 trace is switched on, so every class on screen is named
++		if( trace >= 2 && g_cofFrame.trace < 2 )
++			g_cofVtableCount = 0;
++
++		g_cofFrame.trace = trace;
++	}
++}
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/cofmem.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/cofmem.cpp
+new file mode 100644
+--- /dev/null
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/cofmem.cpp
+@@ -0,0 +1,49 @@
++// SPDX-License-Identifier: BSD-3-Clause
++// Cry of Fear panel identification (cof_panel_pause): the one place the
++// support library asks the operating system whether memory may be read.
++// Kept apart so <windows.h> never meets the VGUI headers.
++
++#include <stddef.h>
++
++#if defined( _WIN32 )
++#define WIN32_LEAN_AND_MEAN
++#define NOMINMAX
++#include <windows.h>
++#endif
++
++namespace vgui
++{
++
++bool CofMemReadable( const void *ptr, size_t size )
++{
++#if defined( _WIN32 )
++	const char	*p = (const char *)ptr;
++	const char	*end = p + size;
++
++	if( !ptr || end < p )
++		return false;
++
++	while( p < end )
++	{
++		MEMORY_BASIC_INFORMATION	mbi;
++		const DWORD	readable = PAGE_READONLY | PAGE_READWRITE | PAGE_WRITECOPY
++			| PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
++
++		if( !VirtualQuery( p, &mbi, sizeof( mbi )))
++			return false;
++
++		if( mbi.State != MEM_COMMIT || ( mbi.Protect & ( PAGE_GUARD | PAGE_NOACCESS )) || !( mbi.Protect & readable ))
++			return false;
++
++		p = (const char *)mbi.BaseAddress + mbi.RegionSize;
++	}
++
++	return true;
++#else
++	(void)ptr;
++	(void)size;
++	return false;
++#endif
++}
++
++} // namespace vgui
