@@ -65,7 +65,15 @@ off live with its cvar, which then reproduces the stock path in the same binary.
 | 45 | `cof-coop-bridge` | E + V | `cof_ui_remote_end_menu`, `cof_vgui_text_overflow` | [co-op bridge](../design/coop-bridge.md) |
 | 46 | `cof-mainui-coop` | M | Host / Join co-op pages, `cof_coop_*` settings, `menu_cof_host_start` | [co-op bridge](../design/coop-bridge.md) |
 | 47 | `cof-notify-option` | E + M | `cof_notify` (saved, default 1; 0 hides the top-left notify lines), *Show console notifications* on the Game page | [UI theme](../design/ui-theme.md) (Game page) |
-| 48 | `cof-cheats` | E | `fly`, `give`, sticky `noclip` / `notarget`, `cof_infammo`, `cof_infstamina`, `cof_nodamage`, `cof_nodrown`, `cof_nightvision`, `cof_ending`, `cof_tapes`, `cof_unlockdoors`, `cof_cheats` | [cheats internals](../design/cheats.md), player list in [CHEATS.md](../../CHEATS.md) |
+| 48 | `cof-mainui-options-layout` | M | tabbed Options / Extras / Save-Load windows; Controls and Gamepad tabs; `cof_pad_style` (saved), writes `cof_panel_pause`, `cof_panel_transparent`, `joy_*`; pad navigation and hints; `menu_cof_options_select`, `menu_cof_key` | [UI theme](../design/ui-theme.md), "Options relayout, tabbed windows and the pad" |
+| 49 | `cof-mainui-osk` | M | the on-screen keyboard: themed key grid for pad players (A type, B delete, Y clear, X shift, LB symbols, RB space, START Done, View Close), opens on A or a pad focus move onto a menu text field, its own prompts line; `menu_cof_osk game` for the engine | [on-screen keyboard](../design/osk.md) |
+| 50 | `cof-osk-engine` | E + V | the keyboard for the game's text fields (the computer login): FreeVGUI reports TextEntry focus and clicks (`vguiapi_t::CofOskEntry`), the engine opens the menu's keyboard when a pad was the last input and puts the text in (`CofOskCall`, `TextEntry::setText`); the game's panels stay painted under it; `cof_osk` (saved, 1), `cof_osk_status`, `cof_osk_set`, `cof_osk_probe` | [on-screen keyboard](../design/osk.md) |
+| 51 | `cof-client-enter-hook` | E | client.dll's `USER32!GetAsyncKeyState(VK_RETURN)` (computer login 1003F54C, Press Enter cards 1003D21E) answered for a pad: `cof_enter_pulse` (the keyboard's Done), START while the game polls for Enter (`cof_enter_pad`, saved, 1), `+cof_enter`; real Enter hidden from the game while the menu or console has the keyboard; `cof_enter_status`, `cof_enter_trace` | [on-screen keyboard](../design/osk.md), "The Enter hook" |
+| 52 | `cof-window-name` | E | the game window is "Cry of Fear Enhanced" (title, whatever gameinfo.txt says) with the class `CryOfFearEnhanced`, for recorders and overlays | [building](../dev/building.md), "The game's name in Windows" |
+| 53 | `cof-panel-pause` | E + V | `cof_panel_pause` (saved, default 0): single player, the world stops while a safe CoF panel is open; panels identified by client class name (`CofPanelReport`), `CL_CoF_PanelsOnScreen` for other engine code; `cof_panel_status`, `cof_panel_trace` | [panel pause](cof-panel-pause.md) |
+| 54 | `cof-panel-transparency` | E + V | `cof_panel_transparent` (saved, default 1), `cof_panel_plate_alpha` 200, `cof_panel_hide_hud` 2: the live world instead of the black backdrop behind the in-play panels | [world behind the panels](cof-panel-transparency.md) |
+| 55 | `cof-gamepad-input` | E | gamepad on CoF panels (sticks frozen, START to the pause menu, B closes the inventory, A/X click at an engine-drawn ring cursor; the "panel open" check reads the class identity of step 53, the arrow cursor only as a fallback), once-per-profile pad layout (generation 2), `cof_duck_toggle`, gyro aiming off by default, dodge guard, client WinMM joystick kept off; `cof_pad_status` | [gamepad input](cof-gamepad-input.md) |
+| 56 | `cof-cheats` | E | `fly`, `give`, sticky `noclip` / `notarget`, `cof_infammo`, `cof_infstamina`, `cof_nodamage`, `cof_nodrown`, `cof_nightvision`, `cof_ending`, `cof_tapes`, `cof_unlockdoors`, `cof_cheats` | [cheats internals](../design/cheats.md), player list in [CHEATS.md](../../CHEATS.md) |
 
 (diag) = default-off developer diagnostic; it changes nothing unless switched on.
 
@@ -393,7 +401,53 @@ checkbox, translated by every pack's menu strings. See the
 stamp (step 20) sits in the top-right corner, below the fps counter when that
 is on, instead of under the engine's version line over the HUD.
 
-## Restored cheats (step 48, last)
+## Options relayout, tabbed windows and the pad (step 48)
+
+`cof-mainui-options-layout` (MainUI only) turns Options into one tabbed window
+(Game, Controls, Keybinds, Gamepad, Audio, Video) and does the same for
+Extras (Host co-op, Join co-op, Unlockables, Links, Credits) and Save / Load
+(Load, plus Save in play with pause-menu saves on). Every tab is still its own
+page class; the framework draws one tab strip, gives every tab the same frame
+and swaps pages in place (mouse click, LB/RB). The Game tab loses the mouse
+and aim rows to the new Controls tab and gains *Pause on Inventory*
+(`cof_panel_pause`) and *Transparent UI background* (`cof_panel_transparent`),
+both engine cvars of the panels round. Controls carries Aim down sights, the
+mouse switches and the engine's pad cvars (`joy_enable`, look speed per axis,
+deadzones, trigger threshold, invert, swap sticks, gyro). Gamepad lists every
+pad button with its binding, icon and a controller picture (Zacksly's CC BY
+3.0 art in `gamedata/cryoffear/gfx/shell/gamepad/`), binds by an action list
+or by pressing a second pad button (swap), and *Use defaults* applies the pad
+lines of `gfx/shell/kb_def.lst`. The whole menu follows one pad mapping
+(A select, B back, LB/RB tabs, X the page's secondary action, Start resumes,
+triggers page a list, greyed controls skipped, first control focused on open)
+with a hints line of button prompts while a pad is the last input device. See
+the [UI theme](../design/ui-theme.md). Keyboard Tab / Shift+Tab switch the
+tabs too, and the death page (which swallows B / Escape) shows no Back prompt.
+
+## Panel pause and the world behind the panels (steps 49-50)
+
+`cof-panel-pause` names every visible client panel by its class (MSVC
+run-time type information in client.dll, read by the VGUI support library)
+and reports one bit per class each painted frame; with `cof_panel_pause 1`
+single player stops simulating while a safe panel (inventory, notes, documents,
+billboard, YES/NO, tape recorder page) is up and never for the phone, landline,
+computer, padlock or boiler puzzle. `cof-panel-transparency` skips only the
+game's own black fill behind the clickable panels, draws the rusty plate
+semi-transparent and hides the HUD pieces that overlap the panel. See
+[panel pause](cof-panel-pause.md) and [world behind the panels](cof-panel-transparency.md).
+
+## Gamepad input (step 51)
+
+`cof-gamepad-input` makes the CoF panels usable with a pad (sticks move an
+engine-drawn ring cursor instead of the player, A/X click, B closes the
+inventory, START opens the pause menu), writes a default pad layout into the
+profile once (so the game's `unbindall` cannot wipe it), adds the crouch
+toggle and turns gyro aiming off by default. Since m8 its "panel open" check
+takes the class identity of step 49 as the source of truth
+(`CL_CoF_PanelsOnScreen`); the arrow cursor counts only when the class list
+names nothing. See [gamepad input](cof-gamepad-input.md).
+
+## Restored cheats (step 52, last)
 
 Cry of Fear 1.6 removed its cheats in its own `hw.dll` and resets or ignores
 the stock ones in `hl.dll` (`PostThink` turns noclip off every frame,

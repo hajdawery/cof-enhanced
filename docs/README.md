@@ -73,6 +73,7 @@ Grouped:
 | Page | About |
 | --- | --- |
 | [ui-theme.md](design/ui-theme.md) | the Source-style menu: palette, type, every page, Options, Unlockables, Credits |
+| [osk.md](design/osk.md) | the on-screen keyboard for pad players (menu fields and the computer login) and the client's Enter hook |
 | [ui-scaling.md](design/ui-scaling.md) | the in-game UI scaled from the display (`cof_ui_scale`) |
 | [fonts.md](design/fonts.md) | which text is drawn by what, from which font file |
 | [vgui-inter-fonts.md](design/vgui-inter-fonts.md) | the client's VGUI text from Inter, code pages |

@@ -52,6 +52,17 @@ engine, the menu and the UI library around them.
 
 ## What it fixes and adds
 
+**Gamepad**
+
+Fuck it, I added gamepad support for the entire game.
+
+The whole menu is navigable with a pad (A selects, B goes back, LB/RB switch
+tabs, with button prompts on screen), and in play the inventory, notes and
+every other in-game panel get a ring cursor you steer with the sticks. Xbox and
+PlayStation layouts are both covered, with their own button names and icons;
+gyro aiming is there for pads that have a gyro, off unless you turn it on.
+Gamepad support is in testing: expect rough edges, and please report them.
+
 **Runs the Steam game on Xash3D FWGS**
 - The Steam version's game code runs unmodified on a modern engine
   (engine-side compatibility layers bridge the differences).
@@ -74,9 +85,14 @@ engine, the menu and the UI library around them.
   Extras (co-op, Unlockables, Links, Credits), Options, Quit.
 - The pause menu is a translucent list over the paused game, with separate
   Save Game and Load Game.
-- Options: Game, Controls, Audio, Video. Only settings that actually do
-  something in Cry of Fear; gamma, brightness and contrast drive the game's own
-  renderer.
+- Options is one window with tabs: Game, Controls, Keybinds, Gamepad, Audio,
+  Video (Extras and Save/Load are tabbed windows too). Only settings that
+  actually do something in Cry of Fear; gamma, brightness and contrast drive
+  the game's own renderer.
+- Optional *Pause on Inventory*: the world stops while the inventory, a note
+  or the tape recorder page is open (single player; never for the phone or
+  puzzles). The live scene now shows behind those panels instead of a black
+  screen (*Transparent UI background*, on by default).
 - The Unlockables page shows what you have really unlocked, and Nightmare mode
   is offered only once you have.
 - Death brings up a clean GAME OVER page (Load Game, Exit) while the world
@@ -248,6 +264,9 @@ Start with the [documentation index](docs/README.md): building, the
   in-game UI library.
 - **[Inter](https://github.com/rsms/inter)** by The Inter Project Authors: the
   typeface.
+- **Xbox Series and PS5 Button Icons and Controls** by **Zacksly** (CC BY 3.0,
+  <https://zacksly.itch.io>): the gamepad button icons and controller pictures
+  in the menu; the controller pictures are cropped and resized.
 - **[SDL 2](https://www.libsdl.org/)** by Sam Lantinga and contributors.
 - **[stb_truetype](https://github.com/nothings/stb)** by Sean Barrett.
 - Built into the engine as well: [Opus](https://github.com/xiph/opus),
@@ -269,6 +288,7 @@ The full copyright notices for all of these are in
 - Our code (patches, scripts, launcher, tests, docs): **GPL-3.0-or-later**,
   see [LICENSE](LICENSE). Our changes to FreeVGUI stay **BSD-3-Clause**.
 - Fonts (Inter and the atlases generated from it): **SIL Open Font License 1.1**.
+- Gamepad button icons and controller pictures (Zacksly): **CC BY 3.0**.
 - Language packs: not GPL; translation data shared with the translators'
   permission, for use with a legally owned copy of Cry of Fear (each pack's
   README and `LICENSE-NOTE.md`). The six menu-only packs (Deutsch, Español,

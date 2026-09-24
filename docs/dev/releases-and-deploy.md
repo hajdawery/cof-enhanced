@@ -26,7 +26,9 @@ Staged so far: `m4`, `m4-fonts`, `m4b`, `m4c`, `m5`, `m5a`, `fov`,
 `fovmenu`, `m5b`, `lang`, `cheats`, `m6`, `coop`, `lang2`, `fix-ads-tape`,
 `lang3` (all `-20260922`) and `m7-20260923`, the first build of the complete
 [patch stack](patch-stack.md) in one run (it folds in `coop`, `lang2`,
-`fix-ads-tape` and `lang3`). The deploy script points at `m7`.
+`fix-ads-tape` and `lang3`), then `gamepad`, `panels`, `options` (all
+`-20260923`, each on its own) and `m8-20260923`, the second full-stack build
+(m7 + those three rounds, cheats last). The deploy script points at `m8`.
 
 ## The deploy script
 
@@ -40,7 +42,11 @@ hash-pinned payload into the runtime and keeps a backup:
   and (since m7) `OFL.txt` beside the atlases under `cryoffear\fonts\`;
 * folders: all seven language packs, `languages\<code>` -> `cryoffear\languages\<code>`,
   each pinned by its `MANIFEST.tsv` hash and file count, checked file by file
-  before and after the copy, refusing junctions;
+  before and after the copy, refusing junctions; and (since m8) the gamepad
+  art, the staged release's `gfx\shell\gamepad` (36 files) ->
+  `cryoffear\gfx\shell\gamepad`, pinned by the release's
+  `gamepad-SHA256SUMS.txt` (whose own hash is in the script) and handled like
+  a pack;
 * `-Rollback` restores the backup, removes files and packs that were not there
   before, and puts back a pack that was (since m7 a deploy also drops a stale
   backup copy of a file it finds absent, so rollback removes that file instead
@@ -67,7 +73,11 @@ pre-release). The steps:
 2. Build the whole [patch stack](patch-stack.md) end to end into a private
    tree, run `scripts\write-cof-version.ps1` against it (the stamp must not end
    in `+`), build `xash`, `vgui`, `ref_gl`, `menu` and `filesystem_stdio`, and
-   the launcher with `scripts\build-cof-launcher.ps1`.
+   the launcher with `scripts\build-cof-launcher.ps1` (it takes its version
+   resource - ProductName "Cry of Fear Enhanced", ProductVersion = `VERSION`
+   line 1 - from the bumped `VERSION`; check it with
+   `(Get-Item CoFLaunchApp.exe).VersionInfo`, see
+   [building](building.md#the-games-name-in-windows)).
 3. Stage the binaries in `stage1\releases\v<version>\` (game-folder layout,
    PDBs under `pdb\`, `SHA256SUMS.txt`, and `BUILD-INFO.txt` with
    `binaries_commit=` and `stamp=`).

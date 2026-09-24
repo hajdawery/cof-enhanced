@@ -9,8 +9,8 @@ The order below is the order the stack verifiers in `stage1/` apply
 (`stage1/m7-integration-20260923/stackverify-m7.py` reads it from this page;
 before it `stage1/lang3-20260922/stackverify-lang3.ps1` and the per-round
 ones), and it matches the
-order the old README gave, group by group. It covers all 49 patches in
-`patches/` and all 49 `scripts/apply-*.ps1` scripts.
+order the old README gave, group by group. It covers all 57 patches in
+`patches/` and all 57 `scripts/apply-*.ps1` scripts.
 
 > **Verification status (m7, 2026-09-23).** The complete list below, steps
 > 1-48 in this order, was applied in one run to a fresh `pristine-clean` copy
@@ -26,6 +26,44 @@ order the old README gave, group by group. It covers all 49 patches in
 > `cof-save-root-compat.patch` has one pre-image line indented with spaces
 > where the file has tabs (`cl_scrn.c`, `VID_MINISHOT`), so its reverse writes
 > spaces. Neither changes what a forward apply produces.
+
+> **Options round (2026-09-23).** Step 48 `cof-mainui-options-layout` was
+> added (cheats moved to 49). `stage1/options-20260923/stackverify-options.py`
+> (the m7 verifier reading this page) applied steps 1-49 to a fresh tree,
+> round-tripped every step, and the result is byte-identical (629 files) to
+> the tree `stage1/releases/options-20260923` was built from; the only
+> problem it reports is the known `cof-save-root-compat` reverse whitespace.
+> The panels and gamepad rounds' patches, written at the same time, are not
+> on this page yet.
+
+> **Verification status (m8, 2026-09-23).** Steps 49-51 (`cof-panel-pause`,
+> `cof-panel-transparency`, `cof-gamepad-input`) were added, cheats moved to
+> 52. The complete list, steps 1-52 in this order, was applied in one run to a
+> fresh `pristine-clean` copy with no context fix needed; three patches were
+> then regenerated in place for the m8 changes (`cof-mainui-options-layout`:
+> Tab / Shift+Tab and the death page's prompts; `cof-panel-pause`: the
+> `CL_CoF_PanelsOnScreen` accessor; `cof-gamepad-input`: the panel check reads
+> it, plus the hunk offsets of its new position) and the whole list applied in
+> one run again to build m8 (`stage1/m8-integration-20260923`). Its verifier
+> (`stackverify-m8.py`, reading this page) round-tripped every step: every
+> re-apply byte-identical, the finished tree byte-identical to the build tree
+> (635 files). The only problem it reports is the known
+> `cof-save-root-compat` reverse whitespace; 33 CR-only reverse notes (the 31
+> above plus `3rdparty/freevgui/image.h` for `cof-panel-transparency`, whose
+> forward apply writes that file LF).
+
+> **On-screen keyboard round (osk, 2026-09-23).** Steps 49-52
+> (`cof-mainui-osk`, `cof-osk-engine`, `cof-client-enter-hook`,
+> `cof-window-name`) were inserted after the options layout; the panels, the
+> gamepad and the cheats moved to 53-56 with no patch changed. The 56 steps
+> applied in one run (`stage1/osk-20260923/stack-build.log`), and
+> `stage1/osk-20260923/stackverify-osk.py` (the m8 verifier, run against a
+> copy of these scripts and patches with the m8 gamepad patch the build used)
+> round-tripped every step: every re-apply byte-identical, the finished tree
+> byte-identical to the build tree (640 files, raw). Only the known
+> `cof-save-root-compat` reverse whitespace; 35 CR-only reverse notes. The
+> gamepad2 round's newer `cof-gamepad-input.patch` (`A8FB3C3F…`) also passes
+> `git apply --check` on top of steps 1-54.
 
 ## The base tree
 
@@ -174,14 +212,22 @@ order that is known to apply.
 | 43 | `apply-cof-mainui-language-selector` | `cof-mainui-language-selector` | M | [language packs](../design/language-packs.md) section 7 |
 | 44 | `apply-cof-mainui-menu-strings` | `cof-mainui-menu-strings` | M | [language packs](../design/language-packs.md) section 8 |
 
-### Co-op bridge, the notifications option, then the cheats last
+### Co-op bridge, the notifications option, the options relayout, the on-screen keyboard and window name, the panels, the gamepad, then the cheats last
 
 | # | Script | Patch | Target | Doc |
 | ---: | --- | --- | --- | --- |
 | 45 | `apply-cof-coop-bridge` | `cof-coop-bridge` | E + V | [co-op bridge](../design/coop-bridge.md) |
 | 46 | `apply-cof-mainui-coop` | `cof-mainui-coop` | M | [co-op bridge](../design/coop-bridge.md) (shares no file with 43-44) |
 | 47 | `apply-cof-notify-option` | `cof-notify-option` | E + M | [UI theme](../design/ui-theme.md), Game page (`cof_notify`); needs 14-17 and 43 |
-| 48 | `apply-cof-cheats` | `cof-cheats` | E | [cheats internals](../design/cheats.md); **always last**, needs steps 2 and 4 |
+| 48 | `apply-cof-mainui-options-layout` | `cof-mainui-options-layout` | M | [UI theme](../design/ui-theme.md), "Options relayout"; needs 35, 43, 44, 46, 47 |
+| 49 | `apply-cof-mainui-osk` | `cof-mainui-osk` | M | [on-screen keyboard](../design/osk.md) (the key grid, menu text fields, `menu_cof_osk`); needs 48 |
+| 50 | `apply-cof-osk-engine` | `cof-osk-engine` | E + V | [on-screen keyboard](../design/osk.md) (the game's text fields: `cof_osk`, vguiapi_t `CofOskEntry`/`CofOskCall`); needs 9, 40, 42; before 53-55 |
+| 51 | `apply-cof-client-enter-hook` | `cof-client-enter-hook` | E | [on-screen keyboard](../design/osk.md), "The Enter hook" (client.dll `GetAsyncKeyState`, `cof_enter_pulse`, START = Enter); needs 42, 50 |
+| 52 | `apply-cof-window-name` | `cof-window-name` | E | [building](building.md), "The game's name in Windows" (window title and class); upstream lines only |
+| 53 | `apply-cof-panel-pause` | `cof-panel-pause` | E + V | [panel pause](../patches/cof-panel-pause.md) (`cof_panel_pause`; the client's panels identified by class); needs 22, 24, 42 |
+| 54 | `apply-cof-panel-transparency` | `cof-panel-transparency` | E + V | [world behind the panels](../patches/cof-panel-transparency.md) (`cof_panel_transparent`); needs 22, 23, 25, 53 |
+| 55 | `apply-cof-gamepad-input` | `cof-gamepad-input` | E | [gamepad input](../patches/cof-gamepad-input.md); needs 9, 14, 21, 39 and 53 (the panel check reads the panel identity of 53) |
+| 56 | `apply-cof-cheats` | `cof-cheats` | E | [cheats internals](../design/cheats.md); **always last**, needs steps 2 and 4 |
 
 ## After applying
 
@@ -191,7 +237,7 @@ order that is known to apply.
 2. Build as described in [building](building.md). Which binaries change with
    which patches: E -> `xash.dll`, R -> `ref_gl.dll`, V -> `vgui.dll`,
    M -> `cryoffear/cl_dlls/menu.dll`. `xash.dll` and `vgui.dll` must always be
-   deployed together (steps 21, 23, 25, 42 and 45 all edit the shared
+   deployed together (steps 21, 23, 25, 42, 45, 50, 53 and 54 all edit the shared
    `engine/vgui_api.h` interface).
 
 ## Verifying a stack

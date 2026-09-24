@@ -71,7 +71,12 @@ $Files = @(
     'controls\CheckBox.cpp', 'controls\PicButton.cpp', 'controls\Field.cpp',
     'model\KbActListModel.h', 'Theme.cpp',
     # the co-op Host/Join pages (patches/cof-mainui-coop.patch); listed when present
-    'menus\CoFCoop.cpp'
+    'menus\CoFCoop.cpp',
+    # the options relayout's Controls and Gamepad controls pages
+    # (patches/cof-mainui-options-layout.patch); listed when present
+    'menus\CoFOptions.cpp',
+    # the on-screen keyboard (patches/cof-mainui-osk.patch); listed when present
+    'menus\CoFOsk.cpp'
 )
 
 # calls whose string arguments are never drawn
@@ -88,7 +93,8 @@ $DenyCalls = @(
     'fopen', 'FS_Open', 'DeleteFile', 'CheckGameDll', 'LoadLibrary', 'GetProcAddress',
     'UI_CoFReadScriptSettings', 'UI_ThemeCvarDefault', 'SetGameFile', 'StartBackgroundMap',
     'Cvar_Set', 'UI_SetCvar', 'Printf', 'Q_snprintf_cmd', 'WriteCvar', 'DebugMsg', 'HostEndGame',
-    'fallback', 'BaseClass'
+    'fallback', 'BaseClass',
+    'COF_KEY'   # engine key names in menus/CoFOptions.cpp
 )
 
 # literals that read as text but are never drawn as menu text (font face
