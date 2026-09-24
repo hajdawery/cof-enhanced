@@ -484,3 +484,85 @@ LAN servers	Serwery LAN	menus/CoFCoop.cpp:685
 Servers on the local network	Serwery w sieci lokalnej	menus/CoFCoop.cpp:685
 Connect	Połącz	menus/CoFCoop.cpp:689
 Connect to this address	Połącz z tym adresem	menus/CoFCoop.cpp:689
+# options relayout (Game, Controls, Keybinds, Gamepad controls), 2026-09-23: machine-drafted like the rest, please review
+Keybinds	Przypisania klawiszy	menus/Configuration.cpp:88
+Pause on Inventory	Pauza w ekwipunku	menus/AdvancedControls.cpp:778
+Pause the game while the inventory, notes and other item pages are open	Wstrzymuje grę, gdy otwarty jest ekwipunek, notatki i inne strony przedmiotów	menus/AdvancedControls.cpp:779
+Transparent UI background	Przezroczyste tło interfejsu	menus/AdvancedControls.cpp:783
+Show the game world behind the inventory, notes and the tape recorder page instead of black	Pokazuje świat gry za ekwipunkiem, notatkami i stroną magnetofonu zamiast czerni	menus/AdvancedControls.cpp:784
+KEYBINDS	PRZYPISANIA KLAWISZY	menus/Controls.cpp:251
+AIMING AND MOUSE	CELOWANIE I MYSZ	menus/CoFOptions.cpp:339
+GAMEPAD	PAD	menus/CoFOptions.cpp:340
+Enable gamepad	Włącz pad	menus/CoFOptions.cpp:362
+Use a connected gamepad for moving, looking and the button actions	Używa podłączonego pada do ruchu, rozglądania się i akcji przycisków	menus/CoFOptions.cpp:362
+Invert look	Odwróć patrzenie	menus/CoFOptions.cpp:363
+Push the look stick up to look down	Wychylenie gałki patrzenia w górę kieruje wzrok w dół	menus/CoFOptions.cpp:363
+Swap sticks	Zamień gałki	menus/CoFOptions.cpp:365
+Look with the left stick and move with the right stick	Rozglądanie się lewą gałką, ruch prawą	menus/CoFOptions.cpp:365
+Look speed, horizontal	Szybkość patrzenia, poziomo	menus/CoFOptions.cpp:368
+How fast the view turns with the look stick fully pushed, in degrees per second	Jak szybko obraca się widok przy pełnym wychyleniu gałki, w stopniach na sekundę	menus/CoFOptions.cpp:369;menus/CoFOptions.cpp:372
+Look speed, vertical	Szybkość patrzenia, pionowo	menus/CoFOptions.cpp:371
+Look stick deadzone	Martwa strefa gałki patrzenia	menus/CoFOptions.cpp:374
+How far a stick has to move before it counts, in percent of its travel	Jak daleko trzeba wychylić gałkę, by ruch się liczył, w procentach zakresu	menus/CoFOptions.cpp:375;menus/CoFOptions.cpp:379
+Move stick deadzone	Martwa strefa gałki ruchu	menus/CoFOptions.cpp:378
+Trigger threshold	Próg spustu	menus/CoFOptions.cpp:382
+How far a trigger has to be pulled to count as pressed, in percent	Jak mocno trzeba wcisnąć spust, by liczył się jako wciśnięty, w procentach	menus/CoFOptions.cpp:383
+FACE BUTTONS	PRZYCISKI GŁÓWNE	menus/CoFOptions.cpp:575
+Cross	Krzyżyk	menus/CoFOptions.cpp:576
+Circle	Kółko	menus/CoFOptions.cpp:577
+Square	Kwadrat	menus/CoFOptions.cpp:578
+Triangle	Trójkąt	menus/CoFOptions.cpp:579
+SHOULDERS AND TRIGGERS	BUMPERY I SPUSTY	menus/CoFOptions.cpp:580
+LB	LB	menus/CoFOptions.cpp:581
+RB	RB	menus/CoFOptions.cpp:582
+LT	LT	menus/CoFOptions.cpp:583
+RT	RT	menus/CoFOptions.cpp:584
+STICKS	GAŁKI	menus/CoFOptions.cpp:585
+Left stick click	Klik lewej gałki	menus/CoFOptions.cpp:586
+Right stick click	Klik prawej gałki	menus/CoFOptions.cpp:587
+D-PAD	KRZYŻAK	menus/CoFOptions.cpp:588
+D-pad up	Krzyżak w górę	menus/CoFOptions.cpp:589
+D-pad down	Krzyżak w dół	menus/CoFOptions.cpp:590
+D-pad left	Krzyżak w lewo	menus/CoFOptions.cpp:591
+D-pad right	Krzyżak w prawo	menus/CoFOptions.cpp:592
+MENU BUTTONS	PRZYCISKI MENU	menus/CoFOptions.cpp:593
+Menu	Menu	menus/CoFOptions.cpp:594
+View	Widok	menus/CoFOptions.cpp:595
+Create	Create	menus/CoFOptions.cpp:595
+Xbox	Xbox	menus/CoFOptions.cpp:679
+PlayStation	PlayStation	menus/CoFOptions.cpp:679
+Not bound	Nieprzypisany	menus/CoFOptions.cpp:786;menus/CoFOptions.cpp:973
+Open the menu	Otwórz menu	menus/CoFOptions.cpp:994
+Config key: %s	Nazwa w konfiguracji: %s	menus/CoFOptions.cpp:1065
+The default key list has no gamepad buttons yet.	Domyślna lista klawiszy nie ma jeszcze przycisków pada.	menus/CoFOptions.cpp:1217
+GAMEPAD CONTROLS	STEROWANIE PADEM	menus/CoFOptions.cpp:1275
+Button	Przycisk	menus/CoFOptions.cpp:1281
+Action for the selected button	Akcja wybranego przycisku	menus/CoFOptions.cpp:1285
+The action this button performs in the game	Akcja, którą ten przycisk wykonuje w grze	menus/CoFOptions.cpp:1289
+Button style	Styl przycisków	menus/CoFOptions.cpp:1292
+Button names and pictures of an Xbox or a PlayStation controller	Nazwy i obrazki przycisków kontrolera Xbox lub PlayStation	menus/CoFOptions.cpp:1296
+Pick a button, then its action below. Or press Enter on a button and then another gamepad button to swap the two.	Wybierz przycisk, a potem jego akcję poniżej. Albo naciśnij Enter na przycisku, a potem inny przycisk pada, by je zamienić.	menus/CoFOptions.cpp:1310
+Press the gamepad button to swap with this one	Naciśnij przycisk pada, który ma się zamienić z tym	menus/CoFOptions.cpp:1312
+Reset every gamepad button to the default layout?	Przywrócić domyślny układ wszystkich przycisków pada?	menus/CoFOptions.cpp:1315
+PRESS A BUTTON	NACIŚNIJ PRZYCISK	menus/CoFOptions.cpp:1349
+# options relayout (Game, Controls, Keybinds, Gamepad controls), 2026-09-23: machine-drafted like the rest, please review
+Select	Wybierz	controls/Framework.cpp:295
+Tabs	Karty	controls/Framework.cpp:303
+Resume	Wróć do gry	controls/Framework.cpp:313
+Gamepad	Pad	menus/CoFOptions.cpp:1610
+Gyro aiming	Celowanie żyroskopem	menus/CoFOptions.cpp:404
+Aim by tilting a pad that has a gyroscope	Celowanie przez przechylanie pada z żyroskopem	menus/CoFOptions.cpp:404
+Gyro sensitivity	Czułość żyroskopu	menus/CoFOptions.cpp:405
+How far the view turns for a tilt of the pad	Jak mocno obraca się widok przy przechyleniu pada	menus/CoFOptions.cpp:406
+In the menus: A confirm · B back · LB/RB tabs · X use defaults · Start resume	W menu: A zatwierdza · B wraca · LB/RB karty · X domyślne · Start wraca do gry	menus/CoFOptions.cpp:1363
+# options relayout (Game, Controls, Keybinds, Gamepad controls), 2026-09-23: machine-drafted like the rest, please review
+Crouch (toggle)	Kucanie (przełącz)	model/KbActListModel.h:109;menus/CoFOptions.cpp:1042
+# on-screen keyboard (menus/CoFOsk.cpp), 2026-09-23: machine-drafted like the rest, please review
+KEYBOARD	KLAWIATURA	menus/CoFOsk.cpp
+Caps	Caps	menus/CoFOsk.cpp
+Shift	Shift	menus/CoFOsk.cpp
+ABC	ABC	menus/CoFOsk.cpp
+Space	Spacja	menus/CoFOsk.cpp
+Type	Wpisz	menus/CoFOsk.cpp
+Clear	Wyczyść	menus/CoFOsk.cpp
+Symbols	Symbole	menus/CoFOsk.cpp

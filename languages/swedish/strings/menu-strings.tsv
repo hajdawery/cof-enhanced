@@ -483,3 +483,85 @@ LAN servers	LAN-servrar	menus/CoFCoop.cpp:685
 Servers on the local network	Servrar i det lokala nätverket	menus/CoFCoop.cpp:685
 Connect	Anslut	menus/CoFCoop.cpp:689
 Connect to this address	Anslut till den här adressen	menus/CoFCoop.cpp:689
+# options relayout (Game, Controls, Keybinds, Gamepad controls), 2026-09-23: machine-drafted like the rest, please review
+Keybinds	Tangentbindningar	menus/Configuration.cpp:88
+Pause on Inventory	Paus i inventariet	menus/AdvancedControls.cpp:778
+Pause the game while the inventory, notes and other item pages are open	Pausar spelet medan inventariet, anteckningar och andra föremålssidor är öppna	menus/AdvancedControls.cpp:779
+Transparent UI background	Genomskinlig UI-bakgrund	menus/AdvancedControls.cpp:783
+Show the game world behind the inventory, notes and the tape recorder page instead of black	Visar spelvärlden bakom inventariet, anteckningar och bandspelarsidan i stället för svart	menus/AdvancedControls.cpp:784
+KEYBINDS	TANGENTBINDNINGAR	menus/Controls.cpp:251
+AIMING AND MOUSE	SIKTE OCH MUS	menus/CoFOptions.cpp:339
+GAMEPAD	HANDKONTROLL	menus/CoFOptions.cpp:340
+Enable gamepad	Aktivera handkontroll	menus/CoFOptions.cpp:362
+Use a connected gamepad for moving, looking and the button actions	Använd en ansluten handkontroll för att röra dig, titta och knapparnas åtgärder	menus/CoFOptions.cpp:362
+Invert look	Invertera blick	menus/CoFOptions.cpp:363
+Push the look stick up to look down	Tryck siktspaken uppåt för att titta nedåt	menus/CoFOptions.cpp:363
+Swap sticks	Byt spakar	menus/CoFOptions.cpp:365
+Look with the left stick and move with the right stick	Titta med vänster spak och rör dig med höger	menus/CoFOptions.cpp:365
+Look speed, horizontal	Blickhastighet, vågrätt	menus/CoFOptions.cpp:368
+How fast the view turns with the look stick fully pushed, in degrees per second	Hur snabbt vyn vrids med siktspaken helt ute, i grader per sekund	menus/CoFOptions.cpp:369;menus/CoFOptions.cpp:372
+Look speed, vertical	Blickhastighet, lodrätt	menus/CoFOptions.cpp:371
+Look stick deadzone	Dödzon för siktspak	menus/CoFOptions.cpp:374
+How far a stick has to move before it counts, in percent of its travel	Hur långt en spak måste röras innan det räknas, i procent av rörelsen	menus/CoFOptions.cpp:375;menus/CoFOptions.cpp:379
+Move stick deadzone	Dödzon för rörelsespak	menus/CoFOptions.cpp:378
+Trigger threshold	Avtryckartröskel	menus/CoFOptions.cpp:382
+How far a trigger has to be pulled to count as pressed, in percent	Hur långt en avtryckare måste tryckas för att räknas som nedtryckt, i procent	menus/CoFOptions.cpp:383
+FACE BUTTONS	HANDLINGSKNAPPAR	menus/CoFOptions.cpp:575
+Cross	Kryss	menus/CoFOptions.cpp:576
+Circle	Cirkel	menus/CoFOptions.cpp:577
+Square	Fyrkant	menus/CoFOptions.cpp:578
+Triangle	Triangel	menus/CoFOptions.cpp:579
+SHOULDERS AND TRIGGERS	AXELKNAPPAR OCH AVTRYCKARE	menus/CoFOptions.cpp:580
+LB	LB	menus/CoFOptions.cpp:581
+RB	RB	menus/CoFOptions.cpp:582
+LT	LT	menus/CoFOptions.cpp:583
+RT	RT	menus/CoFOptions.cpp:584
+STICKS	SPAKAR	menus/CoFOptions.cpp:585
+Left stick click	Tryck vänster spak	menus/CoFOptions.cpp:586
+Right stick click	Tryck höger spak	menus/CoFOptions.cpp:587
+D-PAD	STYRKORS	menus/CoFOptions.cpp:588
+D-pad up	Styrkors upp	menus/CoFOptions.cpp:589
+D-pad down	Styrkors ned	menus/CoFOptions.cpp:590
+D-pad left	Styrkors vänster	menus/CoFOptions.cpp:591
+D-pad right	Styrkors höger	menus/CoFOptions.cpp:592
+MENU BUTTONS	MENYKNAPPAR	menus/CoFOptions.cpp:593
+Menu	Meny	menus/CoFOptions.cpp:594
+View	Visa	menus/CoFOptions.cpp:595
+Create	Create	menus/CoFOptions.cpp:595
+Xbox	Xbox	menus/CoFOptions.cpp:679
+PlayStation	PlayStation	menus/CoFOptions.cpp:679
+Not bound	Inte tilldelad	menus/CoFOptions.cpp:786;menus/CoFOptions.cpp:973
+Open the menu	Öppna menyn	menus/CoFOptions.cpp:994
+Config key: %s	Namn i konfigurationen: %s	menus/CoFOptions.cpp:1065
+The default key list has no gamepad buttons yet.	Standardlistan över tangenter har inga handkontrollsknappar ännu.	menus/CoFOptions.cpp:1217
+GAMEPAD CONTROLS	HANDKONTROLLENS KNAPPAR	menus/CoFOptions.cpp:1275
+Button	Knapp	menus/CoFOptions.cpp:1281
+Action for the selected button	Åtgärd för vald knapp	menus/CoFOptions.cpp:1285
+The action this button performs in the game	Åtgärden som den här knappen utför i spelet	menus/CoFOptions.cpp:1289
+Button style	Knappstil	menus/CoFOptions.cpp:1292
+Button names and pictures of an Xbox or a PlayStation controller	Knappnamn och bilder för en Xbox- eller PlayStation-handkontroll	menus/CoFOptions.cpp:1296
+Pick a button, then its action below. Or press Enter on a button and then another gamepad button to swap the two.	Välj en knapp och sedan dess åtgärd nedan. Eller tryck Enter på en knapp och sedan en annan knapp på handkontrollen för att byta dem.	menus/CoFOptions.cpp:1310
+Press the gamepad button to swap with this one	Tryck på knappen på handkontrollen som ska bytas med den här	menus/CoFOptions.cpp:1312
+Reset every gamepad button to the default layout?	Återställa alla knappar på handkontrollen till standardlayouten?	menus/CoFOptions.cpp:1315
+PRESS A BUTTON	TRYCK PÅ EN KNAPP	menus/CoFOptions.cpp:1349
+# options relayout (Game, Controls, Keybinds, Gamepad controls), 2026-09-23: machine-drafted like the rest, please review
+Select	Välj	controls/Framework.cpp:295
+Tabs	Flikar	controls/Framework.cpp:303
+Resume	Fortsätt	controls/Framework.cpp:313
+Gamepad	Handkontroll	menus/CoFOptions.cpp:1610
+Gyro aiming	Gyrosikte	menus/CoFOptions.cpp:404
+Aim by tilting a pad that has a gyroscope	Sikta genom att luta en handkontroll med gyroskop	menus/CoFOptions.cpp:404
+Gyro sensitivity	Gyrokänslighet	menus/CoFOptions.cpp:405
+How far the view turns for a tilt of the pad	Hur mycket vyn vrids när handkontrollen lutas	menus/CoFOptions.cpp:406
+In the menus: A confirm · B back · LB/RB tabs · X use defaults · Start resume	I menyerna: A bekräftar · B tillbaka · LB/RB flikar · X standard · Start fortsätt	menus/CoFOptions.cpp:1363
+# options relayout (Game, Controls, Keybinds, Gamepad controls), 2026-09-23: machine-drafted like the rest, please review
+Crouch (toggle)	Huka (växla)	model/KbActListModel.h:109;menus/CoFOptions.cpp:1042
+# on-screen keyboard (menus/CoFOsk.cpp), 2026-09-23: machine-drafted like the rest, please review
+KEYBOARD	TANGENTBORD	menus/CoFOsk.cpp
+Caps	Caps	menus/CoFOsk.cpp
+Shift	Shift	menus/CoFOsk.cpp
+ABC	ABC	menus/CoFOsk.cpp
+Space	Mellanslag	menus/CoFOsk.cpp
+Type	Skriv	menus/CoFOsk.cpp
+Clear	Rensa	menus/CoFOsk.cpp
+Symbols	Symboler	menus/CoFOsk.cpp

@@ -483,3 +483,85 @@ LAN servers	Serveurs LAN	menus/CoFCoop.cpp:685
 Servers on the local network	Serveurs du réseau local	menus/CoFCoop.cpp:685
 Connect	Se connecter	menus/CoFCoop.cpp:689
 Connect to this address	Se connecter à cette adresse	menus/CoFCoop.cpp:689
+# options relayout (Game, Controls, Keybinds, Gamepad controls), 2026-09-23: machine-drafted like the rest, please review
+Keybinds	Touches	menus/Configuration.cpp:88
+Pause on Inventory	Pause dans l'inventaire	menus/AdvancedControls.cpp:778
+Pause the game while the inventory, notes and other item pages are open	Met le jeu en pause quand l'inventaire, les notes et les autres pages d'objets sont ouverts	menus/AdvancedControls.cpp:779
+Transparent UI background	Fond d'interface transparent	menus/AdvancedControls.cpp:783
+Show the game world behind the inventory, notes and the tape recorder page instead of black	Affiche le monde du jeu derrière l'inventaire, les notes et la page du magnétophone au lieu du noir	menus/AdvancedControls.cpp:784
+KEYBINDS	TOUCHES	menus/Controls.cpp:251
+AIMING AND MOUSE	VISÉE ET SOURIS	menus/CoFOptions.cpp:339
+GAMEPAD	MANETTE	menus/CoFOptions.cpp:340
+Enable gamepad	Activer la manette	menus/CoFOptions.cpp:362
+Use a connected gamepad for moving, looking and the button actions	Utilise une manette branchée pour se déplacer, regarder et les actions des boutons	menus/CoFOptions.cpp:362
+Invert look	Inverser la vue	menus/CoFOptions.cpp:363
+Push the look stick up to look down	Pousser le stick de vue vers le haut pour regarder en bas	menus/CoFOptions.cpp:363
+Swap sticks	Inverser les sticks	menus/CoFOptions.cpp:365
+Look with the left stick and move with the right stick	Regarder avec le stick gauche et se déplacer avec le droit	menus/CoFOptions.cpp:365
+Look speed, horizontal	Vitesse de vue horizontale	menus/CoFOptions.cpp:368
+How fast the view turns with the look stick fully pushed, in degrees per second	Vitesse de rotation de la vue avec le stick à fond, en degrés par seconde	menus/CoFOptions.cpp:369;menus/CoFOptions.cpp:372
+Look speed, vertical	Vitesse de vue verticale	menus/CoFOptions.cpp:371
+Look stick deadzone	Zone morte du stick de vue	menus/CoFOptions.cpp:374
+How far a stick has to move before it counts, in percent of its travel	Course du stick avant qu'un mouvement compte, en pourcentage	menus/CoFOptions.cpp:375;menus/CoFOptions.cpp:379
+Move stick deadzone	Zone morte du stick de déplacement	menus/CoFOptions.cpp:378
+Trigger threshold	Seuil des gâchettes	menus/CoFOptions.cpp:382
+How far a trigger has to be pulled to count as pressed, in percent	Course d'une gâchette avant qu'elle compte comme pressée, en pourcentage	menus/CoFOptions.cpp:383
+FACE BUTTONS	BOUTONS D'ACTION	menus/CoFOptions.cpp:575
+Cross	Croix	menus/CoFOptions.cpp:576
+Circle	Rond	menus/CoFOptions.cpp:577
+Square	Carré	menus/CoFOptions.cpp:578
+Triangle	Triangle	menus/CoFOptions.cpp:579
+SHOULDERS AND TRIGGERS	BOUTONS DE TRANCHE ET GÂCHETTES	menus/CoFOptions.cpp:580
+LB	LB	menus/CoFOptions.cpp:581
+RB	RB	menus/CoFOptions.cpp:582
+LT	LT	menus/CoFOptions.cpp:583
+RT	RT	menus/CoFOptions.cpp:584
+STICKS	STICKS	menus/CoFOptions.cpp:585
+Left stick click	Clic du stick gauche	menus/CoFOptions.cpp:586
+Right stick click	Clic du stick droit	menus/CoFOptions.cpp:587
+D-PAD	CROIX DIRECTIONNELLE	menus/CoFOptions.cpp:588
+D-pad up	Croix haut	menus/CoFOptions.cpp:589
+D-pad down	Croix bas	menus/CoFOptions.cpp:590
+D-pad left	Croix gauche	menus/CoFOptions.cpp:591
+D-pad right	Croix droite	menus/CoFOptions.cpp:592
+MENU BUTTONS	BOUTONS DE MENU	menus/CoFOptions.cpp:593
+Menu	Menu	menus/CoFOptions.cpp:594
+View	Affichage	menus/CoFOptions.cpp:595
+Create	Create	menus/CoFOptions.cpp:595
+Xbox	Xbox	menus/CoFOptions.cpp:679
+PlayStation	PlayStation	menus/CoFOptions.cpp:679
+Not bound	Non assigné	menus/CoFOptions.cpp:786;menus/CoFOptions.cpp:973
+Open the menu	Ouvrir le menu	menus/CoFOptions.cpp:994
+Config key: %s	Nom dans la config : %s	menus/CoFOptions.cpp:1065
+The default key list has no gamepad buttons yet.	La liste de touches par défaut ne contient pas encore de boutons de manette.	menus/CoFOptions.cpp:1217
+GAMEPAD CONTROLS	COMMANDES DE LA MANETTE	menus/CoFOptions.cpp:1275
+Button	Bouton	menus/CoFOptions.cpp:1281
+Action for the selected button	Action du bouton choisi	menus/CoFOptions.cpp:1285
+The action this button performs in the game	L'action de ce bouton dans le jeu	menus/CoFOptions.cpp:1289
+Button style	Style des boutons	menus/CoFOptions.cpp:1292
+Button names and pictures of an Xbox or a PlayStation controller	Noms et images des boutons d'une manette Xbox ou PlayStation	menus/CoFOptions.cpp:1296
+Pick a button, then its action below. Or press Enter on a button and then another gamepad button to swap the two.	Choisissez un bouton, puis son action en dessous. Ou appuyez sur Entrée sur un bouton puis sur un autre bouton de la manette pour les échanger.	menus/CoFOptions.cpp:1310
+Press the gamepad button to swap with this one	Appuyez sur le bouton de la manette à échanger avec celui-ci	menus/CoFOptions.cpp:1312
+Reset every gamepad button to the default layout?	Rétablir la disposition par défaut de tous les boutons de la manette ?	menus/CoFOptions.cpp:1315
+PRESS A BUTTON	APPUYEZ SUR UN BOUTON	menus/CoFOptions.cpp:1349
+# options relayout (Game, Controls, Keybinds, Gamepad controls), 2026-09-23: machine-drafted like the rest, please review
+Select	Choisir	controls/Framework.cpp:295
+Tabs	Onglets	controls/Framework.cpp:303
+Resume	Reprendre	controls/Framework.cpp:313
+Gamepad	Manette	menus/CoFOptions.cpp:1610
+Gyro aiming	Visée gyroscopique	menus/CoFOptions.cpp:404
+Aim by tilting a pad that has a gyroscope	Viser en inclinant une manette dotée d'un gyroscope	menus/CoFOptions.cpp:404
+Gyro sensitivity	Sensibilité du gyroscope	menus/CoFOptions.cpp:405
+How far the view turns for a tilt of the pad	Rotation de la vue pour une inclinaison de la manette	menus/CoFOptions.cpp:406
+In the menus: A confirm · B back · LB/RB tabs · X use defaults · Start resume	Dans les menus : A valide · B retour · LB/RB onglets · X par défaut · Start reprendre	menus/CoFOptions.cpp:1363
+# options relayout (Game, Controls, Keybinds, Gamepad controls), 2026-09-23: machine-drafted like the rest, please review
+Crouch (toggle)	S'accroupir (bascule)	model/KbActListModel.h:109;menus/CoFOptions.cpp:1042
+# on-screen keyboard (menus/CoFOsk.cpp), 2026-09-23: machine-drafted like the rest, please review
+KEYBOARD	CLAVIER	menus/CoFOsk.cpp
+Caps	Verr. Maj	menus/CoFOsk.cpp
+Shift	Maj	menus/CoFOsk.cpp
+ABC	ABC	menus/CoFOsk.cpp
+Space	Espace	menus/CoFOsk.cpp
+Type	Taper	menus/CoFOsk.cpp
+Clear	Effacer	menus/CoFOsk.cpp
+Symbols	Symboles	menus/CoFOsk.cpp

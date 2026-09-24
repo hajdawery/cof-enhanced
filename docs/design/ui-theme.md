@@ -1810,3 +1810,95 @@ reference file and restored afterwards (`unlock2-all`, `unlock2-canon`):
 `unlockables page 27 rows: 27 unlocked, 0 locked, 0 unknown; Nightmare (line 83)
 unlocked` and Nightmare selectable on the New Game page; with the canonical file
 27 locked and Nightmare shown as Locked.
+
+## Options relayout, tabbed windows and the pad, 2026-09-23
+
+`patches/cof-mainui-options-layout.patch` (MainUI only, applied by
+`scripts/apply-cof-mainui-options-layout.ps1` as step 48 of the
+[patch stack](../dev/patch-stack.md), after the notifications option and
+before the cheats). Evidence and screenshots: `stage1/options-20260923`
+(RESULTS.md). Supersedes the Options list page described above for Cry of
+Fear: Options, Extras and Save / Load are now tabbed windows.
+
+### Tabbed windows
+
+Each tab is still its own page class. A page whose panel title belongs to a
+tab group (`UI_CoFTabGroup`, `menus/CoFOptions.cpp`) gets, from
+`controls/Framework.cpp`:
+
+* the group's title in the title band and a tab strip under it (active tab:
+  selection fill and an accent underline; mouse hover: hover fill);
+* one frame for every tab, 960 x 680 virtual units (`COF_TAB_FRAME_W/H`), so
+  the window never moves; `ContentRect()` starts below the strip, so every
+  page lays itself out inside it unchanged;
+* tab switching in place with no fade (`GoToTab`: the page leaves the stack,
+  the tab's page comes in, the window underneath is never shown), by a mouse
+  click on a tab or LB / RB on a pad (wrapping);
+* B / Escape closes the whole window, back to the main or pause menu.
+
+| window | opened by | tabs (panel title of the page) |
+| --- | --- | --- |
+| Options | main and pause menu *Options* (`UI_Options_Menu` opens the first tab; the list page stays the WON / other-game path) | Game (`GAME`), Controls (`CONTROLS`), Keybinds (`KEYBINDS`), Gamepad (`GAMEPAD CONTROLS`), Audio (`AUDIO`), Video (`VIDEO`) |
+| Extras | main menu *Extras* (was a second-level list) | Host co-op, Join co-op, Unlockables, Links (`EXTRAS`), Credits |
+| Save / Load | *Load Game*, pause *Save Game* | Load Game; Save Game only in play, single player, with *Pause menu saves* on |
+
+### The four input tabs
+
+| tab | items (cvar) |
+| --- | --- |
+| Game | Crosshair (`crosshair`), Look spring (`lookspring`, greyed while mouse look is on), Enable console (`con_enable`), Pause menu saves (`cof_pause_menu_saves`), Show console notifications (`cof_notify`), **Pause on Inventory** (`cof_panel_pause`, 0/1), **Transparent UI background** (`cof_panel_transparent`, 0/1, engine default 1), Input devices, Language, HUD scale |
+| Controls | Aim down sights Hold/Toggle (`cof_ads_toggle`, live), Mouse sensitivity (`sensitivity`), Raw mouse input (`m_rawinput`), Auto-aim (`sv_aim`), Mouse filter (`look_filter` / `m_filter`), Mouse look (`+mlook` state), Reverse mouse (`m_pitch` sign), Look strafe (`lookstrafe`); gamepad: Enable gamepad (`joy_enable`), Invert look (`joy_pitch` sign), Swap sticks (`joy_axis_binding` `sfpyrl` / `ypfsrl`), Gyro aiming (`joy_gyro_enable`), Look speed horizontal / vertical (`joy_yaw`, `joy_pitch`, 20-400 degrees/s), Look stick deadzone (`joy_pitch_deadzone` + `joy_yaw_deadzone`, percent of 32767), Move stick deadzone (`joy_forward_deadzone` + `joy_side_deadzone`), Trigger threshold (`joy_lt_threshold` + `joy_rt_threshold`), Gyro sensitivity (`joy_gyro_yaw` + `joy_gyro_pitch`) |
+| Keybinds | the old Controls key list; binds through `KEY_SetBinding`; pad buttons are left to the Gamepad tab (not listed, not cleared); *Crouch (toggle)* (`cof_duck_toggle`, gamepad round) added under Crouch in code - the game's `kb_act.lst` is not shipped modified |
+| Gamepad | every pad button (A B X Y, LB RB LT RT, L3 R3, D-pad, Menu/View) with its icon, name (Xbox or PlayStation, `cof_pad_style`, saved, menu-registered) and bound action, read from the engine's binds; the controller picture marks the selected button; *Action for the selected button* rebinds it (list = `kb_act.lst` actions + `cof_duck_toggle` + `cancelselect` + every command in the pad lines of `kb_def.lst` and the current pad binds); Enter/A on a row then another pad button swaps the two; Delete clears; *Use defaults* clears the pad buttons and applies the pad lines of `gfx/shell/kb_def.lst` (nothing when it has none); Cancel restores the binds the page opened with; OK writes `config.cfg` |
+
+Controls writes on Close (Escape leaves without writing); the gamepad values
+only when moved, so an engine value the slider can show only rounded (4096 =
+"13 %") survives. The Game tab's two panel switches link only to a cvar that
+exists; an engine without them shows the defaults (0 / 1) and keeps a changed
+value as a session variable.
+
+### The pad
+
+The engine gives every key to `UI_KeyEvent` in menu mode, pad buttons
+included (`K_A_BUTTON`...). What the menu does with them now:
+
+| input | effect |
+| --- | --- |
+| D-pad / left stick | move the focus (stock); greyed controls are skipped (`ItemsHolder.cpp`, theme only) |
+| A | activate / toggle (stock `IsEnter`) |
+| B | back / close (stock `IsEscape`); on a tabbed window closes the window; nothing on the death page (it swallows Escape: there is nowhere to go back to), which therefore shows no Back prompt |
+| LB / RB | previous / next tab (before the focused control sees it); on the keyboard Tab / Shift+Tab do the same (since m8; they no longer move the focus inside a tabbed window) |
+| X | the page's secondary action (`pPadSecondary`): *Use defaults* on Keybinds and Gamepad |
+| LT / RT | page a list up / down (`Table.cpp`); right stick: nothing (the engine sends no menu keys for it) |
+| Start | in play, from any root menu page: resume (`UI_CloseMenu`); not on the death page, not inside a dialog or a key-capture box |
+
+On open, the first focusable control inside the content area gets the focus
+(not the title-band X, not the button row); in pad mode it is also drawn
+(`QMF_HASKEYBOARDFOCUS`); a focused slider lights its label. While a pad is
+the last input device (a pad key since the last keyboard key, mouse button or
+mouse move; the engine's `cof_last_input` wins when it exists) a hints line
+under the panel (or at the bottom of a list menu) shows the glyph and the
+action: A Select, B Back (not on the death page), LB RB Tabs (two tabs or
+more), X + the secondary action, Start Resume in play. Glyphs are 34 virtual units (48 px at 1080p,
+96 at 2160p), white on a dark chip, with a text label each; the Gamepad tab's
+list rows are 24 units so its icons stay above 24 px at 1080p.
+
+### Test hooks (cfg-only)
+
+* `menu_cof_options_select <options|game|controls|keybinds|gamepad> ...`:
+  opens a tab and sets a control the way a click does (value, then
+  QM_CHANGED), presses Close/OK/Cancel, binds on Keybinds
+  (`keybinds <command> <KEY>`), and on Gamepad selects a row, sets its action,
+  swaps (`press <KEY> <KEY>`), clears, switches the style or applies defaults.
+* `menu_cof_key <KEY> [down|up]`: calls `UI_KeyEvent` with that key number,
+  the exact path a pad button takes in menu mode (an in-process menu event,
+  not input injection); prints the window and the focused control.
+
+### Art
+
+`gamedata/cryoffear/gfx/shell/gamepad/`: 32 icons (Zacksly "Buttons Full
+Solid", white, 128 px, unmodified), two controller pictures (cropped and
+resized to 1024 px), `icons.txt` (engine key, Xbox file, PS5 file, labels,
+marker position on the picture; also meant for the later in-game prompt
+stage) and `LICENSE-Zacksly.txt`; built by `scripts/make-gamepad-assets.py`.
+CC BY 3.0, see `THIRD-PARTY-NOTICES.md`.

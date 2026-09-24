@@ -483,3 +483,85 @@ LAN servers	LAN-servere	menus/CoFCoop.cpp:685
 Servers on the local network	Servere i lokalnettet	menus/CoFCoop.cpp:685
 Connect	Koble til	menus/CoFCoop.cpp:689
 Connect to this address	Koble til denne adressen	menus/CoFCoop.cpp:689
+# options relayout (Game, Controls, Keybinds, Gamepad controls), 2026-09-23: machine-drafted like the rest, please review
+Keybinds	Tastetildeling	menus/Configuration.cpp:88
+Pause on Inventory	Pause i inventaret	menus/AdvancedControls.cpp:778
+Pause the game while the inventory, notes and other item pages are open	Setter spillet på pause mens inventaret, notater og andre gjenstandssider er åpne	menus/AdvancedControls.cpp:779
+Transparent UI background	Gjennomsiktig UI-bakgrunn	menus/AdvancedControls.cpp:783
+Show the game world behind the inventory, notes and the tape recorder page instead of black	Viser spillverdenen bak inventaret, notater og båndopptakersiden i stedet for svart	menus/AdvancedControls.cpp:784
+KEYBINDS	TASTETILDELING	menus/Controls.cpp:251
+AIMING AND MOUSE	SIKTING OG MUS	menus/CoFOptions.cpp:339
+GAMEPAD	HÅNDKONTROLL	menus/CoFOptions.cpp:340
+Enable gamepad	Aktiver håndkontroll	menus/CoFOptions.cpp:362
+Use a connected gamepad for moving, looking and the button actions	Bruk en tilkoblet håndkontroll til bevegelse, å se deg rundt og knappehandlingene	menus/CoFOptions.cpp:362
+Invert look	Inverter blikk	menus/CoFOptions.cpp:363
+Push the look stick up to look down	Skyv siktespaken opp for å se ned	menus/CoFOptions.cpp:363
+Swap sticks	Bytt spaker	menus/CoFOptions.cpp:365
+Look with the left stick and move with the right stick	Se med venstre spak og beveg deg med høyre	menus/CoFOptions.cpp:365
+Look speed, horizontal	Siktefart, vannrett	menus/CoFOptions.cpp:368
+How fast the view turns with the look stick fully pushed, in degrees per second	Hvor fort synet snur med siktespaken helt ute, i grader per sekund	menus/CoFOptions.cpp:369;menus/CoFOptions.cpp:372
+Look speed, vertical	Siktefart, loddrett	menus/CoFOptions.cpp:371
+Look stick deadzone	Dødsone for siktespak	menus/CoFOptions.cpp:374
+How far a stick has to move before it counts, in percent of its travel	Hvor langt en spak må beveges før det teller, i prosent av utslaget	menus/CoFOptions.cpp:375;menus/CoFOptions.cpp:379
+Move stick deadzone	Dødsone for bevegelsesspak	menus/CoFOptions.cpp:378
+Trigger threshold	Avtrekkerterskel	menus/CoFOptions.cpp:382
+How far a trigger has to be pulled to count as pressed, in percent	Hvor langt en avtrekker må trykkes for å telle som trykket, i prosent	menus/CoFOptions.cpp:383
+FACE BUTTONS	HANDLINGSKNAPPER	menus/CoFOptions.cpp:575
+Cross	Kryss	menus/CoFOptions.cpp:576
+Circle	Sirkel	menus/CoFOptions.cpp:577
+Square	Firkant	menus/CoFOptions.cpp:578
+Triangle	Trekant	menus/CoFOptions.cpp:579
+SHOULDERS AND TRIGGERS	SKULDERKNAPPER OG AVTREKKERE	menus/CoFOptions.cpp:580
+LB	LB	menus/CoFOptions.cpp:581
+RB	RB	menus/CoFOptions.cpp:582
+LT	LT	menus/CoFOptions.cpp:583
+RT	RT	menus/CoFOptions.cpp:584
+STICKS	SPAKER	menus/CoFOptions.cpp:585
+Left stick click	Trykk venstre spak	menus/CoFOptions.cpp:586
+Right stick click	Trykk høyre spak	menus/CoFOptions.cpp:587
+D-PAD	STYREKORS	menus/CoFOptions.cpp:588
+D-pad up	Styrekors opp	menus/CoFOptions.cpp:589
+D-pad down	Styrekors ned	menus/CoFOptions.cpp:590
+D-pad left	Styrekors venstre	menus/CoFOptions.cpp:591
+D-pad right	Styrekors høyre	menus/CoFOptions.cpp:592
+MENU BUTTONS	MENYKNAPPER	menus/CoFOptions.cpp:593
+Menu	Meny	menus/CoFOptions.cpp:594
+View	Visning	menus/CoFOptions.cpp:595
+Create	Create	menus/CoFOptions.cpp:595
+Xbox	Xbox	menus/CoFOptions.cpp:679
+PlayStation	PlayStation	menus/CoFOptions.cpp:679
+Not bound	Ikke tildelt	menus/CoFOptions.cpp:786;menus/CoFOptions.cpp:973
+Open the menu	Åpne menyen	menus/CoFOptions.cpp:994
+Config key: %s	Navn i oppsettet: %s	menus/CoFOptions.cpp:1065
+The default key list has no gamepad buttons yet.	Standardtastelisten har ingen håndkontrollknapper ennå.	menus/CoFOptions.cpp:1217
+GAMEPAD CONTROLS	HÅNDKONTROLLKNAPPER	menus/CoFOptions.cpp:1275
+Button	Knapp	menus/CoFOptions.cpp:1281
+Action for the selected button	Handling for valgt knapp	menus/CoFOptions.cpp:1285
+The action this button performs in the game	Handlingen denne knappen utfører i spillet	menus/CoFOptions.cpp:1289
+Button style	Knappestil	menus/CoFOptions.cpp:1292
+Button names and pictures of an Xbox or a PlayStation controller	Knappenavn og bilder for en Xbox- eller PlayStation-kontroller	menus/CoFOptions.cpp:1296
+Pick a button, then its action below. Or press Enter on a button and then another gamepad button to swap the two.	Velg en knapp og så handlingen under. Eller trykk Enter på en knapp og så en annen knapp på håndkontrollen for å bytte dem.	menus/CoFOptions.cpp:1310
+Press the gamepad button to swap with this one	Trykk knappen på håndkontrollen som skal byttes med denne	menus/CoFOptions.cpp:1312
+Reset every gamepad button to the default layout?	Tilbakestille alle knappene på håndkontrollen til standardoppsettet?	menus/CoFOptions.cpp:1315
+PRESS A BUTTON	TRYKK EN KNAPP	menus/CoFOptions.cpp:1349
+# options relayout (Game, Controls, Keybinds, Gamepad controls), 2026-09-23: machine-drafted like the rest, please review
+Select	Velg	controls/Framework.cpp:295
+Tabs	Faner	controls/Framework.cpp:303
+Resume	Fortsett	controls/Framework.cpp:313
+Gamepad	Håndkontroll	menus/CoFOptions.cpp:1610
+Gyro aiming	Gyrosikting	menus/CoFOptions.cpp:404
+Aim by tilting a pad that has a gyroscope	Sikt ved å vippe en håndkontroll med gyroskop	menus/CoFOptions.cpp:404
+Gyro sensitivity	Gyrofølsomhet	menus/CoFOptions.cpp:405
+How far the view turns for a tilt of the pad	Hvor mye synet snur når håndkontrollen vippes	menus/CoFOptions.cpp:406
+In the menus: A confirm · B back · LB/RB tabs · X use defaults · Start resume	I menyene: A bekrefter · B tilbake · LB/RB faner · X standard · Start fortsett	menus/CoFOptions.cpp:1363
+# options relayout (Game, Controls, Keybinds, Gamepad controls), 2026-09-23: machine-drafted like the rest, please review
+Crouch (toggle)	Huk deg (av/på)	model/KbActListModel.h:109;menus/CoFOptions.cpp:1042
+# on-screen keyboard (menus/CoFOsk.cpp), 2026-09-23: machine-drafted like the rest, please review
+KEYBOARD	TASTATUR	menus/CoFOsk.cpp
+Caps	Caps	menus/CoFOsk.cpp
+Shift	Shift	menus/CoFOsk.cpp
+ABC	ABC	menus/CoFOsk.cpp
+Space	Mellomrom	menus/CoFOsk.cpp
+Type	Skriv	menus/CoFOsk.cpp
+Clear	Tøm	menus/CoFOsk.cpp
+Symbols	Symboler	menus/CoFOsk.cpp

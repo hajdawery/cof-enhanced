@@ -483,3 +483,85 @@ LAN servers	LAN-servers	menus/CoFCoop.cpp:685
 Servers on the local network	Servers in het lokale netwerk	menus/CoFCoop.cpp:685
 Connect	Verbinden	menus/CoFCoop.cpp:689
 Connect to this address	Met dit adres verbinden	menus/CoFCoop.cpp:689
+# options relayout (Game, Controls, Keybinds, Gamepad controls), 2026-09-23: machine-drafted like the rest, please review
+Keybinds	Toetsen	menus/Configuration.cpp:88
+Pause on Inventory	Pauze in inventaris	menus/AdvancedControls.cpp:778
+Pause the game while the inventory, notes and other item pages are open	Pauzeert het spel zolang de inventaris, notities en andere voorwerppagina's open zijn	menus/AdvancedControls.cpp:779
+Transparent UI background	Transparante UI-achtergrond	menus/AdvancedControls.cpp:783
+Show the game world behind the inventory, notes and the tape recorder page instead of black	Toont de spelwereld achter de inventaris, notities en de bandrecorderpagina in plaats van zwart	menus/AdvancedControls.cpp:784
+KEYBINDS	TOETSEN	menus/Controls.cpp:251
+AIMING AND MOUSE	RICHTEN EN MUIS	menus/CoFOptions.cpp:339
+GAMEPAD	GAMEPAD	menus/CoFOptions.cpp:340
+Enable gamepad	Gamepad inschakelen	menus/CoFOptions.cpp:362
+Use a connected gamepad for moving, looking and the button actions	Gebruik een aangesloten gamepad voor lopen, rondkijken en de knopacties	menus/CoFOptions.cpp:362
+Invert look	Kijken omkeren	menus/CoFOptions.cpp:363
+Push the look stick up to look down	Duw de kijkstick omhoog om omlaag te kijken	menus/CoFOptions.cpp:363
+Swap sticks	Sticks wisselen	menus/CoFOptions.cpp:365
+Look with the left stick and move with the right stick	Kijken met de linkerstick en lopen met de rechterstick	menus/CoFOptions.cpp:365
+Look speed, horizontal	Kijksnelheid, horizontaal	menus/CoFOptions.cpp:368
+How fast the view turns with the look stick fully pushed, in degrees per second	Hoe snel het beeld draait met de kijkstick volledig ingedrukt, in graden per seconde	menus/CoFOptions.cpp:369;menus/CoFOptions.cpp:372
+Look speed, vertical	Kijksnelheid, verticaal	menus/CoFOptions.cpp:371
+Look stick deadzone	Dode zone kijkstick	menus/CoFOptions.cpp:374
+How far a stick has to move before it counts, in percent of its travel	Hoe ver een stick moet bewegen voordat het telt, in procent van de slag	menus/CoFOptions.cpp:375;menus/CoFOptions.cpp:379
+Move stick deadzone	Dode zone loopstick	menus/CoFOptions.cpp:378
+Trigger threshold	Drempel triggers	menus/CoFOptions.cpp:382
+How far a trigger has to be pulled to count as pressed, in percent	Hoe ver een trigger ingedrukt moet worden om als ingedrukt te tellen, in procent	menus/CoFOptions.cpp:383
+FACE BUTTONS	ACTIEKNOPPEN	menus/CoFOptions.cpp:575
+Cross	Kruis	menus/CoFOptions.cpp:576
+Circle	Rondje	menus/CoFOptions.cpp:577
+Square	Vierkant	menus/CoFOptions.cpp:578
+Triangle	Driehoek	menus/CoFOptions.cpp:579
+SHOULDERS AND TRIGGERS	SCHOUDERKNOPPEN EN TRIGGERS	menus/CoFOptions.cpp:580
+LB	LB	menus/CoFOptions.cpp:581
+RB	RB	menus/CoFOptions.cpp:582
+LT	LT	menus/CoFOptions.cpp:583
+RT	RT	menus/CoFOptions.cpp:584
+STICKS	STICKS	menus/CoFOptions.cpp:585
+Left stick click	Linkerstick indrukken	menus/CoFOptions.cpp:586
+Right stick click	Rechterstick indrukken	menus/CoFOptions.cpp:587
+D-PAD	D-PAD	menus/CoFOptions.cpp:588
+D-pad up	D-pad omhoog	menus/CoFOptions.cpp:589
+D-pad down	D-pad omlaag	menus/CoFOptions.cpp:590
+D-pad left	D-pad links	menus/CoFOptions.cpp:591
+D-pad right	D-pad rechts	menus/CoFOptions.cpp:592
+MENU BUTTONS	MENUKNOPPEN	menus/CoFOptions.cpp:593
+Menu	Menu	menus/CoFOptions.cpp:594
+View	Weergave	menus/CoFOptions.cpp:595
+Create	Create	menus/CoFOptions.cpp:595
+Xbox	Xbox	menus/CoFOptions.cpp:679
+PlayStation	PlayStation	menus/CoFOptions.cpp:679
+Not bound	Niet toegewezen	menus/CoFOptions.cpp:786;menus/CoFOptions.cpp:973
+Open the menu	Menu openen	menus/CoFOptions.cpp:994
+Config key: %s	Naam in configuratie: %s	menus/CoFOptions.cpp:1065
+The default key list has no gamepad buttons yet.	De standaardtoetsenlijst heeft nog geen gamepadknoppen.	menus/CoFOptions.cpp:1217
+GAMEPAD CONTROLS	GAMEPADBESTURING	menus/CoFOptions.cpp:1275
+Button	Knop	menus/CoFOptions.cpp:1281
+Action for the selected button	Actie van de gekozen knop	menus/CoFOptions.cpp:1285
+The action this button performs in the game	De actie die deze knop in het spel uitvoert	menus/CoFOptions.cpp:1289
+Button style	Knopstijl	menus/CoFOptions.cpp:1292
+Button names and pictures of an Xbox or a PlayStation controller	Knopnamen en afbeeldingen van een Xbox- of PlayStation-controller	menus/CoFOptions.cpp:1296
+Pick a button, then its action below. Or press Enter on a button and then another gamepad button to swap the two.	Kies een knop en daaronder de actie. Of druk op Enter bij een knop en daarna op een andere gamepadknop om ze te wisselen.	menus/CoFOptions.cpp:1310
+Press the gamepad button to swap with this one	Druk op de gamepadknop die met deze moet wisselen	menus/CoFOptions.cpp:1312
+Reset every gamepad button to the default layout?	Alle gamepadknoppen terugzetten naar de standaardindeling?	menus/CoFOptions.cpp:1315
+PRESS A BUTTON	DRUK OP EEN KNOP	menus/CoFOptions.cpp:1349
+# options relayout (Game, Controls, Keybinds, Gamepad controls), 2026-09-23: machine-drafted like the rest, please review
+Select	Kiezen	controls/Framework.cpp:295
+Tabs	Tabbladen	controls/Framework.cpp:303
+Resume	Hervatten	controls/Framework.cpp:313
+Gamepad	Gamepad	menus/CoFOptions.cpp:1610
+Gyro aiming	Gyro-richten	menus/CoFOptions.cpp:404
+Aim by tilting a pad that has a gyroscope	Richten door een gamepad met gyroscoop te kantelen	menus/CoFOptions.cpp:404
+Gyro sensitivity	Gyrogevoeligheid	menus/CoFOptions.cpp:405
+How far the view turns for a tilt of the pad	Hoe ver het beeld draait bij het kantelen van de gamepad	menus/CoFOptions.cpp:406
+In the menus: A confirm · B back · LB/RB tabs · X use defaults · Start resume	In menu's: A bevestigt · B terug · LB/RB tabbladen · X standaard · Start hervatten	menus/CoFOptions.cpp:1363
+# options relayout (Game, Controls, Keybinds, Gamepad controls), 2026-09-23: machine-drafted like the rest, please review
+Crouch (toggle)	Bukken (wisselen)	model/KbActListModel.h:109;menus/CoFOptions.cpp:1042
+# on-screen keyboard (menus/CoFOsk.cpp), 2026-09-23: machine-drafted like the rest, please review
+KEYBOARD	TOETSENBORD	menus/CoFOsk.cpp
+Caps	Caps	menus/CoFOsk.cpp
+Shift	Shift	menus/CoFOsk.cpp
+ABC	ABC	menus/CoFOsk.cpp
+Space	Spatie	menus/CoFOsk.cpp
+Type	Typen	menus/CoFOsk.cpp
+Clear	Wissen	menus/CoFOsk.cpp
+Symbols	Symbolen	menus/CoFOsk.cpp

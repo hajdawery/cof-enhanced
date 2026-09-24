@@ -1,0 +1,3100 @@
+diff --git a/3rdparty/mainui/BaseMenu.cpp b/3rdparty/mainui/BaseMenu.cpp
+--- a/3rdparty/mainui/BaseMenu.cpp
++++ b/3rdparty/mainui/BaseMenu.cpp
+@@ -29,6 +29,7 @@
+ #include "YesNoMessageBox.h"
+ #include "BackgroundBitmap.h"
+ #include "FontManager.h"
++#include "menus/CoFOptions.h"
+ #include "cursor_type.h"
+ #include "utflib.h"
+ 
+@@ -752,6 +753,11 @@
+ 	if( !uiStatic.initialized )
+ 		return;
+ 
++	// Cry of Fear: the last input device (pad or not) and Start = resume
++	// (menus/CoFOptions.cpp)
++	if( UI_CoFInputEvent( key, down ))
++		return;
++
+ 	if( key == K_MOUSE1 )
+ 	{
+ 		g_bCursorDown = !!down;
+@@ -812,6 +818,8 @@
+ 
+ 	if( uiStatic.cursorX == x && uiStatic.cursorY == y )
+ 		return;
++
++	UI_CoFInputMouse();
+ 
+ 	if( g_bCursorDown )
+ 	{
+diff --git a/3rdparty/mainui/controls/Framework.cpp b/3rdparty/mainui/controls/Framework.cpp
+--- a/3rdparty/mainui/controls/Framework.cpp
++++ b/3rdparty/mainui/controls/Framework.cpp
+@@ -14,6 +14,9 @@
+ */
+ #include "Framework.h"
+ #include "PicButton.h"
++#include "keydefs.h"
++#include "FontManager.h"
++#include "CoFOptions.h"
+ 
+ // menu banners used fiexed rectangle (virtual screenspace at 640x480)
+ #define UI_BANNER_POSX		72
+@@ -31,6 +34,7 @@
+ 	bCloseAdded = false;
+ 	panelSize = Size( 560, 400 );
+ 	szPanelTitle = NULL;
++	pPadSecondary = NULL;
+ }
+ 
+ void CMenuFramework::SetPanel( const char *title, int w, int h )
+@@ -49,11 +53,321 @@
+ {
+ 	Point p = PanelPos();
+ 
++	const int tabs = TabStripH();
++
+ 	return Rect( p.x + THEME_PAD_X,
+-		p.y + THEME_TITLE_BAND_H + THEME_PAD_TOP,
++		p.y + THEME_TITLE_BAND_H + THEME_PAD_TOP + tabs,
+ 		panelSize.w - THEME_PAD_X * 2,
+ 		panelSize.h - THEME_TITLE_BAND_H - THEME_PAD_TOP - THEME_PAD_BOTTOM
+-			- THEME_BTNROW_H - THEME_BTNROW_GAP );
++			- THEME_BTNROW_H - THEME_BTNROW_GAP - tabs );
++}
++
++// ---------------------------------------------------------------------------
++// Cry of Fear tabbed windows (menus/CoFOptions.cpp)
++// ---------------------------------------------------------------------------
++
++int CMenuFramework::TabStripH() const
++{
++	return ( bPanel && UI_ThemeActive() && UI_CoFTabGroup( szPanelTitle, NULL )) ? COF_TAB_STRIP_H : 0;
++}
++
++// the tabs left to right from the content's left edge, each as wide as a
++// button with the same label; tabs the group hides right now take no room
++Rect CMenuFramework::TabRect( int index ) const
++{
++	int cur = 0;
++	const cofTabGroup_t *g = UI_CoFTabGroup( szPanelTitle, &cur );
++	Point p = PanelPos();
++	int x = p.x + THEME_PAD_X;
++	const int y = p.y + THEME_TITLE_BAND_H + 8;
++
++	for( int i = 0; g && i < g->count; i++ )
++	{
++		if( !UI_CoFTabAvailable( g, i ))
++			continue;
++
++		const int w = UI_ThemeButtonWidth( L( g->tabs[i].label ));
++
++		if( i == index )
++			return Rect( x, y, w, COF_TAB_H );
++		x += w + 4;
++	}
++	return Rect( 0, 0, 0, 0 );
++}
++
++void CMenuFramework::DrawTabStrip( void )
++{
++	int cur = 0;
++	const cofTabGroup_t *g = UI_CoFTabGroup( szPanelTitle, &cur );
++
++	if( !g )
++		return;
++
++	const int charH = (int)( THEME_BUTTON_TALL * uiStatic.scaleY );
++
++	for( int i = 0; i < g->count; i++ )
++	{
++		if( !UI_CoFTabAvailable( g, i ))
++			continue;
++
++		Rect r = TabRect( i );
++		Point pt = r.pt.Scale() + m_scPos;
++		Size sz = r.sz.Scale();
++		const bool active = i == cur;
++		const bool hover = !active && UI_CursorInRect( pt, sz ) && !UI_CoFPadMode();
++
++		if( active )
++			UI_FillRect( pt, sz, THEME_SELECT_FILL );
++		else if( hover )
++			UI_FillRect( pt, sz, THEME_HOVER_FILL );
++
++		if( active )
++		{
++			const int line = UI_ThemeHairline() * 2;
++			UI_FillRect( pt.x, pt.y + sz.h - line, sz.w, line, THEME_ACCENT );
++		}
++
++		UI_DrawString( uiStatic.hThemeButton, Point( pt.x, pt.y + ( sz.h - charH ) / 2 ), Size( sz.w, charH ),
++			L( g->tabs[i].label ), active || hover ? THEME_TEXT_HI : THEME_TEXT, charH,
++			QM_CENTER, ETF_FORCECOL | ETF_NO_WRAP );
++	}
++
++	Point p = PanelPos();
++	UI_ThemeSeparator( (int)(( p.x + THEME_PAD_X ) * uiStatic.scaleX ) + m_scPos.x,
++		(int)(( p.y + THEME_TITLE_BAND_H + 8 + COF_TAB_H ) * uiStatic.scaleY ) + m_scPos.y,
++		(int)(( panelSize.w - THEME_PAD_X * 2 ) * uiStatic.scaleX ), THEME_SEPARATOR );
++}
++
++/*
++=================
++CMenuFramework::GoToTab
++
++One window with tabs, built from separate pages: the page on screen leaves
++the stack and the tab's own page comes in, with no fade either way, so the
++switch looks like one window changing its content. The window under the tab
++pages (main or pause menu) is never shown in between.
++=================
++*/
++void CMenuFramework::GoToTab( int index )
++{
++	int cur = 0;
++	const cofTabGroup_t *g = UI_CoFTabGroup( szPanelTitle, &cur );
++
++	if( !g || index == cur || !UI_CoFTabAvailable( g, index ))
++		return;
++
++	Hide();
++	DisableTransition();
++
++	CMenuBaseWindow *below = m_pStack->Current();
++	if( below )
++		below->DisableTransition();
++
++	g->tabs[index].show();
++
++	if( below )
++		below->DisableTransition();
++
++	CMenuBaseWindow *top = m_pStack->Current();
++	if( top )
++		top->DisableTransition();
++}
++
++bool CMenuFramework::TabsKeyDown( int key )
++{
++	int cur = 0;
++	const cofTabGroup_t *g = UI_CoFTabGroup( szPanelTitle, &cur );
++
++	if( !g || !IsPanel( ))
++		return false;
++
++	// LB / RB, and Tab / Shift+Tab on the keyboard: the previous / next tab
++	// the group shows right now, wrapping
++	if( key == K_L1_BUTTON || key == K_R1_BUTTON || key == K_TAB )
++	{
++		const int dir = ( key == K_R1_BUTTON || ( key == K_TAB && !EngFuncs::KEY_IsDown( K_SHIFT ))) ? 1 : -1;
++
++		for( int n = 1; n < g->count; n++ )
++		{
++			const int i = ( cur + dir * n + g->count * n ) % g->count;
++
++			if( UI_CoFTabAvailable( g, i ))
++			{
++				PlayLocalSound( uiStatic.sounds[SND_MOVE] );
++				GoToTab( i );
++				break;
++			}
++		}
++		return true;
++	}
++
++	if( key == K_MOUSE1 )
++	{
++		for( int i = 0; i < g->count; i++ )
++		{
++			if( !UI_CoFTabAvailable( g, i ))
++				continue;
++
++			Rect r = TabRect( i );
++			if( UI_CursorInRect( r.pt.Scale() + m_scPos, r.sz.Scale( )))
++			{
++				if( i != cur )
++				{
++					PlayLocalSound( uiStatic.sounds[SND_LAUNCH] );
++					GoToTab( i );
++				}
++				return true;
++			}
++		}
++	}
++	return false;
++}
++
++/*
++=================
++CMenuFramework::FocusFirstItem
++
++A page opens with its first control in focus, so a pad (or the arrow keys)
++starts somewhere: the first focusable item inside the content area - not the
++title band's close X, not the button row - or failing that the first
++focusable item at all. With the mouse the item under the pointer keeps the
++focus; in pad mode the focus is also drawn (QMF_HASKEYBOARDFOCUS).
++=================
++*/
++void CMenuFramework::FocusFirstItem( void )
++{
++	CMenuBaseItem *cur = ItemAtCursor();
++	const bool pad = UI_CoFPadMode();
++
++	if( cur && FBitSet( cur->iFlags, QMF_HASMOUSEFOCUS ) && !pad )
++		return;
++
++	int pick = -1, any = -1;
++	const Rect c = IsPanel() ? ContentRect() : Rect( 0, 0, 0, 0 );
++
++	for( int i = 0; i < m_pItems.Count(); i++ )
++	{
++		CMenuBaseItem *item = m_pItems[i];
++
++		if( !item->IsVisible() || FBitSet( item->iFlags, QMF_INACTIVE | QMF_GRAYED | QMF_MOUSEONLY ))
++			continue;
++		if( any < 0 )
++			any = i;
++		if( !IsPanel() || ( item->pos.y >= c.pt.y - 4 && item->pos.y < ButtonRowY() - 4 ))
++		{
++			pick = i;
++			break;
++		}
++	}
++
++	if( pick < 0 )
++		pick = any;
++	if( pick < 0 )
++		return;
++
++	for( int i = 0; i < m_pItems.Count(); i++ )
++		ClearBits( m_pItems[i]->iFlags, QMF_HASKEYBOARDFOCUS );
++
++	m_iCursorPrev = m_iCursor;
++	m_iCursor = pick;
++	if( pad )
++		SetBits( m_pItems[pick]->iFlags, QMF_HASKEYBOARDFOCUS );
++}
++
++/*
++=================
++CMenuFramework::DrawPadHints
++
++With a pad as the last input device, one line of button prompts under the
++panel (or at the bottom of a list menu): the glyph of the current button
++style, 34 units tall (48 px at 1080p), and its action in words. Mouse
++and keyboard users see nothing.
++=================
++*/
++void CMenuFramework::DrawPadHints( void )
++{
++	if( !UI_CoFOptionsLayout() || !UI_CoFPadMode( ))
++		return;
++
++	struct { const char *glyph; const char *text; } hint[6];
++	int n = 0;
++
++	hint[n].glyph = UI_CoFPadGlyph( "a.png", "cross.png" );
++	hint[n++].text = L( "Select" );
++	// the death page swallows B / Escape (nowhere to go back to), so it
++	// offers no Back prompt
++	if( !szName || strcmp( szName, "CMenuCoFDeath" ))
++	{
++		hint[n].glyph = UI_CoFPadGlyph( "b.png", "circle.png" );
++		hint[n++].text = L( "Back" );
++	}
++	int tabs = 0, cur = 0;
++	const cofTabGroup_t *group = UI_CoFTabGroup( szPanelTitle, &cur );
++
++	for( int i = 0; group && i < group->count; i++ )
++		tabs += UI_CoFTabAvailable( group, i ) ? 1 : 0;
++
++	if( TabStripH() && tabs > 1 )
++	{
++		hint[n].glyph = UI_CoFPadGlyph( "lb.png", "l1.png" );
++		hint[n++].text = NULL;	// drawn next to RB
++		hint[n].glyph = UI_CoFPadGlyph( "rb.png", "r1.png" );
++		hint[n++].text = L( "Tabs" );
++	}
++	if( pPadSecondary && pPadSecondary->IsVisible() && pPadSecondary->szName )
++	{
++		hint[n].glyph = UI_CoFPadGlyph( "x.png", "square.png" );
++		hint[n++].text = pPadSecondary->szName;
++	}
++	if( CL_IsActive() && ( !szName || strcmp( szName, "CMenuCoFDeath" )))
++	{
++		hint[n].glyph = UI_CoFPadGlyph( "menu.png", "options.png" );
++		hint[n++].text = L( "Resume" );
++	}
++
++	// 34 units: 48 px at 1080p, 64 at 1440p, 96 at 2160p
++	const int glyph = (int)( 34 * uiStatic.scaleY );
++	const int charH = (int)( THEME_BODY_TALL * uiStatic.scaleY );
++	const int gap = (int)( 6 * uiStatic.scaleX );
++	const int sep = (int)( 26 * uiStatic.scaleX );
++	int total = 0;
++
++	for( int i = 0; i < n; i++ )
++	{
++		total += glyph;
++		if( hint[i].text )
++			total += gap + g_FontMgr->GetTextWideScaled( uiStatic.hThemeBody, hint[i].text, charH ) + sep;
++		else
++			total += gap / 2;
++	}
++	total -= sep;
++
++	int y;
++	if( IsPanel( ))
++		y = (int)(( PanelPos().y + panelSize.h + 6 ) * uiStatic.scaleY ) + m_scPos.y;
++	else
++		y = (int)(( 768 - 44 ) * uiStatic.scaleY ) + m_scPos.y;
++
++	int x = ( ScreenWidth - total ) / 2;
++	const int padX = (int)( 12 * uiStatic.scaleX ), padY = (int)( 3 * uiStatic.scaleY );
++
++	// a dark chip behind the line, so the white glyphs read on any scene
++	UI_FillRect( x - padX, y - padY, total + padX * 2, glyph + padY * 2, THEME_PANEL );
++
++	for( int i = 0; i < n; i++ )
++	{
++		UI_DrawPic( x, y, glyph, glyph, THEME_TEXT_HI, hint[i].glyph, QM_DRAWTRANS );
++		x += glyph;
++		if( !hint[i].text )
++		{
++			x += gap / 2;
++			continue;
++		}
++		x += gap;
++		UI_DrawString( uiStatic.hThemeBody, x, y + ( glyph - charH ) / 2, total, charH, hint[i].text,
++			THEME_TEXT_HI, charH, QM_LEFT, ETF_FORCECOL | ETF_NO_WRAP | ETF_NOSIZELIMIT );
++		x += g_FontMgr->GetTextWideScaled( uiStatic.hThemeBody, hint[i].text, charH ) + sep;
++	}
+ }
+ 
+ int CMenuFramework::ButtonRowY() const
+@@ -191,6 +505,9 @@
+ void CMenuFramework::Show()
+ {
+ 	BaseClass::Show();
++
++	if( UI_CoFOptionsLayout( ))
++		FocusFirstItem();
+ }
+ 
+ void CMenuFramework::Draw()
+@@ -203,6 +520,8 @@
+ 		DrawPanelChrome();
+ 
+ 	BaseClass::Draw();
++
++	DrawPadHints();
+ 
+ 	item = ItemAtCursor();
+ 	// a1ba: maybe this should be somewhere else?
+@@ -285,7 +604,13 @@
+ 	// dim everything behind the dialog
+ 	UI_FillRect( 0, 0, ScreenWidth, ScreenHeight, THEME_SCRIM );
+ 
+-	UI_ThemeDrawDialogPanel( p, s, szPanelTitle );
++	// a tabbed window shows its group's title, then the tab strip
++	const cofTabGroup_t *group = UI_CoFTabGroup( szPanelTitle, NULL );
++
++	UI_ThemeDrawDialogPanel( p, s, group ? group->title : szPanelTitle );
++
++	if( group )
++		DrawTabStrip();
+ 
+ 	// hairline above the button row
+ 	UI_ThemeSeparator( p.x + (int)( THEME_PAD_X * uiStatic.scaleX ),
+@@ -322,6 +647,11 @@
+ 	pos.y = uiStatic.yOffset;
+ 	size.w = uiStatic.width;
+ 	size.h = 768;
++
++	// every tab of a tabbed window has the same frame, so switching tabs
++	// never moves the window
++	if( IsPanel() && TabStripH( ))
++		panelSize = Size( COF_TAB_FRAME_W, COF_TAB_FRAME_H );
+ 
+ 	if( IsPanel( ))
+ 	{
+@@ -415,6 +745,19 @@
+ 
+ bool CMenuFramework::KeyDown( int key )
+ {
++	// tabs first: LB/RB would otherwise page a focused list
++	if( TabsKeyDown( key ))
++		return true;
++
++	// X on a pad: the page's secondary action, when it has one
++	if( key == K_X_BUTTON && pPadSecondary && pPadSecondary->IsVisible() &&
++		!FBitSet( pPadSecondary->iFlags, QMF_GRAYED | QMF_INACTIVE ))
++	{
++		PlayLocalSound( uiStatic.sounds[SND_LAUNCH] );
++		pPadSecondary->_Event( QM_RELEASED );
++		return true;
++	}
++
+ 	bool b = BaseClass::KeyDown( key );
+ 
+ 	if( UI::Key::IsEscape( key ))
+diff --git a/3rdparty/mainui/controls/Framework.h b/3rdparty/mainui/controls/Framework.h
+--- a/3rdparty/mainui/controls/Framework.h
++++ b/3rdparty/mainui/controls/Framework.h
+@@ -53,6 +53,16 @@
+ 
+ 	void PrepareBannerAnimation( EAnimation direction, CMenuPicButton *initiator );
+ 
++private:
++	// Cry of Fear tabbed windows and pad input (Framework.cpp)
++	bool TabsKeyDown( int key );
++	void GoToTab( int index );
++	Rect TabRect( int index ) const;
++	void DrawTabStrip( void );
++	void DrawPadHints( void );
++	void FocusFirstItem( void );
++public:
++
+ 	// -----------------------------------------------------------------------
+ 	// Source-style panel mode (Theme.h)
+ 	//
+@@ -77,6 +87,14 @@
+ 	// A row in the content area: full width, THEME_ROW_H tall, pitched by
+ 	// THEME_ROW_PITCH from the top of the content rect.
+ 	Rect  RowRect( int index ) const;
++
++	// Cry of Fear tabbed windows and pad input (menus/CoFOptions.cpp): a page
++	// whose panel title belongs to a tab group (Options, Extras, Save/Load)
++	// gets the group's frame, a tab strip under the title band (ContentRect
++	// starts below it), LB/RB and a mouse click on a tab switch pages in
++	// place. pPadSecondary is what X does on a pad (e.g. Use defaults).
++	int   TabStripH() const;
++	CMenuBaseItem *pPadSecondary;
+ 
+ 	void  DrawPanelChrome();
+ 
+diff --git a/3rdparty/mainui/controls/ItemsHolder.cpp b/3rdparty/mainui/controls/ItemsHolder.cpp
+--- a/3rdparty/mainui/controls/ItemsHolder.cpp
++++ b/3rdparty/mainui/controls/ItemsHolder.cpp
+@@ -374,7 +374,10 @@
+ 	while( m_iCursor >= 0 && m_iCursor < m_pItems.Count() )
+ 	{
+ 		item = m_pItems[m_iCursor];
+-		if( !item->IsVisible() || item->iFlags & (QMF_INACTIVE|QMF_MOUSEONLY) )
++		// Cry of Fear theme: a greyed control is skipped as well - focus on
++		// it is invisible and does nothing (pad and arrow-key navigation)
++		if( !item->IsVisible() || item->iFlags & (QMF_INACTIVE|QMF_MOUSEONLY) ||
++			( UI_ThemeActive() && ( item->iFlags & QMF_GRAYED )))
+ 		{
+ 			m_iCursor += dir;
+ 		}
+diff --git a/3rdparty/mainui/controls/Slider.cpp b/3rdparty/mainui/controls/Slider.cpp
+--- a/3rdparty/mainui/controls/Slider.cpp
++++ b/3rdparty/mainui/controls/Slider.cpp
+@@ -239,7 +239,7 @@
+ 
+ 		textHeight = m_scPos.y - (m_scChSize * 1.5f);
+ 		UI_DrawString( font, m_scPos.x, textHeight, m_scSize.w, m_scChSize, szName,
+-			THEME_TEXT_DIM, m_scChSize, eTextAlignment, ETF_FORCECOL );
++			hot ? THEME_TEXT_HI : THEME_TEXT_DIM, m_scChSize, eTextAlignment, ETF_FORCECOL );
+ 		return;
+ 	}
+ 
+diff --git a/3rdparty/mainui/controls/Table.cpp b/3rdparty/mainui/controls/Table.cpp
+--- a/3rdparty/mainui/controls/Table.cpp
++++ b/3rdparty/mainui/controls/Table.cpp
+@@ -415,9 +415,11 @@
+ 		sound = MoveCursor( -1 ) ? uiStatic.sounds[SND_MOVE] : uiStatic.sounds[SND_BUZZ];
+ 	else if( key == K_MWHEELDOWN )
+ 		sound = MoveCursor( 1 ) ? uiStatic.sounds[SND_MOVE] : uiStatic.sounds[SND_BUZZ];
+-	else if( UI::Key::IsPageUp( key ))
++	// the pad's triggers page a list too (LTRIGGER / RTRIGGER; LB/RB are
++	// taken by the tabs of a tabbed window, see controls/Framework.cpp)
++	else if( UI::Key::IsPageUp( key ) || key == K_JOY1 )
+ 		sound = MoveCursor( -2 ) ? uiStatic.sounds[SND_MOVE] : uiStatic.sounds[SND_BUZZ];
+-	else if( UI::Key::IsPageDown( key ))
++	else if( UI::Key::IsPageDown( key ) || key == K_JOY2 )
+ 		sound = MoveCursor( 2 ) ? uiStatic.sounds[SND_MOVE] : uiStatic.sounds[SND_BUZZ];
+ 	else if( UI::Key::IsHome( key ))
+ 	{
+diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/AdvancedControls.cpp
+--- a/3rdparty/mainui/menus/AdvancedControls.cpp
++++ b/3rdparty/mainui/menus/AdvancedControls.cpp
+@@ -48,6 +48,7 @@
+ #include "Action.h"
+ #include "StringArrayModel.h"
+ #include "CryOfFear.h"
++#include "CoFOptions.h"
+ 
+ #define ART_BANNER			"gfx/shell/head_advanced"
+ 
+@@ -307,6 +308,7 @@
+ 
+ 	void ToggleLookCheckboxes( bool write );
+ 	void CoFLanguageProbe( const char *arg );
++	void OptionsProbe( void );
+ 
+ private:
+ 	void _Init( void ) override;
+@@ -322,6 +324,8 @@
+ 	void AdsModeChanged( void );
+ 	void LangPackChanged( void );
+ 	void NotifyChanged( void );
++	void PanelPauseChanged( void );
++	void PanelTransparentChanged( void );
+ 
+ 	CMenuPicButton done, inputDev;
+ 
+@@ -349,6 +353,12 @@
+ 	// "Show console notifications": the engine's archived cof_notify, whether
+ 	// the newest console lines are drawn over the top-left corner during play
+ 	CMenuCheckBox	notifyLines;
++	// "Pause on Inventory": the saved engine cvar cof_panel_pause (0/1), the
++	// engine's world pause while a Cry of Fear item panel is open
++	CMenuCheckBox	panelPause;
++	// "Transparent UI background": the saved engine cvar cof_panel_transparent
++	// (0/1, default 1), the world instead of black behind those panels
++	CMenuCheckBox	panelTransparent;
+ 	CMenuSpinControl	language;
+ 	CMenuSpinControl	hudScale;
+ 	CMenuSpinControl	adsMode;
+@@ -408,6 +418,24 @@
+ 		menuSaves.UpdateEditable();
+ 		notifyLines.LinkCvar( "cof_notify" );
+ 		notifyLines.UpdateEditable();
++		// the two panel switches link only to a cvar that exists: an engine
++		// without them shows their engine defaults (pause 0, transparent 1),
++		// and the page's Reload cannot turn a missing cvar into a 0
++		if( EngFuncs::GetCvarString( "cof_panel_pause" )[0] )
++		{
++			panelPause.LinkCvar( "cof_panel_pause" );
++			panelPause.UpdateEditable();
++		}
++		else
++			panelPause.bChecked = false;
++
++		if( EngFuncs::GetCvarString( "cof_panel_transparent" )[0] )
++		{
++			panelTransparent.LinkCvar( "cof_panel_transparent" );
++			panelTransparent.UpdateEditable();
++		}
++		else
++			panelTransparent.bChecked = true;
+ 		// the client's own "Subtitle language" control is not on the page any
+ 		// more (the Language row sets that slot); moving a spinner that has
+ 		// no parent would raise its change event on no page at all
+@@ -432,7 +460,10 @@
+ 			hudScale.SetCurrentValue( (float)row );
+ 		}
+ 
+-		adsMode.SetCurrentValue( EngFuncs::GetCvarFloat( "cof_ads_toggle" ) != 0.0f ? 1.0f : 0.0f );
++		// not on this page in the options layout (the Controls page has it); a
++		// spinner without a parent must not raise its change event
++		if( !UI_CoFOptionsLayout( ))
++			adsMode.SetCurrentValue( EngFuncs::GetCvarFloat( "cof_ads_toggle" ) != 0.0f ? 1.0f : 0.0f );
+ 
+ 		// the packs are listed again every time the page opens, so a pack
+ 		// copied in while the game runs shows up without a restart
+@@ -470,6 +501,32 @@
+ void CAdvancedControls::NotifyChanged()
+ {
+ 	notifyLines.WriteCvar();
++}
++
++/*
++=================
++CAdvancedControls::PanelPauseChanged
++
++Written at once too. The engine owns cof_panel_pause (saved, default 0); an
++engine without it gets a plain console variable, so the switch neither fails
++nor pretends: the value is there for the session and is not saved.
++=================
++*/
++void CAdvancedControls::PanelPauseChanged()
++{
++	if( EngFuncs::GetCvarString( "cof_panel_pause" )[0] )
++		panelPause.WriteCvar();
++	else
++		EngFuncs::ClientCmdF( false, "set cof_panel_pause %d\n", panelPause.bChecked ? 1 : 0 );
++}
++
++// the same, for cof_panel_transparent (engine and FreeVGUI side)
++void CAdvancedControls::PanelTransparentChanged()
++{
++	if( EngFuncs::GetCvarString( "cof_panel_transparent" )[0] )
++		panelTransparent.WriteCvar();
++	else
++		EngFuncs::ClientCmdF( false, "set cof_panel_transparent %d\n", panelTransparent.bChecked ? 1 : 0 );
+ }
+ 
+ /*
+@@ -610,6 +667,15 @@
+ 
+ void CAdvancedControls::SaveAndPopMenu()
+ {
++	if( UI_CoFOptionsLayout( ))
++	{
++		crosshair.WriteCvar();
++		lookSpring.WriteCvar();
++		conEnable.WriteCvar();
++		CMenuFramework::SaveAndPopMenu();
++		return;
++	}
++
+ 	crosshair.WriteCvar();
+ 	lookSpring.WriteCvar();
+ 	lookStrafe.WriteCvar();
+@@ -638,8 +704,10 @@
+ 
+ 	m_bCoF = UI_ThemeActive() && UI_IsCryOfFear();
+ 
++	// the Cry of Fear options layout moves the mouse and aim rows to the
++	// Controls page, so the page is shorter (CoFOptions.cpp)
+ 	if( UI_ThemeActive( ))
+-		SetPanel( "GAME", 760, m_bCoF ? 580 + THEME_ROW_PITCH : 520 );	// + the notifications row
++		SetPanel( "GAME", 760, m_bCoF ? ( UI_CoFOptionsLayout( ) ? 442 : 580 + THEME_ROW_PITCH ) : 520 );	// + the notifications row
+ 
+ 	done.szName = L( "Done" );
+ 	done.SetPicture( PC_DONE );
+@@ -707,6 +775,16 @@
+ 	notifyLines.iFlags |= QMF_NOTIFY;
+ 	notifyLines.onChanged = VoidCb( &CAdvancedControls::NotifyChanged );
+ 
++	panelPause.SetNameAndStatus( L( "Pause on Inventory" ),
++		L( "Pause the game while the inventory, notes and other item pages are open" ));
++	panelPause.iFlags |= QMF_NOTIFY;
++	panelPause.onChanged = VoidCb( &CAdvancedControls::PanelPauseChanged );
++
++	panelTransparent.SetNameAndStatus( L( "Transparent UI background" ),
++		L( "Show the game world behind the inventory, notes and the tape recorder page instead of black" ));
++	panelTransparent.iFlags |= QMF_NOTIFY;
++	panelTransparent.onChanged = VoidCb( &CAdvancedControls::PanelTransparentChanged );
++
+ 	language.szName = L( "Subtitle language" );
+ 	language.Setup( &languageModel );
+ 	language.SetCharSize( QM_SMALLFONT );
+@@ -742,17 +820,24 @@
+ 
+ 	if( !UI_ThemeActive( ))
+ 		AddItem( banner );
+-	AddItem( done );
++	if( !UI_CoFOptionsLayout( ))
++		AddItem( done );
+ 	AddItem( inputDev );
+ 	AddItem( crosshair );
+-	AddItem( invertMouse );
+-	AddItem( mouseLook );
++	if( !UI_CoFOptionsLayout( ))
++	{
++		AddItem( invertMouse );
++		AddItem( mouseLook );
++	}
+ 	AddItem( lookSpring );
+-	AddItem( lookStrafe );
+-	AddItem( lookFilter );
+-	AddItem( autoaim );
+-	AddItem( rawinput );
+-	AddItem( sensitivity );
++	if( !UI_CoFOptionsLayout( ))
++	{
++		AddItem( lookStrafe );
++		AddItem( lookFilter );
++		AddItem( autoaim );
++		AddItem( rawinput );
++		AddItem( sensitivity );
++	}
+ 
+ 	if( UI_ThemeActive( ))
+ 		AddItem( conEnable );
+@@ -764,15 +849,66 @@
+ 		AddItem( menuSaves );
+ 		AddItem( notifyLines );
+ 		AddItem( hudScale );
+-		AddItem( adsMode );
++		// Aim down sights moved to the Controls page with the options layout
++		if( UI_CoFOptionsLayout( ))
++		{
++			AddItem( panelPause );
++			AddItem( panelTransparent );
++		}
++		else
++			AddItem( adsMode );
+ 		AddItem( langPack );
+ 		AddItem( langNote );
+ 	}
++
++	// options layout: Close is the last stop of the pad/arrow-key order
++	if( UI_CoFOptionsLayout( ))
++		AddItem( done );
+ }
+ 
+ 
+ void CAdvancedControls::_VidInit()
+ {
++	if( IsPanel( ) && m_bCoF && UI_CoFOptionsLayout( ))
++	{
++		// Cry of Fear options layout: the game switches only. Two checkbox
++		// columns, the Input devices row, then Language / HUD scale and the
++		// language note, as before.
++		Rect left = ColumnRect( 0, 2 );
++		Rect right = ColumnRect( 1, 2 );
++		CMenuCheckBox *boxes[] = { &crosshair, &lookSpring, &conEnable, &menuSaves, &notifyLines, &panelPause, &panelTransparent };
++		const int numBoxes = (int)V_ARRAYSIZE( boxes );
++		int y = left.pt.y;
++
++		for( int i = 0; i < numBoxes; i++ )
++		{
++			boxes[i]->SetCoord(( i & 1 ) ? right.pt.x : left.pt.x, y );
++			if(( i & 1 ) || i == numBoxes - 1 )
++				y += THEME_ROW_PITCH;
++		}
++
++		y += 6;
++		inputDev.SetRect( left.pt.x, y, left.sz.w, THEME_ROW_H );
++		inputDev.eThemeStyle = CMenuPicButton::THEME_ROW;
++		inputDev.eTextAlignment = QM_LEFT;
++
++		// the spin controls draw their caption above the box
++		y += THEME_ROW_H + THEME_LABEL_TALL + 24;
++		langPack.SetRect( left.pt.x, y, left.sz.w, THEME_CTRL_H );
++		hudScale.SetRect( right.pt.x, y, right.sz.w, THEME_CTRL_H );
++
++		y += THEME_CTRL_H + 14;
++		Rect c = ContentRect();
++		langNote.SetRect( c.pt.x, y, c.sz.w, 2 * THEME_LABEL_TALL + 8 );
++
++		done.szName = L( "Close" );
++		CMenuPicButton *btns[] = { &done };
++		LayoutButtonRow( btns, 1 );
++
++		GetConfig();
++		return;
++	}
++
+ 	if( IsPanel( ))
+ 	{
+ 		Rect left = ColumnRect( 0, 2 );
+@@ -892,6 +1028,69 @@
+ 		row, EngFuncs::GetCvarString( "cof_language" ), EngFuncs::GetCvarString( "cof_subtitlelanguage" ));
+ }
+ 
++/*
++=================
++CAdvancedControls::OptionsProbe
++
++menu_cof_options_select game [<item> <value>] (menus/CoFOptions.cpp): lists
++the page's switches with their cvars, or sets one the way a click does -
++the control's value, then the same QM_CHANGED event - and "close" presses
++Close (SaveAndPopMenu).
++=================
++*/
++void CAdvancedControls::OptionsProbe( void )
++{
++	char item[64], value[64];
++	Q_strncpy( item, EngFuncs::CmdArgc() > 2 ? EngFuncs::CmdArgv( 2 ) : "", sizeof( item ));
++	Q_strncpy( value, EngFuncs::CmdArgc() > 3 ? EngFuncs::CmdArgv( 3 ) : "", sizeof( value ));
++	struct { const char *name; CMenuCheckBox *box; const char *cvar; } boxes[] =
++	{
++		{ "crosshair", &crosshair, "crosshair" },
++		{ "lookspring", &lookSpring, "lookspring" },
++		{ "console", &conEnable, "con_enable" },
++		{ "pausesaves", &menuSaves, "cof_pause_menu_saves" },
++		{ "notify", &notifyLines, "cof_notify" },
++		{ "panelpause", &panelPause, "cof_panel_pause" },
++		{ "transparent", &panelTransparent, "cof_panel_transparent" },
++	};
++
++	if( !stricmp( item, "close" ))
++	{
++		Con_Printf( "menu_cof_options_select game: Close\n" );
++		SaveAndPopMenu();
++		return;
++	}
++
++	if( !stricmp( item, "hudscale" ) && value[0] )
++	{
++		hudScale.SetCurrentValue( (float)atoi( value ));
++		Con_Printf( "menu_cof_options_select game: hudscale row %d, cof_ui_scale %s, cof_ui_scale_user %s\n",
++			atoi( value ), EngFuncs::GetCvarString( "cof_ui_scale" ), EngFuncs::GetCvarString( "cof_ui_scale_user" ));
++		return;
++	}
++
++	for( size_t i = 0; i < V_ARRAYSIZE( boxes ); i++ )
++	{
++		if( item[0] && stricmp( item, boxes[i].name ))
++			continue;
++
++		if( item[0] && value[0] )
++			UI_CoFProbeCheck( *boxes[i].box, value );
++
++		Con_Printf( "menu_cof_options_select game: %s = %d (%s \"%s\")%s\n", boxes[i].name, boxes[i].box->bChecked ? 1 : 0,
++			boxes[i].cvar, EngFuncs::GetCvarString( boxes[i].cvar ), FBitSet( boxes[i].box->iFlags, QMF_GRAYED ) ? " grayed" : "" );
++	}
++}
++
++void UI_AdvControls_OptionsProbe( void )
++{
++	// the page on top keeps its unsaved state; one lower in the stack is
++	// brought back to the top
++	if( menu_advcontrols->WindowStack()->Current() != menu_advcontrols )
++		UI_AdvControls_Menu();
++	menu_advcontrols->OptionsProbe();
++}
++
+ static void UI_CoFLanguageSelect( void )
+ {
+ 	UI_AdvControls_Menu();
+diff --git a/3rdparty/mainui/menus/CoFOptions.cpp b/3rdparty/mainui/menus/CoFOptions.cpp
+new file mode 100644
+--- /dev/null
++++ b/3rdparty/mainui/menus/CoFOptions.cpp
+@@ -0,0 +1,1838 @@
++/*
++CoFOptions.cpp -- Cry of Fear options layout: the Controls page (aiming,
++mouse and gamepad settings), the Gamepad controls page (the action on each
++pad button) and the cfg-only test hook menu_cof_options_select
++
++This program is free software: you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation, either version 3 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++
++------------------------------------------------------------------------------
++
++Options for Cry of Fear with the theme reads Game, Controls, Keybinds,
++Gamepad controls, Audio, Video (menus/Configuration.cpp):
++
++  Game              menus/AdvancedControls.cpp: the game switches (crosshair,
++                    look spring, console, pause-menu saves, notifications,
++                    Pause on Inventory), Input devices, Language, HUD scale
++  Controls          this file: Aim down sights and the mouse switches that
++                    were on the Game page, plus the engine's gamepad cvars
++  Keybinds          menus/Controls.cpp, the key list (it was "Controls")
++  Gamepad controls  this file: every pad button and the action bound to it,
++                    read from and written to the engine's key bindings
++
++See docs/design/ui-theme.md, "Options relayout".
++*/
++
++#include "q_client.h"
++#include "Framework.h"
++#include "MenuStrings.h"
++#include "PicButton.h"
++#include "CheckBox.h"
++#include "Slider.h"
++#include "SpinControl.h"
++#include "Action.h"
++#include "Table.h"
++#include "MessageBox.h"
++#include "YesNoMessageBox.h"
++#include "keydefs.h"
++#include "utlvector.h"
++#include "CryOfFear.h"
++#include "CoFOptions.h"
++
++bool UI_CoFOptionsLayout( void )
++{
++	return UI_ThemeActive() && UI_IsCryOfFear();
++}
++
++// ---------------------------------------------------------------------------
++// shared bits
++// ---------------------------------------------------------------------------
++
++// the exact spelling first ("g" is key 103, "G" the unused key 71), then
++// any case
++static int UI_CoFKeyByName( const char *name )
++{
++	for( int pass = 0; pass < 2; pass++ )
++	{
++		for( int i = 0; ; i++ )
++		{
++			const char *str = EngFuncs::KeynumToString( i );
++
++			if( !str || !strcmp( str, "<OUT OF RANGE>" ))
++				break;
++			if( pass ? !stricmp( str, name ) : !strcmp( str, name ))
++				return i;
++		}
++	}
++	return -1;
++}
++
++void UI_CoFProbeCheck( CMenuCheckBox &box, const char *value )
++{
++	box.bChecked = atoi( value ) != 0;
++	box.SetCvarValue( box.bChecked ? 1.0f : 0.0f );
++	box._Event( QM_CHANGED );
++}
++
++void UI_CoFProbeSlider( CMenuSlider &slider, const char *value )
++{
++	slider.SetCurrentValue( (float)atof( value ));
++	slider.SetCvarValue( slider.GetCurrentValue( ));
++	slider._Event( QM_CHANGED );
++}
++
++void UI_CoFProbeSpin( CMenuSpinControl &spin, const char *value )
++{
++	spin.SetCurrentValue( (float)atoi( value ));	// raises QM_CHANGED itself
++}
++
++/*
++=================
++CMenuCoFReadoutSlider
++
++A themed slider that prints its value at the right end of its label line,
++like the Video page's field-of-view sliders: for a sensitivity or a deadzone
++the number is the point. bDirty is set by a player's change, so a value the
++page only shows (a deadzone of 4096 reads "13 %") is never written back
++rounded.
++=================
++*/
++class CMenuCoFReadoutSlider : public CMenuSlider
++{
++public:
++	CMenuCoFReadoutSlider() : CMenuSlider(), iDecimals( 0 ), szUnit( "" ), bDirty( false ) { }
++
++	void Draw() override
++	{
++		CMenuSlider::Draw();
++
++		if( !UI_ThemeActive( ))
++			return;
++
++		char text[32];
++		snprintf( text, sizeof( text ), "%.*f%s", iDecimals, GetCurrentValue(), szUnit );
++		UI_DrawString( font, m_scPos.x, m_scPos.y - (int)( m_scChSize * 1.5f ),
++			m_scSize.w, m_scChSize, text,
++			FBitSet( iFlags, QMF_GRAYED ) ? THEME_DISABLED : THEME_TEXT, m_scChSize,
++			QM_TOPRIGHT, ETF_FORCECOL | ETF_NO_WRAP );
++	}
++
++	int iDecimals;
++	const char *szUnit;
++	bool bDirty;
++};
++
++class CMenuCoFDirtyCheck : public CMenuCheckBox
++{
++public:
++	CMenuCoFDirtyCheck() : CMenuCheckBox(), bDirty( false ) { }
++	bool bDirty;
++};
++
++// a section caption: small dim uppercase label with a hairline under it, the
++// same look as the section captions of the key list (controls/Table.cpp)
++class CMenuCoFCaption : public CMenuBaseItem
++{
++public:
++	CMenuCoFCaption() : CMenuBaseItem() { iFlags |= QMF_INACTIVE; }
++
++	void Draw() override
++	{
++		const int capH = (int)( THEME_LABEL_TALL * uiStatic.scaleY );
++
++		UI_DrawString( uiStatic.hThemeLabel, m_scPos, Size( m_scSize.w, capH ), szName,
++			THEME_TEXT_DIM, capH, QM_LEFT, ETF_FORCECOL | ETF_NO_WRAP | ETF_NOSIZELIMIT );
++		UI_ThemeSeparator( m_scPos.x, m_scPos.y + capH + (int)( 4 * uiStatic.scaleY ), m_scSize.w, THEME_SEPARATOR );
++	}
++};
++
++#define COF_CAPTION_H	26	// caption + hairline + gap, virtual units
++
++// ---------------------------------------------------------------------------
++// Controls: aiming, mouse, gamepad
++// ---------------------------------------------------------------------------
++
++static const char *g_cofAdsModesC[] = { "Hold", "Toggle" };
++
++class CMenuCoFAdsModelC : public CMenuBaseArrayModel
++{
++public:
++	void Update() override { }
++	int GetRows() const override { return 2; }
++	const char *GetText( int line ) override { return L( g_cofAdsModesC[line ? 1 : 0] ); }
++};
++
++// joy_axis_binding: one letter per SDL axis (left X, left Y, right Y, right X,
++// then the triggers); "sfpyrl" is the engine default, and the swap puts look
++// on the left stick and movement on the right (engine/client/input/in_joy.c,
++// Joy_FinalizeMove)
++#define COF_AXES_DEFAULT	"sfpyrl"
++#define COF_AXES_SWAPPED	"ypfsrl"
++#define COF_AXIS_FULL		32767.0f
++
++class CMenuCoFControls : public CMenuFramework
++{
++public:
++	typedef CMenuFramework BaseClass;
++	CMenuCoFControls() : CMenuFramework( "CMenuCoFControls" ) { }
++
++	void ToggleLook( bool write );
++	void OptionsProbe( void );
++
++private:
++	void _Init( void ) override;
++	void _VidInit( void ) override;
++	void SaveAndPopMenu( void ) override;
++
++	void GetConfig( void );
++	void AdsChanged( void );
++	void PitchInvert( void );
++
++	CMenuCoFCaption capMouse, capPad;
++
++	// aiming and mouse (moved here from the Game page)
++	CMenuSpinControl adsMode;
++	CMenuCoFAdsModelC adsModel;
++	CMenuCoFReadoutSlider sensitivity;
++	CMenuCheckBox rawinput, autoaim, lookFilter, mouseLook, invertMouse, lookStrafe;
++
++	// gamepad (the engine's joy_* cvars)
++	CMenuCheckBox joyEnable;
++	// gyro aiming: joy_gyro_enable and joy_gyro_pitch / joy_gyro_yaw
++	// (engine/client/input/in_joy.c); needs a pad with a gyroscope that the
++	// engine has calibrated (joy_calibrate_gyro)
++	CMenuCheckBox gyroEnable;
++	CMenuCoFDirtyCheck invertLook, swapSticks;
++	CMenuCoFReadoutSlider lookX, lookY, lookDeadzone, moveDeadzone, trigger, gyroSens;
++
++	CMenuPicButton done;
++};
++
++void CMenuCoFControls::GetConfig( void )
++{
++	kbutton_t *mlook = (kbutton_t *)EngFuncs::KEY_GetState( "in_mlook" );
++
++	invertMouse.bChecked = EngFuncs::GetCvarFloat( "m_pitch" ) < 0.0f;
++
++	if( mlook )
++		mouseLook.bChecked = ( mlook->state & 1 ) != 0;
++	else
++	{
++		mouseLook.SetGrayed( true );
++		mouseLook.bChecked = true;
++	}
++
++	lookStrafe.LinkCvar( "lookstrafe" );
++	lookFilter.LinkCvar( "look_filter" );
++	autoaim.LinkCvar( "sv_aim" );
++	rawinput.LinkCvar( "m_rawinput" );
++	sensitivity.LinkCvar( "sensitivity" );
++	sensitivity.bDirty = false;
++
++	adsMode.SetCurrentValue( EngFuncs::GetCvarFloat( "cof_ads_toggle" ) != 0.0f ? 1.0f : 0.0f );
++
++	joyEnable.LinkCvar( "joy_enable" );
++	gyroEnable.LinkCvar( "joy_gyro_enable" );
++	gyroSens.SetCurrentValue( EngFuncs::GetCvarFloat( "joy_gyro_yaw" ));
++
++	const float pitch = EngFuncs::GetCvarFloat( "joy_pitch" );
++	invertLook.bChecked = pitch < 0.0f;
++	invertLook.bDirty = false;
++	swapSticks.bChecked = !stricmp( EngFuncs::GetCvarString( "joy_axis_binding" ), COF_AXES_SWAPPED );
++	swapSticks.bDirty = false;
++
++	lookX.SetCurrentValue( fabs( EngFuncs::GetCvarFloat( "joy_yaw" )));
++	lookY.SetCurrentValue( fabs( pitch ));
++	lookDeadzone.SetCurrentValue( floor( EngFuncs::GetCvarFloat( "joy_pitch_deadzone" ) * 100.0f / COF_AXIS_FULL + 0.5f ));
++	moveDeadzone.SetCurrentValue( floor( EngFuncs::GetCvarFloat( "joy_forward_deadzone" ) * 100.0f / COF_AXIS_FULL + 0.5f ));
++	trigger.SetCurrentValue( floor( EngFuncs::GetCvarFloat( "joy_lt_threshold" ) * 100.0f / COF_AXIS_FULL + 0.5f ));
++
++	CMenuCoFReadoutSlider *pad[] = { &lookX, &lookY, &lookDeadzone, &moveDeadzone, &trigger, &gyroSens };
++	for( size_t i = 0; i < V_ARRAYSIZE( pad ); i++ )
++		pad[i]->bDirty = false;
++
++	ToggleLook( false );
++}
++
++void CMenuCoFControls::AdsChanged( void )
++{
++	// live and saved, as on the Game page before (engine: CL_CoF_ADSSync)
++	EngFuncs::CvarSetValue( "cof_ads_toggle", adsMode.GetCurrentValue() >= 1.0f ? 1.0f : 0.0f );
++}
++
++void CMenuCoFControls::PitchInvert( void )
++{
++	const bool invert = invertMouse.bChecked;
++	const float m_pitch = EngFuncs::GetCvarFloat( "m_pitch" );
++
++	if(( invert && m_pitch > 0 ) || ( !invert && m_pitch < 0 ))
++		EngFuncs::CvarSetValue( "m_pitch", -m_pitch );
++}
++
++void CMenuCoFControls::ToggleLook( bool write )
++{
++	lookStrafe.SetGrayed( mouseLook.bChecked );
++
++	if( write )
++		EngFuncs::ClientCmd( false, mouseLook.bChecked ? "+mlook\nbind _force_write\n" : "-mlook\nbind _force_write\n" );
++}
++
++/*
++=================
++CMenuCoFControls::SaveAndPopMenu
++
++Close writes, as the Game page did for these switches; Escape leaves without
++writing. Aim down sights, Mouse look and Reverse mouse apply the moment they
++change (as before). The gamepad values are written only when the player
++moved them, so an engine value the sliders can only show rounded survives.
++=================
++*/
++void CMenuCoFControls::SaveAndPopMenu( void )
++{
++	lookStrafe.WriteCvar();
++	lookFilter.WriteCvar();
++	if( EngFuncs::GetCvarString( "m_filter" )[0] )
++		EngFuncs::CvarSetValue( "m_filter", lookFilter.bChecked );
++	autoaim.WriteCvar();
++	rawinput.WriteCvar();
++	sensitivity.WriteCvar();
++	ToggleLook( true );
++
++	joyEnable.WriteCvar();
++	gyroEnable.WriteCvar();
++
++	if( gyroSens.bDirty )
++	{
++		EngFuncs::CvarSetValue( "joy_gyro_pitch", gyroSens.GetCurrentValue( ));
++		EngFuncs::CvarSetValue( "joy_gyro_yaw", gyroSens.GetCurrentValue( ));
++	}
++
++	if( lookX.bDirty )
++	{
++		const float sign = EngFuncs::GetCvarFloat( "joy_yaw" ) < 0.0f ? -1.0f : 1.0f;
++		EngFuncs::CvarSetValue( "joy_yaw", sign * lookX.GetCurrentValue( ));
++	}
++
++	if( lookY.bDirty || invertLook.bDirty )
++		EngFuncs::CvarSetValue( "joy_pitch", ( invertLook.bChecked ? -1.0f : 1.0f ) * lookY.GetCurrentValue( ));
++
++	if( lookDeadzone.bDirty )
++	{
++		const float v = floor( lookDeadzone.GetCurrentValue() * COF_AXIS_FULL / 100.0f + 0.5f );
++		EngFuncs::CvarSetValue( "joy_pitch_deadzone", v );
++		EngFuncs::CvarSetValue( "joy_yaw_deadzone", v );
++	}
++
++	if( moveDeadzone.bDirty )
++	{
++		const float v = floor( moveDeadzone.GetCurrentValue() * COF_AXIS_FULL / 100.0f + 0.5f );
++		EngFuncs::CvarSetValue( "joy_forward_deadzone", v );
++		EngFuncs::CvarSetValue( "joy_side_deadzone", v );
++	}
++
++	if( trigger.bDirty )
++	{
++		const float v = floor( trigger.GetCurrentValue() * COF_AXIS_FULL / 100.0f + 0.5f );
++		EngFuncs::CvarSetValue( "joy_lt_threshold", v );
++		EngFuncs::CvarSetValue( "joy_rt_threshold", v );
++	}
++
++	if( swapSticks.bDirty )
++		EngFuncs::CvarSetString( "joy_axis_binding", swapSticks.bChecked ? COF_AXES_SWAPPED : COF_AXES_DEFAULT );
++
++	CMenuFramework::SaveAndPopMenu();
++}
++
++void CMenuCoFControls::_Init( void )
++{
++	SetPanel( "CONTROLS", 800, 560 );
++
++	capMouse.szName = L( "AIMING AND MOUSE" );
++	capPad.szName = L( "GAMEPAD" );
++
++	adsMode.szName = L( "Aim down sights" );
++	adsMode.Setup( &adsModel );
++	adsMode.SetCharSize( QM_SMALLFONT );
++	adsMode.iFlags |= QMF_NOTIFY;
++	adsMode.szStatusText = L( "Hold: aim while the aim key is held. Toggle: press once to aim, press again to stop" );
++	adsMode.onChanged = VoidCb( &CMenuCoFControls::AdsChanged );
++
++	sensitivity.szName = L( "GameUI_MouseSensitivity" );
++	sensitivity.Setup( 0.0f, 20.0f, 0.1f );
++	sensitivity.iDecimals = 1;
++
++	rawinput.SetNameAndStatus( L( "GameUI_RawInput" ), L( "GameUI_RawInputLabel" ));
++	autoaim.SetNameAndStatus( L( "GameUI_AutoAim" ), L( "GameUI_AutoaimLabel" ));
++	lookFilter.SetNameAndStatus( L( "GameUI_MouseFilter" ), L( "GameUI_MouseFilterLabel" ));
++	mouseLook.SetNameAndStatus( L( "GameUI_MouseLook" ), L( "GameUI_MouseLookLabel" ));
++	SET_EVENT( mouseLook.onChanged, ((CMenuCoFControls *)pSelf->Parent())->ToggleLook( true ));
++	invertMouse.SetNameAndStatus( L( "GameUI_ReverseMouse" ), L( "GameUI_ReverseMouseLabel" ));
++	invertMouse.onChanged = VoidCb( &CMenuCoFControls::PitchInvert );
++	lookStrafe.SetNameAndStatus( L( "Look strafe" ), L( "In combination with your mouse look modifier, causes left-right movements to strafe instead of turn" ));
++
++	joyEnable.SetNameAndStatus( L( "Enable gamepad" ), L( "Use a connected gamepad for moving, looking and the button actions" ));
++	invertLook.SetNameAndStatus( L( "Invert look" ), L( "Push the look stick up to look down" ));
++	SET_EVENT( invertLook.onChanged, ((CMenuCoFDirtyCheck *)pSelf)->bDirty = true );
++	swapSticks.SetNameAndStatus( L( "Swap sticks" ), L( "Look with the left stick and move with the right stick" ));
++	SET_EVENT( swapSticks.onChanged, ((CMenuCoFDirtyCheck *)pSelf)->bDirty = true );
++
++	lookX.szName = L( "Look speed, horizontal" );
++	lookX.szStatusText = L( "How fast the view turns with the look stick fully pushed, in degrees per second" );
++	lookX.Setup( 20.0f, 400.0f, 10.0f );
++	lookY.szName = L( "Look speed, vertical" );
++	lookY.szStatusText = L( "How fast the view turns with the look stick fully pushed, in degrees per second" );
++	lookY.Setup( 20.0f, 400.0f, 10.0f );
++	lookDeadzone.szName = L( "Look stick deadzone" );
++	lookDeadzone.szStatusText = L( "How far a stick has to move before it counts, in percent of its travel" );
++	lookDeadzone.Setup( 0.0f, 50.0f, 1.0f );
++	lookDeadzone.szUnit = " %";
++	moveDeadzone.szName = L( "Move stick deadzone" );
++	moveDeadzone.szStatusText = L( "How far a stick has to move before it counts, in percent of its travel" );
++	moveDeadzone.Setup( 0.0f, 50.0f, 1.0f );
++	moveDeadzone.szUnit = " %";
++	trigger.szName = L( "Trigger threshold" );
++	trigger.szStatusText = L( "How far a trigger has to be pulled to count as pressed, in percent" );
++	trigger.Setup( 5.0f, 95.0f, 1.0f );
++	trigger.szUnit = " %";
++	gyroEnable.SetNameAndStatus( L( "Gyro aiming" ), L( "Aim by tilting a pad that has a gyroscope" ));
++	gyroSens.szName = L( "Gyro sensitivity" );
++	gyroSens.szStatusText = L( "How far the view turns for a tilt of the pad" );
++	gyroSens.Setup( 0.1f, 4.0f, 0.1f );
++	gyroSens.iDecimals = 1;
++
++	CMenuCoFReadoutSlider *sliders[] = { &sensitivity, &lookX, &lookY, &lookDeadzone, &moveDeadzone, &trigger, &gyroSens };
++	for( size_t i = 0; i < V_ARRAYSIZE( sliders ); i++ )
++	{
++		sliders[i]->iFlags |= QMF_NOTIFY;
++		SET_EVENT( sliders[i]->onChanged, ((CMenuCoFReadoutSlider *)pSelf)->bDirty = true );
++	}
++
++	CMenuCheckBox *boxes[] = { &rawinput, &autoaim, &lookFilter, &mouseLook, &invertMouse, &lookStrafe, &joyEnable, &invertLook, &swapSticks, &gyroEnable };
++	for( size_t i = 0; i < V_ARRAYSIZE( boxes ); i++ )
++		boxes[i]->iFlags |= QMF_NOTIFY;
++
++	done.szName = L( "Close" );
++	done.SetPicture( PC_DONE );
++	done.onReleased = VoidCb( &CMenuCoFControls::SaveAndPopMenu );
++
++	AddItem( capMouse );
++	AddItem( adsMode );
++	AddItem( sensitivity );
++	AddItem( rawinput );
++	AddItem( autoaim );
++	AddItem( lookFilter );
++	AddItem( mouseLook );
++	AddItem( invertMouse );
++	AddItem( lookStrafe );
++	AddItem( capPad );
++	AddItem( joyEnable );
++	AddItem( invertLook );
++	AddItem( swapSticks );
++	AddItem( lookX );
++	AddItem( lookY );
++	AddItem( lookDeadzone );
++	AddItem( moveDeadzone );
++	AddItem( trigger );
++	AddItem( gyroEnable );
++	AddItem( gyroSens );
++	AddItem( done );
++}
++
++void CMenuCoFControls::_VidInit( void )
++{
++	Rect left = ColumnRect( 0, 2 );
++	Rect right = ColumnRect( 1, 2 );
++	int y;
++
++	// left: aiming and mouse
++	y = left.pt.y;
++	capMouse.SetRect( left.pt.x, y, left.sz.w, COF_CAPTION_H );
++	y += COF_CAPTION_H + THEME_LABEL_TALL + 12;	// the spin control's caption sits above its box
++	adsMode.SetRect( left.pt.x, y, left.sz.w, THEME_CTRL_H );
++	y += THEME_CTRL_PITCH;
++	sensitivity.SetRect( left.pt.x, y, left.sz.w, THEME_SLIDER_H );
++	y += THEME_SLIDER_H + 18;
++
++	CMenuCheckBox *mouseBoxes[] = { &rawinput, &autoaim, &lookFilter, &mouseLook, &invertMouse, &lookStrafe };
++	for( size_t i = 0; i < V_ARRAYSIZE( mouseBoxes ); i++ )
++	{
++		mouseBoxes[i]->SetCoord( left.pt.x, y );
++		y += THEME_ROW_PITCH;
++	}
++
++	// right: gamepad
++	y = right.pt.y;
++	capPad.SetRect( right.pt.x, y, right.sz.w, COF_CAPTION_H );
++	y += COF_CAPTION_H + 4;
++
++	CMenuCheckBox *padBoxes[] = { &joyEnable, &invertLook, &swapSticks, &gyroEnable };
++	for( size_t i = 0; i < V_ARRAYSIZE( padBoxes ); i++ )
++	{
++		padBoxes[i]->SetCoord( right.pt.x, y );
++		y += THEME_ROW_PITCH;
++	}
++
++	y += THEME_LABEL_TALL + 14;
++	CMenuCoFReadoutSlider *padSliders[] = { &lookX, &lookY, &lookDeadzone, &moveDeadzone, &trigger, &gyroSens };
++	for( size_t i = 0; i < V_ARRAYSIZE( padSliders ); i++ )
++	{
++		padSliders[i]->SetRect( right.pt.x, y, right.sz.w, THEME_SLIDER_H );
++		y += THEME_CTRL_PITCH - 12;
++	}
++
++	CMenuPicButton *btns[] = { &done };
++	LayoutButtonRow( btns, 1 );
++
++	GetConfig();
++}
++
++/*
++=================
++CMenuCoFControls::OptionsProbe
++
++menu_cof_options_select controls [<item> <value> | close | cancel]
++=================
++*/
++void CMenuCoFControls::OptionsProbe( void )
++{
++	char item[64], value[64];
++	Q_strncpy( item, EngFuncs::CmdArgc() > 2 ? EngFuncs::CmdArgv( 2 ) : "", sizeof( item ));
++	Q_strncpy( value, EngFuncs::CmdArgc() > 3 ? EngFuncs::CmdArgv( 3 ) : "", sizeof( value ));
++
++	if( !stricmp( item, "close" ))
++	{
++		Con_Printf( "menu_cof_options_select controls: Close\n" );
++		SaveAndPopMenu();
++		return;
++	}
++	if( !stricmp( item, "cancel" ))
++	{
++		Con_Printf( "menu_cof_options_select controls: Escape (nothing written)\n" );
++		Hide();
++		return;
++	}
++
++	struct { const char *name; CMenuCheckBox *box; CMenuSlider *slider; const char *cvar; } items[] =
++	{
++		{ "rawinput",   &rawinput,    NULL,          "m_rawinput" },
++		{ "autoaim",    &autoaim,     NULL,          "sv_aim" },
++		{ "filter",     &lookFilter,  NULL,          "look_filter" },
++		{ "mlook",      &mouseLook,   NULL,          "in_mlook" },
++		{ "reverse",    &invertMouse, NULL,          "m_pitch" },
++		{ "lookstrafe", &lookStrafe,  NULL,          "lookstrafe" },
++		{ "joyenable",  &joyEnable,   NULL,          "joy_enable" },
++		{ "invertlook", &invertLook,  NULL,          "joy_pitch" },
++		{ "swapsticks", &swapSticks,  NULL,          "joy_axis_binding" },
++		{ "sensitivity", NULL,        &sensitivity,  "sensitivity" },
++		{ "lookx",      NULL,         &lookX,        "joy_yaw" },
++		{ "looky",      NULL,         &lookY,        "joy_pitch" },
++		{ "lookdz",     NULL,         &lookDeadzone, "joy_pitch_deadzone" },
++		{ "movedz",     NULL,         &moveDeadzone, "joy_forward_deadzone" },
++		{ "trigger",    NULL,         &trigger,      "joy_lt_threshold" },
++		{ "gyro",       &gyroEnable,  NULL,          "joy_gyro_enable" },
++		{ "gyrosens",   NULL,         &gyroSens,     "joy_gyro_yaw" },
++	};
++
++	if( !stricmp( item, "ads" ))
++	{
++		if( value[0] )
++			UI_CoFProbeSpin( adsMode, value );
++		Con_Printf( "menu_cof_options_select controls: ads = %d (%s) (cof_ads_toggle \"%s\")\n",
++			(int)adsMode.GetCurrentValue(), adsMode.GetCurrentString(), EngFuncs::GetCvarString( "cof_ads_toggle" ));
++		return;
++	}
++
++	bool any = false;
++	for( size_t i = 0; i < V_ARRAYSIZE( items ); i++ )
++	{
++		if( item[0] && stricmp( item, items[i].name ))
++			continue;
++		any = true;
++
++		if( item[0] && value[0] )
++		{
++			if( items[i].box )
++				UI_CoFProbeCheck( *items[i].box, value );
++			else
++				UI_CoFProbeSlider( *items[i].slider, value );
++		}
++
++		if( items[i].box )
++			Con_Printf( "menu_cof_options_select controls: %s = %d (%s \"%s\")%s\n", items[i].name, items[i].box->bChecked ? 1 : 0,
++				items[i].cvar, EngFuncs::GetCvarString( items[i].cvar ), FBitSet( items[i].box->iFlags, QMF_GRAYED ) ? " grayed" : "" );
++		else
++			Con_Printf( "menu_cof_options_select controls: %s = %g (%s \"%s\")\n", items[i].name, items[i].slider->GetCurrentValue(),
++				items[i].cvar, EngFuncs::GetCvarString( items[i].cvar ));
++	}
++
++	if( !item[0] )
++		Con_Printf( "menu_cof_options_select controls: ads = %d (cof_ads_toggle \"%s\")\n",
++			(int)adsMode.GetCurrentValue(), EngFuncs::GetCvarString( "cof_ads_toggle" ));
++	else if( !any )
++		Con_Printf( "menu_cof_options_select controls: no item \"%s\"\n", item );
++}
++
++ADD_MENU( menu_cofcontrols, CMenuCoFControls, UI_CoFControls_Menu );
++
++// ---------------------------------------------------------------------------
++// Gamepad controls
++// ---------------------------------------------------------------------------
++
++// an engine key name, never drawn as text (the menu-string extractor,
++// scripts/polish/extract-menu-strings.ps1, skips COF_KEY arguments)
++#define COF_KEY( name )	name
++
++/*
++The rows: every button a pad gives the engine (SDL2 GameController through
++engine/platform/sdl2/joy_sdl2.c; key names from engine/client/input/in_keys.c).
++LT and RT are the analog triggers, which the engine turns into the keys
++LTRIGGER / RTRIGGER (K_JOY1 / K_JOY2) past joy_lt_threshold / joy_rt_threshold.
++Names are the Xbox and the PlayStation ones; the icons, the picture and the
++marker positions come from gfx/shell/gamepad/icons.txt (Zacksly's Button
++Icons and Controls, CC BY 3.0).
++*/
++static const struct { const char *key; const char *xbox; const char *ps; } g_cofPadRows[] =
++{
++	{ NULL,        "FACE BUTTONS",           NULL },
++	{ COF_KEY( "A_BUTTON" ),  "A",                      "Cross" },
++	{ COF_KEY( "B_BUTTON" ),  "B",                      "Circle" },
++	{ COF_KEY( "X_BUTTON" ),  "X",                      "Square" },
++	{ COF_KEY( "Y_BUTTON" ),  "Y",                      "Triangle" },
++	{ NULL,        "SHOULDERS AND TRIGGERS", NULL },
++	{ COF_KEY( "L1_BUTTON" ), "LB",                     "L1" },
++	{ COF_KEY( "R1_BUTTON" ), "RB",                     "R1" },
++	{ COF_KEY( "LTRIGGER" ),  "LT",                     "L2" },
++	{ COF_KEY( "RTRIGGER" ),  "RT",                     "R2" },
++	{ NULL,        "STICKS",                 NULL },
++	{ COF_KEY( "STICK1" ),    "Left stick click",       "L3" },
++	{ COF_KEY( "STICK2" ),    "Right stick click",      "R3" },
++	{ NULL,        "D-PAD",                  NULL },
++	{ COF_KEY( "DPAD_UP" ),   "D-pad up",               "D-pad up" },
++	{ COF_KEY( "DPAD_DOWN" ), "D-pad down",             "D-pad down" },
++	{ COF_KEY( "DPAD_LEFT" ), "D-pad left",             "D-pad left" },
++	{ COF_KEY( "DPAD_RIGHT" ),"D-pad right",            "D-pad right" },
++	{ NULL,        "MENU BUTTONS",           NULL },
++	{ COF_KEY( "START" ),     "Menu",                   "Options" },
++	{ COF_KEY( "BACK" ),      "View",                   "Create" },
++};
++#define COF_PAD_ROWS	( (int)V_ARRAYSIZE( g_cofPadRows ))
++
++// every key name a pad can produce; "Use defaults" clears these before it
++// applies the pad lines of gfx/shell/kb_def.lst
++static const char *g_cofPadKeys[] =
++{
++	COF_KEY( "A_BUTTON" ), COF_KEY( "B_BUTTON" ), COF_KEY( "X_BUTTON" ), COF_KEY( "Y_BUTTON" ), COF_KEY( "BACK" ), COF_KEY( "MODE" ), COF_KEY( "START" ),
++	COF_KEY( "STICK1" ), COF_KEY( "STICK2" ), COF_KEY( "L1_BUTTON" ), COF_KEY( "R1_BUTTON" ), COF_KEY( "DPAD_UP" ), COF_KEY( "DPAD_DOWN" ),
++	COF_KEY( "DPAD_LEFT" ), COF_KEY( "DPAD_RIGHT" ), COF_KEY( "L2_BUTTON" ), COF_KEY( "R2_BUTTON" ), COF_KEY( "LTRIGGER" ), COF_KEY( "RTRIGGER" ),
++	COF_KEY( "JOY3" ), COF_KEY( "JOY4" ), COF_KEY( "C_BUTTON" ), COF_KEY( "Z_BUTTON" ), COF_KEY( "MISC_BUTTON" ), COF_KEY( "PADDLE1" ), COF_KEY( "PADDLE2" ),
++	COF_KEY( "PADDLE3" ), COF_KEY( "PADDLE4" ), COF_KEY( "TOUCHPAD" ), COF_KEY( "MISC2_BUTTON" ),
++};
++#define COF_PAD_KEYS	( (int)V_ARRAYSIZE( g_cofPadKeys ))
++
++static bool UI_CoFIsPadKeyName( const char *name )
++{
++	for( int i = 0; i < COF_PAD_KEYS; i++ )
++	{
++		if( !stricmp( name, g_cofPadKeys[i] ))
++			return true;
++	}
++	return false;
++}
++
++bool UI_CoFIsPadKey( int keynum )
++{
++	const char *name = keynum >= 0 ? EngFuncs::KeynumToString( keynum ) : NULL;
++
++	return name && UI_CoFIsPadKeyName( name );
++}
++
++#define COF_PAD_DIR		"gfx/shell/gamepad/"
++#define COF_PAD_PIC_XBOX	COF_PAD_DIR "xbox/controller.png"
++#define COF_PAD_PIC_PS		COF_PAD_DIR "ps5/controller.png"
++#define COF_PAD_MAX_ACTIONS	96
++
++struct cofPadIcon_t
++{
++	char key[24];
++	char file[2][64];	// xbox, ps5 (relative to gfx/shell/gamepad/)
++	float u[2], v[2];	// marker centre on the picture, fractions of its size
++	float size;		// marker size, fraction of the picture width
++};
++
++struct cofPadAction_t
++{
++	char command[64];
++	char label[96];
++};
++
++class CMenuCoFGamepad;
++
++// the list with taller rows: a table draws an image cell as tall as a row,
++// and a glyph must stay readable (about 34 px at 1080p, 68 at 2160p)
++class CMenuCoFPadTable : public CMenuTable
++{
++public:
++	void VidInit() override
++	{
++		CMenuTable::VidInit();
++		m_scChSize = (int)( 24 * uiStatic.scaleY );
++	}
++};
++
++class CMenuCoFPadModel : public CMenuBaseModel
++{
++public:
++	CMenuCoFPadModel( CMenuCoFGamepad *parent ) : m_pParent( parent ) { }
++
++	void Update() override;
++	int GetColumns() const override { return 3; }
++	int GetRows() const override { return COF_PAD_ROWS; }
++	const char *GetCellText( int line, int column ) override;
++	ECellType GetCellType( int line, int column ) override
++	{
++		return ( column == 0 && g_cofPadRows[line].key ) ? CELL_IMAGE_TRANS : CELL_TEXT;
++	}
++	bool GetCellColors( int line, int column, unsigned int &textColor, bool &force ) const override;
++	bool IsCellTextWrapped( int line, int column ) override { return false; }
++	bool IsLineSectionHeader( int line ) const override { return line >= 0 && line < COF_PAD_ROWS && !g_cofPadRows[line].key; }
++	void OnActivateEntry( int line ) override;
++	void OnDeleteEntry( int line ) override;
++
++	char m_szIcon[COF_PAD_ROWS][96];
++	char m_szAction[COF_PAD_ROWS][96];
++
++private:
++	CMenuCoFGamepad *m_pParent;
++};
++
++class CMenuCoFActionModel : public CMenuBaseArrayModel
++{
++public:
++	CMenuCoFActionModel( CMenuCoFGamepad *parent ) : m_pParent( parent ) { }
++	void Update() override { }
++	int GetRows() const override;
++	const char *GetText( int line ) override;
++private:
++	CMenuCoFGamepad *m_pParent;
++};
++
++static const char *g_cofPadStyles[] = { "Xbox", "PlayStation" };
++
++class CMenuCoFStyleModel : public CMenuBaseArrayModel
++{
++public:
++	void Update() override { }
++	int GetRows() const override { return 2; }
++	const char *GetText( int line ) override { return L( g_cofPadStyles[line ? 1 : 0] ); }
++};
++
++// the controller picture, with the selected row's button marked on it
++class CMenuCoFPadPicture : public CMenuBaseItem
++{
++public:
++	CMenuCoFPadPicture() : CMenuBaseItem(), m_pPage( NULL ) { iFlags |= QMF_INACTIVE; }
++	void Draw() override;
++	CMenuCoFGamepad *m_pPage;
++};
++
++class CMenuCoFGamepad : public CMenuFramework
++{
++public:
++	typedef CMenuFramework BaseClass;
++	CMenuCoFGamepad() : CMenuFramework( "CMenuCoFGamepad" ), padModel( this ), actionModel( this ),
++		m_iNumActions( 0 ), m_iNumIcons( 0 ), m_bSyncing( false ) { }
++
++	void Show() override;
++
++	int Style( void ) const { return EngFuncs::GetCvarFloat( "cof_pad_style" ) >= 1.0f ? 1 : 0; }
++	int CurrentRow( void ) { return padList.GetCurrentIndex(); }
++	const char *RowName( int row ) const;
++	const cofPadIcon_t *Icon( int row ) const;
++	int RowKey( int row ) const { return ( row >= 0 && row < COF_PAD_ROWS ) ? m_iKey[row] : -1; }
++	const char *ActionLabel( const char *command ) const;
++
++	void EnterGrabMode( void );
++	bool SwapWith( int key );
++	void ClearCurrent( void );
++	bool ApplyDefaults( void );
++	void UseDefaults( void ) { ApplyDefaults(); }
++	void OptionsProbe( void );
++
++	int m_iNumActions;
++	cofPadAction_t m_actions[COF_PAD_MAX_ACTIONS];	// [0] = not bound
++	CImage m_pic[2];
++
++private:
++	void _Init( void ) override;
++	void _VidInit( void ) override;
++	void SaveAndPopMenu( void ) override;
++
++	void GetConfig( void );
++	void LoadIcons( void );
++	void BuildActions( void );
++	void AddAction( const char *command, const char *label );
++	void SyncAction( void );
++	void ActionChanged( void );
++	void StyleChanged( void );
++	void Cancel( void );
++	void BindKey( int key, const char *command );
++
++	CMenuCoFPadTable padList;
++	CMenuCoFPadModel padModel;
++	CMenuSpinControl action;
++	CMenuCoFActionModel actionModel;
++	CMenuSpinControl style;
++	CMenuCoFStyleModel styleModel;
++	CMenuCoFPadPicture picture;
++	CMenuAction keyLine, hint, padNote;
++	char m_szKeyLine[96];
++
++	int m_iKey[COF_PAD_ROWS];
++	cofPadIcon_t m_icons[COF_PAD_ROWS];
++	int m_iNumIcons;
++	bool m_bSyncing;
++
++	// bindings when the page opened, for Cancel
++	char m_szSnapshot[COF_PAD_KEYS][128];
++
++	class CGrabPadBox : public CMenuMessageBox
++	{
++	public:
++		bool KeyUp( int key ) override;
++		bool KeyDown( int key ) override { return true; }
++	} grabBox;
++
++	CMenuYesNoMessageBox defaultsBox;
++};
++
++// ------------------------------------------------------------------ model
++
++void CMenuCoFPadModel::Update()
++{
++	for( int i = 0; i < COF_PAD_ROWS; i++ )
++	{
++		m_szIcon[i][0] = m_szAction[i][0] = 0;
++
++		if( !g_cofPadRows[i].key )
++			continue;
++
++		const cofPadIcon_t *icon = m_pParent->Icon( i );
++		if( icon && icon->file[m_pParent->Style()][0] )
++			snprintf( m_szIcon[i], sizeof( m_szIcon[i] ), COF_PAD_DIR "%s", icon->file[m_pParent->Style()] );
++
++		const int key = m_pParent->RowKey( i );
++		const char *b = key >= 0 ? EngFuncs::KEY_GetBinding( key ) : NULL;
++
++		Q_strncpy( m_szAction[i], ( b && b[0] ) ? m_pParent->ActionLabel( b ) : L( "Not bound" ), sizeof( m_szAction[i] ));
++	}
++}
++
++const char *CMenuCoFPadModel::GetCellText( int line, int column )
++{
++	if( line < 0 || line >= COF_PAD_ROWS )
++		return NULL;
++
++	if( !g_cofPadRows[line].key )
++		return column == 0 ? L( g_cofPadRows[line].xbox ) : NULL;
++
++	switch( column )
++	{
++	case 0: return m_szIcon[line][0] ? m_szIcon[line] : NULL;
++	case 1: return m_pParent->RowName( line );
++	case 2: return m_szAction[line];
++	}
++	return NULL;
++}
++
++bool CMenuCoFPadModel::GetCellColors( int line, int column, unsigned int &textColor, bool &force ) const
++{
++	if( column == 0 )
++	{
++		textColor = line == m_pParent->CurrentRow() ? THEME_ACCENT : THEME_TEXT;
++		force = true;
++		return true;
++	}
++
++	// an unbound button reads dim
++	if( column == 2 && g_cofPadRows[line].key )
++	{
++		const int key = m_pParent->RowKey( line );
++		const char *b = key >= 0 ? EngFuncs::KEY_GetBinding( key ) : NULL;
++
++		if( !b || !b[0] )
++		{
++			textColor = THEME_TEXT_DIM;
++			force = true;
++			return true;
++		}
++	}
++	return false;
++}
++
++void CMenuCoFPadModel::OnActivateEntry( int line )
++{
++	m_pParent->EnterGrabMode();
++}
++
++void CMenuCoFPadModel::OnDeleteEntry( int line )
++{
++	m_pParent->ClearCurrent();
++}
++
++int CMenuCoFActionModel::GetRows() const
++{
++	return m_pParent->m_iNumActions;
++}
++
++const char *CMenuCoFActionModel::GetText( int line )
++{
++	if( line < 0 || line >= m_pParent->m_iNumActions )
++		return "";
++	return m_pParent->m_actions[line].label;
++}
++
++// ------------------------------------------------------------------ data
++
++const char *CMenuCoFGamepad::RowName( int row ) const
++{
++	if( row < 0 || row >= COF_PAD_ROWS || !g_cofPadRows[row].key )
++		return "";
++	return L( Style() ? g_cofPadRows[row].ps : g_cofPadRows[row].xbox );
++}
++
++const cofPadIcon_t *CMenuCoFGamepad::Icon( int row ) const
++{
++	if( row < 0 || row >= COF_PAD_ROWS || !g_cofPadRows[row].key )
++		return NULL;
++
++	for( int i = 0; i < m_iNumIcons; i++ )
++	{
++		if( !stricmp( m_icons[i].key, g_cofPadRows[row].key ))
++			return &m_icons[i];
++	}
++	return NULL;
++}
++
++const char *CMenuCoFGamepad::ActionLabel( const char *command ) const
++{
++	for( int i = 1; i < m_iNumActions; i++ )
++	{
++		if( !stricmp( m_actions[i].command, command ))
++			return m_actions[i].label;
++	}
++	return command;	// a command no list names: shown as it is
++}
++
++/*
++=================
++CMenuCoFGamepad::LoadIcons
++
++gfx/shell/gamepad/icons.txt, one button per line, // comments:
++
++  <engine key> <xbox icon> <ps5 icon> <xbox label> <ps label>
++      <xbox u> <xbox v> <ps5 u> <ps5 v> <marker size>
++
++The labels are for the later "press (A)" hint stage; this page names the
++rows itself (g_cofPadRows, through the menu's string layer).
++=================
++*/
++void CMenuCoFGamepad::LoadIcons( void )
++{
++	m_iNumIcons = 0;
++
++	char *afile = (char *)EngFuncs::COM_LoadFile( COF_PAD_DIR "icons.txt", NULL );
++	if( !afile )
++	{
++		Con_Printf( "menu_cofgamepad: " COF_PAD_DIR "icons.txt not found, rows without icons\n" );
++		return;
++	}
++
++	char *pfile = afile;
++	char tok[10][64];
++
++	while( m_iNumIcons < COF_PAD_ROWS )
++	{
++		int n;
++		for( n = 0; n < 10; n++ )
++		{
++			pfile = EngFuncs::COM_ParseFile( pfile, tok[n], sizeof( tok[n] ));
++			if( !pfile )
++				break;
++		}
++		if( n < 10 )
++			break;
++
++		cofPadIcon_t &ic = m_icons[m_iNumIcons++];
++		Q_strncpy( ic.key, tok[0], sizeof( ic.key ));
++		Q_strncpy( ic.file[0], tok[1], sizeof( ic.file[0] ));
++		Q_strncpy( ic.file[1], tok[2], sizeof( ic.file[1] ));
++		ic.u[0] = atof( tok[5] );
++		ic.v[0] = atof( tok[6] );
++		ic.u[1] = atof( tok[7] );
++		ic.v[1] = atof( tok[8] );
++		ic.size = atof( tok[9] );
++	}
++
++	EngFuncs::COM_FreeFile( afile );
++}
++
++void CMenuCoFGamepad::AddAction( const char *command, const char *label )
++{
++	if( !command || !command[0] || m_iNumActions >= COF_PAD_MAX_ACTIONS )
++		return;
++
++	for( int i = 1; i < m_iNumActions; i++ )
++	{
++		if( !stricmp( m_actions[i].command, command ))
++			return;
++	}
++
++	Q_strncpy( m_actions[m_iNumActions].command, command, sizeof( m_actions[0].command ));
++	Q_strncpy( m_actions[m_iNumActions].label, label, sizeof( m_actions[0].label ));
++	m_iNumActions++;
++}
++
++/*
++=================
++CMenuCoFGamepad::BuildActions
++
++What a button can be given: every action of the key list
++(gfx/shell/kb_act.lst, the Keybinds page's own list), the engine's menu
++command, then every command the pad lines of gfx/shell/kb_def.lst and the
++current pad bindings use that neither names (shown as the command itself), so
++a default layout added to kb_def.lst later shows up here on its own.
++=================
++*/
++void CMenuCoFGamepad::BuildActions( void )
++{
++	char token[1024];
++	char *afile, *pfile;
++
++	m_iNumActions = 0;
++	Q_strncpy( m_actions[0].command, "", sizeof( m_actions[0].command ));
++	Q_strncpy( m_actions[0].label, L( "Not bound" ), sizeof( m_actions[0].label ));
++	m_iNumActions = 1;
++
++	if(( afile = (char *)EngFuncs::COM_LoadFile( "gfx/shell/kb_act.lst", NULL )) != NULL )
++	{
++		char bind[64];
++
++		pfile = afile;
++		while(( pfile = EngFuncs::COM_ParseFile( pfile, token, sizeof( token ))) != NULL )
++		{
++			Q_strncpy( bind, token, sizeof( bind ));
++			pfile = EngFuncs::COM_ParseFile( pfile, token, sizeof( token ));
++			if( !pfile )
++				break;
++			if( !stricmp( bind, "blank" ))
++				continue;
++			AddAction( bind, token[0] == '#' ? L( token ) : token );
++		}
++		EngFuncs::COM_FreeFile( afile );
++	}
++
++	// the engine's crouch toggle (gamepad round), in case the list lacks it
++	AddAction( "cof_duck_toggle", L( "Crouch (toggle)" ));
++	AddAction( "cancelselect", L( "Open the menu" ));
++
++	if(( afile = (char *)EngFuncs::COM_LoadFile( "gfx/shell/kb_def.lst", NULL )) != NULL )
++	{
++		char key[32];
++
++		pfile = afile;
++		while(( pfile = EngFuncs::COM_ParseFile( pfile, token, sizeof( token ))) != NULL )
++		{
++			Q_strncpy( key, token, sizeof( key ));
++			pfile = EngFuncs::COM_ParseFile( pfile, token, sizeof( token ));
++			if( !pfile )
++				break;
++			if( UI_CoFIsPadKeyName( key ))
++				AddAction( token, token );
++		}
++		EngFuncs::COM_FreeFile( afile );
++	}
++
++	for( int i = 0; i < COF_PAD_ROWS; i++ )
++	{
++		const char *b = m_iKey[i] >= 0 ? EngFuncs::KEY_GetBinding( m_iKey[i] ) : NULL;
++		if( b && b[0] )
++			AddAction( b, b );
++	}
++}
++
++void CMenuCoFGamepad::GetConfig( void )
++{
++	for( int i = 0; i < COF_PAD_ROWS; i++ )
++		m_iKey[i] = g_cofPadRows[i].key ? UI_CoFKeyByName( g_cofPadRows[i].key ) : -1;
++
++	LoadIcons();
++	BuildActions();
++
++	m_pic[0] = COF_PAD_PIC_XBOX;
++	m_pic[1] = COF_PAD_PIC_PS;
++
++	m_bSyncing = true;
++	action.Setup( &actionModel );
++	style.SetCurrentValue( (float)Style( ));
++	m_bSyncing = false;
++
++	padModel.Update();
++	SyncAction();
++}
++
++// the action box follows the selected row, without binding anything
++void CMenuCoFGamepad::SyncAction( void )
++{
++	const int row = padList.GetCurrentIndex();
++	const int key = RowKey( row );
++	const char *b = key >= 0 ? EngFuncs::KEY_GetBinding( key ) : NULL;
++	int idx = 0;
++
++	if( b && b[0] )
++	{
++		for( int i = 1; i < m_iNumActions; i++ )
++		{
++			if( !stricmp( m_actions[i].command, b ))
++			{
++				idx = i;
++				break;
++			}
++		}
++	}
++
++	m_bSyncing = true;
++	action.SetCurrentValue( (float)idx );
++	m_bSyncing = false;
++
++	snprintf( m_szKeyLine, sizeof( m_szKeyLine ), L( "Config key: %s" ), row >= 0 && row < COF_PAD_ROWS && g_cofPadRows[row].key ? g_cofPadRows[row].key : "-" );
++	keyLine.szName = m_szKeyLine;
++}
++
++// straight into the engine's key table, as the "bind" command does: a
++// ClientCmd( true, ... ) would run the whole pending command buffer from here
++void CMenuCoFGamepad::BindKey( int key, const char *command )
++{
++	EngFuncs::KEY_SetBinding( key, command ? command : "" );
++}
++
++void CMenuCoFGamepad::ActionChanged( void )
++{
++	if( m_bSyncing )
++		return;
++
++	const int row = padList.GetCurrentIndex();
++	const int key = RowKey( row );
++	const int idx = (int)action.GetCurrentValue();
++
++	if( key < 0 || idx < 0 || idx >= m_iNumActions )
++		return;
++
++	BindKey( key, m_actions[idx].command );
++	padModel.Update();
++}
++
++void CMenuCoFGamepad::StyleChanged( void )
++{
++	if( m_bSyncing )
++		return;
++
++	EngFuncs::CvarSetValue( "cof_pad_style", style.GetCurrentValue() >= 1.0f ? 1.0f : 0.0f );
++	padModel.Update();
++	SyncAction();
++}
++
++void CMenuCoFGamepad::EnterGrabMode( void )
++{
++	if( RowKey( padList.GetCurrentIndex( )) < 0 )
++	{
++		PlayLocalSound( uiStatic.sounds[SND_BUZZ] );
++		return;
++	}
++
++	grabBox.Show();
++	PlayLocalSound( uiStatic.sounds[SND_KEY] );
++}
++
++/*
++=================
++CMenuCoFGamepad::SwapWith
++
++The selected row's button and the pressed one trade actions: remapping by
++pressing never leaves a button with a duplicate or a lost action.
++=================
++*/
++bool CMenuCoFGamepad::SwapWith( int key )
++{
++	const int rowKey = RowKey( padList.GetCurrentIndex( ));
++	const char *name = EngFuncs::KeynumToString( key );
++
++	if( rowKey < 0 || !name || !UI_CoFIsPadKeyName( name ))
++		return false;
++
++	if( key != rowKey )
++	{
++		char a[128], b[128];
++		const char *ba = EngFuncs::KEY_GetBinding( rowKey );
++		const char *bb = EngFuncs::KEY_GetBinding( key );
++
++		Q_strncpy( a, ba ? ba : "", sizeof( a ));
++		Q_strncpy( b, bb ? bb : "", sizeof( b ));
++		BindKey( rowKey, b );
++		BindKey( key, a );
++	}
++
++	BuildActions();
++	action.Setup( &actionModel );
++	padModel.Update();
++	SyncAction();
++	return true;
++}
++
++void CMenuCoFGamepad::ClearCurrent( void )
++{
++	const int key = RowKey( padList.GetCurrentIndex( ));
++
++	if( key < 0 )
++	{
++		PlayLocalSound( uiStatic.sounds[SND_BUZZ] );
++		return;
++	}
++
++	BindKey( key, "" );
++	padModel.Update();
++	SyncAction();
++	PlayLocalSound( uiStatic.sounds[SND_REMOVEKEY] );
++}
++
++bool CMenuCoFGamepad::CGrabPadBox::KeyUp( int key )
++{
++	CMenuCoFGamepad *parent = (CMenuCoFGamepad *)m_pParent;
++	// Escape (the keyboard key) cancels; B and every other pad button is a
++	// button to swap with, so it cannot be the way out
++	const bool ok = key != K_ESCAPE && !UI::Key::IsConsole( key ) && parent->SwapWith( key );
++
++	Hide();
++	PlayLocalSound( uiStatic.sounds[ok ? SND_LAUNCH : SND_BUZZ] );
++	return true;
++}
++
++/*
++=================
++CMenuCoFGamepad::ApplyDefaults
++
++"Use defaults" for the pad only: the pad lines of gfx/shell/kb_def.lst (the
++file the Keybinds page's own "Use defaults" applies, with every key), after
++clearing every pad button. A kb_def.lst without pad lines changes nothing.
++=================
++*/
++bool CMenuCoFGamepad::ApplyDefaults( void )
++{
++	char *afile = (char *)EngFuncs::COM_LoadFile( "gfx/shell/kb_def.lst", NULL );
++	char key[32], token[1024];
++	struct { char key[32]; char cmd[128]; } lines[64];
++	int n = 0;
++
++	if( afile )
++	{
++		char *pfile = afile;
++		while(( pfile = EngFuncs::COM_ParseFile( pfile, token, sizeof( token ))) != NULL && n < (int)V_ARRAYSIZE( lines ))
++		{
++			Q_strncpy( key, token, sizeof( key ));
++			pfile = EngFuncs::COM_ParseFile( pfile, token, sizeof( token ));
++			if( !pfile )
++				break;
++			if( !UI_CoFIsPadKeyName( key ))
++				continue;
++			Q_strncpy( lines[n].key, key, sizeof( lines[n].key ));
++			Q_strncpy( lines[n].cmd, token, sizeof( lines[n].cmd ));
++			n++;
++		}
++		EngFuncs::COM_FreeFile( afile );
++	}
++
++	if( !n )
++	{
++		Con_Printf( "menu_cofgamepad: gfx/shell/kb_def.lst has no gamepad lines, nothing changed\n" );
++		UI_ShowMessageBox( L( "The default key list has no gamepad buttons yet." ));
++		return false;
++	}
++
++	for( int i = 0; i < COF_PAD_KEYS; i++ )
++	{
++		const int k = UI_CoFKeyByName( g_cofPadKeys[i] );
++		if( k >= 0 )
++			BindKey( k, "" );
++	}
++
++	for( int i = 0; i < n; i++ )
++	{
++		const int k = UI_CoFKeyByName( lines[i].key );
++		if( k >= 0 )
++			BindKey( k, lines[i].cmd );
++	}
++
++	Con_Printf( "menu_cofgamepad: %d gamepad defaults applied from gfx/shell/kb_def.lst\n", n );
++
++	BuildActions();
++	action.Setup( &actionModel );
++	padModel.Update();
++	SyncAction();
++	return true;
++}
++
++void CMenuCoFGamepad::Show( void )
++{
++	// what Cancel goes back to
++	for( int i = 0; i < COF_PAD_KEYS; i++ )
++	{
++		const int k = UI_CoFKeyByName( g_cofPadKeys[i] );
++		const char *b = k >= 0 ? EngFuncs::KEY_GetBinding( k ) : NULL;
++
++		Q_strncpy( m_szSnapshot[i], b ? b : "", sizeof( m_szSnapshot[i] ));
++	}
++
++	BaseClass::Show();
++}
++
++void CMenuCoFGamepad::Cancel( void )
++{
++	for( int i = 0; i < COF_PAD_KEYS; i++ )
++	{
++		const int k = UI_CoFKeyByName( g_cofPadKeys[i] );
++		const char *b = k >= 0 ? EngFuncs::KEY_GetBinding( k ) : NULL;
++
++		if( k >= 0 && strcmp( b ? b : "", m_szSnapshot[i] ))
++			BindKey( k, m_szSnapshot[i] );
++	}
++	Hide();
++}
++
++void CMenuCoFGamepad::SaveAndPopMenu( void )
++{
++	// the bindings are live already; this writes config.cfg now
++	CMenuFramework::SaveAndPopMenu();
++}
++
++void CMenuCoFGamepad::_Init( void )
++{
++	SetPanel( "GAMEPAD CONTROLS", 900, 640 );
++
++	EngFuncs::CvarRegister( "cof_pad_style", "0", FCVAR_ARCHIVE );
++
++	padList.SetModel( &padModel );
++	padList.SetupColumn( 0, NULL, 34.0f, true );
++	padList.SetupColumn( 1, L( "Button" ), 0.46f );
++	padList.SetupColumn( 2, L( "GameUI_Action" ), 0.54f );
++	padList.onChanged = VoidCb( &CMenuCoFGamepad::SyncAction );
++
++	action.szName = L( "Action for the selected button" );
++	action.Setup( &actionModel );
++	action.SetCharSize( QM_SMALLFONT );
++	action.iFlags |= QMF_NOTIFY;
++	action.szStatusText = L( "The action this button performs in the game" );
++	action.onChanged = VoidCb( &CMenuCoFGamepad::ActionChanged );
++
++	style.szName = L( "Button style" );
++	style.Setup( &styleModel );
++	style.SetCharSize( QM_SMALLFONT );
++	style.iFlags |= QMF_NOTIFY;
++	style.szStatusText = L( "Button names and pictures of an Xbox or a PlayStation controller" );
++	style.onChanged = VoidCb( &CMenuCoFGamepad::StyleChanged );
++
++	picture.m_pPage = this;
++
++	m_szKeyLine[0] = 0;
++	keyLine.iFlags = QMF_INACTIVE;
++	keyLine.colorBase = uiColorHelp;
++	keyLine.SetCharSize( QM_SMALLFONT );
++	keyLine.szName = m_szKeyLine;
++
++	hint.iFlags = QMF_INACTIVE;
++	hint.colorBase = uiColorHelp;
++	hint.SetCharSize( QM_SMALLFONT );
++	hint.szName = L( "Pick a button, then its action below. Or press Enter on a button and then another gamepad button to swap the two." );
++
++	padNote.iFlags = QMF_INACTIVE;
++	padNote.colorBase = uiColorHelp;
++	padNote.SetCharSize( QM_SMALLFONT );
++	padNote.szName = L( "In the menus: A confirm \xC2\xB7 B back \xC2\xB7 LB/RB tabs \xC2\xB7 X use defaults \xC2\xB7 Start resume" );
++
++	grabBox.SetMessage( L( "Press the gamepad button to swap with this one" ));
++	grabBox.Link( this );
++
++	defaultsBox.SetMessage( L( "Reset every gamepad button to the default layout?" ));
++	defaultsBox.onPositive = VoidCb( &CMenuCoFGamepad::UseDefaults );
++	defaultsBox.Link( this );
++
++	pPadSecondary = AddButton( L( "GameUI_UseDefaults" ), nullptr, PC_USE_DEFAULTS, defaultsBox.MakeOpenEvent( ));
++	AddButton( L( "GameUI_Cancel" ), nullptr, PC_CANCEL, VoidCb( &CMenuCoFGamepad::Cancel ));
++	AddButton( L( "GameUI_OK" ), nullptr, PC_OK, VoidCb( &CMenuCoFGamepad::SaveAndPopMenu ));
++
++	// pad / arrow-key order: the list, its action, then the button style
++	AddItem( picture );
++	AddItem( padList );
++	AddItem( action );
++	AddItem( style );
++	AddItem( keyLine );
++	AddItem( hint );
++	AddItem( padNote );
++}
++
++void CMenuCoFGamepad::_VidInit( void )
++{
++	Rect left = ColumnRect2( 0, 0.40f );
++	Rect right = ColumnRect2( 1, 0.40f );
++	int y = left.pt.y;
++
++	picture.SetRect( left.pt.x, y, left.sz.w, 290 );
++	y += 290 + THEME_LABEL_TALL + 16;
++	style.SetRect( left.pt.x, y, left.sz.w, THEME_CTRL_H );
++	y += THEME_CTRL_H + 12;
++	keyLine.SetRect( left.pt.x, y, left.sz.w, THEME_LABEL_TALL + 4 );
++	y += THEME_LABEL_TALL + 14;
++	hint.SetRect( left.pt.x, y, left.sz.w, 3 * THEME_LABEL_TALL + 12 );
++	y += 3 * THEME_LABEL_TALL + 20;
++	padNote.SetRect( left.pt.x, y, left.sz.w, left.pt.y + left.sz.h - y );
++
++	const int actionBlock = THEME_LABEL_TALL + 16 + THEME_CTRL_H;
++	padList.SetRect( right.pt.x, right.pt.y, right.sz.w, right.sz.h - actionBlock - 8 );
++	action.SetRect( right.pt.x, right.pt.y + right.sz.h - THEME_CTRL_H, right.sz.w, THEME_CTRL_H );
++
++	grabBox.szPanelTitle = "PRESS A BUTTON";
++
++	GetConfig();
++
++	const int cur = padList.GetCurrentIndex();
++	if( cur < 0 || cur >= COF_PAD_ROWS || !g_cofPadRows[cur].key )
++		padList.SetCurrentIndex( 0 );	// skips the caption
++	SyncAction();
++}
++
++/*
++=================
++CMenuCoFPadPicture::Draw
++
++The pad drawn dim in the theme's grey, fitted into the item's rect below a
++band kept free for the trigger markers (LT/RT sit above the shoulders), and
++the selected row's button marked with its own icon in the accent colour.
++=================
++*/
++void CMenuCoFPadPicture::Draw( void )
++{
++	if( !m_pPage )
++		return;
++
++	const int st = m_pPage->Style();
++	CImage &pic = m_pPage->m_pic[st];
++
++	if( !pic.Handle( ))
++		return;
++
++	const Size isz = EngFuncs::PIC_Size( pic.Handle( ));
++	if( isz.w <= 0 || isz.h <= 0 )
++		return;
++
++	const int band = m_scSize.h / 8;
++	Size sz;
++	sz.w = m_scSize.w;
++	sz.h = (int)((float)sz.w * isz.h / isz.w );
++	if( sz.h > m_scSize.h - band )
++	{
++		sz.h = m_scSize.h - band;
++		sz.w = (int)((float)sz.h * isz.w / isz.h );
++	}
++
++	Point pt( m_scPos.x + ( m_scSize.w - sz.w ) / 2, m_scPos.y + band );
++
++	UI_DrawPic( pt, sz, THEME_TEXT_DIM, pic, QM_DRAWTRANS );
++
++	const cofPadIcon_t *icon = m_pPage->Icon( m_pPage->CurrentRow( ));
++	if( !icon || !icon->file[st][0] || icon->size <= 0.0f )
++		return;
++
++	char path[128];
++	snprintf( path, sizeof( path ), COF_PAD_DIR "%s", icon->file[st] );
++
++	CImage marker = path;
++	if( !marker.Handle( ))
++		return;
++
++	const int ms = (int)( icon->size * sz.w );
++	const int cx = pt.x + (int)( icon->u[st] * sz.w );
++	const int cy = pt.y + (int)( icon->v[st] * sz.h );
++
++	UI_DrawPic( Point( cx - ms / 2, cy - ms / 2 ), Size( ms, ms ), THEME_ACCENT, marker, QM_DRAWTRANS );
++}
++
++/*
++=================
++CMenuCoFGamepad::OptionsProbe
++
++menu_cof_options_select gamepad
++    [<KEY> [<command> | <action index>]]  select a row; set its action
++    [press <KEY> <OTHER KEY>]             the grab box: swap two buttons
++    [clear <KEY>]                         Delete on a row
++    [style 0|1] [defaults] [ok] [cancel]
++Without arguments: every row with its binding.
++=================
++*/
++void CMenuCoFGamepad::OptionsProbe( void )
++{
++	// copies: the engine's argument buffer belongs to whatever command runs next
++	const int argc = EngFuncs::CmdArgc();
++	char a1[64], a2[128], a3[64];
++	Q_strncpy( a1, argc > 2 ? EngFuncs::CmdArgv( 2 ) : "", sizeof( a1 ));
++	Q_strncpy( a2, argc > 3 ? EngFuncs::CmdArgv( 3 ) : "", sizeof( a2 ));
++	Q_strncpy( a3, argc > 4 ? EngFuncs::CmdArgv( 4 ) : "", sizeof( a3 ));
++
++	auto selectRow = [this]( const char *keyName ) -> bool
++	{
++		for( int i = 0; i < COF_PAD_ROWS; i++ )
++		{
++			if( g_cofPadRows[i].key && !stricmp( g_cofPadRows[i].key, keyName ))
++			{
++				padList.SetCurrentIndex( i );
++				SyncAction();
++				return true;
++			}
++		}
++		Con_Printf( "menu_cof_options_select gamepad: no row \"%s\"\n", keyName );
++		return false;
++	};
++
++	if( !stricmp( a1, "ok" ))
++	{
++		Con_Printf( "menu_cof_options_select gamepad: OK\n" );
++		SaveAndPopMenu();
++		return;
++	}
++	if( !stricmp( a1, "cancel" ))
++	{
++		Con_Printf( "menu_cof_options_select gamepad: Cancel\n" );
++		Cancel();
++		return;
++	}
++	if( !stricmp( a1, "defaults" ))
++	{
++		Con_Printf( "menu_cof_options_select gamepad: Use defaults -> %s\n", ApplyDefaults() ? "applied" : "nothing to apply" );
++	}
++	else if( !stricmp( a1, "style" ))
++	{
++		style.SetCurrentValue( (float)( atoi( a2 ) ? 1 : 0 ));
++		Con_Printf( "menu_cof_options_select gamepad: style %s (cof_pad_style \"%s\")\n", style.GetCurrentString(), EngFuncs::GetCvarString( "cof_pad_style" ));
++	}
++	else if( !stricmp( a1, "press" ))
++	{
++		if( selectRow( a2 ))
++		{
++			const int k = UI_CoFKeyByName( a3 );
++			Con_Printf( "menu_cof_options_select gamepad: press %s on %s -> %s\n", a3, a2,
++				k >= 0 && SwapWith( k ) ? "swapped" : "refused" );
++		}
++	}
++	else if( !stricmp( a1, "clear" ))
++	{
++		if( selectRow( a2 ))
++			ClearCurrent();
++	}
++	else if( a1[0] )
++	{
++		if( selectRow( a1 ) && a2[0] )
++		{
++			int idx = -1;
++			for( int i = 0; i < m_iNumActions && idx < 0; i++ )
++			{
++				if( !stricmp( m_actions[i].command, a2 ))
++					idx = i;
++			}
++			if( idx < 0 && a2[0] >= '0' && a2[0] <= '9' )
++				idx = atoi( a2 );
++			if( idx < 0 || idx >= m_iNumActions )
++				Con_Printf( "menu_cof_options_select gamepad: no action \"%s\"\n", a2 );
++			else
++				action.SetCurrentValue( (float)idx );	// raises QM_CHANGED -> ActionChanged
++		}
++	}
++
++	for( int i = 0; i < COF_PAD_ROWS; i++ )
++	{
++		if( !g_cofPadRows[i].key )
++			continue;
++		const char *b = m_iKey[i] >= 0 ? EngFuncs::KEY_GetBinding( m_iKey[i] ) : NULL;
++		Con_Printf( "menu_cof_options_select gamepad: row %d %s \"%s\" = \"%s\" (%s)%s\n", i, g_cofPadRows[i].key, RowName( i ),
++			b ? b : "", padModel.m_szAction[i], i == padList.GetCurrentIndex() ? " (selected)" : "" );
++	}
++	Con_Printf( "menu_cof_options_select gamepad: %d actions, action box \"%s\", %s\n", m_iNumActions, action.GetCurrentString(), m_szKeyLine );
++}
++
++static CMenuCoFGamepad *menu_cofgamepad = NULL;
++
++static void UI_CoFGamepad_Precache( void )
++{
++	menu_cofgamepad = new CMenuCoFGamepad();
++}
++
++static void UI_CoFGamepad_Shutdown( void )
++{
++	delete menu_cofgamepad;
++	menu_cofgamepad = NULL;
++}
++
++void UI_CoFGamepad_Menu( void )
++{
++	menu_cofgamepad->Show();
++}
++
++ADD_MENU4( menu_cofgamepad, UI_CoFGamepad_Precache, UI_CoFGamepad_Menu, UI_CoFGamepad_Shutdown );
++
++// ---------------------------------------------------------------------------
++// tabbed windows
++// ---------------------------------------------------------------------------
++
++static bool UI_CoFSaveTabAvailable( void )
++{
++	// the pause menu's own rule for Save Game: in play, single player, with
++	// pause-menu saves switched on (menus/Main.cpp)
++	return CL_IsActive() && EngFuncs::GetCvarFloat( "maxplayers" ) <= 1.0f &&
++		EngFuncs::GetCvarFloat( "cof_pause_menu_saves" ) != 0.0f;
++}
++
++static const cofTab_t g_cofOptionsTabs[] =
++{
++	{ "Game",         "GAME",             UI_AdvControls_Menu, NULL },
++	{ "Controls",     "CONTROLS",         UI_CoFControls_Menu, NULL },
++	{ "Keybinds",     "KEYBINDS",         UI_Controls_Menu,    NULL },
++	{ "Gamepad",      "GAMEPAD CONTROLS", UI_CoFGamepad_Menu,  NULL },
++	{ "GameUI_Audio", "AUDIO",            UI_Audio_Menu,       NULL },
++	{ "GameUI_Video", "VIDEO",            UI_Video_Menu,       NULL },
++};
++
++static const cofTab_t g_cofExtrasTabs[] =
++{
++	{ "Host co-op",   "HOST CO-OP",   UI_CoFHost_Menu,        NULL },
++	{ "Join co-op",   "JOIN CO-OP",   UI_CoFJoin_Menu,        NULL },
++	{ "Unlockables",  "UNLOCKABLES",  UI_CoFUnlockables_Menu, NULL },
++	{ "Links",        "EXTRAS",       UI_CoFExtras_Menu,      NULL },
++	{ "Credits",      "CREDITS",      UI_CoFCredits_Menu,     NULL },
++};
++
++static const cofTab_t g_cofSaveLoadTabs[] =
++{
++	{ "Load Game", "LOAD GAME", UI_LoadGame_Menu, NULL },
++	{ "Save Game", "SAVE GAME", UI_SaveGame_Menu, UI_CoFSaveTabAvailable },
++};
++
++static const cofTabGroup_t g_cofTabGroups[] =
++{
++	{ "OPTIONS",     g_cofOptionsTabs,  (int)V_ARRAYSIZE( g_cofOptionsTabs ) },
++	{ "EXTRAS",      g_cofExtrasTabs,   (int)V_ARRAYSIZE( g_cofExtrasTabs ) },
++	{ "SAVE / LOAD", g_cofSaveLoadTabs, (int)V_ARRAYSIZE( g_cofSaveLoadTabs ) },
++};
++
++const cofTabGroup_t *UI_CoFTabGroup( const char *panelTitle, int *index )
++{
++	if( !panelTitle || !UI_CoFOptionsLayout( ))
++		return NULL;
++
++	for( size_t g = 0; g < V_ARRAYSIZE( g_cofTabGroups ); g++ )
++	{
++		for( int i = 0; i < g_cofTabGroups[g].count; i++ )
++		{
++			if( !stricmp( g_cofTabGroups[g].tabs[i].title, panelTitle ))
++			{
++				if( index )
++					*index = i;
++				return &g_cofTabGroups[g];
++			}
++		}
++	}
++	return NULL;
++}
++
++bool UI_CoFTabAvailable( const cofTabGroup_t *group, int index )
++{
++	if( !group || index < 0 || index >= group->count )
++		return false;
++	return !group->tabs[index].available || group->tabs[index].available();
++}
++
++// ---------------------------------------------------------------------------
++// pad input
++// ---------------------------------------------------------------------------
++
++static bool g_cofPadInput = false;
++
++bool UI_CoFPadMode( void )
++{
++	// the engine's own record, when it keeps one (gamepad round)
++	const char *s = EngFuncs::GetCvarString( "cof_last_input" );
++
++	if( s && s[0] )
++		return !stricmp( s, "pad" ) || !stricmp( s, "gamepad" ) || !stricmp( s, "joy" ) || !strcmp( s, "1" );
++
++	return g_cofPadInput;
++}
++
++void UI_CoFInputMouse( void )
++{
++	g_cofPadInput = false;
++}
++
++bool UI_CoFInputEvent( int key, int down )
++{
++	if( !down )
++		return false;
++
++	const char *name = EngFuncs::KeynumToString( key );
++	const bool pad = name && UI_CoFIsPadKeyName( name );
++
++	if( pad )
++		g_cofPadInput = true;
++	else if( key != K_MWHEELUP && key != K_MWHEELDOWN )
++		g_cofPadInput = false;
++
++	// Start resumes the game from any Cry of Fear menu page (a root window,
++	// so never from inside a dialog or a key-capture box), like Resume game;
++	// the death page has no game to go back to
++	if( key == K_START_BUTTON && UI_CoFOptionsLayout() && CL_IsActive( ))
++	{
++		CMenuBaseWindow *cur = uiStatic.menu.Current();
++
++		if( cur && cur->IsRoot() && ( !cur->szName || strcmp( cur->szName, "CMenuCoFDeath" )))
++		{
++			UI_CloseMenu();
++			return true;
++		}
++	}
++	return false;
++}
++
++const char *UI_CoFPadGlyph( const char *xboxFile, const char *psFile )
++{
++	static char path[8][96];	// the hints line holds up to six at once
++	static int n;
++	const bool ps = EngFuncs::GetCvarFloat( "cof_pad_style" ) >= 1.0f;
++
++	n = ( n + 1 ) & 7;
++	snprintf( path[n], sizeof( path[n] ), COF_PAD_DIR "%s/%s", ps ? "ps5" : "xbox", ps ? psFile : xboxFile );
++	return path[n];
++}
++
++// ---------------------------------------------------------------------------
++// menu_cof_key <KEY> [down|up]
++// ---------------------------------------------------------------------------
++
++/*
++=================
++UI_CoFKey
++
++The pad (and keyboard) path of the menu without a pad: the engine hands every
++key it gets in menu mode to UI_KeyEvent (engine/client/input/in_keys.c,
++Key_Event -> UI_KeyEvent), and this cfg-only command calls the same function
++with the same key number, press then release unless "down" or "up" is given.
++An in-process menu event, not input injection: nothing reaches the OS, the
++engine or the game.
++=================
++*/
++static void UI_CoFKey( void )
++{
++	if( EngFuncs::CmdArgc() < 2 )
++	{
++		Con_Printf( "usage: menu_cof_key <key name> [down|up]   (e.g. A_BUTTON, DPAD_DOWN, L1_BUTTON, ESCAPE)\n" );
++		return;
++	}
++
++	char name[32], mode[8];
++	Q_strncpy( name, EngFuncs::CmdArgv( 1 ), sizeof( name ));
++	Q_strncpy( mode, EngFuncs::CmdArgc() > 2 ? EngFuncs::CmdArgv( 2 ) : "", sizeof( mode ));
++
++	const int key = UI_CoFKeyByName( name );
++	if( key < 0 )
++	{
++		Con_Printf( "menu_cof_key: no key \"%s\"\n", name );
++		return;
++	}
++
++	if( stricmp( mode, "up" ))
++		UI_KeyEvent( key, 1 );
++	if( stricmp( mode, "down" ))
++		UI_KeyEvent( key, 0 );
++
++	CMenuBaseWindow *cur = uiStatic.menu.Current();
++	CMenuBaseItem *item = cur ? cur->ItemAtCursor() : NULL;
++
++	Con_Printf( "menu_cof_key %s: window %s, focus %s \"%s\"%s\n", name,
++		cur && cur->szName ? cur->szName : "-",
++		item ? "on" : "none", item && item->szName ? item->szName : "",
++		item && FBitSet( item->iFlags, QMF_HASKEYBOARDFOCUS ) ? " (shown)" : "" );
++}
++
++ADD_COMMAND( menu_cof_key, UI_CoFKey );
++
++// ---------------------------------------------------------------------------
++// menu_cof_options_select <page> [...]
++// ---------------------------------------------------------------------------
++
++/*
++=================
++UI_CoFOptionsSelect
++
++This project's tests may not inject a click or a key (docs/dev/testing.md),
++so this cfg-only hook opens an options page and changes a control exactly as
++a click does - the control's own value, then the same QM_CHANGED event - or
++presses the page's buttons:
++
++  menu_cof_options_select options
++  menu_cof_options_select game     [<item> <0|1> | hudscale <row> | close]
++  menu_cof_options_select controls [<item> <value> | ads <0|1> | close | cancel]
++  menu_cof_options_select keybinds [<command> [<KEY>]]
++  menu_cof_options_select gamepad  [<KEY> [<command>] | press <KEY> <KEY> |
++                                    clear <KEY> | style <0|1> | defaults | ok | cancel]
++
++Each prints what it did and the cvars or bindings behind it. Cry of Fear with
++the theme only.
++=================
++*/
++static void UI_CoFOptionsSelect( void )
++{
++	const char *page = EngFuncs::CmdArgc() > 1 ? EngFuncs::CmdArgv( 1 ) : "";
++
++	if( !UI_CoFOptionsLayout( ))
++	{
++		Con_Printf( "menu_cof_options_select: Cry of Fear with ui_theme 1 only\n" );
++		return;
++	}
++
++	if( !stricmp( page, "options" ))
++	{
++		UI_Options_Menu();
++		Con_Printf( "menu_cof_options_select: Options opened on its Game tab\n" );
++	}
++	else if( !stricmp( page, "game" ))
++		UI_AdvControls_OptionsProbe();
++	else if( !stricmp( page, "controls" ))
++	{
++		if( menu_cofcontrols->WindowStack()->Current() != menu_cofcontrols )
++			UI_CoFControls_Menu();
++		menu_cofcontrols->OptionsProbe();
++	}
++	else if( !stricmp( page, "keybinds" ))
++		UI_Controls_OptionsProbe();
++	else if( !stricmp( page, "gamepad" ))
++	{
++		if( menu_cofgamepad->WindowStack()->Current() != menu_cofgamepad )
++			UI_CoFGamepad_Menu();
++		menu_cofgamepad->OptionsProbe();
++	}
++	else
++		Con_Printf( "usage: menu_cof_options_select <options|game|controls|keybinds|gamepad> [...]\n" );
++}
++
++ADD_COMMAND( menu_cof_options_select, UI_CoFOptionsSelect );
+diff --git a/3rdparty/mainui/menus/CoFOptions.h b/3rdparty/mainui/menus/CoFOptions.h
+new file mode 100644
+--- /dev/null
++++ b/3rdparty/mainui/menus/CoFOptions.h
+@@ -0,0 +1,84 @@
++/*
++CoFOptions.h -- Cry of Fear options layout: the Controls and Gamepad controls
++pages and the cfg-only test hook shared by the four input pages
++
++This program is free software: you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation, either version 3 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++*/
++#pragma once
++#ifndef COF_OPTIONS_H
++#define COF_OPTIONS_H
++
++class CMenuCheckBox;
++class CMenuSlider;
++class CMenuSpinControl;
++
++// Cry of Fear with the theme: Options lists Game, Controls, Keybinds,
++// Gamepad controls, Audio, Video (patches/cof-mainui-options-layout.patch)
++bool UI_CoFOptionsLayout( void );
++
++// the two new pages (menus/CoFOptions.cpp)
++void UI_CoFControls_Menu( void );	// menu_cofcontrols: aiming, mouse, gamepad settings
++void UI_CoFGamepad_Menu( void );	// menu_cofgamepad: the action on each pad button
++
++// menu_cof_options_select <page> ...: each page's part of the test hook
++void UI_AdvControls_OptionsProbe( void );	// menus/AdvancedControls.cpp (Game)
++void UI_Controls_OptionsProbe( void );		// menus/Controls.cpp (Keybinds)
++
++// a gamepad button (A_BUTTON ... TOUCHPAD): with the options layout the
++// Keybinds page leaves these to the Gamepad controls page
++bool UI_CoFIsPadKey( int keynum );
++
++// ---------------------------------------------------------------------------
++// tabbed windows: Options, Extras, Save/Load. Every page keeps its own class;
++// the framework (controls/Framework.cpp) draws one shared tab strip under the
++// title band of any page whose panel title belongs to a group, gives it the
++// group's common frame size and switches pages in place.
++// ---------------------------------------------------------------------------
++#define COF_TAB_FRAME_W		960	// one frame for every tabbed window, virtual units
++#define COF_TAB_FRAME_H		680	// leaves room under it for the pad hints line
++#define COF_TAB_H		32	// a tab
++#define COF_TAB_STRIP_H		48	// the strip: gap, tab, hairline, gap
++
++struct cofTab_t
++{
++	const char *label;		// through L()
++	const char *title;		// the page's own panel title (SetPanel)
++	void (*show)( void );
++	bool (*available)( void );	// NULL: always
++};
++
++struct cofTabGroup_t
++{
++	const char *title;		// drawn in the title band
++	const cofTab_t *tabs;
++	int count;
++};
++
++// the group a page belongs to (by its panel title) and its tab, or NULL;
++// Cry of Fear with the theme only
++const cofTabGroup_t *UI_CoFTabGroup( const char *panelTitle, int *index );
++bool UI_CoFTabAvailable( const cofTabGroup_t *group, int index );
++
++// the last input device: a pad key since the last keyboard key, mouse button
++// or mouse move (or the engine's cof_last_input when it exists)
++bool UI_CoFPadMode( void );
++// UI_KeyEvent / UI_MouseMove hooks (BaseMenu.cpp); true = the key is used up
++bool UI_CoFInputEvent( int key, int down );
++void UI_CoFInputMouse( void );
++// "gfx/shell/gamepad/<pad>/<file>" for the current button style
++const char *UI_CoFPadGlyph( const char *xboxFile, const char *psFile );
++
++// set a control the way a click does (its value, then QM_CHANGED)
++void UI_CoFProbeCheck( CMenuCheckBox &box, const char *value );
++void UI_CoFProbeSlider( CMenuSlider &slider, const char *value );
++void UI_CoFProbeSpin( CMenuSpinControl &spin, const char *value );
++
++#endif // COF_OPTIONS_H
+diff --git a/3rdparty/mainui/menus/Configuration.cpp b/3rdparty/mainui/menus/Configuration.cpp
+--- a/3rdparty/mainui/menus/Configuration.cpp
++++ b/3rdparty/mainui/menus/Configuration.cpp
+@@ -24,6 +24,7 @@
+ #include "YesNoMessageBox.h"
+ #include "keydefs.h"
+ #include "TabView.h"
++#include "CoFOptions.h"
+ 
+ #define ART_BANNER	     	"gfx/shell/head_config"
+ 
+@@ -131,4 +132,25 @@
+ 	LayoutButtonRow( btns, 1 );
+ }
+ 
+-ADD_MENU( menu_options, CMenuOptions, UI_Options_Menu );
++ADD_MENU3( menu_options, CMenuOptions, UI_Options_Menu );
++
++/*
++=================
++UI_Options_Menu
++
++Cry of Fear with the theme: Options is one tabbed window (Game, Controls,
++Keybinds, Gamepad, Audio, Video; controls/Framework.cpp, menus/CoFOptions.cpp)
++and opens on its first tab. The list page above stays the path of the WON
++look and of the theme for other games.
++=================
++*/
++void UI_Options_Menu( void )
++{
++	if( UI_CoFOptionsLayout( ))
++	{
++		UI_AdvControls_Menu();
++		return;
++	}
++
++	menu_options->Show();
++}
+diff --git a/3rdparty/mainui/menus/Controls.cpp b/3rdparty/mainui/menus/Controls.cpp
+--- a/3rdparty/mainui/menus/Controls.cpp
++++ b/3rdparty/mainui/menus/Controls.cpp
+@@ -28,6 +28,7 @@
+ #include "Table.h"
+ #include "utlvector.h"
+ #include "KbActListModel.h"
++#include "CoFOptions.h"
+ 
+ #define ART_BANNER		"gfx/shell/head_controls"
+ 
+@@ -55,6 +56,11 @@
+ 	void EnterGrabMode( void );
+ 	void UnbindEntry( void );
+ 
++	// the grab box's bind, shared with the cfg-only test hook
++	// (menu_cof_options_select keybinds, menus/CoFOptions.cpp)
++	bool BindCurrent( int key );
++	void OptionsProbe( void );
++
+ 	// state toggle by
+ 	CMenuTable keysList;
+ 	CMenuKeysModel keysListModel;
+@@ -92,6 +98,10 @@
+ 
+ 		const char *b = EngFuncs::KEY_GetBinding( i );
+ 		if( !b )
++			continue;
++
++		// the pad buttons belong to the Gamepad controls page
++		if( UI_CoFOptionsLayout( ) && UI_CoFIsPadKey( i ))
+ 			continue;
+ 
+ 		if( !strncmp( b, command, command_len ))
+@@ -162,9 +172,7 @@
+ 	}
+ 	else
+ 	{
+-		const char *bindName = parent->keysListModel.entries[parent->keysList.GetCurrentIndex( )].bind;
+-
+-		EngFuncs::ClientCmdF( true, "bind \"%s\" \"%s\"\n", EngFuncs::KeynumToString( key ), bindName );
++		parent->BindCurrent( key );
+ 
+ 		sound = SND_LAUNCH;
+ 	}
+@@ -178,6 +186,19 @@
+ 
+ bool CMenuControls::CGrabKeyMessageBox::KeyDown( int key )
+ {
++	return true;
++}
++
++bool CMenuControls::BindCurrent( int key )
++{
++	if( !keysListModel.IsLineUsable( keysList.GetCurrentIndex( )))
++		return false;
++
++	const char *bindName = keysListModel.entries[keysList.GetCurrentIndex( )].bind;
++
++	// what "bind" does, without running the command buffer from inside a menu
++	// event (a test hook runs inside a cfg's own buffer)
++	EngFuncs::KEY_SetBinding( key, bindName );
+ 	return true;
+ }
+ 
+@@ -230,8 +251,10 @@
+ {
+ 	banner.SetPicture( ART_BANNER );
+ 
++	// Cry of Fear: this is the Keybinds page since the options relayout
++	// (menus/CoFOptions.cpp); "Controls" is the aiming/mouse/gamepad page now
+ 	if( UI_ThemeActive( ))
+-		SetPanel( "CONTROLS", 900, 600 );
++		SetPanel( UI_CoFOptionsLayout( ) ? "KEYBINDS" : "CONTROLS", 900, 600 );
+ 
+ 	keysList.SetRect( 360, 230, -20, 465 );
+ 	keysList.SetModel( &keysListModel );
+@@ -249,7 +272,8 @@
+ 	if( !UI_ThemeActive( ))
+ 		AddItem( banner );
+ 
+-	AddButton( L( "GameUI_UseDefaults" ), nullptr, PC_USE_DEFAULTS, msgBox2.MakeOpenEvent( ));
++	// X on a pad: Use defaults (controls/Framework.cpp)
++	pPadSecondary = AddButton( L( "GameUI_UseDefaults" ), nullptr, PC_USE_DEFAULTS, msgBox2.MakeOpenEvent( ));
+ 
+ 	// The advanced controls now live on the top-level Game options page
+ 	// (menus/AdvancedControls.cpp, "GAME"), which Options lists first, so the
+@@ -298,3 +322,101 @@
+ }
+ 
+ ADD_MENU( menu_controls, CMenuControls, UI_Controls_Menu );
++
++/*
++=================
++CMenuControls::OptionsProbe
++
++menu_cof_options_select keybinds [<command> [<KEY>]] (menus/CoFOptions.cpp).
++This project's tests may not inject a key, so the hook does what a player
++does on this page: it puts the cursor on the row whose action is <command>
++(the kb_act.lst bind, e.g. +reload) and, with a key name, runs what the
++"press a key" box runs when that key comes up - EnterGrabMode's unbind of a
++command that already has two keys, then BindCurrent. Without arguments it
++lists the rows and their keys.
++=================
++*/
++void CMenuControls::OptionsProbe( void )
++{
++	char commandBuf[64], keyBuf[32];
++	Q_strncpy( commandBuf, EngFuncs::CmdArgc() > 2 ? EngFuncs::CmdArgv( 2 ) : "", sizeof( commandBuf ));
++	Q_strncpy( keyBuf, EngFuncs::CmdArgc() > 3 ? EngFuncs::CmdArgv( 3 ) : "", sizeof( keyBuf ));
++	const char *command = commandBuf[0] ? commandBuf : NULL;
++	const char *keyName = keyBuf[0] ? keyBuf : NULL;
++
++	keysListModel.Update();
++
++	if( !command || !command[0] )
++	{
++		for( int i = 0; i < keysListModel.entries.Count(); i++ )
++		{
++			const CMenuKbActListModel::entry_t &e = keysListModel.entries[i];
++
++			if( e.bind[0] )
++				Con_Printf( "menu_cof_options_select keybinds: row %d \"%s\" = %s [%s] [%s]\n", i, e.display, e.bind, e.first, e.second );
++		}
++		return;
++	}
++
++	int row = -1;
++	for( int i = 0; i < keysListModel.entries.Count() && row < 0; i++ )
++	{
++		if( !stricmp( keysListModel.entries[i].bind, command ))
++			row = i;
++	}
++
++	if( row < 0 )
++	{
++		Con_Printf( "menu_cof_options_select keybinds: no row for \"%s\"\n", command );
++		return;
++	}
++
++	keysList.SetCurrentIndex( row );
++	Con_Printf( "menu_cof_options_select keybinds: row %d (%s) selected\n", row, command );
++
++	if( !keyName || !keyName[0] )
++		return;
++
++	// the exact spelling first ("g" is key 103, "G" the unused key 71)
++	int key = -1;
++	for( int pass = 0; pass < 2 && key < 0; pass++ )
++	{
++		for( int i = 0; ; i++ )
++		{
++			const char *str = EngFuncs::KeynumToString( i );
++
++			if( !strcmp( str, "<OUT OF RANGE>" ))
++				break;
++			if( pass ? !stricmp( str, keyName ) : !strcmp( str, keyName ))
++			{
++				key = i;
++				break;
++			}
++		}
++	}
++
++	if( key < 0 || UI::Key::IsConsole( key ) || key == K_ESCAPE )
++	{
++		Con_Printf( "menu_cof_options_select keybinds: key \"%s\" refused\n", keyName );
++		return;
++	}
++
++	// as EnterGrabMode, then the grab box's KeyUp
++	int keys[2];
++	CMenuKbActListModel::LookupBoundKeys( command, keys );
++	if( keys[1] != -1 )
++		UnbindCommand( command );
++
++	BindCurrent( key );
++	keysListModel.Update();
++
++	const CMenuKbActListModel::entry_t &e = keysListModel.entries[row];
++	Con_Printf( "menu_cof_options_select keybinds: %s is now on [%s] [%s]\n", command, e.first, e.second );
++}
++
++void UI_Controls_OptionsProbe( void )
++{
++	if( menu_controls->WindowStack()->Current() != menu_controls )
++		UI_Controls_Menu();
++	menu_controls->OptionsProbe();
++}
+diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
+--- a/3rdparty/mainui/menus/Main.cpp
++++ b/3rdparty/mainui/menus/Main.cpp
+@@ -31,6 +31,7 @@
+ #include "AnimatedBanner.h"
+ #include "MovieBanner.h"
+ #include "CryOfFear.h"
++#include "CoFOptions.h"
+ 
+ // the Game options page switch "Pause menu saves" (menus/AdvancedControls.cpp,
+ // archived cvar registered by menus/LoadGame.cpp)
+@@ -634,6 +635,14 @@
+ 
+ void CMenuMain::CoFExtrasCb()
+ {
++	// the options relayout makes Extras one tabbed window (Host co-op, Join
++	// co-op, Unlockables, Links, Credits; menus/CoFOptions.cpp)
++	if( UI_CoFOptionsLayout( ))
++	{
++		UI_CoFHost_Menu();
++		return;
++	}
++
+ 	CoFSetLevel( COF_LEVEL_EXTRAS );
+ }
+ 
+diff --git a/3rdparty/mainui/model/KbActListModel.h b/3rdparty/mainui/model/KbActListModel.h
+--- a/3rdparty/mainui/model/KbActListModel.h
++++ b/3rdparty/mainui/model/KbActListModel.h
+@@ -21,6 +21,7 @@
+ #include "Theme.h"
+ #include "enginecallback_menu.h"
+ #include "utlvector.h"
++#include "CoFOptions.h"
+ #include <ctype.h>
+ 
+ // Shared model over gfx/shell/kb_act.lst, the list of game actions used
+@@ -100,8 +101,42 @@
+ 
+ 		EngFuncs::COM_FreeFile( afile );
+ 
++		// Cry of Fear options layout: the engine's crouch toggle
++		// (cof_duck_toggle, gamepad round) under the game's own Crouch row,
++		// unless the list already has it - the game's kb_act.lst is not
++		// shipped modified
++		if( m_view == VIEW_BINDINGS && UI_CoFOptionsLayout( ))
++			AddAfter( "+duck", "cof_duck_toggle", L( "Crouch (toggle)" ));
++
+ 		if( UI_ThemeActive( ))
+ 			CollapseSections();
++	}
++
++	void AddAfter( const char *after, const char *bind, const char *label )
++	{
++		int at = -1;
++
++		for( int i = 0; i < entries.Count(); i++ )
++		{
++			if( !stricmp( entries[i].bind, bind ))
++				return;
++			if( !stricmp( entries[i].bind, after ))
++				at = i;
++		}
++
++		entry_t e = { 0 };
++		Q_strncpy( e.bind, bind, sizeof( e.bind ));
++		FormatLabel( label, e.display, sizeof( e.display ));
++
++		int keys[2];
++		LookupBoundKeys( e.bind, keys );
++		FormatKey( keys[0], e.first, sizeof( e.first ));
++		FormatKey( keys[1], e.second, sizeof( e.second ));
++
++		if( at < 0 )
++			entries.AddToTail( e );
++		else
++			entries.InsertAfter( at, e );
+ 	}
+ 
+ 	/*
+@@ -213,6 +248,11 @@
+ 
+ 			const char *b = EngFuncs::KEY_GetBinding( i );
+ 			if( !b )
++				continue;
++
++			// Cry of Fear options layout: pad buttons are the Gamepad
++			// controls page's (menus/CoFOptions.cpp)
++			if( UI_CoFOptionsLayout( ) && UI_CoFIsPadKey( i ))
+ 				continue;
+ 
+ 			if( !stricmp( command, b ))
