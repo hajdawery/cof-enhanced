@@ -10,6 +10,15 @@ fixes, applied on top of your own Steam copy of the game.**
 
 Project site: <https://cofenhanced.haej.pl>
 
+# ⚠️ THIS REPOSITORY DOES NOT CONTAIN GAME ASSETS
+
+## AND IT DOES NOT USE THEM IN ANY WAY OR FORM.
+
+**This is a difference-based patcher.** It ships only open-source engine code,
+our own patches, configuration, fonts and community translations. Everything
+from Cry of Fear stays in your own Steam installation and is never copied,
+modified in place, or redistributed by this project.
+
 > **Cry of Fear: Enhanced is an unofficial community compatibility project.**
 > It is not affiliated with, endorsed by, or supported by Team Psykskallar,
 > the creators of Cry of Fear, nor by Valve Corporation. Cry of Fear and its
