@@ -1,0 +1,958 @@
+diff --git a/3rdparty/mainui/controls/Field.cpp b/3rdparty/mainui/controls/Field.cpp
+--- a/3rdparty/mainui/controls/Field.cpp
++++ b/3rdparty/mainui/controls/Field.cpp
+@@ -19,6 +19,7 @@
+ #include "Field.h"
+ #include "Utils.h"
+ #include "utflib.h"
++#include "CoFOsk.h"
+ 
+ CMenuField::CMenuField() : BaseClass()
+ {
+@@ -85,6 +86,8 @@
+ 	case QM_GOTFOCUS:
+ 		EngFuncs::SetTextInputRect( m_scPos.x, m_scPos.y, m_scSize.w, m_scSize.h );
+ 		UI_EnableTextInput( true );
++		// Cry of Fear: the on-screen keyboard for a pad player (menus/CoFOsk.cpp)
++		UI_CoFOsk_FieldFocus( this );
+ 		break;
+ 	case QM_IMRESIZED:
+ 	{
+@@ -148,6 +151,10 @@
+ bool CMenuField::KeyDown( int key )
+ {
+ 	bool handled = false;
++
++	// Cry of Fear: A on a field opens the on-screen keyboard (menus/CoFOsk.cpp)
++	if( UI_CoFOsk_FieldKey( this, key ))
++		return true;
+ 
+ 	// clipboard paste
+ 	if( UI::Key::IsInsert( key ) && EngFuncs::KEY_IsDown( K_SHIFT ))
+diff --git a/3rdparty/mainui/controls/Framework.cpp b/3rdparty/mainui/controls/Framework.cpp
+--- a/3rdparty/mainui/controls/Framework.cpp
++++ b/3rdparty/mainui/controls/Framework.cpp
+@@ -17,6 +17,7 @@
+ #include "keydefs.h"
+ #include "FontManager.h"
+ #include "CoFOptions.h"
++#include "CoFOsk.h"
+ 
+ // menu banners used fiexed rectangle (virtual screenspace at 640x480)
+ #define UI_BANNER_POSX		72
+@@ -286,7 +287,8 @@
+ */
+ void CMenuFramework::DrawPadHints( void )
+ {
+-	if( !UI_CoFOptionsLayout() || !UI_CoFPadMode( ))
++	// the on-screen keyboard draws its own line over the page (menus/CoFOsk.cpp)
++	if( !UI_CoFOptionsLayout() || !UI_CoFPadMode( ) || UI_CoFOsk_Active( ))
+ 		return;
+ 
+ 	struct { const char *glyph; const char *text; } hint[6];
+diff --git a/3rdparty/mainui/menus/CoFOptions.cpp b/3rdparty/mainui/menus/CoFOptions.cpp
+--- a/3rdparty/mainui/menus/CoFOptions.cpp
++++ b/3rdparty/mainui/menus/CoFOptions.cpp
+@@ -45,6 +45,7 @@
+ #include "utlvector.h"
+ #include "CryOfFear.h"
+ #include "CoFOptions.h"
++#include "CoFOsk.h"
+ 
+ bool UI_CoFOptionsLayout( void )
+ {
+@@ -1683,6 +1684,7 @@
+ void UI_CoFInputMouse( void )
+ {
+ 	g_cofPadInput = false;
++	UI_CoFOsk_NoteMouse();	// menus/CoFOsk.cpp
+ }
+ 
+ bool UI_CoFInputEvent( int key, int down )
+@@ -1697,6 +1699,9 @@
+ 		g_cofPadInput = true;
+ 	else if( key != K_MWHEELUP && key != K_MWHEELDOWN )
+ 		g_cofPadInput = false;
++
++	// the on-screen keyboard opens on a field the pad's direction keys moved to
++	UI_CoFOsk_NoteKey( key, down );
+ 
+ 	// Start resumes the game from any Cry of Fear menu page (a root window,
+ 	// so never from inside a dialog or a key-capture box), like Resume game;
+diff --git a/3rdparty/mainui/menus/CoFOsk.cpp b/3rdparty/mainui/menus/CoFOsk.cpp
+new file mode 100644
+--- /dev/null
++++ b/3rdparty/mainui/menus/CoFOsk.cpp
+@@ -0,0 +1,831 @@
++/*
++CoFOsk.cpp -- Cry of Fear on-screen keyboard (patches/cof-mainui-osk.patch)
++
++This program is free software: you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation, either version 3 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++
++------------------------------------------------------------------------------
++
++A themed key grid for gamepad players. No Steam API, no system keyboard: the
++whole thing is this window.
++
++  digits    1 2 3 4 5 6 7 8 9 0
++  letters   q w e r t y u i o p / a s d f g h j k l - / z x c v b n m , . @
++  bottom    Shift | ?123 (ABC on the symbols page) | Space | Delete | Done
++
++Pad: D-pad / left stick move, A types the key, B deletes (held: clears),
++Y clears, X shift, LB symbols page, RB space, START = Done, View/Back =
++Close. Mouse: click a key; the X in the title band closes. A real keyboard
++types into it too; Enter = Done, Escape = Close.
++
++Done and Close both keep what was typed (Y clears it); Done also confirms:
++in the game it presses Enter for the game (the computer logs in), in the
++menu it is the same as Close.
++
++Two owners:
++
++  menu field  controls/Field.cpp opens it for a CMenuField on A, or when a pad
++              direction key moves the focus onto the field while a pad is the
++              last input device (UI_CoFPadMode). Opened over the page; the
++              text goes back into the field (its cvar) on Done / Close.
++  game field  the engine (engine/client/cof_osk.c, cof-osk-engine.patch) runs
++              "menu_cof_osk game" when a gamepad click or focus lands in a
++              text entry of the game's own VGUI panels. The keyboard is then
++              the only window of the menu, drawn over the live game (no
++              scrim; the engine keeps painting the game's panels while
++              cof_osk_over_game is 1). Done / Close leave the text in
++              cof_osk_result (hex) and set cof_osk_submit (1 Close, 2 Done);
++              the engine puts the text into the focused entry and, for Done,
++              runs cof_enter_pulse (engine Enter hook,
++              cof-client-enter-hook.patch: the game's own Enter check sees one
++              press).
++
++menu_cof_osk game | status   the engine's entry point / test hook
++=============================================================================
++*/
++
++#include "extdll_menu.h"
++#include "BaseMenu.h"
++#include "BaseWindow.h"
++#include "Field.h"
++#include "Utils.h"
++#include "MenuStrings.h"
++#include "FontManager.h"
++#include "Theme.h"
++#include "keydefs.h"
++#include "CoFOptions.h"
++#include "CoFOsk.h"
++
++#define OSK_COLS		10
++#define OSK_ROWS		5	// four rows of characters, then the wide keys
++#define OSK_WIDE		5	// Shift, Symbols, Space, Delete, Done
++#define OSK_MAX_TEXT		128	// the game's entries are read into 256 bytes; a menu field sets its own
++
++// virtual units (768 tall)
++#define OSK_KEY_W		58
++#define OSK_KEY_H		46
++#define OSK_KEY_GAP		6
++#define OSK_PAD			22
++#define OSK_PREVIEW_H		40
++#define OSK_GLYPH		34	// prompts line, as the framework's (48 px at 1080p)
++#define OSK_HINTS_GAP		12
++#define OSK_BOTTOM_MARGIN	(OSK_GLYPH + OSK_HINTS_GAP * 2)
++#define OSK_HOLD_CLEAR_MS	600	// B held this long clears the text
++
++enum { OSK_KEY_SHIFT = 0, OSK_KEY_SYMBOLS, OSK_KEY_SPACE, OSK_KEY_DELETE, OSK_KEY_DONE };
++
++// rows 0-3; a letter row is shifted to upper case, punctuation stays
++static const char *const s_rowsLetters[4] = { "1234567890", "qwertyuiop", "asdfghjkl-", "zxcvbnm,.@" };
++static const char *const s_rowsSymbols[4] = { "1234567890", "!@#$%^&*()", "-_=+[]{};:", "'\",./?\\|<>" };
++
++static bool g_oskNavKey = false;	// the last input was a pad direction key in pad mode
++
++static bool OSK_IsNavKey( int key )
++{
++	switch( key )
++	{
++	case K_DPAD_UP: case K_DPAD_DOWN: case K_DPAD_LEFT: case K_DPAD_RIGHT:
++	case K_UPARROW: case K_DOWNARROW: case K_LEFTARROW: case K_RIGHTARROW:
++		return true;
++	}
++	return false;
++}
++
++class CMenuCoFOsk : public CMenuBaseWindow
++{
++public:
++	typedef CMenuBaseWindow BaseClass;
++	CMenuCoFOsk() : BaseClass( "CMenuCoFOsk" ) { Reset(); }
++
++	void OpenField( CMenuField *field, const char *how );
++	void OpenGame( const char *text, bool hidden );
++
++	void VidInit( void ) override;
++	void Draw( void ) override;
++	void Think( void ) override;
++	bool KeyDown( int key ) override;
++	bool KeyUp( int key ) override;
++	void Char( int key ) override;
++	bool MouseMove( int x, int y ) override;
++	void Hide( void ) override;
++
++	bool IsOpen( void );
++	void Status( void );
++
++private:
++	void Reset( void );
++	void Open( void );
++	void Close( bool confirm );
++	void Type( int ch );
++	void Backspace( void );
++	void Clear( void );
++	void PressSelected( void );
++	void PressWide( int which );
++	void Move( int dx, int dy );
++	char KeyChar( int row, int col ) const;
++	bool KeyRect( int row, int col, int &x, int &y, int &w, int &h ) const;
++	bool HitTest( int px, int py, int &row, int &col ) const;
++	void DrawKey( int row, int col, const char *label, bool lit );
++	void DrawHints( void );
++	void Flash( int row, int col ) { m_iFlashRow = row; m_iFlashCol = col; m_iFlashTime = uiStatic.realTime; }
++
++	CMenuField *m_pField;
++	bool	m_bGame;
++	bool	m_bHidden;
++	bool	m_bOpen;
++	bool	m_bNumbersOnly;
++	int	m_iMax;
++	char	m_szText[UI_MAX_FIELD_LINE];
++	char	m_szLabel[64];
++	int	m_iShift;	// 0 off, 1 next letter, 2 caps lock
++	bool	m_bSymbols;
++	int	m_iRow, m_iCol;	// selection; row 4 uses m_iCol 0..4
++	int	m_iColMemo;	// the column the selection left the character rows at
++	int	m_iHoverRow, m_iHoverCol;
++	int	m_iFlashRow, m_iFlashCol, m_iFlashTime;
++	int	m_iBDownTime;	// B held: when it went down, -1 when up
++	bool	m_bBCleared;
++
++	// screen pixels, from VidInit
++	int	m_px, m_py, m_pw, m_ph;	// panel
++	int	m_gx, m_gy;		// grid origin
++	int	m_kw, m_kh, m_kg;	// key width, height, gap
++};
++
++static CMenuCoFOsk s_osk;
++
++void CMenuCoFOsk::Reset( void )
++{
++	m_pField = NULL;
++	m_bGame = m_bHidden = m_bOpen = m_bNumbersOnly = m_bSymbols = false;
++	m_iMax = OSK_MAX_TEXT;
++	m_szText[0] = m_szLabel[0] = 0;
++	m_iShift = 0;
++	m_iRow = 1; m_iCol = 0; m_iColMemo = 0;
++	m_iHoverRow = m_iHoverCol = -1;
++	m_iFlashRow = m_iFlashCol = -1; m_iFlashTime = 0;
++	m_iBDownTime = -1; m_bBCleared = false;
++	m_px = m_py = m_pw = m_ph = m_gx = m_gy = m_kw = m_kh = m_kg = 0;
++}
++
++void CMenuCoFOsk::OpenField( CMenuField *field, const char *how )
++{
++	Reset();
++	m_pField = field;
++	m_bHidden = field->bHideInput;
++	m_bNumbersOnly = field->bNumbersOnly;
++	m_iMax = field->iMaxLength > 1 ? field->iMaxLength - 1 : UI_MAX_FIELD_LINE - 1;
++	if( m_iMax > UI_MAX_FIELD_LINE - 1 )
++		m_iMax = UI_MAX_FIELD_LINE - 1;
++	Q_strncpy( m_szText, field->GetBuffer(), sizeof( m_szText ));
++	Q_strncpy( m_szLabel, field->szName ? field->szName : "", sizeof( m_szLabel ));
++	if( m_bNumbersOnly )
++		m_iRow = 0;
++	Open();
++	Con_Printf( "[cof-osk] open for the menu field \"%s\" (%s, %d chars%s)\n", m_szLabel, how,
++		(int)strlen( m_szText ), m_bHidden ? ", hidden" : "" );
++}
++
++void CMenuCoFOsk::OpenGame( const char *text, bool hidden )
++{
++	Reset();
++	m_bGame = true;
++	m_bHidden = hidden;
++	m_iMax = OSK_MAX_TEXT - 1;
++	Q_strncpy( m_szText, text ? text : "", sizeof( m_szText ));
++	if( (int)strlen( m_szText ) > m_iMax )
++		m_szText[m_iMax] = 0;
++	Open();
++
++	// the engine keeps painting the game's own panels under this window while
++	// this is set (engine/client/vgui/vgui_draw.c VGui_Paint), and the menu
++	// background leaves the scene undimmed
++	EngFuncs::CvarSetValue( "cof_osk_over_game", 1.0f );
++	UI_ThemeSetSceneUnveiled( true );
++	Con_Printf( "[cof-osk] open for a game text field (%d chars%s)\n", (int)strlen( m_szText ), m_bHidden ? ", hidden" : "" );
++}
++
++/*
++=================
++CMenuCoFOsk::IsOpen
++
++UI_CloseMenu (the engine closing the menu on a disconnect or a level change)
++empties the window stack without calling Hide(); a keyboard that is no longer
++on the stack is closed here, with the same clean-up.
++=================
++*/
++bool CMenuCoFOsk::IsOpen( void )
++{
++	if( m_bOpen && !m_pStack->IsVisible( this ))
++	{
++		m_bOpen = false;
++		UI_EnableTextInput( false );
++		if( m_bGame )
++		{
++			EngFuncs::CvarSetValue( "cof_osk_over_game", 0.0f );
++			UI_ThemeSetSceneUnveiled( false );
++		}
++		Con_Printf( "[cof-osk] closed with the menu\n" );
++	}
++	return m_bOpen;
++}
++
++void CMenuCoFOsk::Open( void )
++{
++	m_bOpen = true;
++	Show();
++	m_iCursor = -1;
++	UI_EnableTextInput( true );	// a real keyboard types into it as well
++}
++
++void CMenuCoFOsk::Hide( void )
++{
++	const bool game = m_bGame;
++
++	if( m_bOpen )
++	{
++		m_bOpen = false;
++		if( game )
++		{
++			UI_EnableTextInput( false );
++			EngFuncs::CvarSetValue( "cof_osk_over_game", 0.0f );
++			UI_ThemeSetSceneUnveiled( false );
++		}
++		// a menu field keeps the focus, and with it the text input it asked for
++	}
++
++	// the only window over the game: the stack closes the menu with it
++	BaseClass::Hide();
++}
++
++/*
++=================
++CMenuCoFOsk::Close
++
++Done (confirm) or Close. Both keep the text; in the game Done also presses
++Enter for the game's own Enter check.
++=================
++*/
++void CMenuCoFOsk::Close( bool confirm )
++{
++	if( !m_bOpen )
++		return;
++
++	if( m_bGame )
++	{
++		// the engine takes it on its next painted frame (cof_osk.c,
++		// CL_CoF_OskFrame): the text into the focused entry, and for Done
++		// one Enter for the game. Hex, so no character can upset a cvar.
++		char hex[OSK_MAX_TEXT * 2 + 2];
++		int n = 0;
++
++		for( const unsigned char *s = (const unsigned char *)m_szText; *s && n + 3 < (int)sizeof( hex ); s++ )
++			n += snprintf( hex + n, sizeof( hex ) - n, "%02x", *s );
++		if( !n )
++			snprintf( hex, sizeof( hex ), "-" );	// empty text
++		EngFuncs::CvarSetString( "cof_osk_result", hex );
++		EngFuncs::CvarSetValue( "cof_osk_submit", confirm ? 2.0f : 1.0f );
++
++		Con_Printf( "[cof-osk] %s: %d chars to the game field%s\n", confirm ? "Done" : "Close",
++			(int)strlen( m_szText ), confirm ? " + Enter" : "" );
++	}
++	else if( m_pField )
++	{
++		char text[UI_MAX_FIELD_LINE];
++
++		Q_strncpy( text, m_szText, sizeof( text ));
++		if( m_pField->eLetterCase == QM_LOWERCASE || m_pField->eLetterCase == QM_UPPERCASE )
++		{
++			for( char *s = text; *s; s++ )
++			{
++				if( (unsigned char)*s < 0x80 )
++					*s = m_pField->eLetterCase == QM_LOWERCASE ? tolower( *s ) : toupper( *s );
++			}
++		}
++		m_pField->SetBuffer( text );
++		static_cast<CMenuBaseItem *>( m_pField )->_Event( QM_CHANGED );
++		Con_Printf( "[cof-osk] %s: \"%s\" = %s%s%s\n", confirm ? "Done" : "Close", m_szLabel,
++			m_bHidden ? "" : "\"", m_bHidden ? "(hidden)" : text, m_bHidden ? "" : "\"" );
++	}
++
++	Hide();
++}
++
++// ---------------------------------------------------------------------------
++// keys
++// ---------------------------------------------------------------------------
++
++char CMenuCoFOsk::KeyChar( int row, int col ) const
++{
++	if( row < 0 || row > 3 || col < 0 || col >= OSK_COLS )
++		return 0;
++
++	char ch = ( m_bSymbols ? s_rowsSymbols : s_rowsLetters )[row][col];
++
++	if( !m_bSymbols && m_iShift && ch >= 'a' && ch <= 'z' )
++		ch = ch - 'a' + 'A';
++	return ch;
++}
++
++void CMenuCoFOsk::Type( int ch )
++{
++	if( ch < 32 || ch == 127 )
++		return;
++	if( m_bNumbersOnly && ( ch < '0' || ch > '9' ))
++		return;
++
++	int len = (int)strlen( m_szText );
++
++	if( len >= m_iMax || len >= (int)sizeof( m_szText ) - 1 )
++		return;
++
++	m_szText[len] = (char)ch;
++	m_szText[len + 1] = 0;
++
++	if( m_iShift == 1 && isalpha( ch ))
++		m_iShift = 0;
++}
++
++void CMenuCoFOsk::Backspace( void )
++{
++	int len = (int)strlen( m_szText );
++
++	if( len > 0 )
++		m_szText[Con_UtfMoveLeft( m_szText, len )] = 0;	// a whole UTF-8 character of a prefilled name
++}
++
++void CMenuCoFOsk::Clear( void )
++{
++	m_szText[0] = 0;
++}
++
++void CMenuCoFOsk::PressWide( int which )
++{
++	switch( which )
++	{
++	case OSK_KEY_SHIFT:	m_iShift = ( m_iShift + 1 ) % 3; break;
++	case OSK_KEY_SYMBOLS:	m_bSymbols = !m_bSymbols; break;
++	case OSK_KEY_SPACE:	Type( ' ' ); break;
++	case OSK_KEY_DELETE:	Backspace(); break;
++	case OSK_KEY_DONE:	Close( true ); break;
++	}
++}
++
++void CMenuCoFOsk::PressSelected( void )
++{
++	Flash( m_iRow, m_iCol );
++	if( m_iRow < 4 )
++		Type( KeyChar( m_iRow, m_iCol ));
++	else PressWide( m_iCol );
++}
++
++void CMenuCoFOsk::Move( int dx, int dy )
++{
++	if( dy )
++	{
++		if( m_iRow < 4 )
++			m_iColMemo = m_iCol;
++
++		m_iRow = ( m_iRow + dy + OSK_ROWS ) % OSK_ROWS;
++
++		if( m_iRow == 4 )
++			m_iCol = m_iColMemo / 2;
++		else if( m_iColMemo / 2 == m_iCol || m_iRow - dy != 4 )
++			m_iCol = m_iColMemo;
++		else m_iCol = m_iCol * 2;	// the wide key's left column
++	}
++	if( dx )
++	{
++		const int n = m_iRow == 4 ? OSK_WIDE : OSK_COLS;
++
++		m_iCol = ( m_iCol + dx + n ) % n;
++		if( m_iRow < 4 )
++			m_iColMemo = m_iCol;
++	}
++	if( uiStatic.sounds[SND_MOVE][0] )
++		EngFuncs::PlayLocalSound( uiStatic.sounds[SND_MOVE] );
++}
++
++bool CMenuCoFOsk::KeyDown( int key )
++{
++	if( !m_bOpen )
++		return BaseClass::KeyDown( key );
++
++	switch( key )
++	{
++	case K_DPAD_UP: case K_UPARROW:		Move( 0, -1 ); return true;
++	case K_DPAD_DOWN: case K_DOWNARROW:	Move( 0, 1 ); return true;
++	case K_DPAD_LEFT: case K_LEFTARROW:	Move( -1, 0 ); return true;
++	case K_DPAD_RIGHT: case K_RIGHTARROW:	Move( 1, 0 ); return true;
++	case K_A_BUTTON:			PressSelected(); return true;
++	case K_B_BUTTON:
++		Backspace();
++		m_iBDownTime = uiStatic.realTime;
++		m_bBCleared = false;
++		return true;
++	case K_BACKSPACE:			Backspace(); return true;
++	case K_Y_BUTTON:			Clear(); return true;
++	case K_X_BUTTON:			m_iShift = m_iShift ? 0 : 1; return true;
++	case K_L1_BUTTON:			m_bSymbols = !m_bSymbols; return true;
++	case K_R1_BUTTON:			Type( ' ' ); return true;
++	case K_START_BUTTON: case K_ENTER: case K_KP_ENTER:
++		Close( true );
++		return true;
++	case K_BACK_BUTTON: case K_ESCAPE:
++		Close( false );
++		return true;
++	case K_MOUSE1:
++	{
++		int row, col;
++
++		// the close X in the title band
++		const int bandH = (int)( THEME_TITLE_BAND_H * uiStatic.scaleY );
++		if( uiStatic.cursorY >= m_py && uiStatic.cursorY < m_py + bandH && uiStatic.cursorX >= m_px + m_pw - bandH && uiStatic.cursorX < m_px + m_pw )
++		{
++			Close( false );
++			return true;
++		}
++		if( HitTest( uiStatic.cursorX, uiStatic.cursorY, row, col ))
++		{
++			m_iRow = row; m_iCol = col;
++			if( row < 4 )
++				m_iColMemo = col;
++			PressSelected();
++		}
++		return true;
++	}
++	}
++
++	// printable keys arrive again through Char(); nothing else may fall through
++	// to the page underneath
++	return true;
++}
++
++bool CMenuCoFOsk::KeyUp( int key )
++{
++	if( key == K_B_BUTTON )
++		m_iBDownTime = -1;
++	return true;
++}
++
++void CMenuCoFOsk::Char( int key )
++{
++	if( m_bOpen )
++		Type( key );
++}
++
++void CMenuCoFOsk::Think( void )
++{
++	BaseClass::Think();
++
++	if( m_iBDownTime >= 0 && !m_bBCleared && uiStatic.realTime - m_iBDownTime >= OSK_HOLD_CLEAR_MS )
++	{
++		Clear();
++		m_bBCleared = true;
++	}
++}
++
++bool CMenuCoFOsk::MouseMove( int x, int y )
++{
++	if( !HitTest( x, y, m_iHoverRow, m_iHoverCol ))
++		m_iHoverRow = m_iHoverCol = -1;
++	return true;
++}
++
++// ---------------------------------------------------------------------------
++// layout and drawing
++// ---------------------------------------------------------------------------
++
++void CMenuCoFOsk::VidInit( void )
++{
++	BaseClass::VidInit();
++
++	const float s = uiStatic.scaleY;
++	const int gridW = OSK_COLS * OSK_KEY_W + ( OSK_COLS - 1 ) * OSK_KEY_GAP;
++	const int gridH = OSK_ROWS * OSK_KEY_H + ( OSK_ROWS - 1 ) * OSK_KEY_GAP;
++	const int panelW = gridW + OSK_PAD * 2;
++	const int panelH = THEME_TITLE_BAND_H + OSK_PAD + OSK_PREVIEW_H + OSK_PAD + gridH + OSK_PAD;
++
++	m_kw = (int)( OSK_KEY_W * s );
++	m_kh = (int)( OSK_KEY_H * s );
++	m_kg = (int)( OSK_KEY_GAP * s );
++	m_pw = (int)( panelW * s );
++	m_ph = (int)( panelH * s );
++	m_px = ( (int)ScreenWidth - m_pw ) / 2;
++	m_py = (int)ScreenHeight - m_ph - (int)( OSK_BOTTOM_MARGIN * s );
++	m_gx = m_px + (int)( OSK_PAD * s );
++	m_gy = m_py + (int)(( THEME_TITLE_BAND_H + OSK_PAD + OSK_PREVIEW_H + OSK_PAD ) * s );
++
++	m_scPos = Point( m_px, m_py );
++	m_scSize = Size( m_pw, m_ph );
++}
++
++bool CMenuCoFOsk::KeyRect( int row, int col, int &x, int &y, int &w, int &h ) const
++{
++	y = m_gy + row * ( m_kh + m_kg );
++	h = m_kh;
++	if( row < 4 )
++	{
++		x = m_gx + col * ( m_kw + m_kg );
++		w = m_kw;
++	}
++	else
++	{
++		// each wide key spans two columns
++		x = m_gx + col * 2 * ( m_kw + m_kg );
++		w = m_kw * 2 + m_kg;
++	}
++	return true;
++}
++
++bool CMenuCoFOsk::HitTest( int px, int py, int &row, int &col ) const
++{
++	for( int r = 0; r < OSK_ROWS; r++ )
++	{
++		const int n = r == 4 ? OSK_WIDE : OSK_COLS;
++
++		for( int c = 0; c < n; c++ )
++		{
++			int x, y, w, h;
++
++			KeyRect( r, c, x, y, w, h );
++			if( px >= x && px < x + w && py >= y && py < y + h )
++			{
++				row = r; col = c;
++				return true;
++			}
++		}
++	}
++	return false;
++}
++
++void CMenuCoFOsk::DrawKey( int row, int col, const char *label, bool lit )
++{
++	int x, y, w, h;
++	const bool sel = row == m_iRow && col == m_iCol;
++	const bool hover = row == m_iHoverRow && col == m_iHoverCol && !UI_CoFPadMode();
++	const bool flash = row == m_iFlashRow && col == m_iFlashCol && uiStatic.realTime - m_iFlashTime < 120;
++
++	KeyRect( row, col, x, y, w, h );
++
++	UI_FillRect( x, y, w, h, THEME_INPUT_BG );
++	if( sel )
++		UI_FillRect( x, y, w, h, THEME_SELECT_FILL );
++	if( hover )
++		UI_FillRect( x, y, w, h, THEME_HOVER_FILL );
++	if( flash )
++		UI_FillRect( x, y, w, h, THEME_PRESS_FILL );
++	UI_DrawHairline( Point( x, y ), Size( w, h ), sel ? THEME_ACCENT : THEME_INPUT_BORDER );
++
++	const int charH = (int)( THEME_ITEM_TALL * uiStatic.scaleY );
++	const unsigned int color = lit ? THEME_ACCENT : ( sel || hover ) ? THEME_TEXT_HI : THEME_TEXT;
++
++	UI_DrawString( uiStatic.hThemeItem, x, y + ( h - charH ) / 2, w, charH, label, color, charH,
++		QM_CENTER, ETF_FORCECOL | ETF_NO_WRAP | ETF_NOSIZELIMIT );
++}
++
++void CMenuCoFOsk::Draw( void )
++{
++	if( !m_bOpen )
++		return;
++
++	// over a menu page: dim it, the keyboard owns the input now. Over the
++	// game: nothing, the game's panel (the computer) stays readable above
++	if( !m_bGame )
++		UI_FillRect( 0, 0, (int)ScreenWidth, (int)ScreenHeight, THEME_SCRIM );
++
++	UI_ThemeDrawDialogPanel( Point( m_px, m_py ), Size( m_pw, m_ph ), L( "KEYBOARD" ));
++
++	// the close X in the title band
++	{
++		const int bandH = (int)( THEME_TITLE_BAND_H * uiStatic.scaleY );
++		const int sz = (int)( THEME_CLOSE_SIZE * 0.5f * uiStatic.scaleY );
++		const bool hot = uiStatic.cursorY >= m_py && uiStatic.cursorY < m_py + bandH &&
++			uiStatic.cursorX >= m_px + m_pw - bandH && uiStatic.cursorX < m_px + m_pw && !UI_CoFPadMode();
++
++		UI_ThemeDrawCross( Point( m_px + m_pw - ( bandH + sz ) / 2, m_py + ( bandH - sz ) / 2 ), Size( sz, sz ),
++			hot ? THEME_TEXT_HI : THEME_TEXT_DIM );
++	}
++
++	// the text so far: a label (the menu field's own), the input box, a caret
++	{
++		const float s = uiStatic.scaleY;
++		const int x = m_px + (int)( OSK_PAD * s );
++		const int y = m_py + (int)(( THEME_TITLE_BAND_H + OSK_PAD ) * s );
++		const int w = m_pw - (int)( OSK_PAD * 2 * s );
++		const int h = (int)( OSK_PREVIEW_H * s );
++		const int charH = (int)( THEME_ITEM_TALL * s );
++		const int inset = (int)( 10 * s );
++		char shown[UI_MAX_FIELD_LINE + 2];
++
++		UI_FillRect( x, y, w, h, THEME_INPUT_BG );
++		UI_DrawHairline( Point( x, y ), Size( w, h ), THEME_INPUT_BORDER );
++
++		if( m_bHidden )
++		{
++			int n = 0;
++			for( const char *c = m_szText; *c && n < UI_MAX_FIELD_LINE; c++ )
++			{
++				if(( *c & 0xC0 ) != 0x80 )
++					shown[n++] = '*';
++			}
++			shown[n] = 0;
++		}
++		else Q_strncpy( shown, m_szText, UI_MAX_FIELD_LINE );
++		if(( uiStatic.realTime & 499 ) < 250 )
++			strcat( shown, "_" );
++
++		// what the player typed is never looked up in the language table
++		CUILangHold langHold;
++		UI_DrawString( uiStatic.hThemeItem, x + inset, y + ( h - charH ) / 2, w - inset * 2, charH, shown,
++			THEME_TEXT_HI, charH, QM_LEFT, ETF_FORCECOL | ETF_NO_WRAP | ETF_NOSIZELIMIT );
++	}
++
++	if( m_szLabel[0] )
++	{
++		// the field's caption in the title band, after the title
++		const int bandH = (int)( THEME_TITLE_BAND_H * uiStatic.scaleY );
++		const int chSize = (int)( THEME_TITLE_TALL * uiStatic.scaleY );
++
++		UI_DrawString( uiStatic.hThemeTitle, m_px, m_py + ( bandH - chSize ) / 2, m_pw, chSize, m_szLabel,
++			THEME_TEXT_DIM, chSize, QM_CENTER, ETF_FORCECOL | ETF_NO_WRAP | ETF_NOSIZELIMIT );
++	}
++
++	// the character rows: key caps are characters, never translated
++	{
++		CUILangHold langHold;
++
++		for( int r = 0; r < 4; r++ )
++		{
++			for( int c = 0; c < OSK_COLS; c++ )
++			{
++				char cap[2] = { KeyChar( r, c ), 0 };
++				DrawKey( r, c, cap, false );
++			}
++		}
++	}
++
++	DrawKey( 4, OSK_KEY_SHIFT, m_iShift == 2 ? L( "Caps" ) : L( "Shift" ), m_iShift != 0 );
++	DrawKey( 4, OSK_KEY_SYMBOLS, m_bSymbols ? "ABC" : "?123", m_bSymbols );
++	DrawKey( 4, OSK_KEY_SPACE, L( "Space" ), false );
++	DrawKey( 4, OSK_KEY_DELETE, L( "Delete" ), false );
++	DrawKey( 4, OSK_KEY_DONE, L( "Done" ), false );
++
++	DrawHints();
++}
++
++/*
++=================
++CMenuCoFOsk::DrawHints
++
++The keyboard's own prompts line (the page's is left out while the keyboard is
++up, controls/Framework.cpp): the same glyphs, size and chip as the
++framework's, shown while a pad is the last input device.
++=================
++*/
++void CMenuCoFOsk::DrawHints( void )
++{
++	if( !UI_CoFPadMode( ))
++		return;
++
++	struct { const char *glyph; const char *text; } hint[8];
++	int n = 0;
++
++	hint[n].glyph = UI_CoFPadGlyph( "a.png", "cross.png" );		hint[n++].text = L( "Type" );
++	hint[n].glyph = UI_CoFPadGlyph( "b.png", "circle.png" );	hint[n++].text = L( "Delete" );
++	hint[n].glyph = UI_CoFPadGlyph( "y.png", "triangle.png" );	hint[n++].text = L( "Clear" );
++	hint[n].glyph = UI_CoFPadGlyph( "x.png", "square.png" );	hint[n++].text = L( "Shift" );
++	hint[n].glyph = UI_CoFPadGlyph( "lb.png", "l1.png" );		hint[n++].text = L( "Symbols" );
++	hint[n].glyph = UI_CoFPadGlyph( "rb.png", "r1.png" );		hint[n++].text = L( "Space" );
++	hint[n].glyph = UI_CoFPadGlyph( "view.png", "create.png" );	hint[n++].text = L( "Close" );
++	hint[n].glyph = UI_CoFPadGlyph( "menu.png", "options.png" );	hint[n++].text = L( "Done" );
++
++	const int glyph = (int)( OSK_GLYPH * uiStatic.scaleY );
++	const int charH = (int)( THEME_BODY_TALL * uiStatic.scaleY );
++	const int gap = (int)( 6 * uiStatic.scaleX );
++	const int sep = (int)( 22 * uiStatic.scaleX );
++	int total = 0;
++
++	for( int i = 0; i < n; i++ )
++		total += glyph + gap + g_FontMgr->GetTextWideScaled( uiStatic.hThemeBody, hint[i].text, charH ) + sep;
++	total -= sep;
++
++	int x = ( (int)ScreenWidth - total ) / 2;
++	const int y = m_py + m_ph + (int)( OSK_HINTS_GAP * uiStatic.scaleY );
++	const int padX = (int)( 12 * uiStatic.scaleX ), padY = (int)( 3 * uiStatic.scaleY );
++
++	UI_FillRect( x - padX, y - padY, total + padX * 2, glyph + padY * 2, THEME_PANEL );
++
++	for( int i = 0; i < n; i++ )
++	{
++		UI_DrawPic( x, y, glyph, glyph, THEME_TEXT_HI, hint[i].glyph, QM_DRAWTRANS );
++		x += glyph + gap;
++		UI_DrawString( uiStatic.hThemeBody, x, y + ( glyph - charH ) / 2, total, charH, hint[i].text,
++			THEME_TEXT_HI, charH, QM_LEFT, ETF_FORCECOL | ETF_NO_WRAP | ETF_NOSIZELIMIT );
++		x += g_FontMgr->GetTextWideScaled( uiStatic.hThemeBody, hint[i].text, charH ) + sep;
++	}
++}
++
++void CMenuCoFOsk::Status( void )
++{
++	static const char *const wide[OSK_WIDE] = { "Shift", "?123", "Space", "Delete", "Done" };
++	char cap[2] = { KeyChar( m_iRow, m_iCol ), 0 };
++	const bool open = IsOpen();
++
++	Con_Printf( "[cof-osk] %s, %s, text %s%s%s (%d chars), key row %d col %d \"%s\", shift %d, %s page, pad mode %d\n",
++		open ? "open" : "closed", m_bGame ? "game field" : m_pField ? "menu field" : "no field",
++		m_bHidden ? "" : "\"", m_bHidden ? "(hidden)" : m_szText, m_bHidden ? "" : "\"", (int)strlen( m_szText ),
++		m_iRow, m_iCol, m_iRow < 4 ? cap : wide[m_iCol % OSK_WIDE],
++		m_iShift, m_bSymbols ? "symbols" : "letters", UI_CoFPadMode() ? 1 : 0 );
++}
++
++// ---------------------------------------------------------------------------
++// hooks
++// ---------------------------------------------------------------------------
++
++bool UI_CoFOsk_Active( void )
++{
++	return s_osk.IsOpen();
++}
++
++void UI_CoFOsk_NoteKey( int key, int down )
++{
++	if( down )
++		g_oskNavKey = OSK_IsNavKey( key ) && UI_CoFPadMode();
++}
++
++void UI_CoFOsk_NoteMouse( void )
++{
++	g_oskNavKey = false;
++}
++
++void UI_CoFOsk_FieldFocus( CMenuField *field )
++{
++	// only a focus move made with the pad's direction keys; a page opening
++	// on its first field, or the mouse passing over one, opens nothing
++	if( !g_oskNavKey || !UI_CoFOptionsLayout() || s_osk.IsOpen( ) || FBitSet( field->iFlags, QMF_GRAYED | QMF_INACTIVE ))
++		return;
++
++	g_oskNavKey = false;
++	s_osk.OpenField( field, "focus" );
++}
++
++bool UI_CoFOsk_FieldKey( CMenuField *field, int key )
++{
++	if( key != K_A_BUTTON || !UI_CoFOptionsLayout() || s_osk.IsOpen( ) || FBitSet( field->iFlags, QMF_GRAYED | QMF_INACTIVE ))
++		return false;
++
++	s_osk.OpenField( field, "A" );
++	return true;
++}
++
++/*
++=================
++UI_CoFOsk_f
++
++menu_cof_osk game      the engine's entry point: the keyboard over the game
++                       for the text entry that has the focus; its text and
++                       password flag come in cof_osk_field / cof_osk_hidden
++menu_cof_osk status    prints the keyboard's state
++=================
++*/
++static void UI_CoFOsk_f( void )
++{
++	const char *what = EngFuncs::CmdArgc() > 1 ? EngFuncs::CmdArgv( 1 ) : "status";
++
++	if( !stricmp( what, "status" ))
++	{
++		s_osk.Status();
++		return;
++	}
++	if( !UI_CoFOptionsLayout( ))
++	{
++		Con_Printf( "menu_cof_osk: Cry of Fear with ui_theme 1 only\n" );
++		return;
++	}
++	if( s_osk.IsOpen( ))
++	{
++		Con_Printf( "menu_cof_osk: the keyboard is already open\n" );
++		return;
++	}
++
++	if( !stricmp( what, "game" ))
++	{
++		if( !CL_IsActive( ))
++		{
++			Con_Printf( "menu_cof_osk game: not in a game\n" );
++			return;
++		}
++		s_osk.OpenGame( EngFuncs::GetCvarString( "cof_osk_field" ), EngFuncs::GetCvarFloat( "cof_osk_hidden" ) != 0.0f );
++	}
++	else Con_Printf( "usage: menu_cof_osk <game|status>\n" );
++}
++
++ADD_COMMAND( menu_cof_osk, UI_CoFOsk_f );
+diff --git a/3rdparty/mainui/menus/CoFOsk.h b/3rdparty/mainui/menus/CoFOsk.h
+new file mode 100644
+--- /dev/null
++++ b/3rdparty/mainui/menus/CoFOsk.h
+@@ -0,0 +1,36 @@
++/*
++CoFOsk.h -- Cry of Fear on-screen keyboard: a themed key grid for gamepad
++players, for the menu's own text fields and, through the engine, for the
++game's text fields (the computer login)
++
++This program is free software: you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation, either version 3 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++*/
++#pragma once
++#ifndef COF_OSK_H
++#define COF_OSK_H
++
++class CMenuField;
++
++// controls/Field.cpp: a field got the focus / had a key pressed on it. The
++// keyboard opens on A, and on a focus change made by a pad direction key
++// while a pad is the last input device. KeyDown returns true when it opened.
++void UI_CoFOsk_FieldFocus( CMenuField *field );
++bool UI_CoFOsk_FieldKey( CMenuField *field, int key );
++
++// menus/CoFOptions.cpp input hooks (UI_CoFInputEvent, UI_CoFInputMouse)
++void UI_CoFOsk_NoteKey( int key, int down );
++void UI_CoFOsk_NoteMouse( void );
++
++// the keyboard is on screen (controls/Framework.cpp leaves the page's own
++// prompts line out while it is, the keyboard draws its own)
++bool UI_CoFOsk_Active( void );
++
++#endif // COF_OSK_H

@@ -1,0 +1,708 @@
+diff --git a/engine/vgui_api.h b/engine/vgui_api.h
+--- a/engine/vgui_api.h
++++ b/engine/vgui_api.h
+@@ -243,6 +243,17 @@
+ 	// called from vgui_support, appended later so older support libraries keep working
+ 	void	(*SetPaintOffset)( int x, int y );	// translates 2D drawing for the everything that's not VGUI, used to simulate GoldSrc behavior which installs matrix in push/popMakeCurrent
+ 
++	// Cry of Fear on-screen keyboard (engine/client/cof_osk.c). CofOskEntry,
++	// called by the support library: a TextEntry lost (0) or got (1) the key
++	// focus, or was clicked (2); hidden = it shows asterisks (a password);
++	// text = what it holds. CofOskCall, filled in by the support library the
++	// first time it reports: op 0 puts buf into the focused TextEntry, op 1
++	// (test hook) focuses the visible TextEntry number atoi(buf), op 2 copies
++	// the focused TextEntry's text into buf. Returns 0 when there is no such
++	// entry. xash.dll and vgui.dll must come from the same build.
++	void	(*CofOskEntry)( int event, int hidden, const char *text );
++	int	(*CofOskCall)( int op, char *buf, int size );
++
+ 	// Cry of Fear in-game UI scaling (cof_ui_scale, milestone 4). Fills the
+ 	// current transform and returns non-zero while it is active: `scale` is the
+ 	// layout-pixel to device-pixel factor the engine applies to every VGUI quad,
+diff --git a/engine/client/vgui/vgui_draw.c b/engine/client/vgui/vgui_draw.c
+--- a/engine/client/vgui/vgui_draw.c
++++ b/engine/client/vgui/vgui_draw.c
+@@ -95,6 +95,23 @@
+ 		vgui_key_delivered[key] = 0;
+ }
+ 
++/*
++====================
++VGui_CoF_OskCall
++
++Cry of Fear on-screen keyboard (cof_osk.c): the support library's text entry
++operations, vguiapi_t::CofOskCall. 0 when it has none (an older vgui.dll, no
++text entry).
++====================
++*/
++int VGui_CoF_OskCall( int op, char *buf, int size )
++{
++	if( !vgui.initialized || !vgui.dllFuncs.CofOskCall )
++		return 0;
++
++	return vgui.dllFuncs.CofOskCall( op, buf, size );
++}
++
+ static void GAME_EXPORT VGUI_DrawInit( void )
+ {
+ 	if( vgui.mempool )
+@@ -355,7 +372,10 @@
+ 
+ static qboolean GAME_EXPORT VGUI_IsInGame( void )
+ {
+-	return cls.state == ca_active && cls.key_dest == key_game;
++	// Cry of Fear on-screen keyboard: the support library paints nothing
++	// unless the game is "in game"; while the menu's keyboard types into a
++	// game panel, that panel must keep painting (cof_osk.c)
++	return cls.state == ca_active && ( cls.key_dest == key_game || CL_CoF_OskOverGame( ));
+ }
+ 
+ static void GAME_EXPORT VGUI_GetMousePos( int *_x, int *_y )
+@@ -443,6 +463,8 @@
+ 	NULL, // MouseMove
+ 	NULL, // TextInput
+ 	VGUI_SetPaintOffset,
++	CL_CoF_OskEntry, // CofOskEntry (cof_osk.c)
++	NULL, // CofOskCall, filled in by the support library
+ 	VGUI_CofUITransform,
+ 	VGUI_CofFontRoleLatch,
+ 	VGUI_CofFontDesc,
+@@ -771,7 +793,12 @@
+ 	// underneath the engine menu or the console. This is what keeps the CoF 3D
+ 	// menu overlay off the screen while mainui owns it, and what will keep the
+ 	// CoF HUD from bleeding through a translucent pause scrim later.
+-	if( CL_CoF_UIGateActive( ))
++	// The one exception is the menu's on-screen keyboard typing into one of
++	// these panels (the computer): that panel must stay visible. The same
++	// call runs the keyboard's once-a-frame work (cof_osk.c).
++	const qboolean osk_over_game = CL_CoF_OskFrame( );
++
++	if( CL_CoF_UIGateActive( ) && !osk_over_game )
+ 		return;
+ 
+ 	if( vgui.dllFuncs.Paint )
+diff --git a/engine/client/client.h b/engine/client/client.h
+--- a/engine/client/client.h
++++ b/engine/client/client.h
+@@ -1345,6 +1345,16 @@
+ // Cry of Fear chapter title card rule (cof_hud_chapter_rule_hide), asked by
+ // the client's pfnFillRGBA / pfnFillRGBABlend in dll_int/cl_game.c.
+ extern convar_t cof_hud_chapter_rule_hide;
++// Cry of Fear on-screen keyboard, the engine half (cof_osk.c): the last input
++// device, the game's text entries reported by the support library, the
++// game's panels painted under the menu's keyboard. VGui_CoF_OskCall is in
++// vgui/vgui_draw.c.
++void CL_CoF_OskInit( void );
++void CL_CoF_OskNoteKey( int key, int down );
++void CL_CoF_OskEntry( int event, int hidden, const char *text );
++qboolean CL_CoF_OskFrame( void );
++qboolean CL_CoF_OskOverGame( void );
++int VGui_CoF_OskCall( int op, char *buf, int size );
+ extern net_api_t gNetApi;
+ 
+ #endif//CLIENT_H
+diff --git a/engine/client/input/in_keys.c b/engine/client/input/in_keys.c
+--- a/engine/client/input/in_keys.c
++++ b/engine/client/input/in_keys.c
+@@ -631,6 +631,8 @@
+ 
+ 	Cvar_RegisterVariable( &key_rotate );
+ 
++	// Cry of Fear on-screen keyboard, the engine half (cof_osk.c)
++	CL_CoF_OskInit();
+ }
+ 
+ /*
+@@ -792,6 +794,9 @@
+ 
+ 	if( OSK_KeyEvent( key, down ) )
+ 		return;
++
++	// Cry of Fear on-screen keyboard: was the last key a gamepad's (cof_osk.c)
++	CL_CoF_OskNoteKey( key, down );
+ 
+ 	// key was pressed before engine was run
+ 	if( !keys[key].down && !down )
+diff --git a/engine/client/cof_osk.c b/engine/client/cof_osk.c
+new file mode 100644
+--- /dev/null
++++ b/engine/client/cof_osk.c
+@@ -0,0 +1,327 @@
++/*
++cof_osk.c - Cry of Fear on-screen keyboard, the engine half (cof-osk-engine.patch)
++
++This program is free software: you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation, either version 3 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++
++------------------------------------------------------------------------------
++
++The keyboard itself is the menu's (3rdparty/mainui/menus/CoFOsk.cpp,
++cof-mainui-osk.patch). This file lets it type into the game's own text
++fields, the VGUI TextEntry objects of client.dll (the computer's user name and
++password):
++
++  1. FreeVGUI tells the engine when a TextEntry gains or loses key focus or is
++     clicked (platform/xash3d-fwgs/cofosk.cpp -> vguiapi_t::CofOskEntry ->
++     CL_CoF_OskEntry).
++  2. If the last key the engine saw came from a gamepad (the pad cursor's A
++     click, CL_CoF_OskNoteKey from Key_Event) and the game has the focus,
++     the keyboard is due. Two painted frames later - the game clears its
++     "Enter a username..." placeholder on the click - the entry's text and
++     whether it hides it (a password) go into cof_osk_field /
++     cof_osk_hidden and the menu is asked: "menu_cof_osk game".
++  3. While the keyboard is up the menu sets cof_osk_over_game 1, and
++     VGui_Paint keeps painting the game's panels under it, so the computer
++     stays on screen.
++  4. Done / Close: the menu leaves the text (hex) in cof_osk_result and sets
++     cof_osk_submit (1 Close, 2 Done). The next painted frame puts the text
++     into the focused TextEntry (vguiapi_t::CofOskCall op 0, TextEntry::setText,
++     the member the game itself uses) and, for Done, runs cof_enter_pulse if
++     the engine has it (cof_enter_hook.c, cof-client-enter-hook.patch): the
++     game's own Enter check sees one press.
++
++Steps 2 and 4 run from the paint pass (CL_CoF_OskFrame, VGui_Paint) and put
++their commands at the head of the command buffer, so they happen on the next
++frame whatever else is queued.
++
++A keyboard-and-mouse player never sees it: a real key or mouse button is the
++last input, so step 2 does nothing.
++
++cof_osk_set <hex>|-   the text into the focused game text field (by hand)
++cof_osk_probe <n> [keyboard]   test hook (below)
++cof_osk_status        what the engine knows; the focused entry's text
++=============================================================================
++*/
++
++#include "common.h"
++#include "client.h"
++#include "keydefs.h"
++
++static CVAR_DEFINE_AUTO( cof_osk, "1", FCVAR_ARCHIVE, "Cry of Fear: open the on-screen keyboard when a gamepad clicks into a text field of the game (the computer login)" );
++static CVAR_DEFINE_AUTO( cof_osk_over_game, "0", 0, "Cry of Fear: set by the menu while its on-screen keyboard is open over the game; the game's panels stay painted under it" );
++static CVAR_DEFINE_AUTO( cof_osk_field, "", 0, "Cry of Fear: the text of the game text field the on-screen keyboard was opened for" );
++static CVAR_DEFINE_AUTO( cof_osk_hidden, "0", 0, "Cry of Fear: 1 when that field hides its text (a password)" );
++static CVAR_DEFINE_AUTO( cof_osk_result, "", 0, "Cry of Fear: set by the menu's on-screen keyboard: the typed text, hex bytes" );
++static CVAR_DEFINE_AUTO( cof_osk_submit, "0", 0, "Cry of Fear: set by the menu's on-screen keyboard: 1 Close, 2 Done (also presses Enter for the game)" );
++static CVAR_DEFINE_AUTO( cof_osk_trace, "0", 0, "developer: log the game text field reports and the keyboard requests" );
++
++#define COF_OSK_OPEN_DELAY 2	// painted frames between the click and the keyboard
++
++static struct
++{
++	qboolean pad_last;	// the last key down came from a gamepad
++	qboolean entry;		// a game text entry has key focus
++	qboolean hidden;
++	int pending;		// painted frames until the keyboard opens, 0 none
++	int reports;
++} osk_state = { false, false, false, 0, 0 };
++
++static qboolean CL_CoF_OskIsPadKey( int key )
++{
++	return key >= K_JOY1 && key <= K_AUX32;
++}
++
++/*
++====================
++CL_CoF_OskNoteKey
++
++Key_Event, every key: which kind of device pressed last. Mouse wheel steps
++and releases do not count.
++====================
++*/
++void CL_CoF_OskNoteKey( int key, int down )
++{
++	if( !down || key == K_MWHEELUP || key == K_MWHEELDOWN )
++		return;
++
++	osk_state.pad_last = CL_CoF_OskIsPadKey( key );
++}
++
++static qboolean CL_CoF_OskGameHasFocus( void )
++{
++	return cls.state == ca_active && cls.key_dest == key_game && !cl.background;
++}
++
++/*
++====================
++CL_CoF_OskEntry
++
++vguiapi_t::CofOskEntry. event: 0 lost focus, 1 got focus, 2 clicked. Called
++from inside the support library's input or paint pass; the keyboard itself is
++only asked for from CL_CoF_OskFrame.
++====================
++*/
++void CL_CoF_OskEntry( int event, int hidden, const char *text )
++{
++	osk_state.reports++;
++
++	if( cof_osk_trace.value )
++		Con_Printf( "[cof-osk] text entry %s%s (%d chars), last key from the %s\n",
++			event == 0 ? "lost the focus" : event == 1 ? "got the focus" : "clicked",
++			hidden ? ", hidden" : "", text ? (int)Q_strlen( text ) : 0, osk_state.pad_last ? "gamepad" : "keyboard/mouse" );
++
++	if( event == 0 )
++	{
++		osk_state.entry = false;
++		return;
++	}
++
++	osk_state.entry = true;
++	osk_state.hidden = hidden ? true : false;
++
++	// the click and the focus change of one A press arrive a frame apart:
++	// one request
++	if( cof_osk.value && osk_state.pad_last && CL_CoF_OskGameHasFocus( ) && !osk_state.pending )
++	{
++		osk_state.pending = COF_OSK_OPEN_DELAY;
++		Con_Reportf( "[cof-osk] game text field %s by the gamepad: on-screen keyboard\n", event == 1 ? "focused" : "clicked" );
++	}
++}
++
++static int CL_CoF_OskHexValue( int c )
++{
++	if( c >= '0' && c <= '9' ) return c - '0';
++	if( c >= 'a' && c <= 'f' ) return c - 'a' + 10;
++	if( c >= 'A' && c <= 'F' ) return c - 'A' + 10;
++	return -1;
++}
++
++// hex bytes (or "-", empty) into the focused game text entry
++static qboolean CL_CoF_OskPut( const char *hex )
++{
++	char text[256];
++	int n = 0;
++
++	if( Q_strcmp( hex, "-" ))
++	{
++		for( ; hex[0] && hex[1] && n < (int)sizeof( text ) - 1; hex += 2 )
++		{
++			int hi = CL_CoF_OskHexValue( hex[0] ), lo = CL_CoF_OskHexValue( hex[1] );
++
++			if( hi < 0 || lo < 0 )
++				break;
++			text[n++] = (char)( hi * 16 + lo );
++		}
++	}
++	text[n] = 0;
++
++	if( !VGui_CoF_OskCall( 0, text, sizeof( text )))
++	{
++		Con_Printf( S_WARN "[cof-osk] no game text field has the focus; the text was dropped\n" );
++		return false;
++	}
++
++	Con_Reportf( "[cof-osk] %d chars put into the game text field\n", n );
++	return true;
++}
++
++/*
++====================
++CL_CoF_OskFrame
++
++VGui_Paint, every painted frame of a running game. Opens the keyboard that is
++due (step 2) and takes the keyboard's result (step 4). Returns true while the
++game's panels must stay painted under the menu's keyboard.
++====================
++*/
++qboolean CL_CoF_OskFrame( void )
++{
++	if( cof_osk_submit.value )
++	{
++		const int submit = (int)cof_osk_submit.value;
++
++		if( CL_CoF_OskPut( cof_osk_result.string ) && submit == 2 )
++		{
++			if( Cmd_Exists( "cof_enter_pulse" ))
++				Cbuf_InsertText( "cof_enter_pulse\n" );
++			else
++				Con_Reportf( "[cof-osk] Done: this engine has no Enter hook (cof_enter_pulse)\n" );
++		}
++		Cvar_DirectSet( &cof_osk_result, "" );
++		Cvar_DirectSet( &cof_osk_submit, "0" );
++	}
++
++	if( osk_state.pending > 0 && --osk_state.pending == 0 )
++	{
++		char text[256];
++		int have;
++
++		text[0] = 0;
++		have = VGui_CoF_OskCall( 2, text, sizeof( text ));
++
++		// still a pad player: a real mouse click reaches the support library
++		// (VGui_MouseEvent) before its Key_Event (via the client), so right
++		// after pad use a mouse click may have asked for the keyboard; its
++		// Key_Event has arrived by now and says it was the mouse
++		if( have && osk_state.pad_last && CL_CoF_OskGameHasFocus( ))
++		{
++			osk_state.hidden = have == 2;
++			Cvar_DirectSet( &cof_osk_field, text );
++			Cvar_DirectSet( &cof_osk_hidden, have == 2 ? "1" : "0" );
++			Cbuf_InsertText( "menu_cof_osk game\n" );
++		}
++	}
++
++	if( cls.key_dest == key_game )
++	{
++		// the menu closed (by the keyboard or otherwise); never let the flag
++		// outlive it into the next pause menu
++		if( cof_osk_over_game.value )
++			Cvar_DirectSet( &cof_osk_over_game, "0" );
++		return false;
++	}
++
++	return CL_CoF_OskOverGame( );
++}
++
++/*
++====================
++CL_CoF_OskOverGame
++
++The menu's keyboard is open over the running game: VGui_Paint and the
++support library's "in game" test (VGUI_IsInGame) keep the game's panels on
++screen under it.
++====================
++*/
++qboolean CL_CoF_OskOverGame( void )
++{
++	return cof_osk_over_game.value && cls.key_dest == key_menu && cls.state == ca_active;
++}
++
++/*
++====================
++CL_CoF_OskSet_f
++
++cof_osk_set <hex>|-   this text into the focused text entry of the game ("-" =
++empty), by hand. Hex, so quotes, semicolons and backslashes survive the
++command buffer.
++====================
++*/
++static void CL_CoF_OskSet_f( void )
++{
++	if( Cmd_Argc() != 2 )
++	{
++		Con_Printf( S_USAGE "cof_osk_set <hex bytes>|-\n" );
++		return;
++	}
++
++	CL_CoF_OskPut( Cmd_Argv( 1 ));
++}
++
++/*
++====================
++CL_CoF_OskProbe_f
++
++cof_osk_probe <n> [keyboard]    test hook: click the n-th visible text entry
++on screen (0 = the first, in panel order) the way the mouse does, with the
++gamepad as the last input, so the keyboard opens exactly as after a pad
++click; with "keyboard" the last input is left as it is (after a keyboard
++key: nothing opens). No OS input of any kind.
++====================
++*/
++static void CL_CoF_OskProbe_f( void )
++{
++	char arg[16];
++	const qboolean keyboard = Cmd_Argc() > 2 && !Q_stricmp( Cmd_Argv( 2 ), "keyboard" );
++
++	Q_strncpy( arg, Cmd_Argc() > 1 ? Cmd_Argv( 1 ) : "0", sizeof( arg ));
++	if( !keyboard )
++		osk_state.pad_last = true;
++
++	if( VGui_CoF_OskCall( 1, arg, sizeof( arg )))
++		Con_Printf( "cof_osk_probe: text entry %s clicked, the last input from the %s\n", arg,
++			osk_state.pad_last ? "gamepad" : "keyboard and mouse" );
++	else
++		Con_Printf( "cof_osk_probe: no visible text entry %s\n", arg );
++}
++
++static void CL_CoF_OskStatus_f( void )
++{
++	char text[256];
++	int have;
++
++	text[0] = 0;
++	have = VGui_CoF_OskCall( 2, text, sizeof( text ));
++
++	Con_Printf( "[cof-osk] cof_osk %d, last key from the %s, entry focused %d, keyboard due %d, over the game %d, reports %d\n",
++		(int)cof_osk.value, osk_state.pad_last ? "gamepad" : "keyboard/mouse", osk_state.entry,
++		osk_state.pending, cof_osk_over_game.value && cls.key_dest == key_menu, osk_state.reports );
++
++	if( have == 2 )
++		Con_Printf( "[cof-osk] focused entry: %d chars (hidden)\n", (int)Q_strlen( text ));
++	else if( have )
++		Con_Printf( "[cof-osk] focused entry: \"%s\"\n", text );
++	else
++		Con_Printf( "[cof-osk] focused entry: none\n" );
++}
++
++void CL_CoF_OskInit( void )
++{
++	Cvar_RegisterVariable( &cof_osk );
++	Cvar_RegisterVariable( &cof_osk_over_game );
++	Cvar_RegisterVariable( &cof_osk_field );
++	Cvar_RegisterVariable( &cof_osk_hidden );
++	Cvar_RegisterVariable( &cof_osk_result );
++	Cvar_RegisterVariable( &cof_osk_submit );
++	Cvar_RegisterVariable( &cof_osk_trace );
++	Cmd_AddCommand( "cof_osk_set", CL_CoF_OskSet_f, "on-screen keyboard: text (hex bytes) into the focused text field of the game" );
++	Cmd_AddCommand( "cof_osk_probe", CL_CoF_OskProbe_f, "test hook: click the n-th visible game text field as the mouse would, the gamepad the last input" );
++	Cmd_AddCommand( "cof_osk_status", CL_CoF_OskStatus_f, "on-screen keyboard: the engine's state and the focused game text field" );
++}
+diff --git a/3rdparty/freevgui/controls/text.h b/3rdparty/freevgui/controls/text.h
+--- a/3rdparty/freevgui/controls/text.h
++++ b/3rdparty/freevgui/controls/text.h
+@@ -62,6 +62,12 @@
+ };
+ CHECK_STRUCT_SIZE( TextEntry, 244, 344, 336 );
+ 
++// Cry of Fear on-screen keyboard (platform/xash3d-fwgs/cofosk.cpp): told when
++// a TextEntry is constructed (3), gets (1) or loses (0) the key focus, is
++// clicked (2) or starts or stops hiding its text (4); hidden = it shows
++// asterisks. Not part of the VGUI1 interface.
++void TextEntry_SetCofOskHook( void (*hook)( TextEntry *entry, int event, bool hidden ));
++
+ class CLASSEXPORT TextGrid : public Panel
+ {
+ public:
+diff --git a/3rdparty/freevgui/controls/text.cpp b/3rdparty/freevgui/controls/text.cpp
+--- a/3rdparty/freevgui/controls/text.cpp
++++ b/3rdparty/freevgui/controls/text.cpp
+@@ -10,6 +10,14 @@
+ 
+ namespace vgui
+ {
++// Cry of Fear on-screen keyboard: see text.h
++static void (*s_cofOskHook)( TextEntry *entry, int event, bool hidden ) = nullptr;
++
++void TextEntry_SetCofOskHook( void (*hook)( TextEntry *entry, int event, bool hidden ))
++{
++	s_cofOskHook = hook;
++}
++
+ TextEntry::TextEntry( const char *str, int x, int y, int w, int h ) : Panel( x, y, w, h ),
+ 	cursorPos( 0 ), hideText( false ), cursorBlinkRate( 400 ), font( nullptr )
+ {
+@@ -18,11 +26,17 @@
+ 	resetCursorBlink();
+ 	setText( str, strlen( str ));
+ 	addInputSignal( this );
+-	addFocusChangeSignal( makeFocusChangeHandler([this]( bool, Panel * )
++	addFocusChangeSignal( makeFocusChangeHandler([this]( bool lost, Panel * )
+ 	{
+ 		resetCursorBlink();
+ 		doSelectNone();
++
++		if( s_cofOskHook )
++			s_cofOskHook( this, lost ? 0 : 1, hideText );
+ 	}));
++
++	if( s_cofOskHook )
++		s_cofOskHook( this, 3, hideText );
+ }
+ 
+ void TextEntry::setText( const char *text, int len )
+@@ -196,6 +210,9 @@
+ {
+ 	hideText = hide;
+ 	repaint();
++
++	if( s_cofOskHook )
++		s_cofOskHook( this, 4, hideText );
+ }
+ 
+ void TextEntry::paintBackground()
+@@ -343,6 +360,10 @@
+ 	resetCursorBlink();
+ 	requestFocus();
+ 	repaint();
++
++	// a click on the entry that already has the focus opens the keyboard again
++	if( s_cofOskHook )
++		s_cofOskHook( this, 2, hideText );
+ }
+ 
+ void TextEntry::mouseDoublePressed( MouseCode, Panel* )
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/cofosk.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/cofosk.cpp
+new file mode 100644
+--- /dev/null
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/cofosk.cpp
+@@ -0,0 +1,172 @@
++// SPDX-License-Identifier: BSD-3-Clause
++// Cry of Fear on-screen keyboard, the support library's part
++// (cof-osk-engine.patch; the engine half is engine/client/cof_osk.c, the
++// keyboard itself 3rdparty/mainui/menus/CoFOsk.cpp)
++//
++// client.dll builds its text fields (the computer's user name and password)
++// from this library's TextEntry. The engine needs to know when one of them
++// takes the key focus - so a gamepad player gets the menu's keyboard - and
++// needs to put the typed text into it afterwards:
++//
++//   TextEntry (controls/text.cpp) -> CofOsk_Hook -> vguiapi_t::CofOskEntry
++//   vguiapi_t::CofOskCall (filled in here) -> CofOsk_Call:
++//     op 0  the text into the focused entry (TextEntry::setText, the member
++//           the game itself uses)
++//     op 1  test hook: click the n-th visible entry on screen (the entry's
++//           own mouse-press handler: the focus and the "clicked" report)
++//     op 2  the focused entry's text; returns 2 when it hides its text
++//
++// Only entries the hook has seen constructed are ever touched, and a stored
++// pointer is only used while App::getFocus() still returns it, or after it
++// has been found again in the live panel tree.
++
++#include <string.h>
++#include <stdlib.h>
++#include "vgui_internal.h"
++#include "support.h"
++#include "controls/text.h"
++
++using namespace vgui;
++
++#define COF_OSK_REGISTRY 64
++
++static struct
++{
++	TextEntry *entry;
++	bool hidden;
++} s_registry[COF_OSK_REGISTRY];			// the most recent entries built
++static int s_registryNext;
++static TextEntry *s_focused;			// the entry that reported the key focus last
++
++static int CofOsk_Call( int op, char *buf, int size );
++
++static int CofOsk_Slot( Panel *p )
++{
++	for( int i = 0; i < COF_OSK_REGISTRY; i++ )
++	{
++		if( s_registry[i].entry && (Panel *)s_registry[i].entry == p )
++			return i;
++	}
++	return -1;
++}
++
++static void CofOsk_Hook( TextEntry *entry, int event, bool hidden )
++{
++	if( g_engine )
++		g_engine->CofOskCall = CofOsk_Call;	// the engine may call back from now on
++
++	if( event == 3 )
++	{
++		// a new entry may reuse a freed one's address: one slot per address
++		int slot = CofOsk_Slot( entry );
++
++		if( slot < 0 )
++		{
++			slot = s_registryNext;
++			s_registryNext = ( s_registryNext + 1 ) % COF_OSK_REGISTRY;
++		}
++		s_registry[slot].entry = entry;
++		s_registry[slot].hidden = hidden;
++		return;
++	}
++
++	int slot = CofOsk_Slot( entry );
++
++	if( slot >= 0 )
++		s_registry[slot].hidden = hidden;
++
++	if( event == 4 )
++		return;
++
++	if( event == 0 )
++	{
++		if( s_focused == entry )
++			s_focused = nullptr;
++	}
++	else s_focused = entry;
++
++	if( !g_engine || !g_engine->CofOskEntry )
++		return;
++
++	char text[256];
++
++	text[0] = 0;
++	if( event != 0 )
++		entry->getText( 0, text, sizeof( text ));
++
++	g_engine->CofOskEntry( event, hidden ? 1 : 0, text );
++}
++
++static TextEntry *CofOsk_Focused( void )
++{
++	App *app = App::getInstance();
++
++	if( !s_focused || !app || app->getFocus() != (Panel *)s_focused )
++		return nullptr;
++	return s_focused;
++}
++
++// depth-first over the live tree; visible panels only
++static TextEntry *CofOsk_FindVisible( Panel *panel, int &index )
++{
++	if( !panel || !panel->isVisible( ))
++		return nullptr;
++
++	if( CofOsk_Slot( panel ) >= 0 )
++	{
++		if( index == 0 )
++			return (TextEntry *)panel;
++		index--;
++	}
++
++	for( int i = 0; i < panel->getChildCount(); i++ )
++	{
++		TextEntry *found = CofOsk_FindVisible( panel->getChild( i ), index );
++
++		if( found )
++			return found;
++	}
++	return nullptr;
++}
++
++static int CofOsk_Call( int op, char *buf, int size )
++{
++	TextEntry *entry;
++
++	switch( op )
++	{
++	case 0:	// put buf into the focused entry
++		if( !buf || !( entry = CofOsk_Focused( )))
++			return 0;
++		entry->setText( buf, (int)strlen( buf ));
++		entry->repaint();
++		return 1;
++	case 1:	// test hook: click the visible entry number atoi( buf )
++	{
++		int index = buf ? atoi( buf ) : 0;
++
++		if( !g_rootPanel || !( entry = CofOsk_FindVisible( g_rootPanel, index )))
++			return 0;
++		// the entry's own press handler, as a left click on it runs it:
++		// requestFocus() and the "clicked" report
++		static_cast<InputSignal *>( entry )->mousePressed( vgui::MOUSE_LEFT, entry );
++		static_cast<InputSignal *>( entry )->mouseReleased( vgui::MOUSE_LEFT, entry );
++		return 1;
++	}
++	case 2:	// the focused entry's text
++	{
++		if( !buf || size <= 0 || !( entry = CofOsk_Focused( )))
++			return 0;
++		entry->getText( 0, buf, size );
++
++		const int slot = CofOsk_Slot( entry );
++		return slot >= 0 && s_registry[slot].hidden ? 2 : 1;
++	}
++	}
++	return 0;
++}
++
++static struct CofOskInstall
++{
++	CofOskInstall() { TextEntry_SetCofOskHook( CofOsk_Hook ); }
++} s_cofOskInstall;

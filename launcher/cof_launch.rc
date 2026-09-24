@@ -1,5 +1,43 @@
 #include <windows.h>
 
+// cof_launch_version.h is generated into the output directory by
+// scripts/build-cof-launcher.ps1 from VERSION: COF_LAUNCH_FILEVERSION (four
+// numbers) and COF_LAUNCH_VERSION_STR (the VERSION line, e.g. "0.4.0-test1").
+#include "cof_launch_version.h"
+
 #define IDI_COFIX 101
 
 IDI_COFIX ICON "coffix.ico"
+
+// The name Windows, Steam overlays and recorders (ShadowPlay and the like)
+// show for this program. See docs/dev/building.md, "The game's name in
+// Windows".
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION COF_LAUNCH_FILEVERSION
+ PRODUCTVERSION COF_LAUNCH_FILEVERSION
+ FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+ FILEFLAGS 0x0L
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_APP
+ FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "Cry of Fear: Enhanced contributors"
+            VALUE "FileDescription", "Cry of Fear Enhanced"
+            VALUE "FileVersion", COF_LAUNCH_VERSION_STR
+            VALUE "InternalName", "CoFLaunchApp"
+            VALUE "LegalCopyright", "Copyright (c) 2026 haej (Cry of Fear: Enhanced contributors). GPL-3.0-or-later."
+            VALUE "OriginalFilename", "CoFLaunchApp.exe"
+            VALUE "ProductName", "Cry of Fear Enhanced"
+            VALUE "ProductVersion", COF_LAUNCH_VERSION_STR
+            VALUE "Comments", "Launcher of Cry of Fear: Enhanced, an unofficial community project on the Xash3D FWGS engine. Not affiliated with, endorsed by, or supported by Team Psykskallar or Valve."
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

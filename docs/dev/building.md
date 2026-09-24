@@ -97,10 +97,39 @@ package; neither changes with our patches.
 ```
 
 It finds MSVC through `vswhere` or `VSINSTALLDIR` (or `-VcVarsPath`), embeds
-`assets/branding/coffix.ico` and sets `/LARGEADDRESSAWARE`. It loads the
-colocated `xash.dll` and always passes
+`assets/branding/coffix.ico` and a version resource (below) and sets
+`/LARGEADDRESSAWARE`. It loads the colocated `xash.dll` and always passes
 `-game cryoffear -cof-pmove-legacy +set cof_save_root_compat 1`; see
 [the launcher contract](steam-launch-prototype.md#launcher-contract).
+
+When the script is started from another PowerShell with `-File`, pass
+`-SourceRoot <repo>` (and `-VcVarsPath` when `vswhere` is not on `PATH`):
+`$PSScriptRoot` is empty in the parameter defaults there.
+
+## The game's name in Windows
+
+Recording and overlay tools (ShadowPlay and the like) name what they capture
+after the program; without a version resource they fell back to the folder
+name. Three places carry "Cry of Fear Enhanced":
+
+| Where | What | Set by |
+| --- | --- | --- |
+| `CoFLaunchApp.exe` version resource | ProductName and FileDescription "Cry of Fear Enhanced", ProductVersion / FileVersion = `VERSION` line 1 (FILEVERSION `a,b,c,0` from its numbers), CompanyName "Cry of Fear: Enhanced contributors", LegalCopyright as in `LICENSE`, OriginalFilename `CoFLaunchApp.exe`, InternalName `CoFLaunchApp`, the project icon | `launcher/cof_launch.rc`; `build-cof-launcher.ps1` writes `cof_launch_version.h` (from `VERSION`) into the output directory |
+| the game window's title | "Cry of Fear Enhanced" for the `cryoffear` game folder, whatever `gameinfo.txt`'s `title` says (the installer writes that file from the player's own `liblist.gam`: "Cry of Fear") | engine, `patches/cof-window-name.patch` (`vid_sdl2.c`) |
+| the game window's class | `CryOfFearEnhanced` instead of SDL's `SDL_app` (with `-game cryoffear`, which the launcher always passes) | engine, `patches/cof-window-name.patch` (`sys_sdl2.c`, `SDL_RegisterApp` before `SDL_Init`) |
+
+Check a build:
+
+```powershell
+(Get-Item .\build-launcher\CoFLaunchApp.exe).VersionInfo | Format-List ProductName, FileDescription, ProductVersion, CompanyName, LegalCopyright, OriginalFilename
+```
+
+and, in a running game, the window itself: Task Manager / a window lister
+shows the title "Cry of Fear Enhanced" and the class `CryOfFearEnhanced`
+(the engine also prints `[cof-window] title ..., class ...` when it creates
+the window, but that is before `-log` opens its file, so the log does not
+carry it). Bumping `VERSION` and rebuilding the launcher updates the version
+strings.
 
 ## Data files
 

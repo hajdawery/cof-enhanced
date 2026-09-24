@@ -1,0 +1,92 @@
+diff --git a/engine/platform/sdl2/vid_sdl2.c b/engine/platform/sdl2/vid_sdl2.c
+--- a/engine/platform/sdl2/vid_sdl2.c
++++ b/engine/platform/sdl2/vid_sdl2.c
+@@ -655,6 +655,47 @@
+ 
+ /*
+ =================
++VID_CoF_WindowTitle
++
++Cry of Fear: Enhanced (cof-window-name.patch): the game window is called
++"Cry of Fear Enhanced" whatever the gameinfo.txt title says - the installer
++writes that file from the player's own liblist.gam ("Cry of Fear"), and
++recording and overlay tools (ShadowPlay and the like) name their captures
++after the window. Any other game keeps its gameinfo.txt title.
++=================
++*/
++#define COF_WINDOW_TITLE "Cry of Fear Enhanced"
++
++static const char *VID_CoF_WindowTitle( void )
++{
++	if( !Q_stricmp( GI->gamefolder, "cryoffear" ))
++		return COF_WINDOW_TITLE;
++	return GI->title;
++}
++
++static void VID_CoF_ReportWindow( SDL_Window *hWnd )
++{
++#if XASH_WIN32
++	SDL_SysWMinfo info;
++	char title[128], wndclass[128];
++
++	SDL_VERSION( &info.version );
++	if( !SDL_GetWindowWMInfo( hWnd, &info ) || info.subsystem != SDL_SYSWM_WINDOWS )
++	{
++		Con_Printf( "[cof-window] title \"%s\" (no window handle to read back: %s)\n", SDL_GetWindowTitle( hWnd ), SDL_GetError( ));
++		return;
++	}
++
++	// read back from the window itself, as a recorder sees it
++	title[0] = wndclass[0] = 0;
++	GetWindowTextA( info.info.win.window, title, sizeof( title ));
++	GetClassNameA( info.info.win.window, wndclass, sizeof( wndclass ));
++	Con_Printf( "[cof-window] title \"%s\", class \"%s\"\n", title, wndclass );
++#endif
++}
++
++/*
++=================
+ VID_CreateWindow
+ =================
+ */
+@@ -677,7 +718,7 @@
+ 
+ 	// by default we create window in windowed mode because we don't know
+ 	// if window creation failed because of invalid video mode or any other reason
+-	host.hWnd = SDL_CreateWindow( GI->title, rect.x, rect.y, rect.w, rect.h, flags );
++	host.hWnd = SDL_CreateWindow( VID_CoF_WindowTitle( ), rect.x, rect.y, rect.w, rect.h, flags );
+ 
+ 	if( !host.hWnd )
+ 	{
+@@ -697,6 +738,7 @@
+ 	VID_SetWindowIcon( host.hWnd );
+ 	SDL_ShowWindow( host.hWnd );
+ 	SDL_RaiseWindow( host.hWnd );
++	VID_CoF_ReportWindow( host.hWnd );
+ 
+ 	if( glw_state.software )
+ 	{
+diff --git a/engine/platform/sdl2/sys_sdl2.c b/engine/platform/sdl2/sys_sdl2.c
+--- a/engine/platform/sdl2/sys_sdl2.c
++++ b/engine/platform/sdl2/sys_sdl2.c
+@@ -127,6 +127,20 @@
+ 		SDL_setenv( "SDL_GAMECONTROLLER_IGNORE_DEVICES", "0x28DE/0x11FF", 1 );
+ 	}
+ 
++#if XASH_WIN32
++	// Cry of Fear: Enhanced (cof-window-name.patch): SDL's window class is
++	// registered under the project's name instead of "SDL_app", for tools
++	// that tell games apart by it. Must happen before the video subsystem
++	// registers the default; the style is SDL's own default,
++	// CS_BYTEALIGNCLIENT | CS_OWNDC.
++	{
++		char game[64];
++
++		if( Sys_GetParmFromCmdLine( "-game", game ) && !Q_stricmp( game, "cryoffear" ))
++			SDL_RegisterApp( "CryOfFearEnhanced", 0x1000 | 0x0020, NULL );
++	}
++#endif // XASH_WIN32
++
+ 	if( SDL_Init( SDL_INIT_TIMER | SDL_INIT_VIDEO | SDL_INIT_EVENTS ) )
+ 	{
+ 		Sys_Warn( "SDL_Init failed: %s", SDL_GetError() );

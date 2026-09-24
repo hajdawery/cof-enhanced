@@ -1,0 +1,386 @@
+diff --git a/engine/client/client.h b/engine/client/client.h
+--- a/engine/client/client.h
++++ b/engine/client/client.h
+@@ -1355,6 +1355,11 @@
+ qboolean CL_CoF_OskFrame( void );
+ qboolean CL_CoF_OskOverGame( void );
+ int VGui_CoF_OskCall( int op, char *buf, int size );
++// Cry of Fear Enter hook (cof_enter_hook.c): client.dll's
++// GetAsyncKeyState(VK_RETURN) answered for a gamepad
++void CL_CoF_EnterInit( void );
++void CL_CoF_EnterHookModule( void *hInstance, const char *name );
++qboolean CL_CoF_EnterKeyEvent( int key, int down );
+ extern net_api_t gNetApi;
+ 
+ #endif//CLIENT_H
+diff --git a/engine/client/input/in_keys.c b/engine/client/input/in_keys.c
+--- a/engine/client/input/in_keys.c
++++ b/engine/client/input/in_keys.c
+@@ -633,6 +633,9 @@
+ 
+ 	// Cry of Fear on-screen keyboard, the engine half (cof_osk.c)
+ 	CL_CoF_OskInit();
++
++	// Cry of Fear Enter hook (cof_enter_hook.c)
++	CL_CoF_EnterInit();
+ }
+ 
+ /*
+@@ -797,6 +800,11 @@
+ 
+ 	// Cry of Fear on-screen keyboard: was the last key a gamepad's (cof_osk.c)
+ 	CL_CoF_OskNoteKey( key, down );
++
++	// Cry of Fear Enter hook: START while the game polls Windows for Enter
++	// (the computer, a Press Enter card) is that Enter (cof_enter_hook.c)
++	if( CL_CoF_EnterKeyEvent( key, down ))
++		return;
+ 
+ 	// key was pressed before engine was run
+ 	if( !keys[key].down && !down )
+diff --git a/engine/client/dll_int/cl_game.c b/engine/client/dll_int/cl_game.c
+--- a/engine/client/dll_int/cl_game.c
++++ b/engine/client/dll_int/cl_game.c
+@@ -4681,6 +4681,11 @@
+ 	// See engine/common/cof_language.c.
+ 	CoF_Lang_HookModule( clgame.hInstance, name );
+ 
++	// Cry of Fear Enter hook: the computer login and the Press Enter cards ask
++	// Windows for Enter directly; answer them for a gamepad
++	// (engine/client/cof_enter_hook.c)
++	CL_CoF_EnterHookModule( clgame.hInstance, name );
++
+ 	// delayed vgui initialization for internal support
+ 	if( try_internal_vgui_support && VGui_LoadProgs( clgame.hInstance ))
+ 		VGui_Startup( refState.width, refState.height );
+diff --git a/engine/client/cof_enter_hook.c b/engine/client/cof_enter_hook.c
+new file mode 100644
+--- /dev/null
++++ b/engine/client/cof_enter_hook.c
+@@ -0,0 +1,326 @@
++/*
++cof_enter_hook.c - Cry of Fear: the game's own Enter check, answered for a
++gamepad (cof-client-enter-hook.patch)
++
++This program is free software: you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation, either version 3 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++
++------------------------------------------------------------------------------
++
++Two places in Cry of Fear's client.dll ask Windows directly whether Enter is
++down, past the engine's key path (stage1/controller-research-20260923 Q3,
++re-checked on the retail 1.6 client for this patch):
++
++  1003F54C  CComputer::solve, the computer login: GetAsyncKeyState(VK_RETURN),
++            bit 15 (bt ax, 0Fh), then a 1.0 s GetClientTime debounce at +0xBC,
++            then "computercheck <user> <password>"
++  1003D21E  CHUDControl, the chapter / commentary card "Press Enter to skip":
++            the same call and bit test, only while a card is up
++
++Both go through the one USER32!GetAsyncKeyState import (IAT slot 1013A26C),
++so a gamepad, whose buttons never reach Windows' keyboard state, can neither
++log in nor skip a card. This file puts CoF_Enter_GetAsyncKeyState into that
++import slot of client.dll, the same way cof_language.c hooks CreateFileW, and
++answers VK_RETURN as "down" when:
++
++  * the pulse is armed: "cof_enter_pulse" (the menu's on-screen keyboard runs
++    it on Done, cof-mainui-osk.patch; any cfg can) - the next poll in play
++    sees one press, the polls of that same frame too (both sites), then it is
++    spent; unanswered it expires after 2 s;
++  * START is pressed on a gamepad while the game is polling for Enter (a poll
++    in the last 0.25 s: the computer is open or a card is up). That START
++    press arms the pulse and goes nowhere else, so it does not open the pause
++    menu over the computer; with nothing polling START is untouched
++    (cof_enter_pad 0 turns this off);
++  * "+cof_enter" is held (a bind, for anyone who wants a button of their own).
++
++While the engine menu or the console owns the keyboard (CL_CoF_UIGateActive)
++a real Enter is hidden from the game: Enter typed into the console, the pause
++menu or the on-screen keyboard no longer logs the computer in behind them.
++Every other key and every other caller get the real answer.
++
++cof_enter_status   hook state, poll count, last poll
++cof_enter_trace 1  log every answered poll with its call site
++=============================================================================
++*/
++
++#include "common.h"
++#include "client.h"
++#include "library.h"
++#include "keydefs.h"
++
++#if XASH_WIN32
++#include <windows.h>
++#include <intrin.h>
++#endif
++
++static CVAR_DEFINE_AUTO( cof_enter_pad, "1", FCVAR_ARCHIVE, "Cry of Fear: while the game waits for Enter (the computer login, a Press Enter card), the gamepad's START presses it" );
++static CVAR_DEFINE_AUTO( cof_enter_trace, "0", 0, "developer: log every Enter poll of client.dll the hook answered" );
++
++#define COF_ENTER_POLL_RECENT	0.25	// seconds: "the game is polling for Enter right now"
++#define COF_ENTER_PULSE_LIFE	2.0	// seconds: an unanswered pulse is dropped
++
++static struct
++{
++#if XASH_WIN32
++	HMODULE module;
++	ULONG_PTR *slot;
++	ULONG_PTR original;
++#endif
++	qboolean hooked;
++	qboolean pulse;		// armed
++	double pulse_armed;	// host.realtime
++	int pulse_frame;	// host.framecount of its first answer, -1 before
++	qboolean held;		// +cof_enter
++	qboolean start_swallowed;
++	double last_poll;	// host.realtime of the latest VK_RETURN poll, -1 none
++	unsigned int polls, answered, masked;
++} cof_enter = { 0 };
++
++static void CL_CoF_EnterArm( const char *why )
++{
++	cof_enter.pulse = true;
++	cof_enter.pulse_armed = host.realtime;
++	cof_enter.pulse_frame = -1;
++	Con_Reportf( "[cof-enter] Enter armed for the game's next poll (%s)\n", why );
++}
++
++#if XASH_WIN32
++/*
++====================
++CoF_Enter_GetAsyncKeyState
++
++What client.dll's GetAsyncKeyState import points at. The real call goes
++through the engine's own import, which is never patched.
++====================
++*/
++static SHORT WINAPI CoF_Enter_GetAsyncKeyState( int vkey )
++{
++	SHORT real = GetAsyncKeyState( vkey );
++
++	if( vkey != VK_RETURN )
++		return real;
++
++	cof_enter.polls++;
++	cof_enter.last_poll = host.realtime;
++
++	// Enter typed into the console, the menu or its keyboard is theirs
++	if( CL_CoF_UIGateActive( ))
++	{
++		if( real )
++			cof_enter.masked++;
++		return 0;
++	}
++
++	if( cof_enter.pulse )
++	{
++		if( host.realtime - cof_enter.pulse_armed > COF_ENTER_PULSE_LIFE && cof_enter.pulse_frame < 0 )
++		{
++			cof_enter.pulse = false;
++			Con_Reportf( "[cof-enter] Enter pulse expired unanswered\n" );
++		}
++		else
++		{
++			if( cof_enter.pulse_frame < 0 )
++				cof_enter.pulse_frame = host.framecount;
++
++			if( cof_enter.pulse_frame == host.framecount )
++			{
++				cof_enter.answered++;
++				if( cof_enter_trace.value || host_developer.value )
++				{
++					ULONG_PTR ret = (ULONG_PTR)_ReturnAddress( );
++
++					Con_Reportf( "[cof-enter] Enter reported down to client.dll+0x%lX (poll %u)\n",
++						(unsigned long)( ret - (ULONG_PTR)cof_enter.module ), cof_enter.polls );
++				}
++				return (SHORT)0x8001;
++			}
++
++			cof_enter.pulse = false;	// spent: one frame of polls
++		}
++	}
++
++	if( cof_enter.held )
++		return (SHORT)( real | 0x8000 );
++
++	return real;
++}
++
++static ULONG_PTR *CL_CoF_EnterFindSlot( HMODULE module )
++{
++	byte *base = (byte *)module;
++	PIMAGE_DOS_HEADER dos = (PIMAGE_DOS_HEADER)base;
++	PIMAGE_NT_HEADERS nt;
++	PIMAGE_IMPORT_DESCRIPTOR desc;
++	IMAGE_DATA_DIRECTORY dir;
++	FARPROC real = GetProcAddress( GetModuleHandleA( "user32.dll" ), "GetAsyncKeyState" );
++
++	if( !base || dos->e_magic != IMAGE_DOS_SIGNATURE )
++		return NULL;
++
++	nt = (PIMAGE_NT_HEADERS)( base + dos->e_lfanew );
++	if( nt->Signature != IMAGE_NT_SIGNATURE )
++		return NULL;
++
++	dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
++	if( !dir.VirtualAddress || !dir.Size )
++		return NULL;
++
++	for( desc = (PIMAGE_IMPORT_DESCRIPTOR)( base + dir.VirtualAddress ); desc->Name; desc++ )
++	{
++		PIMAGE_THUNK_DATA names, addrs;
++		int i;
++
++		if( Q_stricmp( (const char *)( base + desc->Name ), "user32.dll" ))
++			continue;
++
++		addrs = (PIMAGE_THUNK_DATA)( base + desc->FirstThunk );
++		names = desc->OriginalFirstThunk ? (PIMAGE_THUNK_DATA)( base + desc->OriginalFirstThunk ) : NULL;
++
++		for( i = 0; addrs[i].u1.Function; i++ )
++		{
++			if( names )
++			{
++				PIMAGE_IMPORT_BY_NAME by_name;
++
++				if( IMAGE_SNAP_BY_ORDINAL( names[i].u1.Ordinal ))
++					continue;
++
++				by_name = (PIMAGE_IMPORT_BY_NAME)( base + names[i].u1.AddressOfData );
++				if( !Q_strcmp( (const char *)by_name->Name, "GetAsyncKeyState" ))
++					return (ULONG_PTR *)&addrs[i].u1.Function;
++			}
++			else if( real && addrs[i].u1.Function == (ULONG_PTR)real )
++			{
++				return (ULONG_PTR *)&addrs[i].u1.Function;
++			}
++		}
++	}
++
++	return NULL;
++}
++#endif // XASH_WIN32
++
++/*
++====================
++CL_CoF_EnterHookModule
++
++Right after LoadLibrary of client.dll (CL_LoadProgs), next to the language
++packs' CreateFileW hook. A client without the import (another mod) is left
++alone. The slot dies with the module; nothing to restore.
++====================
++*/
++void CL_CoF_EnterHookModule( void *hInstance, const char *name )
++{
++#if XASH_WIN32
++	dll_user_t *hInst = (dll_user_t *)hInstance;
++	const char *tag = COM_FileWithoutPath( name ? name : "?" );
++	DWORD old_protect;
++	ULONG_PTR *slot;
++
++	cof_enter.hooked = false;
++
++	if( !hInst || !hInst->hInstance || hInst->custom_loader )
++		return;
++
++	slot = CL_CoF_EnterFindSlot( (HMODULE)hInst->hInstance );
++	if( !slot )
++	{
++		Con_Reportf( "[cof-enter] %s: no USER32!GetAsyncKeyState import, nothing to hook\n", tag );
++		return;
++	}
++
++	cof_enter.module = (HMODULE)hInst->hInstance;
++	cof_enter.slot = slot;
++	if( *slot != (ULONG_PTR)CoF_Enter_GetAsyncKeyState )
++		cof_enter.original = *slot;
++
++	if( !VirtualProtect( slot, sizeof( *slot ), PAGE_READWRITE, &old_protect ))
++	{
++		Con_Printf( S_ERROR "[cof-enter] %s: cannot unprotect the import table (error %lu)\n", tag, GetLastError( ));
++		return;
++	}
++	InterlockedExchangePointer( (PVOID volatile *)slot, (PVOID)CoF_Enter_GetAsyncKeyState );
++	VirtualProtect( slot, sizeof( *slot ), old_protect, &old_protect );
++	FlushInstructionCache( GetCurrentProcess( ), slot, sizeof( *slot ));
++
++	cof_enter.hooked = true;
++	cof_enter.last_poll = -1.0;
++	Con_Printf( "[cof-enter] %s: GetAsyncKeyState import hooked (IAT %p, was %p)\n", tag, (void *)slot, (void *)cof_enter.original );
++#endif
++}
++
++/*
++====================
++CL_CoF_EnterKeyEvent
++
++Key_Event, before anything else sees the key: START while the game is polling
++for Enter becomes that Enter. True = the key is used up (press and release).
++====================
++*/
++qboolean CL_CoF_EnterKeyEvent( int key, int down )
++{
++	if( key != K_START_BUTTON )
++		return false;
++
++	if( !down )
++	{
++		if( !cof_enter.start_swallowed )
++			return false;
++		cof_enter.start_swallowed = false;
++		return true;
++	}
++
++	if( !cof_enter_pad.value || !cof_enter.hooked || cls.key_dest != key_game || cls.state != ca_active )
++		return false;
++
++	if( cof_enter.last_poll < 0.0 || host.realtime - cof_enter.last_poll > COF_ENTER_POLL_RECENT )
++		return false;
++
++	cof_enter.start_swallowed = true;
++	CL_CoF_EnterArm( "gamepad START while the game waits for Enter" );
++	return true;
++}
++
++static void CL_CoF_EnterPulse_f( void )
++{
++	CL_CoF_EnterArm( "cof_enter_pulse" );
++}
++
++static void CL_CoF_EnterDown_f( void )
++{
++	cof_enter.held = true;
++}
++
++static void CL_CoF_EnterUp_f( void )
++{
++	cof_enter.held = false;
++}
++
++static void CL_CoF_EnterStatus_f( void )
++{
++	Con_Printf( "[cof-enter] hooked %d, cof_enter_pad %d, polls %u (last %s), answered %u, masked %u, pulse %s, held %d\n",
++		cof_enter.hooked, (int)cof_enter_pad.value, cof_enter.polls,
++		cof_enter.last_poll < 0.0 ? "never" : va( "%.2f s ago", host.realtime - cof_enter.last_poll ),
++		cof_enter.answered, cof_enter.masked, cof_enter.pulse ? "armed" : "none", cof_enter.held );
++}
++
++void CL_CoF_EnterInit( void )
++{
++	cof_enter.last_poll = -1.0;
++	cof_enter.pulse_frame = -1;
++	Cvar_RegisterVariable( &cof_enter_pad );
++	Cvar_RegisterVariable( &cof_enter_trace );
++	Cmd_AddCommand( "cof_enter_pulse", CL_CoF_EnterPulse_f, "Cry of Fear: the game's next Enter check sees one Enter press (the computer login, Press Enter cards)" );
++	Cmd_AddCommand( "+cof_enter", CL_CoF_EnterDown_f, "Cry of Fear: the game's Enter check sees Enter held while this is held" );
++	Cmd_AddCommand( "-cof_enter", CL_CoF_EnterUp_f, "Cry of Fear: release +cof_enter" );
++	Cmd_AddCommand( "cof_enter_status", CL_CoF_EnterStatus_f, "Cry of Fear: the Enter hook's state" );
++}

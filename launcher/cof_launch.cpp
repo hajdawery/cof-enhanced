@@ -53,7 +53,7 @@ static bool IsSwitch( const std::wstring &value, const wchar_t *name )
 
 static void ShowError( const wchar_t *message )
 {
-	MessageBoxW( NULL, message, L"Cry of Fear launcher", MB_OK | MB_ICONERROR );
+	MessageBoxW( NULL, message, L"Cry of Fear Enhanced", MB_OK | MB_ICONERROR );
 }
 
 int wmain( int argc, wchar_t **argv )
