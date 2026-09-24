@@ -220,6 +220,25 @@ Binaries and what is in them:
   Modified Version of the Font Software and are distributed under the same
   OFL 1.1.
 
+## Gamepad button icons and controller pictures (menu data)
+
+- "Xbox Series Button Icons and Controls" and "PS5 Button Icons and
+  Controls" by **Zacksly**, <https://zacksly.itch.io>.
+- Statement, as the licence asks: "Button Icons and Controls were created by
+  Zacksly (Licensed under CC BY 3.0 - https://zacksly.itch.io)".
+- Licence: **Creative Commons Attribution 3.0 Unported (CC BY 3.0)**,
+  <https://creativecommons.org/licenses/by/3.0/>. The creator's licence notes
+  for both packs, followed by the full CC BY 3.0 legal code (verbatim from
+  creativecommons.org), are in `licenses/zacksly-CC-BY-3.0.txt`; the notes are
+  also next to the files as `gamedata/cryoffear/gfx/shell/gamepad/LICENSE-Zacksly.txt`.
+- What ships (`gamedata/cryoffear/gfx/shell/gamepad/`, 36 files, 237,483
+  bytes): 32 button icons ("Buttons Full Solid", white, 128 px) copied
+  **unmodified**, only renamed (e.g. `Left Bumper.png` -> `xbox/lb.png`), and
+  two controller pictures ("Controller Images/Outline/Outline White 4k.png")
+  that are **modified**: cropped to the drawing and resized to 1024 px wide
+  (`scripts/make-gamepad-assets.py`). `icons.txt` (our key-to-icon table) is
+  our own.
+
 ## Project emblem (not third-party; listed because it is not GPL)
 
 - `assets/branding/coffix.png` and the icons generated from it

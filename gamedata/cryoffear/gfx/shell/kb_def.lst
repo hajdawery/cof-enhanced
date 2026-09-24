@@ -3,6 +3,13 @@
 // in cryoffear/config.cfg, with one change (milestone 5b): MOUSE2 aims down
 // sights (+attack3) and MOUSE3 is the secondary attack (+attack2); the game
 // shipped them the other way round. The game ships no kb_def.lst of its own.
+// Gamepad (cof-gamepad-input, layout generation 3): the Cry of Fear
+// controller layout, the same list the engine binds once per profile
+// (cof_pad_defaults); key names are the engine's (LTRIGGER/RTRIGGER are the
+// analogue triggers, STICK1/STICK2 the stick clicks, L1/R1 the shoulder
+// buttons). cof_duck_toggle is the engine's crouch toggle,
+// cof_sprint_toggle_press its sprint (Toggle / Hold per cof_sprint_toggle),
+// weapontoggle the game's own "Toggle weapon function".
 "TAB"	"+inventory"
 "ESCAPE"	"cancelselect"
 "SPACE"	"+jump"
@@ -46,3 +53,19 @@
 "MOUSE2"	"+attack3"
 "MOUSE3"	"+attack2"
 "PAUSE"	"pause"
+"RTRIGGER"	"+attack"
+"LTRIGGER"	"+attack3"
+"A_BUTTON"	"+jump"
+"B_BUTTON"	"cof_duck_toggle"
+"X_BUTTON"	"+use"
+"Y_BUTTON"	"+inventory"
+"L1_BUTTON"	"+reload"
+"R1_BUTTON"	"+attack2"
+"STICK1"	"cof_sprint_toggle_press"
+"STICK2"	"+duck"
+"DPAD_UP"	"quicksel 1"
+"DPAD_LEFT"	"quicksel 2"
+"DPAD_RIGHT"	"quicksel 3"
+"DPAD_DOWN"	"weapontoggle"
+"BACK"	"+objectives"
+"START"	"cancelselect"

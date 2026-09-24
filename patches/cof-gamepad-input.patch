@@ -1,0 +1,2964 @@
+diff --git a/engine/client/input/cof_gamepad.c b/engine/client/input/cof_gamepad.c
+new file mode 100644
+--- /dev/null
++++ b/engine/client/input/cof_gamepad.c
+@@ -0,0 +1,2049 @@
++/*
++cof_gamepad.c - Cry of Fear: Enhanced gamepad support (engine input side)
++Copyright (C) 2026 haej (Cry of Fear: Enhanced contributors)
++
++This program is free software: you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation, either version 3 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++
++What this file adds on top of the engine's own SDL2 GameController input
++(platform/sdl2/joy_sdl2.c, in_joy.c) for the Cry of Fear client:
++
++ 1. CL_CoF_ClickablePanelOpen(): "a clickable CoF panel is open" (inventory,
++    note, documents, keypad, phone, tape-recorder page, YES/NO, ...). The
++    source of truth is the panel identity of cof_panel_pause.c: the VGUI
++    support library names every visible client panel by its class each
++    painted frame (CL_CoF_PanelsOnScreen, COF_PANEL_* bits), and any modal
++    class on screen means a panel is open. Fallback only: the client marks
++    every such panel by showing the VGUI arrow cursor
++    (TeamFortressViewport::UpdateCursorState, client 100AAAD0), which the
++    engine records in host.mouse_visible (Platform_SetCursorType); that still
++    counts when the class list names nothing (a panel class it does not know,
++    or a vgui.dll without the panel report), and cof_input_trace says so.
++    While it holds (and cof_pad_panel_gate is on):
++      * the sticks do not move or turn the player (IN_EngineAppendMove);
++      * START reaches the engine pause menu the way Escape does (in_keys.c);
++      * the close key (cof_pad_close_key, B) backs out of the panel: the
++        support library clicks the panel's own Back / Close / Cancel / No
++        button (vguiapi_t::CofPanelAction, cofpanels.cpp); the inventory is
++        handed the game's own "+inventory" binding string, which is what its
++        key handler (client 10044040) compares to close itself; a panel
++        without such a button gets the game's own Escape handling (its
++        KeyInput sees ESCAPE / "cancelselect", as in retail) - no key is
++        faked, no command is typed;
++      * A / X click the left / right mouse button at the virtual cursor; an A
++        on a tape recorder slot is followed by the second click the page
++        wants (it acts on a double click), so the slot saves / loads at once.
++ 2. Pad defaults (cof_pad_defaults, cof_pad_defaults_gen): the game's own
++    config.cfg starts with "unbindall", which wipes the engine's built-in pad
++    binds. Once per profile, after config.cfg ran, every pad key is given the
++    Cry of Fear layout below if no pad key is bound at all; a profile that has
++    an older generation's defaults gets every key it did not customise moved to
++    the new layout. The binds then live in config.cfg like any other bind.
++    Gyro aiming (joy_gyro_enable) is off by default and switched off once for
++    profiles below generation 2. B is a crouch toggle (cof_duck_toggle, an
++    engine-side latch on the game's +duck, released on every level change and
++    load). L3 is cof_sprint_toggle_press (cof_sprint_toggle: 1 = the first
++    press holds the game's +sprint until the player stops moving, presses it
++    again, or a load / level change; 0 = held while the key is held).
++ 3. The virtual cursor (cof_vcursor*): while a clickable panel is open the
++    sticks move an engine-side cursor with acceleration; FreeVGUI reads it
++    through VGUI_GetMousePos / VGui_MouseMove and the OS cursor is warped to
++    match (cof_vcursor_warp) but hidden: the engine draws its own cursor there
++    instead (CL_CoF_VCursorDraw: gfx/shell/gamepad/cursor.png, the user's
++    square-frame art, with a dark shadow for the white note pages; the drawn
++    ring of the first round when the file is missing). A real mouse movement
++    hands the pointer back, with the OS arrow.
++ 5. The last input device (cof_last_input: pad / mouse / keyboard), from the
++    SDL events themselves (host_sdl2.c), so a stick-made arrow key or a warp of
++    the hidden cursor never counts as keyboard or mouse. The menu reads it for
++    its button prompts. While the pad is the last device the OS arrow stays
++    hidden in the menus and over the in-play panels (cof_pad_hide_cursor),
++    decided inside Platform_SetCursorType itself, so the arrow the client or
++    the menu asks for is never shown for a frame; a panel opened with the pad
++    gets the gamepad cursor at once.
++ 4. The client's own WinMM joystick code (cvar "joystick") is kept off, so the
++    engine's SDL pad is the only source (cof_joy_legacy_off).
++
++Nothing here does anything without a gamepad: the sticks are zero, pad keys
++never arrive, the binds are inert. The developer hooks cof_joy_axis_probe and
++cof_vcursor_test drive the same code paths from a cfg, like cof_key_probe
++does for keys, without any OS input.
++*/
++
++#if XASH_SDL == 2
++#include <SDL.h>
++#endif
++
++#include "common.h"
++#include "input.h"
++#include "keydefs.h"
++#include "client.h"
++#include "vgui_draw.h"
++#include "platform/platform.h"
++#include "ref_common.h"
++#include "vgui_api.h"
++
++#ifndef SHRT_MAX
++#define SHRT_MAX 0x7FFF
++#endif
++
++// bump when the default layout changes in a way existing profiles should get
++// (CL_CoF_PadDefaultsCheck migrates keys still holding the previous defaults)
++#define COF_PAD_DEFAULTS_GENERATION 3
++
++static CVAR_DEFINE_AUTO( cof_pad_panel_gate, "1", FCVAR_ARCHIVE, "Cry of Fear gamepad: while a clickable panel (inventory, note, keypad...) is open the sticks do not move the player, START opens the pause menu, the close key closes the inventory and A/X click" );
++static CVAR_DEFINE_AUTO( cof_pad_close_key, "B_BUTTON", FCVAR_ARCHIVE, "Cry of Fear gamepad: key that backs out of an open panel (its own Back/Close/Cancel/No button; the inventory closes through its +inventory binding); empty = off" );
++static CVAR_DEFINE_AUTO( cof_vcursor, "1", FCVAR_ARCHIVE, "Cry of Fear gamepad: the sticks move a mouse cursor while a clickable panel is open" );
++static CVAR_DEFINE_AUTO( cof_vcursor_speed, "0.9", FCVAR_ARCHIVE, "Cry of Fear gamepad cursor: speed at full stick deflection, in screen heights per second" );
++static CVAR_DEFINE_AUTO( cof_vcursor_accel, "1.5", FCVAR_ARCHIVE, "Cry of Fear gamepad cursor: extra speed reached after holding the stick for cof_vcursor_accel_time (0 = constant speed; 1.5 = up to 2.5x)" );
++static CVAR_DEFINE_AUTO( cof_vcursor_accel_time, "0.6", FCVAR_ARCHIVE, "Cry of Fear gamepad cursor: seconds of continuous stick motion until the full acceleration" );
++static CVAR_DEFINE_AUTO( cof_vcursor_curve, "2", FCVAR_ARCHIVE, "Cry of Fear gamepad cursor: response exponent (1 = linear, 2 = fine control near the centre)" );
++static CVAR_DEFINE_AUTO( cof_vcursor_deadzone, "0.2", FCVAR_ARCHIVE, "Cry of Fear gamepad cursor: stick deadzone, 0..0.9 of full deflection" );
++static CVAR_DEFINE_AUTO( cof_vcursor_warp, "1", FCVAR_ARCHIVE, "Cry of Fear gamepad cursor: also move the visible OS cursor to the gamepad cursor" );
++static CVAR_DEFINE_AUTO( cof_vcursor_click_key, "A_BUTTON", FCVAR_ARCHIVE, "Cry of Fear gamepad cursor: key that clicks the left mouse button while a panel is open; empty = off" );
++static CVAR_DEFINE_AUTO( cof_vcursor_rclick_key, "X_BUTTON", FCVAR_ARCHIVE, "Cry of Fear gamepad cursor: key that clicks the right mouse button while a panel is open; empty = off" );
++static CVAR_DEFINE_AUTO( cof_vcursor_size, "44", FCVAR_ARCHIVE, "Cry of Fear gamepad cursor: size of the cursor in pixels at UI scale 1 (grows with the in-game UI scale)" );
++static CVAR_DEFINE_AUTO( cof_vcursor_alpha, "0.85", FCVAR_ARCHIVE, "Cry of Fear gamepad cursor: opacity of the cursor, 0..1" );
++static CVAR_DEFINE_AUTO( cof_vcursor_shadow, "0.7", FCVAR_ARCHIVE, "Cry of Fear gamepad cursor: opacity of the dark shadow under the cursor art that keeps it visible on white paper, 0..1" );
++static CVAR_DEFINE_AUTO( cof_pad_hide_cursor, "1", FCVAR_ARCHIVE, "Cry of Fear gamepad: hide the Windows arrow in the menus and over the in-play panels while the gamepad is the last input device" );
++static CVAR_DEFINE_AUTO( cof_last_input, "mouse", 0, "Cry of Fear: the last input device (pad, mouse or keyboard); the menu shows its button prompts while it is pad" );
++static CVAR_DEFINE_AUTO( cof_sprint_toggle, "1", FCVAR_ARCHIVE, "Cry of Fear: what cof_sprint_toggle_press (L3 by default) does - 1 = toggle: the first press sprints until you stop moving or press it again, 0 = hold: sprint while the key is held" );
++static CVAR_DEFINE_AUTO( cof_sprint_stop_threshold, "0.2", FCVAR_ARCHIVE, "Cry of Fear sprint toggle: below this left-stick deflection (0..0.9, and with no movement key held) the player counts as stopped" );
++static CVAR_DEFINE_AUTO( cof_sprint_stop_time, "0.15", FCVAR_ARCHIVE, "Cry of Fear sprint toggle: seconds of standing still that release the sprint" );
++CVAR_DEFINE_AUTO( cof_joy_pulse_hysteresis, "0.25", FCVAR_ARCHIVE, "Cry of Fear gamepad: a stick's +forward/+back/+moveleft/+moveright key is released only this far (0..0.6 of full deflection) below the level that pressed it, so a stick resting near the walk threshold cannot double-tap a dodge" );
++static CVAR_DEFINE_AUTO( cof_joy_legacy_off, "1", FCVAR_ARCHIVE, "Cry of Fear gamepad: keep the game's own WinMM joystick code off (cvar joystick 0) so the engine's gamepad is the only source" );
++static CVAR_DEFINE_AUTO( cof_pad_defaults_gen, "0", FCVAR_ARCHIVE, "Cry of Fear gamepad: default layout generation already applied to this profile (0 = never)" );
++static CVAR_DEFINE_AUTO( cof_input_trace, "0", 0, "Cry of Fear gamepad: developer log of the panel check, START/close/click routing, stick suppression and the virtual cursor" );
++
++typedef struct
++{
++	int        key;
++	const char *binding;
++} cof_pad_bind_t;
++
++// the Cry of Fear gamepad layout (generation 2); the same list is in
++// gfx/shell/kb_def.lst (Options > Keybinds > Use defaults) and
++// docs/patches/cof-gamepad-input.md. On an open panel A/X click and B closes
++// the inventory instead (CL_CoF_PadKeyEvent).
++static const cof_pad_bind_t cof_pad_layout[] =
++{
++	{ K_JOY2,          "+attack" },         // RTRIGGER
++	{ K_JOY1,          "+attack3" },        // LTRIGGER: aim down sights, Hold/Toggle per cof_ads_toggle
++	{ K_A_BUTTON,      "+jump" },
++	{ K_B_BUTTON,      "cof_duck_toggle" }, // crouch, press to toggle
++	{ K_X_BUTTON,      "+use" },
++	{ K_Y_BUTTON,      "+inventory" },      // also closes it (the game's own key check)
++	{ K_L1_BUTTON,     "+reload" },
++	{ K_R1_BUTTON,     "+attack2" },        // bash / weapon mode (the MOUSE3 action)
++	{ K_LSTICK,        "cof_sprint_toggle_press" }, // sprint, Toggle / Hold per cof_sprint_toggle
++	{ K_RSTICK,        "+duck" },           // crouch while held
++	{ K_DPAD_UP,       "quicksel 1" },
++	{ K_DPAD_LEFT,     "quicksel 2" },
++	{ K_DPAD_RIGHT,    "quicksel 3" },
++	{ K_DPAD_DOWN,     "weapontoggle" },    // the game's "Toggle weapon function"
++	{ K_BACK_BUTTON,   "+objectives" },
++	{ K_START_BUTTON,  "cancelselect" },
++};
++
++// generation 2 (m8): a key that still holds its generation-2 bind was never
++// customised and moves to the layout above
++static const cof_pad_bind_t cof_pad_layout_gen2[] =
++{
++	{ K_JOY2,          "+attack" },
++	{ K_JOY1,          "+attack3" },
++	{ K_A_BUTTON,      "+jump" },
++	{ K_B_BUTTON,      "cof_duck_toggle" },
++	{ K_X_BUTTON,      "+use" },
++	{ K_Y_BUTTON,      "+inventory" },
++	{ K_L1_BUTTON,     "+reload" },
++	{ K_R1_BUTTON,     "+attack2" },
++	{ K_LSTICK,        "+sprint" },
++	{ K_RSTICK,        "+duck" },
++	{ K_DPAD_UP,       "quicksel 1" },
++	{ K_DPAD_LEFT,     "quicksel 2" },
++	{ K_DPAD_RIGHT,    "quicksel 3" },
++	{ K_DPAD_DOWN,     "flashlight" },
++	{ K_BACK_BUTTON,   "+objectives" },
++	{ K_START_BUTTON,  "cancelselect" },
++};
++
++// generation 1 (the first staging of this round): a key that still holds its
++// generation-1 bind was never customised and moves to the layout above
++static const cof_pad_bind_t cof_pad_layout_gen1[] =
++{
++	{ K_JOY2,          "+attack" },
++	{ K_JOY1,          "+attack3" },
++	{ K_A_BUTTON,      "+use" },
++	{ K_B_BUTTON,      "+inventory" },
++	{ K_X_BUTTON,      "+reload" },
++	{ K_Y_BUTTON,      "flashlight" },
++	{ K_L1_BUTTON,     "invprev" },
++	{ K_R1_BUTTON,     "invnext" },
++	{ K_LSTICK,        "+sprint" },
++	{ K_RSTICK,        "+duck" },
++	{ K_DPAD_UP,       "quicksel 1" },
++	{ K_DPAD_LEFT,     "quicksel 2" },
++	{ K_DPAD_RIGHT,    "quicksel 3" },
++	{ K_DPAD_DOWN,     "+jump" },
++	{ K_BACK_BUTTON,   "+objectives" },
++	{ K_START_BUTTON,  "cancelselect" },
++};
++
++static struct
++{
++	qboolean panel_open;       // last frame's CL_CoF_ClickablePanelOpen()
++	unsigned int panel_classes; // COF_PANEL_* bits behind the last answer (0 = none, or the cursor fallback)
++	qboolean panel_by_cursor;  // the last answer came from the cursor fallback
++	qboolean defaults_checked; // the once-per-launch defaults check ran
++	qboolean legacy_reported;
++	qboolean move_suppressed;  // reported once per open panel
++	char     defaults_note[192]; // what the once-per-launch defaults check did
++
++	// crouch toggle (cof_duck_toggle)
++	qboolean duck_on;
++	int      duck_servercount;
++	double   next_trace;
++
++	// sprint (cof_sprint_toggle_press)
++	qboolean sprint_on;
++	qboolean sprint_hold;      // hold mode: released with the key
++	qboolean sprint_moved;     // the player moved since the press
++	int      sprint_servercount;
++	int      sprint_still_frames;
++	double   sprint_since;     // press time
++	double   sprint_still_since;
++
++	// the last input device (cof_last_input) and the OS arrow
++	int      device;           // COF_INPUT_*
++	qboolean os_hidden;        // the OS arrow is hidden by this file
++	int      warp_target[4][2]; // where the engine last warped the OS cursor (window pixels), a small ring
++	double   warp_time[4];
++	int      warp_next;
++	float    mouse_travel;     // real mouse motion since the last pad input
++	double   mouse_travel_time;
++
++	// cursor art (gfx/shell/gamepad/cursor.png) and its shadow
++	int      art_tex, shadow_tex;
++	qboolean art_missing;
++
++	// virtual cursor, in the render pixels Platform_GetMousePos() returns
++	qboolean engaged;          // the gamepad owns the pointer
++	qboolean centre_pending;   // the next engagement starts in the middle of the screen (a panel just opened)
++	float    x, y;
++	int      warp_x, warp_y;   // where the OS cursor was last sent
++	int      real_x, real_y;   // real mouse position seen last frame
++	float    hold;             // seconds of continuous stick motion
++
++	// pad key presses captured while a panel was open: what their release
++	// must do (K_MOUSE1/K_MOUSE2 = release that button, -1 = swallow)
++	short    captured[256];
++} cof_pad;
++
++static void CL_CoF_PadTrace( const char *fmt, ... ) FORMAT_CHECK( 1 );
++static void CL_CoF_PadTrace( const char *fmt, ... )
++{
++	va_list args;
++	char    text[1024];
++
++	if( !cof_input_trace.value )
++		return;
++
++	va_start( args, fmt );
++	Q_vsnprintf( text, sizeof( text ), fmt, args );
++	va_end( args );
++
++	Con_Printf( "[cof-pad] %s", text );
++}
++
++/*
++============
++CL_CoF_ClickablePanelOpen
++
++A clickable Cry of Fear panel owns the screen: in play, and a modal client
++panel is on screen by class (CL_CoF_PanelsOnScreen, cof_panel_pause.c); the
++VGUI arrow cursor counts only when the class list names none. See the comment
++at the top of this file.
++============
++*/
++qboolean CL_CoF_ClickablePanelOpen( void )
++{
++	qboolean     reporting = false;
++	qboolean     by_cursor = false;
++	qboolean     open = false;
++	unsigned int classes = 0;
++
++	if( cls.state == ca_active && cls.key_dest == key_game && !cl.background && VGui_IsActive( ))
++	{
++		classes = CL_CoF_PanelsOnScreen( &reporting );
++		open = classes != 0;
++
++		if( !open && host.mouse_visible )
++			open = by_cursor = true;
++	}
++
++	if( by_cursor && !cof_pad.panel_by_cursor )
++		CL_CoF_PadTrace( "panel open by the arrow cursor only: %s\n",
++			reporting ? "no known panel class on screen (the class list missed it)" : "no panel report from vgui.dll" );
++
++	cof_pad.panel_classes = classes;
++	cof_pad.panel_by_cursor = by_cursor;
++
++	return open;
++}
++
++static qboolean CL_CoF_PadGateActive( void )
++{
++	return cof_pad_panel_gate.value && CL_CoF_ClickablePanelOpen( );
++}
++
++static int CL_CoF_PadKeyFromCvar( const convar_t *cv )
++{
++	if( !cv->string || !cv->string[0] )
++		return -1;
++
++	for( int i = K_JOY1; i <= K_AUX32; i++ )
++	{
++		if( !Q_stricmp( Key_KeynumToString( i ), cv->string ))
++			return i;
++	}
++
++	return -1;
++}
++
++static float CL_CoF_PadAxis( engineAxis_t axis )
++{
++	return (float)Joy_CoF_AxisValue( axis ) / (float)SHRT_MAX;
++}
++
++/*
++==============================================================================
++
++The last input device (cof_last_input) and the OS arrow
++
++==============================================================================
++*/
++enum
++{
++	COF_INPUT_MOUSE = 0,
++	COF_INPUT_KEYBOARD,
++	COF_INPUT_PAD,
++};
++
++static const char *const cof_input_names[] = { "mouse", "keyboard", "pad" };
++
++static int CL_CoF_DeviceFromCvar( void )
++{
++	const char *s = cof_last_input.string;
++
++	if( !Q_stricmp( s, "pad" ) || !Q_stricmp( s, "gamepad" ) || !Q_stricmp( s, "joy" ) || !Q_strcmp( s, "1" ))
++		return COF_INPUT_PAD;
++	if( !Q_stricmp( s, "keyboard" ))
++		return COF_INPUT_KEYBOARD;
++	return COF_INPUT_MOUSE;
++}
++
++/*
++============
++CL_CoF_PadHidesOSCursor
++
++in_sdl2.c Platform_SetCursorType asks this before it shows the arrow: while
++the gamepad is the last input device the arrow stays hidden in the menus and
++over the in-play panels (the only reason the client shows an arrow in play is
++a modal panel, and there the gamepad draws its own cursor). host.mouse_visible
++and the cursor type stay as asked, only the OS arrow is left out, so the panel
++check and the mouse grab logic are unaffected.
++============
++*/
++qboolean CL_CoF_PadHidesOSCursor( void )
++{
++	if( !cof_pad_hide_cursor.value || CL_CoF_DeviceFromCvar( ) != COF_INPUT_PAD || !Joy_IsActive( ))
++		return false;
++
++	if( cls.key_dest == key_menu )
++		return true;
++
++	if( cls.key_dest == key_game && cls.state == ca_active && !cl.background
++		&& cof_pad_panel_gate.value && cof_vcursor.value )
++		return true;
++
++	return false;
++}
++
++/*
++============
++CL_CoF_OSCursorRequest
++
++in_sdl2.c Platform_SetCursorType, for a visible cursor type: whether the OS
++arrow may really be shown (cof_input_trace 2 logs every such request).
++============
++*/
++qboolean CL_CoF_OSCursorRequest( int type )
++{
++	const qboolean hide = CL_CoF_PadHidesOSCursor( );
++
++	if( cof_input_trace.value >= 2 )
++		CL_CoF_PadTrace( "cursor %d requested (key_dest %d, frame %d): OS arrow %s\n", type, (int)cls.key_dest, (int)host.framecount,
++			hide ? "kept hidden, the gamepad is the last input" : "shown" );
++
++	cof_pad.os_hidden = cof_pad.os_hidden || hide;
++	return !hide;
++}
++
++/*
++============
++CL_CoF_ApplyOSCursor
++
++Brings the OS arrow in line with the answer above (and hides it while the
++gamepad cursor owns the pointer); shows it again only when this file hid it.
++============
++*/
++static void CL_CoF_ApplyOSCursor( void )
++{
++#if XASH_SDL == 2
++	qboolean hide = host.mouse_visible && ( CL_CoF_PadHidesOSCursor( ) || cof_pad.engaged );
++	int      shown = SDL_ShowCursor( SDL_QUERY );
++
++	if( hide && shown == SDL_ENABLE )
++	{
++		SDL_ShowCursor( SDL_DISABLE );
++		CL_CoF_PadTrace( "OS arrow hidden (%s, key_dest %d, frame %d)\n", cof_pad.engaged ? "gamepad cursor" : "gamepad is the last input",
++			(int)cls.key_dest, (int)host.framecount );
++	}
++	else if( !hide && shown == SDL_DISABLE && cof_pad.os_hidden && host.mouse_visible )
++	{
++		SDL_ShowCursor( SDL_ENABLE );
++		CL_CoF_PadTrace( "OS arrow shown (%s input, key_dest %d, frame %d)\n", cof_input_names[CL_CoF_DeviceFromCvar( )],
++			(int)cls.key_dest, (int)host.framecount );
++	}
++
++	cof_pad.os_hidden = hide;
++
++	if( cof_input_trace.value >= 2 )
++		CL_CoF_PadTrace( "frame %d: OS arrow %s (key_dest %d, mouse_visible %d, last input %s, gamepad cursor %s)\n", (int)host.framecount,
++			SDL_ShowCursor( SDL_QUERY ) == SDL_ENABLE ? "SHOWN" : "hidden", (int)cls.key_dest, (int)host.mouse_visible,
++			cof_input_names[CL_CoF_DeviceFromCvar( )], cof_pad.engaged ? "engaged" : "idle" );
++#endif
++}
++
++/*
++============
++CL_CoF_NoteInput
++
++The last input device changed (or was confirmed).
++============
++*/
++static void CL_CoF_NoteInput( int device, const char *why )
++{
++	if( device == COF_INPUT_PAD )
++	{
++		cof_pad.mouse_travel = 0.0f;
++		cof_pad.mouse_travel_time = host.realtime;
++	}
++
++	if( CL_CoF_DeviceFromCvar( ) == device )
++		return;
++
++	Cvar_DirectSet( &cof_last_input, cof_input_names[device] );
++	cof_pad.device = device;
++	CL_CoF_PadTrace( "last input: %s (%s)\n", cof_input_names[device], why );
++	CL_CoF_ApplyOSCursor( );
++}
++
++/*
++============
++CL_CoF_NoteMouseWarp
++
++in_sdl2.c Platform_SetMousePos: where the engine itself moved the OS cursor
++(window pixels), so the motion event SDL makes of the warp is not taken for
++the mouse.
++============
++*/
++void CL_CoF_NoteMouseWarp( int x, int y )
++{
++	int i = cof_pad.warp_next;
++
++	// a few of them: hiding and showing the arrow in one frame warps twice
++	// (to the centre, then back), and SDL reports both afterwards
++	cof_pad.warp_target[i][0] = x;
++	cof_pad.warp_target[i][1] = y;
++	cof_pad.warp_time[i] = host.realtime;
++	cof_pad.warp_next = ( i + 1 ) % ARRAYSIZE( cof_pad.warp_time );
++}
++
++static qboolean CL_CoF_IsWarpEvent( int x, int y )
++{
++	// the window centre: where the engine parks a hidden cursor, and where
++	// the client's own IN_ResetMouse (SetCursorPos, client 1007BBB0) puts it
++	// when its panels change
++	if( abs( x - host.window_center_x ) <= 1 && abs( y - host.window_center_y ) <= 1 )
++		return true;
++
++	for( int i = 0; i < ARRAYSIZE( cof_pad.warp_time ); i++ )
++	{
++		if( x == cof_pad.warp_target[i][0] && y == cof_pad.warp_target[i][1] && host.realtime - cof_pad.warp_time[i] < 1.0 )
++			return true;
++	}
++
++	return false;
++}
++
++/*
++============
++CL_CoF_InputEvent
++
++host_sdl2.c SDLash_EventHandler, before the event is handled: which device
++the player is using. Real key presses are the keyboard (the arrow keys the
++engine makes from the stick in menus never pass here), real motion and
++buttons are the mouse (a warp's own motion event is left out, and a few
++pixels of travel are needed, so a desk bump does not take the pointer from
++the pad), controller buttons and deflected sticks/triggers are the pad (the
++gyro and touchpad reports are not).
++============
++*/
++void CL_CoF_InputEvent( const void *sdlEvent )
++{
++#if XASH_SDL == 2
++	const SDL_Event *ev = (const SDL_Event *)sdlEvent;
++
++	switch( ev->type )
++	{
++	case SDL_KEYDOWN:
++		if( !ev->key.repeat )
++			CL_CoF_NoteInput( COF_INPUT_KEYBOARD, "key" );
++		break;
++	case SDL_MOUSEBUTTONDOWN:
++	case SDL_MOUSEWHEEL:
++		CL_CoF_NoteInput( COF_INPUT_MOUSE, "mouse button" );
++		break;
++	case SDL_MOUSEMOTION:
++		if( ev->motion.which == SDL_TOUCH_MOUSEID )
++			break;
++
++		// the events SDL makes of the engine's (and the client's) own warps
++		if( CL_CoF_IsWarpEvent( ev->motion.x, ev->motion.y ))
++			break;
++
++		if( host.realtime - cof_pad.mouse_travel_time > 0.5 )
++			cof_pad.mouse_travel = 0.0f;
++
++		cof_pad.mouse_travel += abs( ev->motion.xrel ) + abs( ev->motion.yrel );
++		cof_pad.mouse_travel_time = host.realtime;
++
++		if( cof_pad.mouse_travel >= 6.0f )
++			CL_CoF_NoteInput( COF_INPUT_MOUSE, va( "mouse moved, to %d %d", ev->motion.x, ev->motion.y ));
++		break;
++	case SDL_CONTROLLERBUTTONDOWN:
++		CL_CoF_NoteInput( COF_INPUT_PAD, "gamepad button" );
++		break;
++	case SDL_CONTROLLERAXISMOTION:
++		if( abs( ev->caxis.value ) > 12000 )
++			CL_CoF_NoteInput( COF_INPUT_PAD, "gamepad stick" );
++		break;
++	case SDL_JOYBUTTONDOWN:
++	case SDL_JOYHATMOTION:
++		CL_CoF_NoteInput( COF_INPUT_PAD, "joystick" );
++		break;
++	}
++#else
++	(void)sdlEvent;
++#endif
++}
++
++/*
++============
++CL_CoF_NotePadAxis
++
++in_joy.c Joy_AxisMotionEvent (the SDL backend and cof_joy_axis_probe both
++come through there): a stick or trigger pushed well past its deadzone.
++============
++*/
++void CL_CoF_NotePadAxis( int axis, short value )
++{
++	(void)axis;
++
++	if( abs( value ) > 12000 )
++		CL_CoF_NoteInput( COF_INPUT_PAD, "gamepad axis" );
++}
++
++/*
++============
++CL_CoF_PadSuppressMove
++
++IN_EngineAppendMove asks whether the sticks may drive the player this frame.
++============
++*/
++qboolean CL_CoF_PadSuppressMove( void )
++{
++	if( !CL_CoF_PadGateActive( ))
++		return false;
++
++	if( !cof_pad.move_suppressed )
++	{
++		cof_pad.move_suppressed = true;
++		CL_CoF_PadTrace( "panel open: sticks do not move or turn the player (fwd %.2f side %.2f pitch %.2f yaw %.2f)\n",
++			CL_CoF_PadAxis( JOY_AXIS_FWD ), CL_CoF_PadAxis( JOY_AXIS_SIDE ), CL_CoF_PadAxis( JOY_AXIS_PITCH ), CL_CoF_PadAxis( JOY_AXIS_YAW ));
++	}
++
++	return true;
++}
++
++float CL_CoF_JoyPulseHysteresis( void )
++{
++	return bound( 0.0f, cof_joy_pulse_hysteresis.value, 0.6f );
++}
++
++/*
++============
++CL_CoF_PadTraceMove
++
++cof_input_trace: what the sticks put into the usercmd, twice a second while a
++stick is off centre, with the predicted origin, so a log shows whether the
++player moved.
++============
++*/
++void CL_CoF_PadTraceMove( float forwardmove, float sidemove, qboolean suppressed )
++{
++	float fwd = CL_CoF_PadAxis( JOY_AXIS_FWD ), side = CL_CoF_PadAxis( JOY_AXIS_SIDE );
++	float pitch = CL_CoF_PadAxis( JOY_AXIS_PITCH ), yaw = CL_CoF_PadAxis( JOY_AXIS_YAW );
++
++	if( !cof_input_trace.value || host.realtime < cof_pad.next_trace )
++		return;
++
++	if( !fwd && !side && !pitch && !yaw )
++		return;
++
++	cof_pad.next_trace = host.realtime + 0.5;
++	CL_CoF_PadTrace( "move: sticks fwd %.2f side %.2f pitch %.2f yaw %.2f -> cmd forward %.0f side %.0f%s, origin %.1f %.1f %.1f, angles %.1f %.1f\n",
++		fwd, side, pitch, yaw, forwardmove, sidemove, suppressed ? " (panel open: suppressed)" : "",
++		cl.simorg[0], cl.simorg[1], cl.simorg[2], cl.viewangles[PITCH], cl.viewangles[YAW] );
++}
++
++/*
++============
++CL_CoF_PadTracePulses
++
++cof_input_trace: the +forward/+back/+moveleft/+moveright keys the stick
++presses and releases (input.c IN_JoyAppendMove), to check the dodge guard.
++Flags: 1 forward, 2 back, 4 left, 8 right (input.c F/B/L/R).
++============
++*/
++void CL_CoF_PadTracePulses( uint oldflags, uint newflags, float forwardmove, float sidemove )
++{
++	static const char *const names[4] = { "forward", "back", "moveleft", "moveright" };
++	char text[128];
++
++	if( !cof_input_trace.value )
++		return;
++
++	text[0] = 0;
++	for( int i = 0; i < 4; i++ )
++	{
++		if(( oldflags ^ newflags ) & BIT( i ))
++			Q_strncat( text, va( " %c%s", ( newflags & BIT( i )) ? '+' : '-', names[i] ), sizeof( text ));
++	}
++
++	if( text[0] )
++		CL_CoF_PadTrace( "stick keys:%s (forward %.2f side %.2f, hysteresis %.2f, t %.3f)\n", text, forwardmove, sidemove,
++			CL_CoF_JoyPulseHysteresis( ), host.realtime );
++}
++
++/*
++============
++CL_CoF_PadStartAsEscape
++
++in_keys.c: START gets the Escape bypass while a clickable panel is open (the
++panels swallow every key but their own, so START would never reach the
++client's "cancelselect" -> "escape"). Only while START still carries its
++stock "cancelselect" binding.
++============
++*/
++qboolean CL_CoF_PadStartAsEscape( int key, const char *binding )
++{
++	if( key != K_START_BUTTON || !binding || Q_stricmp( binding, "cancelselect" ))
++		return false;
++
++	if( !CL_CoF_PadGateActive( ))
++		return false;
++
++	CL_CoF_PadTrace( "START on an open panel: routed to the engine pause menu like Escape\n" );
++	return true;
++}
++
++/*
++============
++CL_CoF_VCursorApply
++
++Send the virtual cursor to FreeVGUI (push path) and the OS cursor.
++============
++*/
++static void CL_CoF_VCursorApply( void )
++{
++	int x, y;
++
++	cof_pad.x = bound( 0.0f, cof_pad.x, (float)( refState.width - 1 ));
++	cof_pad.y = bound( 0.0f, cof_pad.y, (float)( refState.height - 1 ));
++	x = (int)cof_pad.x;
++	y = (int)cof_pad.y;
++
++	if( cof_vcursor_warp.value && ( x != cof_pad.warp_x || y != cof_pad.warp_y ))
++	{
++		float sx = refState.scale_x > 0.0f ? refState.scale_x : 1.0f;
++		float sy = refState.scale_y > 0.0f ? refState.scale_y : 1.0f;
++
++		// Platform_GetMousePos() multiplies by the render scale, so divide here
++		Platform_SetMousePos( (int)( x / sx ), (int)( y / sy ));
++	}
++
++	cof_pad.warp_x = x;
++	cof_pad.warp_y = y;
++
++	VGui_MouseMove( x, y );
++}
++
++static void CL_CoF_VCursorEngage( void )
++{
++	int x, y;
++
++	if( cof_pad.engaged )
++		return;
++
++	Platform_GetMousePos( &x, &y );
++	cof_pad.x = x;
++	cof_pad.y = y;
++	cof_pad.warp_x = x;
++	cof_pad.warp_y = y;
++	cof_pad.real_x = x;
++	cof_pad.real_y = y;
++	cof_pad.hold = 0.0f;
++	cof_pad.engaged = true;
++	CL_CoF_ApplyOSCursor( );
++
++	CL_CoF_PadTrace( "virtual cursor engaged at %d %d\n", x, y );
++}
++
++/*
++============
++CL_CoF_VCursorEngagePad
++
++The gamepad is the last input device and a panel is open: the gamepad cursor
++takes the pointer. On the panel's first engagement it starts in the middle of
++the screen, where every CoF panel is (the OS pointer was wherever the last
++menu left it); later (the mouse had it in between) where the pointer is.
++============
++*/
++static void CL_CoF_VCursorEngagePad( void )
++{
++	if( cof_pad.engaged )
++		return;
++
++	CL_CoF_VCursorEngage( );
++
++	if( !cof_pad.centre_pending )
++		return;
++
++	cof_pad.centre_pending = false;
++	cof_pad.x = refState.width * 0.5f;
++	cof_pad.y = refState.height * 0.5f;
++	CL_CoF_VCursorApply( );
++	CL_CoF_PadTrace( "virtual cursor centred at %d %d (a panel opened with the gamepad as the last input)\n", (int)cof_pad.x, (int)cof_pad.y );
++}
++
++static void CL_CoF_VCursorRelease( const char *why )
++{
++	if( !cof_pad.engaged )
++		return;
++
++	cof_pad.engaged = false;
++	CL_CoF_ApplyOSCursor( );
++	CL_CoF_PadTrace( "virtual cursor released (%s) at %d %d\n", why, (int)cof_pad.x, (int)cof_pad.y );
++}
++
++/*
++============
++CL_CoF_VCursorCoverage
++
++The ring cursor, drawn in code (the thin-ring / ticked-dial look the user
++asked for): an outer ring, a ring of 48 radial ticks, a centre dot. x, y are
++relative to the centre, s is the diameter, grow widens every shape (the dark
++halo that keeps the white cursor visible on white paper). 1 inside, 0 outside.
++============
++*/
++static float CL_CoF_VCursorCoverage( float x, float y, float s, float grow )
++{
++	const float r = sqrt( x * x + y * y );
++	const float ring = 0.46f * s, ring_hw = Q_max( 0.6f, 0.012f * s );
++	const float tick_in = 0.355f * s, tick_out = 0.415f * s, tick_hw = Q_max( 0.45f, 0.0065f * s );
++	const float dot = Q_max( 1.2f, 0.035f * s );
++
++	if( fabs( r - ring ) <= ring_hw + grow )
++		return 1.0f;
++
++	if( r <= dot + grow )
++		return 1.0f;
++
++	if( r >= tick_in - grow && r <= tick_out + grow )
++	{
++		const float step = M_PI2_F / 48.0f;
++		float a = atan2( y, x );
++		float k = floor( a / step + 0.5f ) * step;
++
++		if( fabs( r * sin( a - k )) <= tick_hw + grow )
++			return 1.0f;
++	}
++
++	return 0.0f;
++}
++
++/*
++============
++CL_CoF_VCursorTexture
++
++Generated at the exact size it is drawn at, so the thin lines stay crisp;
++remade when the size changes (UI scale, cof_vcursor_size) or the renderer
++lost it (video restart).
++============
++*/
++static int CL_CoF_VCursorTexture( int size )
++{
++	static int last_size;
++	char       name[32];
++	int        tex, grid = size + 4;
++	float      grow = Q_max( 1.0f, 0.02f * size );
++	byte       *buf;
++
++	Q_snprintf( name, sizeof( name ), "*cof_vcursor%d", size );
++	tex = ref.dllFuncs.GL_FindTexture( name );
++	if( tex )
++		return tex;
++
++	if( last_size && last_size != size )
++	{
++		char old[32];
++		int  oldtex;
++
++		Q_snprintf( old, sizeof( old ), "*cof_vcursor%d", last_size );
++		if(( oldtex = ref.dllFuncs.GL_FindTexture( old )) != 0 )
++			ref.dllFuncs.GL_FreeTexture( oldtex );
++	}
++
++	buf = Z_Malloc( grid * grid * 4 );
++
++	for( int py = 0; py < grid; py++ )
++	{
++		for( int px = 0; px < grid; px++ )
++		{
++			float a = 0.0f, h = 0.0f, out;
++			byte  *p = buf + ( py * grid + px ) * 4;
++
++			// 4x4 supersampling
++			for( int sy = 0; sy < 4; sy++ )
++			{
++				for( int sx = 0; sx < 4; sx++ )
++				{
++					float fx = px + ( sx + 0.5f ) * 0.25f - grid * 0.5f;
++					float fy = py + ( sy + 0.5f ) * 0.25f - grid * 0.5f;
++
++					a += CL_CoF_VCursorCoverage( fx, fy, size, 0.0f );
++					h += CL_CoF_VCursorCoverage( fx, fy, size, grow );
++				}
++			}
++
++			a /= 16.0f;
++			h = h / 16.0f * 0.45f; // the halo is half-transparent black
++			out = a + ( 1.0f - a ) * h;
++
++			p[0] = p[1] = p[2] = out > 0.0f ? (byte)( 255.0f * a / out ) : 0;
++			p[3] = (byte)( 255.0f * out );
++		}
++	}
++
++	{
++		rgbdata_t pic =
++		{
++			.width = grid,
++			.height = grid,
++			.type = PF_RGBA_32,
++			.size = grid * grid * 4,
++			.flags = IMAGE_HAS_COLOR|IMAGE_HAS_ALPHA,
++			.buffer = buf,
++		};
++
++		tex = GL_LoadTextureInternal( name, &pic, TF_IMAGE );
++	}
++
++	Z_Free( buf );
++	last_size = size;
++	return tex;
++}
++
++/*
++============
++CL_CoF_VCursorArt
++
++The cursor art (gfx/shell/gamepad/cursor.png, the user's white square frame
++with an inner line, a centre dot and a soft glow; 128x128 RGBA) as a
++mipmapped texture, and next to it a black shadow made from the same picture
++(its alpha spread by a few pixels and softened), which is what keeps a white
++cursor visible on the white note pages. Both are made once; after a video
++restart the renderer has lost them and they are made again. 0 when the file
++is missing: the drawn ring of the first round is used then.
++============
++*/
++#define COF_VCURSOR_ART "gfx/shell/gamepad/cursor.png"
++
++static int CL_CoF_VCursorArt( int *shadow )
++{
++	rgbdata_t *pic;
++	byte      *buf;
++	int        w, h, r;
++
++	*shadow = 0;
++
++	if( cof_pad.art_tex && ref.dllFuncs.GL_FindTexture( "*cof_vcursor_art" ) == cof_pad.art_tex )
++	{
++		*shadow = cof_pad.shadow_tex;
++		return cof_pad.art_tex;
++	}
++
++	cof_pad.art_tex = cof_pad.shadow_tex = 0;
++
++	if( cof_pad.art_missing )
++		return 0;
++
++	pic = FS_LoadImage( COF_VCURSOR_ART, NULL, 0 );
++
++	if( !pic || pic->type != PF_RGBA_32 || pic->width < 8 || pic->height < 8 || pic->width > 1024 || pic->height > 1024 )
++	{
++		Con_Printf( S_WARN "Cry of Fear gamepad: %s %s, the drawn ring cursor is used\n", COF_VCURSOR_ART, pic ? "is not an RGBA picture" : "not found" );
++		if( pic )
++			FS_FreeImage( pic );
++		cof_pad.art_missing = true;
++		return 0;
++	}
++
++	w = pic->width;
++	h = pic->height;
++
++	{
++		rgbdata_t art =
++		{
++			.width = w,
++			.height = h,
++			.type = PF_RGBA_32,
++			.size = w * h * 4,
++			.flags = IMAGE_HAS_COLOR|IMAGE_HAS_ALPHA,
++			.buffer = pic->buffer,
++		};
++
++		cof_pad.art_tex = GL_LoadTextureInternal( "*cof_vcursor_art", &art, TF_CLAMP );
++	}
++
++	// the shadow: alpha spread over a disc of r pixels, then a 3x3 box blur
++	r = Q_max( 2, w / 40 );
++	buf = Z_Calloc( w * h * 4 );
++
++	for( int y = 0; y < h; y++ )
++	{
++		for( int x = 0; x < w; x++ )
++		{
++			int a = 0;
++
++			for( int dy = -r; dy <= r; dy++ )
++			{
++				for( int dx = -r; dx <= r; dx++ )
++				{
++					int sx = x + dx, sy = y + dy;
++
++					if( dx * dx + dy * dy > r * r || sx < 0 || sy < 0 || sx >= w || sy >= h )
++						continue;
++
++					a = Q_max( a, pic->buffer[( sy * w + sx ) * 4 + 3] );
++				}
++			}
++
++			buf[( y * w + x ) * 4 + 3] = a;
++		}
++	}
++
++	for( int pass = 0; pass < 2; pass++ )
++	{
++		for( int y = 0; y < h; y++ )
++		{
++			for( int x = 0; x < w; x++ )
++			{
++				int sum = 0, n = 0;
++
++				for( int dy = -1; dy <= 1; dy++ )
++				{
++					for( int dx = -1; dx <= 1; dx++ )
++					{
++						int sx = x + dx, sy = y + dy;
++
++						if( sx < 0 || sy < 0 || sx >= w || sy >= h )
++							continue;
++
++						sum += buf[( sy * w + sx ) * 4 + 3];
++						n++;
++					}
++				}
++
++				// the colour bytes are free until the end: park the result there
++				buf[( y * w + x ) * 4 + ( pass ? 0 : 1 )] = sum / n;
++			}
++		}
++
++		for( int i = 0; i < w * h; i++ )
++			buf[i * 4 + 3] = buf[i * 4 + ( pass ? 0 : 1 )];
++	}
++
++	for( int i = 0; i < w * h; i++ )
++		buf[i * 4 + 0] = buf[i * 4 + 1] = buf[i * 4 + 2] = 0;
++
++	{
++		rgbdata_t sh =
++		{
++			.width = w,
++			.height = h,
++			.type = PF_RGBA_32,
++			.size = w * h * 4,
++			.flags = IMAGE_HAS_COLOR|IMAGE_HAS_ALPHA,
++			.buffer = buf,
++		};
++
++		cof_pad.shadow_tex = GL_LoadTextureInternal( "*cof_vcursor_shadow", &sh, TF_CLAMP );
++	}
++
++	Z_Free( buf );
++	FS_FreeImage( pic );
++
++	CL_CoF_PadTrace( "cursor art %s loaded (%dx%d), shadow radius %d\n", COF_VCURSOR_ART, w, h, r );
++
++	*shadow = cof_pad.shadow_tex;
++	return cof_pad.art_tex;
++}
++
++/*
++============
++CL_CoF_VCursorDraw
++
++vgui_draw.c VGui_Paint, after the client's panels: the gamepad cursor at the
++gamepad position, only while the gamepad owns the pointer (a panel opened with
++the gamepad as the last input device gets it on its first frame). Centred on
++the position, size cof_vcursor_size times the in-game UI scale (cof_ui_scale
++/ HUD scale), opacity cof_vcursor_alpha, the dark shadow under it at
++cof_vcursor_shadow; it shrinks a little while the click key is held.
++============
++*/
++void CL_CoF_VCursorDraw( void )
++{
++	static convar_t *osk_over_game;
++	float scale, draw;
++	int   size, tex, shadow = 0, alpha;
++	qboolean art;
++
++	// only over the game itself: never over a menu window, such as the
++	// on-screen keyboard (cof-osk-engine), which keeps the game's panels
++	// painted under it (its cvar is looked up, so this file does not depend on
++	// that patch being in the tree)
++	if( cls.key_dest != key_game )
++		return;
++
++	if( !osk_over_game )
++		osk_over_game = Cvar_FindVar( "cof_osk_over_game" );
++
++	if( osk_over_game && osk_over_game->value )
++		return;
++
++	if( !cof_pad.engaged && CL_CoF_DeviceFromCvar( ) == COF_INPUT_PAD && cof_vcursor.value && Joy_IsActive( ) && CL_CoF_PadGateActive( ))
++	{
++		if( !cof_pad.panel_open )
++			cof_pad.centre_pending = true; // the panel's first frame, before the input frame saw it
++		CL_CoF_VCursorEngagePad( );
++	}
++
++	if( !cof_pad.engaged || !CL_CoF_PadGateActive( ))
++		return;
++
++	scale = CL_CoF_UIScale( );
++	if( scale <= 0.0f )
++		scale = 1.0f;
++
++	size = bound( 12, (int)( cof_vcursor_size.value * scale + 0.5f ), 256 );
++
++	art = ( tex = CL_CoF_VCursorArt( &shadow )) != 0;
++
++	if( !art && ( tex = CL_CoF_VCursorTexture( size )) == 0 )
++		return;
++
++	draw = art ? size : size + 4; // the drawn ring has a 2 px margin
++	for( int i = 0; i < ARRAYSIZE( cof_pad.captured ); i++ )
++	{
++		if( cof_pad.captured[i] == K_MOUSE1 )
++		{
++			draw *= 0.85f; // pressed
++			break;
++		}
++	}
++
++	alpha = (int)( bound( 0.0f, cof_vcursor_alpha.value, 1.0f ) * 255.0f );
++
++	ref.dllFuncs.GL_SetRenderMode( kRenderTransTexture );
++
++	if( shadow && cof_vcursor_shadow.value > 0.0f )
++	{
++		ref.dllFuncs.Color4ub( 255, 255, 255, (int)( alpha * bound( 0.0f, cof_vcursor_shadow.value, 1.0f )));
++		ref.dllFuncs.R_DrawStretchPic( cof_pad.x - draw * 0.5f, cof_pad.y - draw * 0.5f, draw, draw, 0, 0, 1, 1, shadow );
++	}
++
++	ref.dllFuncs.Color4ub( 255, 255, 255, alpha );
++	ref.dllFuncs.R_DrawStretchPic( cof_pad.x - draw * 0.5f, cof_pad.y - draw * 0.5f, draw, draw, 0, 0, 1, 1, tex );
++	ref.dllFuncs.GL_SetRenderMode( kRenderNormal );
++	ref.dllFuncs.Color4ub( 255, 255, 255, 255 );
++}
++
++/*
++============
++CL_CoF_VCursorPos
++
++vgui_draw.c VGUI_GetMousePos: while the gamepad owns the pointer FreeVGUI's
++per-frame cursor poll reads this position instead of SDL's, so it never
++depends on when SDL catches up with a warp.
++============
++*/
++qboolean CL_CoF_VCursorPos( int *x, int *y )
++{
++	if( !cof_pad.engaged )
++		return false;
++
++	*x = (int)cof_pad.x;
++	*y = (int)cof_pad.y;
++	return true;
++}
++
++/*
++============
++CL_CoF_VCursorClick
++
++Press or release a mouse button at the virtual cursor, through the same
++VGui_MouseEvent the real mouse uses in key_game (input.c IN_MouseEvent). The
++client's own IN_MouseEvent is not called: with a panel open it ignores
++buttons anyway (g_iVisibleMouse).
++============
++*/
++static void CL_CoF_VCursorClick( int button, qboolean down )
++{
++	if( down )
++	{
++		// click where the stick left the cursor, or where the mouse is
++		if( cof_pad.engaged )
++			VGui_MouseMove( (int)cof_pad.x, (int)cof_pad.y );
++	}
++
++	VGui_MouseEvent( button, down ? 1 : 0 );
++}
++
++/*
++============
++CL_CoF_PadKeyEvent
++
++in_keys.c Key_Event, before the client sees the key. Returns true when the
++key was consumed here.
++============
++*/
++qboolean CL_CoF_PadKeyEvent( int key, int down )
++{
++	int click, rclick, close;
++
++	if( key < K_JOY1 || key > K_AUX32 )
++		return false;
++
++	if( !down )
++	{
++		int what = cof_pad.captured[key];
++
++		if( !what )
++			return false;
++
++		cof_pad.captured[key] = 0;
++
++		if( what == K_MOUSE1 || what == K_MOUSE2 )
++		{
++			char info[256];
++
++			CL_CoF_VCursorClick( what, false );
++			CL_CoF_PadTrace( "%s up: %s released\n", Key_KeynumToString( key ), what == K_MOUSE1 ? "left button" : "right button" );
++
++			// a tape recorder slot acts on a double click: A on a slot is a
++			// complete pick (the support library adds the second click; the
++			// mouse keeps the page's own behaviour)
++			if( what == K_MOUSE1 && VGui_CoF_PanelAction( COF_VGUI_PANEL_CONFIRM, info, sizeof( info )))
++				CL_CoF_PadTrace( "%s up: %s\n", Key_KeynumToString( key ), info );
++		}
++
++		return true;
++	}
++
++	// a gamepad key (the SDL event already said so; this covers cof_key_probe)
++	CL_CoF_NoteInput( COF_INPUT_PAD, "gamepad key" );
++
++	if( cof_pad.captured[key] ) // a press already captured and not released: ignore repeats
++		return true;
++
++	// joy_enable 0 switches the gamepad off; its buttons then keep their plain binds
++	if( !Joy_IsActive( ) || !CL_CoF_PadGateActive( ))
++		return false;
++
++	click = cof_vcursor.value ? CL_CoF_PadKeyFromCvar( &cof_vcursor_click_key ) : -1;
++	rclick = cof_vcursor.value ? CL_CoF_PadKeyFromCvar( &cof_vcursor_rclick_key ) : -1;
++	close = CL_CoF_PadKeyFromCvar( &cof_pad_close_key );
++
++	if( key == click || key == rclick )
++	{
++		int button = key == click ? K_MOUSE1 : K_MOUSE2;
++
++		cof_pad.captured[key] = button;
++		CL_CoF_VCursorClick( button, true );
++		CL_CoF_PadTrace( "%s down on an open panel: %s pressed at %d %d\n", Key_KeynumToString( key ),
++			button == K_MOUSE1 ? "left button" : "right button", (int)cof_pad.x, (int)cof_pad.y );
++		return true;
++	}
++
++	if( key == close )
++	{
++		char info[256];
++		int  handled;
++
++		cof_pad.captured[key] = -1;
++
++		// the open panel's own Back / Close / Cancel / No button, clicked by
++		// the support library (dialogs first: YES/NO, the save confirm box)
++		if( VGui_CoF_PanelAction( COF_VGUI_PANEL_BACK, info, sizeof( info )))
++		{
++			CL_CoF_PadTrace( "%s down on an open panel: back - %s\n", Key_KeynumToString( key ), info );
++			return true;
++		}
++
++		if( FBitSet( cof_pad.panel_classes, COF_PANEL_INVENTORY ) || !cof_pad.panel_classes )
++		{
++			// the inventory's key handler closes the inventory for exactly this
++			// binding string (also what the arrow-cursor fallback gets first)
++			handled = clgame.dllFuncs.pfnKey_Event( true, key, "+inventory" );
++			CL_CoF_PadTrace( "%s down on an open panel: %s%soffered to the client as \"+inventory\" (client returned %d)\n",
++				Key_KeynumToString( key ), info, info[0] ? "; " : "", handled );
++
++			if( handled || FBitSet( cof_pad.panel_classes, COF_PANEL_INVENTORY ))
++				return true;
++		}
++
++		// no back button known: the game's own Escape handling for its panel,
++		// what retail did with Escape (the input gate now sends Escape to the
++		// engine menu instead)
++		handled = clgame.dllFuncs.pfnKey_Event( true, K_ESCAPE, "cancelselect" );
++		clgame.dllFuncs.pfnKey_Event( false, K_ESCAPE, "cancelselect" );
++		CL_CoF_PadTrace( "%s down on an open panel: %s%soffered to the client as ESCAPE / \"cancelselect\" (client returned %d)\n",
++			Key_KeynumToString( key ), info, info[0] ? "; " : "", handled );
++		return true;
++	}
++
++	return false;
++}
++
++/*
++============
++CL_CoF_PadDefaults
++============
++*/
++static qboolean CL_CoF_PadAnyBound( void )
++{
++	for( int key = K_JOY1; key <= K_AUX30; key++ )
++	{
++		const char *b = Key_GetBinding( key );
++
++		if( COM_StringEmptyOrNULL( b ))
++			continue;
++
++		// what "unbindall" itself leaves on START
++		if( key == K_START_BUTTON && !Q_stricmp( b, "cancelselect" ))
++			continue;
++
++		return true;
++	}
++
++	return false;
++}
++
++static int CL_CoF_PadApplyLayout( qboolean force )
++{
++	int n = 0;
++
++	for( int i = 0; i < ARRAYSIZE( cof_pad_layout ); i++ )
++	{
++		const char *b = Key_GetBinding( cof_pad_layout[i].key );
++
++		if( !force && !COM_StringEmptyOrNULL( b ))
++			continue;
++
++		Key_SetBinding( cof_pad_layout[i].key, cof_pad_layout[i].binding );
++		n++;
++	}
++
++	return n;
++}
++
++static const char *CL_CoF_PadLayoutBind( const cof_pad_bind_t *layout, int count, int key )
++{
++	for( int i = 0; i < count; i++ )
++	{
++		if( layout[i].key == key )
++			return layout[i].binding;
++	}
++
++	return NULL;
++}
++
++/*
++============
++CL_CoF_PadMigrate
++
++Every pad key that still holds exactly the default of the profile's older
++generation moves to the current layout; a key the player rebound or cleared
++keeps what it has.
++============
++*/
++static void CL_CoF_PadMigrate( const cof_pad_bind_t *old, int count, int *moved, int *kept )
++{
++	*moved = *kept = 0;
++
++	for( int i = 0; i < count; i++ )
++	{
++		int        key = old[i].key;
++		const char *cur = Key_GetBinding( key );
++		const char *want = CL_CoF_PadLayoutBind( cof_pad_layout, ARRAYSIZE( cof_pad_layout ), key );
++
++		if( !cur || Q_stricmp( cur, old[i].binding ))
++		{
++			( *kept )++;
++			continue;
++		}
++
++		if( !want )
++			want = "";
++
++		if( Q_stricmp( cur, want ))
++		{
++			Key_SetBinding( key, want );
++			( *moved )++;
++		}
++	}
++}
++
++static void CL_CoF_PadDefaultsCheck( void )
++{
++	int      gen = (int)cof_pad_defaults_gen.value;
++	convar_t *gyro;
++
++	if( gen >= COF_PAD_DEFAULTS_GENERATION )
++		return;
++
++	// generation 2: gyro aiming off unless the player turns it on again
++	// (upstream's default was on and got saved into every config.cfg); a
++	// generation-2 profile already had that done once
++	if( gen < 2 && ( gyro = Cvar_FindVar( "joy_gyro_enable" )) != NULL && gyro->value )
++		Cvar_DirectSet( gyro, "0" );
++
++	if( !CL_CoF_PadAnyBound( ))
++	{
++		int n = CL_CoF_PadApplyLayout( false );
++		Q_snprintf( cof_pad.defaults_note, sizeof( cof_pad.defaults_note ), "default layout applied (%d binds, generation %d)%s", n, COF_PAD_DEFAULTS_GENERATION, gen < 2 ? ", gyro aiming off" : "" );
++	}
++	else if( gen == 1 || gen == 2 )
++	{
++		int moved, kept;
++
++		if( gen == 1 )
++			CL_CoF_PadMigrate( cof_pad_layout_gen1, ARRAYSIZE( cof_pad_layout_gen1 ), &moved, &kept );
++		else CL_CoF_PadMigrate( cof_pad_layout_gen2, ARRAYSIZE( cof_pad_layout_gen2 ), &moved, &kept );
++
++		Q_snprintf( cof_pad.defaults_note, sizeof( cof_pad.defaults_note ), "generation %d layout migrated to generation %d (%d binds changed, %d customised keys kept)%s", gen, COF_PAD_DEFAULTS_GENERATION, moved, kept, gen < 2 ? ", gyro aiming off" : "" );
++	}
++	else Q_snprintf( cof_pad.defaults_note, sizeof( cof_pad.defaults_note ), "gamepad keys already bound, default layout not applied (generation %d)%s", COF_PAD_DEFAULTS_GENERATION, gen < 2 ? ", gyro aiming off" : "" );
++
++	Con_Printf( "Cry of Fear gamepad: %s\n", cof_pad.defaults_note );
++
++	Cvar_DirectSetValue( &cof_pad_defaults_gen, COF_PAD_DEFAULTS_GENERATION );
++}
++
++/*
++============
++CL_CoF_DuckToggle_f / CL_CoF_DuckRelease
++
++cof_duck_toggle (B's default bind): press once to crouch, again to stand. The
++latch holds the game's own +duck through the command buffer exactly like a
++held key (no keynum: the client treats it as a console press, and its -duck
++releases every holder); in play only. Released on its own at every level
++change and load (the server count changes, or the client leaves ca_active),
++so a new map never starts crouched.
++============
++*/
++static void CL_CoF_DuckRelease( const char *why )
++{
++	if( !cof_pad.duck_on )
++		return;
++
++	cof_pad.duck_on = false;
++
++	// at the head of the buffer like the +duck (and a key's own +/-): a
++	// release appended behind a long cfg would wait for the whole cfg
++	if( clgame.hInstance )
++		Cbuf_InsertText( "-duck\n" );
++
++	CL_CoF_PadTrace( "crouch toggle off (%s)\n", why );
++}
++
++static void CL_CoF_DuckToggle_f( void )
++{
++	if( cls.state != ca_active || cls.key_dest != key_game || cl.background )
++	{
++		CL_CoF_PadTrace( "crouch toggle ignored: not in play\n" );
++		return;
++	}
++
++	if( cof_pad.duck_on )
++	{
++		CL_CoF_DuckRelease( "toggled" );
++		return;
++	}
++
++	cof_pad.duck_on = true;
++	cof_pad.duck_servercount = cl.servercount;
++	Cbuf_InsertText( "+duck\n" );
++	CL_CoF_PadTrace( "crouch toggle on\n" );
++}
++
++/*
++============
++cof_sprint_toggle_press (L3's default bind) and the sprint latch
++
++cof_sprint_toggle 1 (toggle, the default): the first press holds the game's
++own +sprint (queued at the head of the command buffer without a key number,
++like a held key; -sprint releases every holder), a second press lets go, and
++it lets go by itself when the player stops moving: the left stick below
++cof_sprint_stop_threshold with no movement key held for cof_sprint_stop_time
++seconds (and at least 3 frames), or, when the press came while standing
++still, when no movement starts within 0.75 s. cof_sprint_toggle 0 (hold):
+++sprint while a key bound to this command is held, as L3 did before. Both
++let go when a panel or a menu opens, and at every load and level change. In
++play only. The keyboard keeps its plain +sprint unless this command is bound.
++============
++*/
++static void CL_CoF_SprintRelease( const char *why )
++{
++	if( !cof_pad.sprint_on )
++		return;
++
++	cof_pad.sprint_on = false;
++
++	if( clgame.hInstance )
++		Cbuf_InsertText( "-sprint\n" );
++
++	CL_CoF_PadTrace( "sprint off (%s)\n", why );
++}
++
++static qboolean CL_CoF_SprintKeyHeld( void )
++{
++	for( int key = 0; key < 256; key++ )
++	{
++		const char *b = Key_GetBinding( key );
++
++		if( b && !Q_stricmp( b, "cof_sprint_toggle_press" ) && Key_IsDown( key ))
++			return true;
++	}
++
++	return false;
++}
++
++static qboolean CL_CoF_PlayerMoving( float *stick )
++{
++	float fwd = CL_CoF_PadAxis( JOY_AXIS_FWD ), side = CL_CoF_PadAxis( JOY_AXIS_SIDE );
++
++	*stick = sqrt( fwd * fwd + side * side );
++
++	if( *stick >= bound( 0.05f, cof_sprint_stop_threshold.value, 0.9f ))
++		return true;
++
++	for( int key = 0; key < 256; key++ )
++	{
++		const char *b;
++
++		if( !Key_IsDown( key ) || ( b = Key_GetBinding( key )) == NULL )
++			continue;
++
++		if( !Q_strnicmp( b, "+forward", 8 ) || !Q_strnicmp( b, "+back", 5 ) || !Q_strnicmp( b, "+moveleft", 9 ) || !Q_strnicmp( b, "+moveright", 10 ))
++			return true;
++	}
++
++	return false;
++}
++
++static void CL_CoF_SprintPress_f( void )
++{
++	float stick;
++
++	if( cls.state != ca_active || cls.key_dest != key_game || cl.background )
++	{
++		CL_CoF_PadTrace( "sprint press ignored: not in play\n" );
++		return;
++	}
++
++	if( cof_pad.sprint_on )
++	{
++		CL_CoF_SprintRelease( "pressed again" );
++		return;
++	}
++
++	cof_pad.sprint_on = true;
++	cof_pad.sprint_hold = !cof_sprint_toggle.value && CL_CoF_SprintKeyHeld( );
++	cof_pad.sprint_moved = CL_CoF_PlayerMoving( &stick );
++	cof_pad.sprint_servercount = cl.servercount;
++	cof_pad.sprint_since = cof_pad.sprint_still_since = host.realtime;
++	cof_pad.sprint_still_frames = 0;
++	Cbuf_InsertText( "+sprint\n" );
++	CL_CoF_PadTrace( "sprint on (%s, stick %.2f)\n", cof_pad.sprint_hold ? "hold" : "toggle", stick );
++}
++
++static void CL_CoF_SprintFrame( void )
++{
++	float stick;
++
++	if( !cof_pad.sprint_on )
++		return;
++
++	if( cls.state != ca_active )
++	{
++		CL_CoF_SprintRelease( "left the game / loading" );
++		return;
++	}
++
++	if( cl.servercount != cof_pad.sprint_servercount )
++	{
++		CL_CoF_SprintRelease( "level change" );
++		return;
++	}
++
++	if( cls.key_dest != key_game || CL_CoF_PadGateActive( ))
++	{
++		CL_CoF_SprintRelease( "menu or panel opened" );
++		return;
++	}
++
++	if( cof_pad.sprint_hold )
++	{
++		if( !CL_CoF_SprintKeyHeld( ))
++			CL_CoF_SprintRelease( "key released" );
++		return;
++	}
++
++	if( CL_CoF_PlayerMoving( &stick ))
++	{
++		cof_pad.sprint_moved = true;
++		cof_pad.sprint_still_since = host.realtime;
++		cof_pad.sprint_still_frames = 0;
++		return;
++	}
++
++	cof_pad.sprint_still_frames++;
++
++	if( cof_pad.sprint_moved )
++	{
++		if( host.realtime - cof_pad.sprint_still_since >= Q_max( 0.0f, cof_sprint_stop_time.value ) && cof_pad.sprint_still_frames >= 3 )
++			CL_CoF_SprintRelease( va( "stopped moving, stick %.2f", stick ));
++	}
++	else if( host.realtime - cof_pad.sprint_since >= 0.75 )
++		CL_CoF_SprintRelease( "no movement after the press" );
++}
++
++static void CL_CoF_PadDefaults_f( void )
++{
++	const char *arg = Cmd_Argc( ) > 1 ? Cmd_Argv( 1 ) : "";
++
++	if( !Q_stricmp( arg, "list" ))
++	{
++		for( int i = 0; i < ARRAYSIZE( cof_pad_layout ); i++ )
++		{
++			const char *b = Key_GetBinding( cof_pad_layout[i].key );
++			Con_Printf( "%-12s default \"%s\", now \"%s\"\n", Key_KeynumToString( cof_pad_layout[i].key ),
++				cof_pad_layout[i].binding, b ? b : "" );
++		}
++		return;
++	}
++
++	if( arg[0] && Q_stricmp( arg, "force" ))
++	{
++		Con_Printf( S_USAGE "cof_pad_defaults [force|list] : bind the Cry of Fear gamepad layout to unbound pad keys (force: to all of its keys)\n" );
++		return;
++	}
++
++	Con_Printf( "Cry of Fear gamepad: %d binds set\n", CL_CoF_PadApplyLayout( !Q_stricmp( arg, "force" )));
++	Cvar_DirectSetValue( &cof_pad_defaults_gen, COF_PAD_DEFAULTS_GENERATION );
++}
++
++/*
++============
++CL_CoF_PadLegacyJoystick
++
++client.dll registers "joystick" (stock HL WinMM code, IN_ReadJoystick 1007BB20,
++polled only while the cvar is set). The game's config.cfg ships "0"; keep it
++there so an XInput pad is never read twice.
++============
++*/
++static void CL_CoF_PadLegacyJoystick( void )
++{
++	static double next_check;
++	convar_t *joystick;
++
++	if( !cof_joy_legacy_off.value || !clgame.hInstance )
++		return;
++
++	// looked up afresh (the client's cvars go away with the client), twice a second
++	if( host.realtime < next_check && host.realtime >= next_check - 1.0 )
++		return;
++
++	next_check = host.realtime + 0.5;
++	joystick = Cvar_FindVar( "joystick" );
++
++	if( !joystick || !joystick->value )
++		return;
++
++	Cvar_DirectSet( joystick, "0" );
++
++	if( !cof_pad.legacy_reported )
++	{
++		cof_pad.legacy_reported = true;
++		Con_Printf( "Cry of Fear gamepad: the game's own joystick code was switched off (joystick 0); the gamepad is read by the engine (cof_joy_legacy_off 0 allows it)\n" );
++	}
++}
++
++/*
++============
++CL_CoF_PadFrame
++
++Host_InputFrame, before IN_MouseMove. Returns true while the virtual cursor
++owns the pointer, so the real mouse position is not pushed over it.
++============
++*/
++qboolean CL_CoF_PadFrame( void )
++{
++	qboolean open;
++	float    lx, ly, rx, ry, sx, sy, m, dz, dt;
++	int      real_x, real_y;
++
++	if( !cof_pad.defaults_checked && host.config_executed )
++	{
++		cof_pad.defaults_checked = true;
++		CL_CoF_PadDefaultsCheck( );
++	}
++
++	CL_CoF_PadLegacyJoystick( );
++
++	if( cof_pad.duck_on && ( cls.state != ca_active || cl.servercount != cof_pad.duck_servercount ))
++		CL_CoF_DuckRelease( cls.state != ca_active ? "left the game / loading" : "level change" );
++
++	CL_CoF_SprintFrame( );
++
++	// the last input device may also have been set from outside (the menu
++	// marks its gamepad keys, a test cfg sets the cvar)
++	if( cof_pad.device != CL_CoF_DeviceFromCvar( ))
++	{
++		cof_pad.device = CL_CoF_DeviceFromCvar( );
++		CL_CoF_PadTrace( "last input: %s (cvar)\n", cof_input_names[cof_pad.device] );
++	}
++
++	open = CL_CoF_PadGateActive( );
++
++	if( open != cof_pad.panel_open )
++	{
++		cof_pad.panel_open = open;
++		cof_pad.move_suppressed = false;
++		if( !cof_pad.engaged || !open )
++			cof_pad.centre_pending = open;
++		if( !open || !cof_pad.engaged || CL_CoF_DeviceFromCvar( ) != COF_INPUT_PAD )
++			CL_CoF_VCursorRelease( open ? "panel opened" : "panel closed" );
++		CL_CoF_PadTrace( "clickable panel %s (last input %s, frame %d)\n", open ? "OPEN" : "closed", cof_input_names[cof_pad.device], (int)host.framecount );
++	}
++
++	if( !open || !cof_vcursor.value )
++	{
++		CL_CoF_VCursorRelease( "gate off" );
++		CL_CoF_ApplyOSCursor( );
++		return false;
++	}
++
++	// joy_enable 0: the sticks move nothing, the mouse keeps the pointer
++	if( !Joy_IsActive( ))
++	{
++		CL_CoF_VCursorRelease( "joy_enable 0" );
++		CL_CoF_ApplyOSCursor( );
++		return false;
++	}
++
++	// the gamepad is the last input device: the panel gets the gamepad cursor
++	// right away; the mouse or the keyboard takes it back
++	if( cof_pad.device == COF_INPUT_PAD )
++		CL_CoF_VCursorEngagePad( );
++	else
++	{
++		// the mouse had this panel: a later stick picks up where the arrow is
++		cof_pad.centre_pending = false;
++		if( cof_pad.engaged )
++			CL_CoF_VCursorRelease( cof_pad.device == COF_INPUT_MOUSE ? "mouse moved" : "keyboard used" );
++	}
++
++	CL_CoF_ApplyOSCursor( );
++
++	lx = CL_CoF_PadAxis( JOY_AXIS_SIDE );
++	ly = CL_CoF_PadAxis( JOY_AXIS_FWD );
++	rx = CL_CoF_PadAxis( JOY_AXIS_YAW );
++	ry = CL_CoF_PadAxis( JOY_AXIS_PITCH );
++
++	// either stick moves the cursor, the one pushed further wins
++	if( lx * lx + ly * ly >= rx * rx + ry * ry )
++		sx = lx, sy = ly;
++	else sx = rx, sy = ry;
++
++	m = sqrt( sx * sx + sy * sy );
++	dz = bound( 0.0f, cof_vcursor_deadzone.value, 0.9f );
++	dt = bound( 0.0f, (float)host.realframetime, 0.1f );
++
++	Platform_GetMousePos( &real_x, &real_y );
++
++	if( m > dz )
++	{
++		float norm, speed, accel;
++
++		CL_CoF_VCursorEngage( );
++
++		norm = Q_min( ( m - dz ) / ( 1.0f - dz ), 1.0f );
++		norm = pow( norm, Q_max( cof_vcursor_curve.value, 0.1f ));
++
++		cof_pad.hold += dt;
++		accel = 1.0f;
++		if( cof_vcursor_accel.value > 0.0f )
++		{
++			float t = cof_vcursor_accel_time.value > 0.0f ? cof_pad.hold / cof_vcursor_accel_time.value : 1.0f;
++			accel += cof_vcursor_accel.value * Q_min( t, 1.0f );
++		}
++
++		speed = cof_vcursor_speed.value * refState.height * norm * accel;
++		cof_pad.x += sx / m * speed * dt;
++		cof_pad.y += sy / m * speed * dt; // SDL stick y grows downwards, like the screen
++
++		CL_CoF_VCursorApply( );
++	}
++	else
++	{
++		cof_pad.hold = 0.0f;
++
++		// the real mouse moved on its own (not to where we warped it): the
++		// mouse takes over again
++		if( cof_pad.engaged && ( real_x != cof_pad.real_x || real_y != cof_pad.real_y )
++			&& ( !cof_vcursor_warp.value || abs( real_x - cof_pad.warp_x ) > 2 || abs( real_y - cof_pad.warp_y ) > 2 ))
++		{
++			CL_CoF_VCursorRelease( "mouse moved" );
++		}
++	}
++
++	cof_pad.real_x = real_x;
++	cof_pad.real_y = real_y;
++
++	if( cof_pad.engaged && cof_input_trace.value && host.realtime >= cof_pad.next_trace && m > dz )
++	{
++		cof_pad.next_trace = host.realtime + 0.25;
++		CL_CoF_PadTrace( "virtual cursor %d %d (stick %.2f %.2f, speed x%.2f)\n", (int)cof_pad.x, (int)cof_pad.y, sx, sy,
++			1.0f + cof_vcursor_accel.value * Q_min( cof_vcursor_accel_time.value > 0.0f ? cof_pad.hold / cof_vcursor_accel_time.value : 1.0f, 1.0f ));
++	}
++
++	return cof_pad.engaged;
++}
++
++/*
++============
++cof_joy_axis_probe <side|fwd|pitch|yaw|lt|rt> <-32768..32767>
++
++Developer hook: the value goes into Joy_AxisMotionEvent, the entry point the
++SDL backend feeds, exactly like cof_key_probe feeds Key_Event. No OS input.
++============
++*/
++static void CL_CoF_JoyAxisProbe_f( void )
++{
++	static const char *const names[MAX_AXES] = { "side", "fwd", "pitch", "yaw", "rt", "lt" };
++	int axis = -1, value;
++
++	if( !host_developer.value )
++	{
++		Con_Printf( "cof_joy_axis_probe is a developer command: set \"developer 1\" first\n" );
++		return;
++	}
++
++	if( Cmd_Argc( ) != 3 )
++	{
++		Con_Printf( S_USAGE "cof_joy_axis_probe <side|fwd|pitch|yaw|lt|rt> <-32768..32767>\n" );
++		return;
++	}
++
++	for( int i = 0; i < MAX_AXES; i++ )
++	{
++		if( !Q_stricmp( Cmd_Argv( 1 ), names[i] ))
++			axis = i;
++	}
++
++	if( axis < 0 )
++	{
++		Con_Printf( "cof_joy_axis_probe: unknown axis \"%s\"\n", Cmd_Argv( 1 ));
++		return;
++	}
++
++	value = bound( -32768, Q_atoi( Cmd_Argv( 2 )), 32767 );
++	Con_Printf( "[cof-pad] axis probe %s = %d\n", names[axis], value );
++	Joy_AxisMotionEvent( axis, value );
++}
++
++/*
++============
++cof_vcursor_test <dx> <dy> [0|1|2]
++cof_vcursor_test abs <x> <y> [0|1|2]
++
++Developer hook: moves the virtual cursor by (or to) render pixels and
++optionally clicks (1 left, 2 right; press and release), through the same
++functions the sticks and A/X use. Only while a clickable panel is open.
++============
++*/
++static void CL_CoF_VCursorTest_f( void )
++{
++	qboolean absolute;
++	int      argi, button;
++	float    a, b;
++
++	if( !host_developer.value )
++	{
++		Con_Printf( "cof_vcursor_test is a developer command: set \"developer 1\" first\n" );
++		return;
++	}
++
++	// cof_vcursor_test button <handler class> <command> [0|1|2]: onto that
++	// visible panel button (found by the support library, VGUI coordinates
++	// turned into render pixels the way VGUI_GetMousePos does the reverse)
++	if( Cmd_Argc( ) > 3 && !Q_stricmp( Cmd_Argv( 1 ), "button" ))
++	{
++		char  where[128];
++		float bx, by, sx, sy, s = CL_CoF_UIScale( );
++
++		if( !CL_CoF_PadGateActive( ))
++		{
++			Con_Printf( "[cof-pad] cof_vcursor_test: no clickable panel is open\n" );
++			return;
++		}
++
++		Q_snprintf( where, sizeof( where ), "%s %s", Cmd_Argv( 2 ), Cmd_Argv( 3 ));
++		if( !VGui_CoF_PanelAction( COF_VGUI_PANEL_LOCATE, where, sizeof( where )) || sscanf( where, "%f %f", &bx, &by ) != 2 )
++		{
++			Con_Printf( "[cof-pad] cof_vcursor_test: no visible button with %s command %s\n", Cmd_Argv( 2 ), Cmd_Argv( 3 ));
++			return;
++		}
++
++		sx = (float)refState.width / (float)clgame.scrInfo.iWidth * ( s > 0.0f ? s : 1.0f );
++		sy = (float)refState.height / (float)clgame.scrInfo.iHeight * ( s > 0.0f ? s : 1.0f );
++		CL_CoF_NoteInput( COF_INPUT_PAD, "cof_vcursor_test" );
++		CL_CoF_VCursorEngage( );
++		cof_pad.x = bx * sx;
++		cof_pad.y = by * sy;
++		CL_CoF_VCursorApply( );
++		Con_Printf( "[cof-pad] virtual cursor test: onto the %s command %s button, now at %d %d\n", Cmd_Argv( 2 ), Cmd_Argv( 3 ), (int)cof_pad.x, (int)cof_pad.y );
++
++		button = Cmd_Argc( ) > 4 ? Q_atoi( Cmd_Argv( 4 )) : 0;
++		if( button == 1 || button == 2 )
++		{
++			int mb = button == 1 ? K_MOUSE1 : K_MOUSE2;
++
++			CL_CoF_VCursorClick( mb, true );
++			CL_CoF_VCursorClick( mb, false );
++			Con_Printf( "[cof-pad] virtual cursor test: %s click\n", button == 1 ? "left" : "right" );
++		}
++		return;
++	}
++
++	absolute = Cmd_Argc( ) > 1 && !Q_stricmp( Cmd_Argv( 1 ), "abs" );
++	argi = absolute ? 2 : 1;
++
++	if( Cmd_Argc( ) < argi + 2 )
++	{
++		Con_Printf( S_USAGE "cof_vcursor_test [abs] <x> <y> [0|1|2] : move the gamepad cursor by (abs: to) render pixels, then optionally click left (1) or right (2)\n" );
++		return;
++	}
++
++	if( !CL_CoF_PadGateActive( ))
++	{
++		Con_Printf( "[cof-pad] cof_vcursor_test: no clickable panel is open\n" );
++		return;
++	}
++
++	a = Q_atof( Cmd_Argv( argi ));
++	b = Q_atof( Cmd_Argv( argi + 1 ));
++	button = Cmd_Argc( ) > argi + 2 ? Q_atoi( Cmd_Argv( argi + 2 )) : 0;
++
++	// stands in for a stick: the gamepad is the last input device
++	CL_CoF_NoteInput( COF_INPUT_PAD, "cof_vcursor_test" );
++	CL_CoF_VCursorEngage( );
++
++	if( absolute )
++	{
++		cof_pad.x = a;
++		cof_pad.y = b;
++	}
++	else
++	{
++		cof_pad.x += a;
++		cof_pad.y += b;
++	}
++
++	CL_CoF_VCursorApply( );
++	Con_Printf( "[cof-pad] virtual cursor test: now at %d %d\n", (int)cof_pad.x, (int)cof_pad.y );
++
++	if( button == 1 || button == 2 )
++	{
++		int mb = button == 1 ? K_MOUSE1 : K_MOUSE2;
++
++		CL_CoF_VCursorClick( mb, true );
++		CL_CoF_VCursorClick( mb, false );
++		Con_Printf( "[cof-pad] virtual cursor test: %s click at %d %d\n", button == 1 ? "left" : "right", (int)cof_pad.x, (int)cof_pad.y );
++	}
++}
++
++/*
++============
++cof_pad_panel_dump
++
++Developer: the buttons of the open panels with their handlers (the B / A
++mapping's evidence).
++============
++*/
++static void CL_CoF_PanelDump_f( void )
++{
++	char info[128];
++
++	if( !VGui_CoF_PanelAction( COF_VGUI_PANEL_DUMP, info, sizeof( info )))
++		Con_Printf( "[cof-pad] cof_pad_panel_dump: the VGUI support library does not offer the panel actions\n" );
++	else Con_Printf( "[cof-pad] cof_pad_panel_dump: %s\n", info );
++}
++
++/*
++============
++cof_pad_status
++============
++*/
++static void CL_CoF_PadStatus_f( void )
++{
++	convar_t *joystick = Cvar_FindVar( "joystick" );
++
++#if XASH_SDL == 2
++	{
++		SDL_version v;
++		int n = SDL_WasInit( SDL_INIT_GAMECONTROLLER ) ? SDL_NumJoysticks( ) : 0;
++
++		SDL_GetVersion( &v );
++		Con_Printf( "[cof-pad] SDL %d.%d.%d, %d joystick device(s)%s\n", v.major, v.minor, v.patch, n,
++			SDL_WasInit( SDL_INIT_GAMECONTROLLER ) ? "" : " (GameController subsystem not initialised)" );
++
++		for( int i = 0; i < n; i++ )
++		{
++			char guid[64];
++			SDL_JoystickGetGUIDString( SDL_JoystickGetDeviceGUID( i ), guid, sizeof( guid ));
++			Con_Printf( "[cof-pad]   #%d \"%s\" game controller %d, GUID %s, instance %d\n", i,
++				SDL_IsGameController( i ) ? SDL_GameControllerNameForIndex( i ) : SDL_JoystickNameForIndex( i ),
++				SDL_IsGameController( i ), guid, (int)SDL_JoystickGetDeviceInstanceID( i ));
++		}
++	}
++#endif
++
++	Con_Printf( "[cof-pad] clickable panel open %d (panel classes 0x%x%s; state %d, key_dest %d, cursor visible %d), gate %g, virtual cursor %s at %d %d\n",
++		CL_CoF_ClickablePanelOpen( ), cof_pad.panel_classes, cof_pad.panel_by_cursor ? ", cursor fallback" : "",
++		(int)cls.state, (int)cls.key_dest, (int)host.mouse_visible, cof_pad_panel_gate.value,
++		cof_pad.engaged ? "engaged" : "idle", (int)cof_pad.x, (int)cof_pad.y );
++	Con_Printf( "[cof-pad] joy_enable %d, sticks side %.2f fwd %.2f pitch %.2f yaw %.2f, triggers lt %.2f rt %.2f, client joystick %s, defaults generation %g\n",
++		(int)Joy_IsActive( ), CL_CoF_PadAxis( JOY_AXIS_SIDE ), CL_CoF_PadAxis( JOY_AXIS_FWD ), CL_CoF_PadAxis( JOY_AXIS_PITCH ),
++		CL_CoF_PadAxis( JOY_AXIS_YAW ), CL_CoF_PadAxis( JOY_AXIS_LT ), CL_CoF_PadAxis( JOY_AXIS_RT ),
++		joystick ? joystick->string : "(not registered)", cof_pad_defaults_gen.value );
++	Con_Printf( "[cof-pad] origin %.1f %.1f %.1f, angles %.1f %.1f\n", cl.simorg[0], cl.simorg[1], cl.simorg[2], cl.viewangles[PITCH], cl.viewangles[YAW] );
++	Con_Printf( "[cof-pad] defaults this launch: %s\n", cof_pad.defaults_note[0] ? cof_pad.defaults_note : "nothing to do (generation already applied)" );
++	Con_Printf( "[cof-pad] crouch toggle %s, player hull %d (1 = crouched), view height %.1f, gyro aiming %s\n",
++		cof_pad.duck_on ? "ON" : "off", cl.local.usehull, cl.viewheight[2], Cvar_VariableString( "joy_gyro_enable" ));
++	Con_Printf( "[cof-pad] sprint %s (%s mode, cof_sprint_toggle %g), last input %s, OS arrow %s (hidden by the pad %d, host.mouse_visible %d), cursor art %s\n",
++		cof_pad.sprint_on ? "ON" : "off", cof_pad.sprint_on ? ( cof_pad.sprint_hold ? "hold" : "toggle" ) : "-", cof_sprint_toggle.value,
++		cof_input_names[CL_CoF_DeviceFromCvar( )],
++#if XASH_SDL == 2
++		SDL_ShowCursor( SDL_QUERY ) == SDL_ENABLE ? "shown" : "hidden",
++#else
++		"?",
++#endif
++		(int)cof_pad.os_hidden, (int)host.mouse_visible,
++		cof_pad.art_tex ? COF_VCURSOR_ART : cof_pad.art_missing ? "missing (drawn ring)" : "not loaded yet" );
++
++	if( Cmd_Argc( ) < 2 || Q_stricmp( Cmd_Argv( 1 ), "binds" ))
++		return;
++
++	for( int key = K_JOY1; key <= K_AUX30; key++ )
++	{
++		const char *b = Key_GetBinding( key );
++
++		if( !COM_StringEmptyOrNULL( b ))
++			Con_Printf( "[cof-pad]   %-12s \"%s\"\n", Key_KeynumToString( key ), b );
++	}
++}
++
++/*
++============
++CL_CoF_PadInit
++
++IN_Init: registered before config.cfg runs, so the archived cvars load.
++============
++*/
++void CL_CoF_PadInit( void )
++{
++	Cvar_RegisterVariable( &cof_pad_panel_gate );
++	Cvar_RegisterVariable( &cof_pad_close_key );
++	Cvar_RegisterVariable( &cof_vcursor );
++	Cvar_RegisterVariable( &cof_vcursor_speed );
++	Cvar_RegisterVariable( &cof_vcursor_accel );
++	Cvar_RegisterVariable( &cof_vcursor_accel_time );
++	Cvar_RegisterVariable( &cof_vcursor_curve );
++	Cvar_RegisterVariable( &cof_vcursor_deadzone );
++	Cvar_RegisterVariable( &cof_vcursor_warp );
++	Cvar_RegisterVariable( &cof_vcursor_click_key );
++	Cvar_RegisterVariable( &cof_vcursor_rclick_key );
++	Cvar_RegisterVariable( &cof_vcursor_size );
++	Cvar_RegisterVariable( &cof_vcursor_alpha );
++	Cvar_RegisterVariable( &cof_vcursor_shadow );
++	Cvar_RegisterVariable( &cof_pad_hide_cursor );
++	Cvar_RegisterVariable( &cof_last_input );
++	Cvar_RegisterVariable( &cof_sprint_toggle );
++	Cvar_RegisterVariable( &cof_sprint_stop_threshold );
++	Cvar_RegisterVariable( &cof_sprint_stop_time );
++	Cvar_RegisterVariable( &cof_joy_pulse_hysteresis );
++	Cvar_RegisterVariable( &cof_joy_legacy_off );
++	Cvar_RegisterVariable( &cof_pad_defaults_gen );
++	Cvar_RegisterVariable( &cof_input_trace );
++
++	Cmd_AddCommand( "cof_duck_toggle", CL_CoF_DuckToggle_f, "Cry of Fear: crouch toggle - the first press crouches (holds +duck), the next one stands up; released on every level change and load" );
++	Cmd_AddCommand( "cof_sprint_toggle_press", CL_CoF_SprintPress_f, "Cry of Fear: sprint - toggle (cof_sprint_toggle 1: sprints until you stop moving or press again) or hold (0: while the key is held); released on every level change and load" );
++	Cmd_AddCommand( "cof_pad_panel_dump", CL_CoF_PanelDump_f, "developer: list the buttons of the open Cry of Fear panels with their handlers" );
++	Cmd_AddRestrictedCommand( "cof_pad_defaults", CL_CoF_PadDefaults_f, "bind the Cry of Fear gamepad layout to unbound pad keys (force: overwrite; list: show)" );
++	Cmd_AddCommand( "cof_pad_status", CL_CoF_PadStatus_f, "print the Cry of Fear gamepad state: controllers, panel check, virtual cursor, sticks (binds: also the pad binds)" );
++	Cmd_AddRestrictedCommand( "cof_joy_axis_probe", CL_CoF_JoyAxisProbe_f, "developer: feed a gamepad axis value to the engine's own axis path, without any OS input" );
++	Cmd_AddRestrictedCommand( "cof_vcursor_test", CL_CoF_VCursorTest_f, "developer: move the gamepad cursor and optionally click, while a CoF panel is open" );
++}
+diff --git a/engine/client/input.h b/engine/client/input.h
+--- a/engine/client/input.h
++++ b/engine/client/input.h
+@@ -162,5 +162,27 @@
+ void Joy_DrawDebug( void );
+ void Joy_Init( void );
+ void Joy_Shutdown( void );
++short Joy_CoF_AxisValue( engineAxis_t axis );
++
++//
++// cof_gamepad.c (Cry of Fear: Enhanced gamepad support)
++//
++extern convar_t cof_joy_pulse_hysteresis;
++void CL_CoF_PadInit( void );
++qboolean CL_CoF_ClickablePanelOpen( void );
++qboolean CL_CoF_PadSuppressMove( void );
++void CL_CoF_PadTraceMove( float forwardmove, float sidemove, qboolean suppressed );
++void CL_CoF_PadTracePulses( uint oldflags, uint newflags, float forwardmove, float sidemove );
++float CL_CoF_JoyPulseHysteresis( void );
++qboolean CL_CoF_PadStartAsEscape( int key, const char *binding );
++qboolean CL_CoF_PadKeyEvent( int key, int down );
++qboolean CL_CoF_PadFrame( void );
++qboolean CL_CoF_VCursorPos( int *x, int *y );
++void CL_CoF_VCursorDraw( void );
++void CL_CoF_InputEvent( const void *sdlEvent );	// host_sdl2.c: the last input device
++void CL_CoF_NotePadAxis( int axis, short value );	// in_joy.c
++void CL_CoF_NoteMouseWarp( int x, int y );		// in_sdl2.c Platform_SetMousePos
++qboolean CL_CoF_PadHidesOSCursor( void );
++qboolean CL_CoF_OSCursorRequest( int type );		// in_sdl2.c Platform_SetCursorType
+ 
+ #endif//INPUT_H
+diff --git a/engine/client/input/input.c b/engine/client/input/input.c
+--- a/engine/client/input/input.c
++++ b/engine/client/input/input.c
+@@ -479,6 +479,8 @@
+ 
+ 		Joy_Init(); // common joystick support init
+ 
++		CL_CoF_PadInit(); // Cry of Fear gamepad cvars, before config.cfg runs
++
+ 		Touch_Init();
+ 
+ #if XASH_USE_EVDEV
+@@ -507,6 +509,14 @@
+ static void IN_JoyAppendMove( usercmd_t *cmd, float forwardmove, float sidemove )
+ {
+ 	static uint moveflags = T | S;
++	// Cry of Fear: the client turns a second +forward (+back, +moveleft,
++	// +moveright) within 0.18 s into a dodge. A stick resting near the 0.7 /
++	// 0.9 thresholds used to press and release the key every few frames and
++	// dodge on its own; a pressed key is now released only below the
++	// threshold minus cof_joy_pulse_hysteresis. A deliberate double flick
++	// through the centre still dodges, like a double tap on the keyboard.
++	const float hyst = CL_CoF_JoyPulseHysteresis( );
++	const uint oldflags = moveflags;
+ 
+ 	if( forwardmove ) cmd->forwardmove  = forwardmove * cl_forwardspeed.value;
+ 	if( sidemove ) cmd->sidemove  = sidemove * cl_sidespeed.value;
+@@ -538,7 +548,7 @@
+ 		moveflags |= F;
+ 		Cmd_ExecuteString( "+forward" );
+ 	}
+-	else if ( forwardmove < 0.7f && ( moveflags & F ))
++	else if ( forwardmove < 0.7f - hyst && ( moveflags & F ))
+ 	{
+ 		moveflags &= ~F;
+ 		Cmd_ExecuteString( "-forward" );
+@@ -549,7 +559,7 @@
+ 		moveflags |= B;
+ 		Cmd_ExecuteString( "+back" );
+ 	}
+-	else if ( forwardmove > -0.7f && ( moveflags & B ))
++	else if ( forwardmove > -0.7f + hyst && ( moveflags & B ))
+ 	{
+ 		moveflags &= ~B;
+ 		Cmd_ExecuteString( "-back" );
+@@ -560,7 +570,7 @@
+ 		moveflags |= R;
+ 		Cmd_ExecuteString( "+moveright" );
+ 	}
+-	else if ( sidemove < 0.9f && ( moveflags & R ))
++	else if ( sidemove < 0.9f - hyst && ( moveflags & R ))
+ 	{
+ 		moveflags &= ~R;
+ 		Cmd_ExecuteString( "-moveright" );
+@@ -571,11 +581,14 @@
+ 		moveflags |= L;
+ 		Cmd_ExecuteString( "+moveleft" );
+ 	}
+-	else if ( sidemove > -0.9f && ( moveflags & L ))
++	else if ( sidemove > -0.9f + hyst && ( moveflags & L ))
+ 	{
+ 		moveflags &= ~L;
+ 		Cmd_ExecuteString( "-moveleft" );
+ 	}
++
++	if( moveflags != oldflags )
++		CL_CoF_PadTracePulses( oldflags, moveflags, forwardmove, sidemove );
+ }
+ 
+ static void IN_CollectInput( float *forward, float *side, float *pitch, float *yaw, qboolean includeMouse )
+@@ -621,6 +634,17 @@
+ 	if( cls.key_dest != key_game || cl.paused || cl.intermission )
+ 		return;
+ 
++	// Cry of Fear: while a clickable CoF panel (inventory, note, keypad...) is
++	// open the client swallows every key, but these moves bypass it; the
++	// sticks drive the panel cursor instead (cof_gamepad.c). The zero move
++	// releases any +forward/... the stick was still holding.
++	if( CL_CoF_PadSuppressMove( ))
++	{
++		IN_JoyAppendMove( cmd, 0.0f, 0.0f );
++		CL_CoF_PadTraceMove( cmd->forwardmove, cmd->sidemove, true );
++		return;
++	}
++
+ 	if( active )
+ 	{
+ 		float forward = 0, side = 0, pitch = 0, yaw = 0;
+@@ -629,6 +653,7 @@
+ 		IN_CollectInput( &forward, &side, &pitch, &yaw, false );
+ 
+ 		IN_JoyAppendMove( cmd, forward, side );
++		CL_CoF_PadTraceMove( cmd->forwardmove, cmd->sidemove, false );
+ 
+ 		if( pitch || yaw )
+ 		{
+@@ -676,5 +701,8 @@
+ {
+ 	IN_Commands();
+ 
+-	IN_MouseMove();
+-}
++	// Cry of Fear: the gamepad's panel cursor; while it owns the pointer the
++	// real mouse position is not pushed over it (cof_gamepad.c)
++	if( !CL_CoF_PadFrame( ))
++		IN_MouseMove();
++}
+diff --git a/engine/client/input/in_keys.c b/engine/client/input/in_keys.c
+--- a/engine/client/input/in_keys.c
++++ b/engine/client/input/in_keys.c
+@@ -835,7 +835,10 @@
+ 	// computer-input workaround for FWGS issue #1923 below. Neither the client
+ 	// nor the VGUI support library is offered this key, so the client's own
+ 	// escape handling cannot fire a second time alongside the engine menu.
+-	if( cof_ui_input_gate.value && key == K_ESCAPE && down && cls.key_dest == key_game )
++	//
++	// Cry of Fear gamepad (cof_gamepad.c): START gets the same bypass while a
++	// clickable CoF panel is open, since the panel swallows it otherwise.
++	if( cof_ui_input_gate.value && down && cls.key_dest == key_game && ( key == K_ESCAPE || CL_CoF_PadStartAsEscape( key, kb )))
+ 	{
+ 		if( r_showtextures.value )
+ 		{
+@@ -861,6 +864,13 @@
+ 		CL_Escape_f();
+ 		return;
+ 	}
++
++	// Cry of Fear gamepad (cof_gamepad.c): on an open CoF panel A / X click
++	// at the gamepad cursor and the close key closes the inventory; such a
++	// press, and its release, never reach the client or the key's binding
++	// (the release is matched in any key_dest, the pause menu may be up by then)
++	if(( cls.key_dest == key_game || !down ) && CL_CoF_PadKeyEvent( key, down ))
++		return;
+ 
+ 	// distribute the key down event to the apropriate handler
+ 	if( cls.key_dest == key_game && ( down || keys[key].gamedown ))
+diff --git a/engine/client/input/in_joy.c b/engine/client/input/in_joy.c
+--- a/engine/client/input/in_joy.c
++++ b/engine/client/input/in_joy.c
+@@ -89,7 +89,9 @@
+ static CVAR_DEFINE_AUTO( joy_gyro_pitch_deadzone, "0.5", FCVAR_ARCHIVE | FCVAR_FILTERABLE, "gyroscope pitch axis deadzone (deg/s)" );
+ static CVAR_DEFINE_AUTO( joy_gyro_yaw_deadzone, "0.5", FCVAR_ARCHIVE | FCVAR_FILTERABLE, "gyroscope yaw axis deadzone (deg/s)" );
+ static CVAR_DEFINE_AUTO( joy_gyro_roll_deadzone, "0.5", FCVAR_ARCHIVE | FCVAR_FILTERABLE, "gyroscope roll axis deadzone (deg/s)" );
+-static CVAR_DEFINE_AUTO( joy_gyro_enable, "1", FCVAR_ARCHIVE | FCVAR_FILTERABLE, "enables aiming with gamepad gyroscope" );
++// Cry of Fear: gyro aiming is an opt-in (Options > Controls); cof_gamepad.c
++// also switches it off once for profiles that saved upstream's default of 1
++static CVAR_DEFINE_AUTO( joy_gyro_enable, "0", FCVAR_ARCHIVE | FCVAR_FILTERABLE, "enables aiming with gamepad gyroscope" );
+ static CVAR_DEFINE_AUTO( joy_debug, "0", 0, "visualize gamepad axes and buttons" );
+ static CVAR_DEFINE_AUTO( joy_have_touchpads, "0", FCVAR_READ_ONLY, "tells how many trackpads current active gamepad has" );
+ static CVAR_DEFINE_AUTO( joy_touchpad_left_mode, "0", FCVAR_ARCHIVE | FCVAR_FILTERABLE, "left trackpad mode: off (0), look (1) or move (2)" );
+@@ -118,6 +120,22 @@
+ qboolean Joy_IsActive( void )
+ {
+ 	return joy_enable.value;
++}
++
++/*
++============
++Joy_CoF_AxisValue
++
++Cry of Fear: Enhanced (cof_gamepad.c): the current value of an engine axis,
++after the stick deadzone, for the panel virtual cursor and its trace
++============
++*/
++short Joy_CoF_AxisValue( engineAxis_t axis )
++{
++	if( axis < 0 || axis >= MAX_AXES )
++		return 0;
++
++	return joyaxis[axis].val;
+ }
+ 
+ /*
+@@ -320,6 +338,10 @@
+ 	if( value == joyaxis[engineAxis].val )
+ 		return; // it is not an update
+ 
++	// Cry of Fear: a stick or trigger pushed well past its deadzone makes the
++	// gamepad the last input device (cof_gamepad.c)
++	CL_CoF_NotePadAxis( engineAxis, value );
++
+ 	if( engineAxis >= JOY_AXIS_RT )
+ 		Joy_ProcessTrigger( engineAxis, value );
+ 	else
+diff --git a/engine/client/vgui/vgui_draw.c b/engine/client/vgui/vgui_draw.c
+--- a/engine/client/vgui/vgui_draw.c
++++ b/engine/client/vgui/vgui_draw.c
+@@ -389,7 +389,10 @@
+ 	float yscale = (float)refState.height / (float)clgame.scrInfo.iHeight * cof_scale;
+ 	int x, y;
+ 
+-	Platform_GetMousePos( &x, &y );
++	// Cry of Fear gamepad: while the stick drives the panel cursor, FreeVGUI's
++	// per-frame poll reads that position (cof_gamepad.c)
++	if( !CL_CoF_VCursorPos( &x, &y ))
++		Platform_GetMousePos( &x, &y );
+ 	*_x = x / xscale;
+ 	*_y = y / yscale;
+ }
+@@ -813,6 +816,29 @@
+ 
+ 	// don't trust the support library to leave it clean, everything drawn afterwards is in screen space
+ 	VGUI_SetPaintOffset( 0, 0 );
++
++	// Cry of Fear gamepad: the ring cursor over the panels (cof_gamepad.c)
++	CL_CoF_VCursorDraw( );
++}
++
++/*
++================
++VGui_CoF_PanelAction
++
++Cry of Fear gamepad (cof_gamepad.c): an action on the client's open panel
++through its own buttons (vguiapi_t::CofPanelAction, COF_VGUI_PANEL_*). 0 when
++the support library does not offer it.
++================
++*/
++int VGui_CoF_PanelAction( int action, char *info, int infoSize )
++{
++	if( info && infoSize > 0 && action != COF_VGUI_PANEL_LOCATE )
++		info[0] = 0;
++
++	if( !vgui.initialized || !vgui.dllFuncs.CofPanelAction )
++		return 0;
++
++	return vgui.dllFuncs.CofPanelAction( action, info, infoSize );
+ }
+ 
+ void VGui_UpdateInternalCursorState( VGUI_DefaultCursor cursorType )
+diff --git a/engine/client/vgui/vgui_draw.h b/engine/client/vgui/vgui_draw.h
+--- a/engine/client/vgui/vgui_draw.h
++++ b/engine/client/vgui/vgui_draw.h
+@@ -29,6 +29,7 @@
+ void VGui_MWheelEvent( int y );
+ void VGui_KeyEvent( int key, int down );
+ void VGui_CoF_ForgetKey( int key );
++int VGui_CoF_PanelAction( int action, char *info, int infoSize ); // Cry of Fear gamepad
+ void VGui_MouseMove( int x, int y );
+ qboolean VGui_IsActive( void );
+ qboolean VGui_IsProvidedByClientDll( void );
+diff --git a/engine/vgui_api.h b/engine/vgui_api.h
+--- a/engine/vgui_api.h
++++ b/engine/vgui_api.h
+@@ -356,5 +356,28 @@
+ 	// is how the backgroundtoall.tga plate is recognised.
+ 	int	(*CofPanelConfig)( cof_vgui_panel_cfg_t *out );
+ 	int	(*CofImageLatch)( char *buf, int size );
++
++	// Cry of Fear gamepad (cof-gamepad-input), called from the engine side and
++	// filled in by the support library: an action on the client's open panel
++	// through the panel's own buttons, exactly as a click would do it (the
++	// button's ActionSignals). Returns 1 when something was done; `info` gets
++	// a one-line description for the log. Left null by older libraries.
++	//   COF_VGUI_PANEL_BACK     click the open panel's Back/Close/Cancel/No
++	//   COF_VGUI_PANEL_CONFIRM  after a gamepad left click: when it landed on a
++	//                           tape recorder slot, click it once more (the
++	//                           page acts on a double click)
++	//   COF_VGUI_PANEL_DUMP     developer: list the open panels' buttons
++	//   COF_VGUI_PANEL_LOCATE   developer: `info` holds "<handler class> <command>"
++	//                           on the way in and the centre "x y" of that
++	//                           visible button (VGUI coordinates) on the way out
++	int	(*CofPanelAction)( int action, char *info, int infoSize );
+ } vguiapi_t;
++
++enum
++{
++	COF_VGUI_PANEL_BACK	= 1,
++	COF_VGUI_PANEL_CONFIRM	= 2,
++	COF_VGUI_PANEL_DUMP	= 3,
++	COF_VGUI_PANEL_LOCATE	= 4,
++};
+ #endif // VGUI_API_H
+diff --git a/engine/platform/sdl2/host_sdl2.c b/engine/platform/sdl2/host_sdl2.c
+--- a/engine/platform/sdl2/host_sdl2.c
++++ b/engine/platform/sdl2/host_sdl2.c
+@@ -272,6 +272,10 @@
+ */
+ static void SDLash_EventHandler( SDL_Event *event )
+ {
++	// Cry of Fear: which device the player is using (cof_last_input), from the
++	// real events only (cof_gamepad.c)
++	CL_CoF_InputEvent( event );
++
+ 	switch ( event->type )
+ 	{
+ 	/* Mouse events */
+diff --git a/engine/platform/sdl2/in_sdl2.c b/engine/platform/sdl2/in_sdl2.c
+--- a/engine/platform/sdl2/in_sdl2.c
++++ b/engine/platform/sdl2/in_sdl2.c
+@@ -60,6 +60,8 @@
+ */
+ void GAME_EXPORT Platform_SetMousePos( int x, int y )
+ {
++	// Cry of Fear: the motion event SDL makes of this warp is not the mouse
++	CL_CoF_NoteMouseWarp( x, y );
+ 	SDL_WarpMouseInWindow( host.hWnd, x, y );
+ }
+ 
+@@ -286,7 +288,10 @@
+ 		if( cursors.initialized )
+ 			SDL_SetCursor( cursors.cursors[type] );
+ 
+-		SDL_ShowCursor( true );
++		// Cry of Fear: while the gamepad is the last input device the arrow
++		// the client or the menu asks for stays hidden, from this very call
++		// (cof_gamepad.c); host.mouse_visible is set as asked all the same
++		SDL_ShowCursor( CL_CoF_OSCursorRequest( type ));
+ 
+ 		// restore the last mouse position
+ 		if( in_visible_cursor_pos.pushed )
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/cofpanels.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/cofpanels.cpp
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/cofpanels.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/cofpanels.cpp
+@@ -312,3 +312,478 @@
+ 		g_cofFrame.trace = trace;
+ 	}
+ }
++
++/*
++================================================================================
++Cry of Fear gamepad (cof-gamepad-input): the open panel's own buttons
++
++Every button of the client's in-play panels is a vgui::Button (this library's
++class; the client derives ColorButton, CommandButton... from it) with one
++ActionSignal of the panel's own handler class, C<Panel>Handler_Command
++{ vtable, panel, command }, whose actionPerformed calls the panel's
++ActionSignal( command ) switch. What each command does was read from the
++shipped client.dll (stage1/gamepad2-20260923/tools/switches.txt); the table
++below names the command that hides the panel the way its own Back / Close /
++Cancel / No button does. The button is found by its handler, not by its
++position or picture, and fired through Button::doClick, which runs the same
++ActionSignals a mouse click runs (MomentaryButtonController::mouseReleased ->
++fireActionSignal).
++
++The tape recorder page (CSaveLoad) acts on a slot only on a double click (its
++handler compares the client clock with a per-slot time stamp, 0.5 s, client
++100316BD): a gamepad A on a slot is followed by the second click here, so pick
++slot -> A -> saved / loaded. The mouse path is untouched.
++================================================================================
++*/
++
++#include "controls/button.h"
++
++namespace
++{
++
++struct CofButtonAccess : public Button
++{
++	static Dar<ActionSignal*> &signals( Button *b ) { return static_cast<CofButtonAccess *>( b )->actionSignals; }
++	static const char *label( Button *b ) { return static_cast<CofButtonAccess *>( b )->text; }
++};
++
++// true when an MSVC-built polymorphic object has `base` among its classes
++// (the class hierarchy descriptor behind the complete object locator)
++bool CofRttiDerives( const void *object, const char *base )
++{
++#if defined( _MSC_VER ) && defined( _M_IX86 )
++	const void * const	*vtable;
++	const unsigned int	*locator, *hierarchy, *bases;
++	char			name[128];
++
++	if( !CofMemReadable( object, sizeof( void * )))
++		return false;
++
++	vtable = *(const void * const * const *)object;
++
++	if( !CofMemReadable( vtable - 1, sizeof( void * )))
++		return false;
++
++	locator = (const unsigned int *)vtable[-1];
++
++	if( !CofMemReadable( locator, 5 * sizeof( unsigned int )) || locator[0] != 0 )
++		return false;
++
++	// signature, attributes, numBaseClasses, pBaseClassArray
++	hierarchy = (const unsigned int *)(size_t)locator[4];
++
++	if( !CofMemReadable( hierarchy, 4 * sizeof( unsigned int )) || hierarchy[2] == 0 || hierarchy[2] > 64 )
++		return false;
++
++	bases = (const unsigned int *)(size_t)hierarchy[3];
++
++	if( !CofMemReadable( bases, hierarchy[2] * sizeof( unsigned int )))
++		return false;
++
++	for( unsigned int i = 0; i < hierarchy[2]; i++ )
++	{
++		const unsigned int *descriptor = (const unsigned int *)(size_t)bases[i];
++		const char *type;
++
++		if( !CofMemReadable( descriptor, sizeof( unsigned int )))
++			return false;
++
++		type = (const char *)(size_t)descriptor[0];
++
++		if( !CofMemReadable( type, 2 * sizeof( void * )) || !CofCopyName( type + 2 * sizeof( void * ), name, sizeof( name )))
++			continue;
++
++		if( !strcmp( name, base ))
++			return true;
++	}
++#else
++	(void)object;
++	(void)base;
++#endif
++	return false;
++}
++
++bool CofIsButton( Panel *panel )
++{
++	return panel && CofRttiDerives( panel, ".?AVButton@vgui@@" );
++}
++
++// a client handler: its class and the ints at +4 and +8
++struct CofHandler
++{
++	char	cls[96];
++	int	at4, at8;
++};
++
++bool CofReadHandler( ActionSignal *signal, CofHandler &h )
++{
++	if( !signal || !CofRttiName( signal, h.cls, sizeof( h.cls )))
++		return false;
++
++	if( !CofMemReadable( (const char *)signal + 4, 8 ))
++		return false;
++
++	h.at4 = *(const int *)((const char *)signal + 4);
++	h.at8 = *(const int *)((const char *)signal + 8);
++	return true;
++}
++
++// what B does on each panel: the handler command of its own Back / Close /
++// Cancel / No button (the first open panel of the list wins; the dialogs come
++// first, since they open over another panel)
++struct CofBackRule
++{
++	const char	*panel;		// decorated class of the panel
++	const char	*handler;	// decorated class of its buttons' ActionSignal
++	int		offset;		// where the handler keeps its command (8; 4 for CMenuHandler_TextWindow)
++	int		cmds[2];	// accepted commands, -1 = unused
++	const char	*what;
++};
++
++const CofBackRule g_cofBack[] =
++{
++	{ ".?AVCSave@@",              ".?AVCSaveHandler_Command@@",         8, {  3,  1 }, "save confirm: No / Cancel" },
++	{ ".?AVCYesno@@",             ".?AVCYesnoHandler_Command@@",        8, {  3, -1 }, "YES/NO: No (yesnono)" },
++	{ ".?AVCDocuments@@",         ".?AVCDocumentsHandler_Command@@",    8, { 25, -1 }, "notes list: Back to the inventory" },
++	{ ".?AVCNoteDocument@@",      ".?AVCNoteDocumentHandler_Command@@", 8, {  3, -1 }, "note: Close (closedocument)" },
++	{ ".?AVCUserDocument@@",      ".?AVCUserDocumentHandler_Command@@", 8, {  1, -1 }, "user document: Close (closedocument)" },
++	{ ".?AVCSaveLoad@@",          ".?AVCSaveLoadHandler_Command@@",     8, {  1, -1 }, "tape recorder page: Cancel" },
++	{ ".?AVCVGUIBillboard@@",     ".?AVCBillboardHandler_Command@@",    8, {  1, -1 }, "billboard: Close" },
++	{ ".?AVCKeypad@@",            ".?AVCKeypadHandler_Command@@",       8, {  1, -1 }, "keypad: Close" },
++	{ ".?AVCPadlock@@",           ".?AVCPadlockHandler_Command@@",      8, {  5, -1 }, "padlock: Cancel (padlockcancel)" },
++	{ ".?AVCTelephone@@",         ".?AVCTelephoneHandler_Command@@",    8, { 12, -1 }, "landline: Hang up" },
++	{ ".?AVCComputer@@",          ".?AVCComputerHandler_Command@@",     8, {  2, -1 }, "computer: Close" },
++	{ ".?AVCPuzzleBar@@",         ".?AVCPuzzleBarHandler_Command@@",    8, {  5, -1 }, "boiler puzzle: Close (boilercheck 5)" },
++	{ ".?AVCAnimalStatue@@",      ".?AVCAnimalStatueHandler_Command@@", 8, {  1, -1 }, "statue: Close" },
++	{ ".?AVCClothesMenu@@",       ".?AVCClothesMenuHandler_Command@@",  8, { 13, -1 }, "clothes: Close (closeclothes)" },
++	{ ".?AVCParanoiaTextPanel@@", ".?AVCMenuHandler_TextWindow@@",      4, {  0, -1 }, "text window: Close" },
++};
++
++// the visible panel of this class below the root (the viewport's panels), or null
++Panel *CofFindPanel( Panel *panel, const char *cls, int depth )
++{
++	char name[128];
++
++	for( int i = 0; i < panel->getChildCount(); i++ )
++	{
++		Panel *child = panel->getChild( i );
++
++		if( !child || !child->isVisible( ))
++			continue;
++
++		if( CofPanels_Class( child ) & ~COF_CLASS_PLAIN_PANEL )
++		{
++			const char *rtti = CofRttiName( child, name, sizeof( name ));
++
++			if( rtti && !strcmp( rtti, cls ))
++				return child;
++		}
++
++		if( depth < 3 )
++		{
++			Panel *found = CofFindPanel( child, cls, depth + 1 );
++
++			if( found )
++				return found;
++		}
++	}
++
++	return nullptr;
++}
++
++// the visible button below `panel` with a handler of that class and command
++Button *CofFindButton( Panel *panel, const CofBackRule &rule, int depth )
++{
++	for( int i = 0; i < panel->getChildCount(); i++ )
++	{
++		Panel *child = panel->getChild( i );
++
++		if( !child || !child->isVisible( ))
++			continue;
++
++		if( CofIsButton( child ))
++		{
++			Button *button = static_cast<Button *>( child );
++			Dar<ActionSignal*> &signals = CofButtonAccess::signals( button );
++
++			for( int s = 0; s < signals.getCount(); s++ )
++			{
++				CofHandler h;
++
++				if( !CofReadHandler( signals[s], h ) || strcmp( h.cls, rule.handler ))
++					continue;
++
++				const int cmd = rule.offset == 4 ? h.at4 : h.at8;
++
++				if( cmd == rule.cmds[0] || ( rule.cmds[1] >= 0 && cmd == rule.cmds[1] ))
++					return button;
++			}
++		}
++
++		if( depth < 6 )
++		{
++			Button *found = CofFindButton( child, rule, depth + 1 );
++
++			if( found )
++				return found;
++		}
++	}
++
++	return nullptr;
++}
++
++int CofPanelBack( char *info, int infoSize )
++{
++	Panel *root = g_surface ? g_surface->getPanel() : nullptr;
++
++	if( !root || !root->isVisible( ))
++		return 0;
++
++	for( size_t r = 0; r < sizeof( g_cofBack ) / sizeof( g_cofBack[0] ); r++ )
++	{
++		Panel *panel = CofFindPanel( root, g_cofBack[r].panel, 1 );
++
++		if( !panel )
++			continue;
++
++		Button *button = CofFindButton( panel, g_cofBack[r], 1 );
++
++		if( !button )
++		{
++			snprintf( info, infoSize, "%s: open, but no visible button with %s command %d", g_cofBack[r].what,
++				g_cofBack[r].handler, g_cofBack[r].cmds[0] );
++			return 0;
++		}
++
++		const int *origin = CofPanelAccess::screenOrigin( button );
++		const int *size = CofPanelAccess::size( button );
++
++		snprintf( info, infoSize, "%s: clicked its button at %d,%d %dx%d", g_cofBack[r].what, origin[0], origin[1], size[0], size[1] );
++		button->doClick();
++		return 1;
++	}
++
++	snprintf( info, infoSize, "no panel with a known back button is open" );
++	return 0;
++}
++
++// after a gamepad left click: a tape recorder slot gets its second click
++int CofPanelConfirm( char *info, int infoSize )
++{
++	XashApp *app = static_cast<XashApp *>( App::getInstance( ));
++	Panel *p = app ? app->cofMouseFocus() : nullptr;
++	char name[128];
++
++	// the focus may be the button or a picture / label inside it
++	for( int up = 0; p && up < 3 && !CofIsButton( p ); up++ )
++		p = CofPanelAccess::parent( p );
++
++	if( !p || !CofIsButton( p ))
++		return 0;
++
++	Button *button = static_cast<Button *>( p );
++	Dar<ActionSignal*> &signals = CofButtonAccess::signals( button );
++	int cmd = 0;
++
++	for( int s = 0; s < signals.getCount(); s++ )
++	{
++		CofHandler h;
++
++		if( CofReadHandler( signals[s], h ) && !strcmp( h.cls, ".?AVCSaveLoadHandler_Command@@" ) && h.at8 >= 2 && h.at8 <= 6 )
++			cmd = h.at8;
++	}
++
++	if( !cmd )
++		return 0;
++
++	for( Panel *page = CofPanelAccess::parent( button ); page; page = CofPanelAccess::parent( page ))
++	{
++		const char *rtti = CofRttiName( page, name, sizeof( name ));
++
++		if( !rtti || strcmp( rtti, ".?AVCSaveLoad@@" ))
++			continue;
++
++		// the first click may already have acted (it was the second click of
++		// a double click): then the page is gone and nothing more is sent
++		if( !page->isVisible( ) || !button->isVisible( ))
++		{
++			snprintf( info, infoSize, "tape recorder slot %d: the page already closed, no second click", cmd - 1 );
++			return 0;
++		}
++
++		snprintf( info, infoSize, "tape recorder slot %d: second click (the page acts on a double click)", cmd - 1 );
++		button->doClick();
++		return 1;
++	}
++
++	return 0;
++}
++
++void CofDumpButtons( Panel *panel, int depth )
++{
++	char name[128], line[512];
++
++	for( int i = 0; i < panel->getChildCount(); i++ )
++	{
++		Panel *child = panel->getChild( i );
++
++		if( !child || !child->isVisible( ))
++			continue;
++
++		if( CofIsButton( child ))
++		{
++			Button *button = static_cast<Button *>( child );
++			Dar<ActionSignal*> &signals = CofButtonAccess::signals( button );
++			const int *origin = CofPanelAccess::screenOrigin( button );
++			const int *size = CofPanelAccess::size( button );
++			const char *text = CofButtonAccess::label( button );
++			char handlers[256], label[48];
++			size_t len = 0;
++
++			// the button's own caption, when it is plain text
++			label[0] = 0;
++			if( text )
++			{
++				if( !CofCopyName( text, label, sizeof( label )))
++					snprintf( label, sizeof( label ), "(unreadable)" );
++				else
++				{
++					for( len = 0; label[len]; len++ )
++					{
++						if( (unsigned char)label[len] < 0x20 || (unsigned char)label[len] > 0x7E )
++							break;
++					}
++					if( label[len] )
++						snprintf( label, sizeof( label ), "(binary)" );
++				}
++			}
++
++			handlers[0] = 0;
++			for( int s = 0; s < signals.getCount(); s++ )
++			{
++				CofHandler h;
++				char one[128];
++
++				if( CofReadHandler( signals[s], h ))
++					snprintf( one, sizeof( one ), " %s(+4 %d, +8 %d)", h.cls, h.at4, h.at8 );
++				else snprintf( one, sizeof( one ), " ?" );
++				strncat( handlers, one, sizeof( handlers ) - strlen( handlers ) - 1 );
++			}
++
++			snprintf( line, sizeof( line ), "[cof-pad]   %*s%s at %d,%d %dx%d text \"%s\" signals:%s\n", depth * 2, "",
++				CofPanels_ClassName( button, name, sizeof( name )), origin[0], origin[1], size[0], size[1],
++				label, handlers[0] ? handlers : " none" );
++			g_engine->CofPrint( line );
++		}
++
++		if( depth < 6 )
++			CofDumpButtons( child, depth + 1 );
++	}
++}
++
++int CofPanelDump( void )
++{
++	Panel *root = g_surface ? g_surface->getPanel() : nullptr;
++	char name[128], line[256];
++	int n = 0;
++
++	if( !root || !g_engine || !g_engine->CofPrint )
++		return 0;
++
++	for( int i = 0; i < root->getChildCount(); i++ )
++	{
++		Panel *viewport = root->getChild( i );
++
++		if( !viewport || !viewport->isVisible( ))
++			continue;
++
++		for( int j = 0; j < viewport->getChildCount(); j++ )
++		{
++			Panel *panel = viewport->getChild( j );
++			unsigned int bits;
++
++			if( !panel || !panel->isVisible( ))
++				continue;
++
++			bits = CofPanels_Class( panel ) & ~( COF_CLASS_PLAIN_PANEL | COF_PANEL_HUD );
++
++			if( !bits )
++				continue;
++
++			snprintf( line, sizeof( line ), "[cof-pad] panel %s (0x%x) buttons:\n", CofPanels_ClassName( panel, name, sizeof( name )), bits );
++			g_engine->CofPrint( line );
++			CofDumpButtons( panel, 1 );
++			n++;
++		}
++	}
++
++	return n;
++}
++
++// developer: the centre of the visible button with this handler and command
++int CofPanelLocate( char *info, int infoSize )
++{
++	Panel *root = g_surface ? g_surface->getPanel() : nullptr;
++	CofBackRule rule = { "", "", 8, { -1, -1 }, "" };
++	char handler[96];
++	int cmd;
++
++	if( !root || sscanf( info, "%95s %d", handler, &cmd ) != 2 )
++		return 0;
++
++	rule.handler = handler;
++	rule.cmds[0] = cmd;
++
++	Button *button = CofFindButton( root, rule, 1 );
++
++	if( !button )
++	{
++		snprintf( info, infoSize, "none" );
++		return 0;
++	}
++
++	const int *origin = CofPanelAccess::screenOrigin( button );
++	const int *size = CofPanelAccess::size( button );
++
++	snprintf( info, infoSize, "%d %d", origin[0] + size[0] / 2, origin[1] + size[1] / 2 );
++	return 1;
++}
++
++} // anonymous namespace
++
++/*
++================
++CofPanels_Action
++
++vguiapi_t::CofPanelAction, see engine/vgui_api.h.
++================
++*/
++int vgui::CofPanels_Action( int action, char *info, int infoSize )
++{
++	char scratch[8];
++
++	if( !info || infoSize <= 0 )
++	{
++		info = scratch;
++		infoSize = sizeof( scratch );
++		info[0] = 0;
++	}
++
++	if( action == COF_VGUI_PANEL_LOCATE )
++		return CofPanelLocate( info, infoSize );
++
++	info[0] = 0;
++
++	switch( action )
++	{
++	case COF_VGUI_PANEL_BACK:
++		return CofPanelBack( info, infoSize );
++	case COF_VGUI_PANEL_CONFIRM:
++		return CofPanelConfirm( info, infoSize );
++	case COF_VGUI_PANEL_DUMP:
++		snprintf( info, infoSize, "%d panel(s) listed", CofPanelDump( ));
++		return 1;
++	}
++
++	return 0;
++}
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/support.h b/3rdparty/freevgui/platform/xash3d-fwgs/support.h
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/support.h
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/support.h
+@@ -68,6 +68,10 @@
+ unsigned int CofPanels_Visible( void );
+ const char *CofPanels_ClassName( Panel *panel, char *buf, size_t size ); // traces only
+ 
++// Cry of Fear gamepad (cof-gamepad-input): the open panel's own buttons -
++// vguiapi_t::CofPanelAction, COF_VGUI_PANEL_* actions (cofpanels.cpp)
++int CofPanels_Action( int action, char *info, int infoSize );
++
+ // Cry of Fear: the live world behind the in-play panels (cofbackdrop.cpp)
+ void CofBackdrop_Install( void );
+ void CofBackdrop_Frame( Panel *root );
+@@ -83,6 +87,9 @@
+ public:
+ 	XashApp() : App( true ) { }
+ 	virtual void main( int, char ** ) override { }
++
++	// Cry of Fear gamepad: the panel the last mouse event went to
++	Panel *cofMouseFocus() { return mouseFocusPanel; }
+ };
+ 
+ class XashSurface : public SurfaceBase
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp
+@@ -141,4 +141,8 @@
+ 
+ 	// Cry of Fear: the live world behind the in-play panels (cofbackdrop.cpp)
+ 	CofBackdrop_Install();
++
++	// Cry of Fear gamepad: B = the open panel's own back button, A on a tape
++	// recorder slot also confirms it (cofpanels.cpp)
++	api->CofPanelAction = CofPanels_Action;
+ }
+diff --git a/3rdparty/mainui/menus/LoadGame.cpp b/3rdparty/mainui/menus/LoadGame.cpp
+--- a/3rdparty/mainui/menus/LoadGame.cpp
++++ b/3rdparty/mainui/menus/LoadGame.cpp
+@@ -178,6 +178,7 @@
+ 	}
+ 
+ 	void OnDeleteEntry( int line ) override;
++	void OnActivateEntry( int line ) override;
+ private:
+ 	CMenuLoadGame *parent;
+ };
+@@ -429,6 +430,19 @@
+ 	parent->UpdateGame();
+ }
+ 
++// Cry of Fear gamepad: A (and Enter, or a double click) on a row loads it, or
++// in the Save tab saves into it - the overwrite question still comes for a
++// used slot
++void CMenuSavesListModel::OnActivateEntry( int line )
++{
++	if( !IsValidIndex( line ))
++		return;
++
++	if( parent->IsSaveMode( ))
++		parent->SaveGame();
++	else parent->LoadGame();
++}
++
+ void CMenuSavesListModel::OnDeleteEntry( int line )
+ {
+ 	if( UI_IsCoFRootSaveGame() )
+diff --git a/3rdparty/mainui/menus/CoFOptions.cpp b/3rdparty/mainui/menus/CoFOptions.cpp
+--- a/3rdparty/mainui/menus/CoFOptions.cpp
++++ b/3rdparty/mainui/menus/CoFOptions.cpp
+@@ -1695,6 +1695,16 @@
+ 	const char *name = EngFuncs::KeynumToString( key );
+ 	const bool pad = name && UI_CoFIsPadKeyName( name );
+ 
++	// the engine keeps the record (cof_last_input, gamepad round 2): a gamepad
++	// key that reaches the menu is the gamepad, whoever delivered it
++	if( pad )
++	{
++		const char *last = EngFuncs::GetCvarString( "cof_last_input" );
++
++		if( last && last[0] && stricmp( last, "pad" ))
++			EngFuncs::CvarSetString( "cof_last_input", "pad" );
++	}
++
+ 	if( pad )
+ 		g_cofPadInput = true;
+ 	else if( key != K_MWHEELUP && key != K_MWHEELDOWN )

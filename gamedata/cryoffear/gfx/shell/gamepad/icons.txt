@@ -1,0 +1,35 @@
+// Gamepad button icons for the menu's Gamepad controls page and, later, the
+// in-game "press (A)" hints. One button per line:
+//
+//   <engine key> <xbox icon> <ps5 icon> <xbox label> <ps label>
+//       <xbox u> <xbox v> <ps5 u> <ps5 v> <marker size>
+//
+// engine key   the key name the engine binds (engine/client/input/in_keys.c)
+// icons        files under gfx/shell/gamepad/, Zacksly's "Buttons Full Solid"
+//              white 128 px icons (CC BY 3.0, see LICENSE-Zacksly.txt)
+// labels       the button's printed name on that pad (hint stage; the menu
+//              page names its rows itself, through the menu string tables)
+// u v          centre of the button on <pad>/controller.png, as fractions of
+//              the picture's width and height (v < 0: above the picture, where
+//              the triggers sit in this front view)
+// marker size  the page's marker, as a fraction of the picture's width
+//
+// Written by hand from the pictures made by scripts/make-gamepad-assets.py
+// (xbox 1024x726, ps5 1024x692).
+
+"A_BUTTON"   "xbox/a.png"          "ps5/cross.png"       "A"     "Cross"     0.744  0.379   0.806  0.409   0.070
+"B_BUTTON"   "xbox/b.png"          "ps5/circle.png"      "B"     "Circle"    0.809  0.289   0.879  0.301   0.070
+"X_BUTTON"   "xbox/x.png"          "ps5/square.png"      "X"     "Square"    0.681  0.289   0.732  0.301   0.070
+"Y_BUTTON"   "xbox/y.png"          "ps5/triangle.png"    "Y"     "Triangle"  0.744  0.200   0.806  0.192   0.070
+"L1_BUTTON"  "xbox/lb.png"         "ps5/l1.png"          "LB"    "L1"        0.225  0.085   0.195  0.055   0.085
+"R1_BUTTON"  "xbox/rb.png"         "ps5/r1.png"          "RB"    "R1"        0.775  0.085   0.805  0.055   0.085
+"LTRIGGER"   "xbox/lt.png"         "ps5/l2.png"          "LT"    "L2"        0.244 -0.041   0.195 -0.051   0.075
+"RTRIGGER"   "xbox/rt.png"         "ps5/r2.png"          "RT"    "R2"        0.756 -0.041   0.805 -0.051   0.075
+"STICK1"     "xbox/ls.png"         "ps5/l3.png"          "LS"    "L3"        0.253  0.293   0.340  0.503   0.100
+"STICK2"     "xbox/rs.png"         "ps5/r3.png"          "RS"    "R3"        0.625  0.493   0.658  0.503   0.100
+"DPAD_UP"    "xbox/dpad_up.png"    "ps5/dpad_up.png"     "Up"    "Up"        0.371  0.438   0.192  0.228   0.060
+"DPAD_DOWN"  "xbox/dpad_down.png"  "ps5/dpad_down.png"   "Down"  "Down"      0.371  0.581   0.192  0.373   0.060
+"DPAD_LEFT"  "xbox/dpad_left.png"  "ps5/dpad_left.png"   "Left"  "Left"      0.320  0.510   0.145  0.301   0.060
+"DPAD_RIGHT" "xbox/dpad_right.png" "ps5/dpad_right.png"  "Right" "Right"     0.422  0.510   0.240  0.301   0.060
+"START"      "xbox/menu.png"       "ps5/options.png"     "Menu"  "Options"   0.568  0.288   0.729  0.137   0.055
+"BACK"       "xbox/view.png"       "ps5/create.png"      "View"  "Create"    0.430  0.288   0.269  0.137   0.055

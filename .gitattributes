@@ -10,3 +10,11 @@ languages/**/*.entpatch -text
 languages/**/LICENSE-NOTE.md -text
 # Batch files must keep CRLF line endings or cmd.exe misreads labels.
 release/installer/*.cmd text eol=crlf
+# Hash-pinned gamedata (deploy script, release manifest): the Use-defaults
+# binds and the gamepad art folder (icons.txt, LICENSE-Zacksly.txt) must keep
+# their exact bytes, whatever core.autocrlf is set to locally.
+gamedata/cryoffear/gfx/shell/kb_def.lst -text
+gamedata/cryoffear/gfx/shell/gamepad/** -text
+# The creator's licence notes are kept verbatim (mixed line endings) above the
+# CC BY 3.0 legal code.
+licenses/zacksly-CC-BY-3.0.txt -text
