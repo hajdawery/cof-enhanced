@@ -565,3 +565,26 @@ Space	Espacio	menus/CoFOsk.cpp
 Type	Escribir	menus/CoFOsk.cpp
 Clear	Borrar	menus/CoFOsk.cpp
 Symbols	Símbolos	menus/CoFOsk.cpp
+Quick save	Guardado rápido	menus/Main.cpp;model/KbActListModel.h
+Quick load	Carga rápida	model/KbActListModel.h
+Quick saves	Guardados rápidos	menus/AdvancedControls.cpp
+F5 quick save, F9 quick load; Quick save also heads the pause menu and the Load list	F5: guardado rápido, F9: carga rápida; el guardado rápido también encabeza el menú de pausa y la lista de carga	menus/AdvancedControls.cpp
+Save to the quick save slot now and return to the game	Guardar ahora en la ranura de guardado rápido y volver a la partida	menus/Main.cpp
+Quick	Rápido	menus/LoadGame.cpp (Slot column of the quick save row)
+Quick save (%s)	Guardado rápido (%s)	engine/server/sv_save.c (title of the quick save, in the Load list)
+# menufix round (Controls: sprint and stick movement; Gamepad: Auto, Nintendo, Steam Deck; Game: subtitle background), 2026-09-24: machine-drafted like the rest, please review
+Subtitle background	Fondo de subtítulos	menus/AdvancedControls.cpp:800
+A dark strip under the subtitles and game messages, so they stay readable	Una franja oscura bajo los subtítulos y los mensajes del juego para que se lean bien	menus/AdvancedControls.cpp:801
+Sprint (toggle)	Esprintar (alternar)	model/KbActListModel.h:114;menus/CoFOptions.cpp:1309
+Quick turn	Giro rápido	model/KbActListModel.h:115;menus/CoFOptions.cpp:1310
+Analogue	Analógico	menus/CoFOptions.cpp:175
+Digital-style	Como las teclas	menus/CoFOptions.cpp:175
+GAMEPAD MOVEMENT	MOVIMIENTO CON MANDO	menus/CoFOptions.cpp:402
+Hold: sprint while the sprint button is held. Toggle: press it once; sprinting stops when you stop moving	Mantener: esprintas mientras mantienes el botón. Alternar: púlsalo una vez; el sprint termina cuando te detienes	menus/CoFOptions.cpp:408
+Stick movement	Movimiento con stick	menus/CoFOptions.cpp:411
+Analogue: the move stick sets the speed. Digital-style: full speed in the pushed direction, like the movement keys	Analógico: el stick de movimiento marca la velocidad. Como las teclas: velocidad completa en la dirección empujada, como con las teclas	menus/CoFOptions.cpp:415
+Nintendo	Nintendo	menus/CoFOptions.cpp:1037
+Steam Deck	Steam Deck	menus/CoFOptions.cpp:1037
+Auto follows the connected controller; or the button names and pictures of an Xbox, PlayStation, Nintendo or Steam Deck controller	Auto sigue al mando conectado; o los nombres e imágenes de los botones de un mando Xbox, PlayStation, Nintendo o Steam Deck	menus/CoFOptions.cpp:1629
+# m9 integration (the aim action: the game's "Tertiary Attack" is called "Aim" in the Keybinds and Gamepad lists), 2026-09-24: machine-drafted like the rest, please review
+Aim	Apuntar	model/KbActListModel.h:91;menus/CoFOptions.cpp:1302

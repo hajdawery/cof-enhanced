@@ -565,3 +565,26 @@ Space	Leertaste	menus/CoFOsk.cpp
 Type	Tippen	menus/CoFOsk.cpp
 Clear	Leeren	menus/CoFOsk.cpp
 Symbols	Symbole	menus/CoFOsk.cpp
+Quick save	Schnellspeichern	menus/Main.cpp;model/KbActListModel.h
+Quick load	Schnellladen	model/KbActListModel.h
+Quick saves	Schnellspeichern	menus/AdvancedControls.cpp
+F5 quick save, F9 quick load; Quick save also heads the pause menu and the Load list	F5: Schnellspeichern, F9: Schnellladen; Schnellspeichern steht auch oben im Pausenmenü und in der Ladeliste	menus/AdvancedControls.cpp
+Save to the quick save slot now and return to the game	Jetzt in den Schnellspeicherplatz speichern und zum Spiel zurückkehren	menus/Main.cpp
+Quick	Schnell	menus/LoadGame.cpp (Slot column of the quick save row)
+Quick save (%s)	Schnellspeichern (%s)	engine/server/sv_save.c (title of the quick save, in the Load list)
+# menufix round (Controls: sprint and stick movement; Gamepad: Auto, Nintendo, Steam Deck; Game: subtitle background), 2026-09-24: machine-drafted like the rest, please review
+Subtitle background	Untertitel-Hintergrund	menus/AdvancedControls.cpp:800
+A dark strip under the subtitles and game messages, so they stay readable	Ein dunkler Streifen unter Untertiteln und Spielmeldungen, damit sie lesbar bleiben	menus/AdvancedControls.cpp:801
+Sprint (toggle)	Sprinten (umschalten)	model/KbActListModel.h:114;menus/CoFOptions.cpp:1309
+Quick turn	Schnelle Wende	model/KbActListModel.h:115;menus/CoFOptions.cpp:1310
+Analogue	Analog	menus/CoFOptions.cpp:175
+Digital-style	Wie Tasten	menus/CoFOptions.cpp:175
+GAMEPAD MOVEMENT	BEWEGUNG MIT GAMEPAD	menus/CoFOptions.cpp:402
+Hold: sprint while the sprint button is held. Toggle: press it once; sprinting stops when you stop moving	Halten: Sprint, solange die Sprinttaste gehalten wird. Umschalten: einmal drücken; der Sprint endet, wenn du stehen bleibst	menus/CoFOptions.cpp:408
+Stick movement	Stick-Bewegung	menus/CoFOptions.cpp:411
+Analogue: the move stick sets the speed. Digital-style: full speed in the pushed direction, like the movement keys	Analog: Der Bewegungsstick bestimmt das Tempo. Wie Tasten: volles Tempo in die gedrückte Richtung, wie mit den Bewegungstasten	menus/CoFOptions.cpp:415
+Nintendo	Nintendo	menus/CoFOptions.cpp:1037
+Steam Deck	Steam Deck	menus/CoFOptions.cpp:1037
+Auto follows the connected controller; or the button names and pictures of an Xbox, PlayStation, Nintendo or Steam Deck controller	Auto richtet sich nach dem angeschlossenen Controller; oder die Tastennamen und Bilder eines Xbox-, PlayStation-, Nintendo- oder Steam-Deck-Controllers	menus/CoFOptions.cpp:1629
+# m9 integration (the aim action: the game's "Tertiary Attack" is called "Aim" in the Keybinds and Gamepad lists), 2026-09-24: machine-drafted like the rest, please review
+Aim	Zielen	model/KbActListModel.h:91;menus/CoFOptions.cpp:1302

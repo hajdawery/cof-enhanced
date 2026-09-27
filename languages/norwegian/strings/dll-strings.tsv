@@ -1,0 +1,6 @@
+english	norwegian	source_dll	file_offset	flagged
+Quick saved	Hurtiglagret	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+Quick loaded	Hurtiglagring lastet inn	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+Quick saves are disabled in Options > Game	Hurtiglagring er slått av i Innstillinger > Spill	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+There is no quick save yet	Det finnes ingen hurtiglagring ennå	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+Quick saves work in single player only	Hurtiglagring virker bare i enspiller	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review

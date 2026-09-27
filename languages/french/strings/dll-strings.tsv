@@ -1,0 +1,6 @@
+english	french	source_dll	file_offset	flagged
+Quick saved	Sauvegarde rapide effectuée	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+Quick loaded	Sauvegarde rapide chargée	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+Quick saves are disabled in Options > Game	Les sauvegardes rapides sont désactivées dans Options > Jeu	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+There is no quick save yet	Aucune sauvegarde rapide pour l'instant	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+Quick saves work in single player only	Les sauvegardes rapides ne fonctionnent qu'en solo	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review

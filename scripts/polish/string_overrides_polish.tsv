@@ -9,3 +9,8 @@ file_offset	source_dll	english	polish	note
 0x001E520C	hl	Axe	Siekiera	retranslated by the project (haej) 2026-09-22
 0x001B85E0	hl	buckshot	buckshot	kept English by decision 2026-09-22: ammo registration name; translating it broke pickups in the fan mod
 0x001B66D8	hl	revolver	revolver	kept English by decision 2026-09-22: identifier-like weapon/ammo name
+-	engine	Quick saved	Szybko zapisano grę	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+-	engine	Quick loaded	Wczytano szybki zapis	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+-	engine	Quick saves are disabled in Options > Game	Szybkie zapisy są wyłączone w Opcje > Gra	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+-	engine	There is no quick save yet	Nie ma jeszcze szybkiego zapisu	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+-	engine	Quick saves work in single player only	Szybkie zapisy działają tylko w grze jednoosobowej	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review

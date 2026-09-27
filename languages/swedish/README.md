@@ -24,10 +24,13 @@ in-game hint pages are kept in English. Check a changed file with
 the menu fonts do not carry); `menu_cof_strings reload` in the console
 re-reads it in a running game.
 
-No `overlay/`, `maps/`, `textures/`, `txt/`, `inventoryitems/` or
-`strings/dll-strings.tsv`: the engine mounts nothing for this pack, its DLL
-string table stays empty (one warning line in the log says so) and the code
-page stays 1252. See [`../README.md`](../README.md) and
+* `strings/dll-strings.tsv` - only the five quick save messages the engine
+  itself shows on the game's message strip ("Quick saved", "Quick loaded",
+  ...), `english <TAB> translation <TAB> engine <TAB> - <TAB> note`, UTF-8,
+  machine-drafted like the menu strings. No game DLL string is replaced.
+
+No `overlay/`, `maps/`, `textures/`, `txt/` or `inventoryitems/`: the
+engine mounts nothing for this pack and the code page stays 1252. See [`../README.md`](../README.md) and
 [`docs/cof-language-packs.md`](../../docs/cof-language-packs.md).
 
 `LICENSE-NOTE.md` - the licence of this folder: the project's own GPL-3.0-or-later (it holds no game text).

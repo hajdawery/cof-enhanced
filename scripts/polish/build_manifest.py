@@ -66,7 +66,9 @@ def check_rules(lang: str) -> list[str]:
 
 def dll_string_notes(tsv: Path):
     rows = list(csv.DictReader(open(tsv, encoding="utf-8", newline=""), delimiter="\t")) if tsv.exists() else []
-    flagged = [r for r in rows if r.get("flagged")]
+    # the extra rows for text the engine draws itself (source_dll "engine") are
+    # counted apart from the DLL rows and are not "retranslated" rows
+    flagged = [r for r in rows if r.get("flagged") and r.get("source_dll") != "engine"]
     return rows, flagged
 
 
@@ -80,6 +82,8 @@ def write_readme(lang: str, cfg: lc.LanguageConfig, pack_version: str, totals: d
     pack = lc.lang_pack_dir(lang)
     ex = lc.EXCLUDED_ART.get(lang, {})
     rows, flagged = dll_string_notes(lc.dll_strings_tsv_path(lang))
+    engine_rows = [r for r in rows if r.get("source_dll") == "engine"]
+    rows = [r for r in rows if r.get("source_dll") != "engine"]
     models = files_under(lc.models_dir(lang))
     model_names = sorted({str(p.parent.relative_to(pack).as_posix()) for p in models}, key=str.lower)
     n = totals
@@ -122,7 +126,8 @@ def write_readme(lang: str, cfg: lc.LanguageConfig, pack_version: str, totals: d
         ("`overlay/`", n["overlay"], "translated interface images (menus, notes, item and weapon cards, "
          "maps, dialogs), same path as the game's"),
         ("`strings/dll-strings.tsv`", 1, f"English -> {cfg.display_name} table for the strings compiled "
-         f"into client.dll / hl.dll ({len(rows)} rows)"),
+         f"into client.dll / hl.dll ({len(rows)} rows)"
+         + (f", plus {len(engine_rows)} rows for text the engine draws itself" if engine_rows else "")),
         ("`strings/menu-strings.tsv`", 1, "this project's own menu (hand-maintained, see below)"),
         ("`LICENSE-NOTE.md`, `README.md`, `MANIFEST.tsv`", 3, "licence note, this file, file list with hashes"),
     ], ["Path", "Files", "What"])
@@ -166,6 +171,12 @@ def write_readme(lang: str, cfg: lc.LanguageConfig, pack_version: str, totals: d
           "overrun string) are excluded by offset in `build_dll_strings_tsv.py`. Rows whose mod bytes were "
           "chosen for the old bitmap font rather than real Windows-1250 are replaced by the project's "
           "corrections in `scripts/polish/string_overrides_polish.tsv`."]
+    if engine_rows:
+        L += ["", f"{len(engine_rows)} more rows (`source_dll` `engine`, at the end) translate text the engine "
+              "itself draws on the game's message strip, the quick save messages: "
+              + ", ".join(f"`{r['english']}`" for r in engine_rows) + ". They are machine-drafted by the project "
+              "and come from the same `string_overrides_polish.tsv` (rows with `source_dll` `engine`), so a "
+              "regenerated pack keeps them."]
     if flagged:
         kept = [r for r in flagged if r["flagged"].lower().startswith("kept english")]
         fixed = [r for r in flagged if r not in kept]

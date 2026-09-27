@@ -215,3 +215,8 @@ This is a donator-only weapon.	To jest broń dla darczyńców.	hl	0x001E59DC
 I can't carry any more syringes.	Nie mogę nosić więcej flar	hl	0x001E5A18	
 It's too hot to pick up	Za gorąca, aby podnieść	hl	0x001E5A3C	
 The flare is burnt out	Flara jest wypalona	hl	0x001E5A54	
+Quick saved	Szybko zapisano grę	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+Quick loaded	Wczytano szybki zapis	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+Quick saves are disabled in Options > Game	Szybkie zapisy są wyłączone w Opcje > Gra	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+There is no quick save yet	Nie ma jeszcze szybkiego zapisu	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+Quick saves work in single player only	Szybkie zapisy działają tylko w grze jednoosobowej	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review

@@ -21,8 +21,10 @@ BINARIES_ANALYSIS.md). This script:
   4. Cross-checks every excluded/flagged offset against the actual parsed
      data (by content, not just by presence) and reports any mismatch
      instead of silently skipping.
-  5. Writes a UTF-8 TSV with columns: english, polish, source_dll,
-     file_offset, flagged.
+  5. Applies the project's overrides (string_overrides_<lang>.tsv) and
+     appends that file's extra "engine" rows (text the engine itself draws,
+     e.g. the quick save messages), then writes a UTF-8 TSV with columns:
+     english, polish, source_dll, file_offset, flagged.
 
 Idempotent: re-running regenerates the TSV deterministically from the same
 read-only inputs; it does not read or depend on any previous run's output.
@@ -295,11 +297,21 @@ def build(lang: str) -> None:
     # (source_dll, file_offset); see string_overrides_<lang>.tsv beside this
     # script. A leading control byte in the canonical string (e.g. ) is
     # preserved in front of the override text.
+    #
+    # Rows with source_dll "engine" (file_offset "-") are not overrides but
+    # EXTRA rows: text the engine itself hands to the client's string drawing
+    # (the quick save messages of patches/cof-quicksave.patch, which the
+    # binary analysis cannot know). They are appended after the DLL rows, in
+    # file order, so a regenerated pack keeps them.
     ov_path = Path(__file__).with_name(f"string_overrides_{lang}.tsv")
+    extras: list[tuple[str, str, str, str, str]] = []
     if ov_path.exists():
         overrides = {}
         with open(ov_path, encoding="utf-8", newline="") as fh:
             for r in csv.DictReader(fh, delimiter="	"):
+                if r["source_dll"] == "engine":
+                    extras.append((r["english"], r["polish"], "engine", "-", r["note"]))
+                    continue
                 overrides[(r["source_dll"], r["file_offset"].lower())] = r
         applied = 0
         new_rows = []
@@ -314,6 +326,13 @@ def build(lang: str) -> None:
             new_rows.append((canonical, mod, dll, off, flag))
         rows = new_rows
         report.append(f"Applied {applied} project overrides from {ov_path.name} (expect {len(overrides)}).")
+    if extras:
+        have = {r[0] for r in rows}
+        dup = [e[0] for e in extras if e[0] in have]
+        if dup:
+            raise DiscrepancyError(f"engine rows duplicate DLL rows: {dup}")
+        rows = rows + extras
+        report.append(f"Appended {len(extras)} engine rows (source_dll engine) from {ov_path.name}.")
 
     out_path = lc.dll_strings_tsv_path(lang)
     out_path.parent.mkdir(parents=True, exist_ok=True)

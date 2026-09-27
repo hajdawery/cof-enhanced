@@ -1,0 +1,6 @@
+english	spanish	source_dll	file_offset	flagged
+Quick saved	Guardado rápido hecho	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+Quick loaded	Guardado rápido cargado	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+Quick saves are disabled in Options > Game	Los guardados rápidos están desactivados en Opciones > Juego	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+There is no quick save yet	Todavía no hay ningún guardado rápido	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review
+Quick saves work in single player only	Los guardados rápidos solo funcionan en un jugador	engine	-	engine text (patches/cof-quicksave.patch), machine-drafted by the project 2026-09-24, please review

@@ -27,6 +27,11 @@
 # the client's own "stopmp3" console command before a Cry of Fear save load and
 # before a new game, which the original client panels did and the engine menu
 # did not - without it the background map's music plays on into the loaded map.
+#
+# menufix round (2026-09-24), regenerated in place (Theme.h only): the accent
+# is Cry of Fear's deep red in two strengths - THEME_ACCENT 255 82 74 (light
+# red, text and thin strokes, >= 4.5:1 on the panel), THEME_ACCENT_FILL
+# 163 21 21 (fills, bars, underlines), THEME_SELECT_FILL 163 21 21 @ 64.
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -152,7 +157,9 @@ if ($Reverse) {
         # milestone 5b: pause-list Save Game item, ADS option, bind swap
         -not $mainAfter.Contains('cofSaveGame.onReleased = UI_SaveGame_Menu;') -or
         -not $advAfter.Contains('"cof_ads_toggle"') -or
-        -not $themeAfter.Contains('KEY_GetBinding( K_MOUSE2 )')) {
+        -not $themeAfter.Contains('KEY_GetBinding( K_MOUSE2 )') -or
+        # menufix round: the deep-red palette (Theme.h)
+        -not (Get-Content -Raw -LiteralPath $newHeader).Contains('#define THEME_ACCENT_FILL   0xFFA31515u')) {
         throw 'Forward application completed without the expected MainUI Source-theme markers.'
     }
     Write-Host "Applied CoF MainUI Source theme in $mainui"

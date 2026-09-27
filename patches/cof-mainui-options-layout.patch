@@ -9,7 +9,17 @@ diff --git a/3rdparty/mainui/BaseMenu.cpp b/3rdparty/mainui/BaseMenu.cpp
  #include "cursor_type.h"
  #include "utflib.h"
  
-@@ -752,6 +753,11 @@
+@@ -673,6 +674,9 @@
+ 
+ 		// archived defaults the theme wants, now that config.cfg has run
+ 		UI_ThemeApplyDeferredDefaults();
++		// the pad button style: an older profile's 0 becomes Auto, once
++		if( UI_CoFOptionsLayout( ))
++			UI_CoFPadStyleMigrate();
+ 
+ 		loadStuff = false;
+ 	}
+@@ -752,6 +756,11 @@
  	if( !uiStatic.initialized )
  		return;
  
@@ -21,7 +31,7 @@ diff --git a/3rdparty/mainui/BaseMenu.cpp b/3rdparty/mainui/BaseMenu.cpp
  	if( key == K_MOUSE1 )
  	{
  		g_bCursorDown = !!down;
-@@ -812,6 +818,8 @@
+@@ -812,6 +821,8 @@
  
  	if( uiStatic.cursorX == x && uiStatic.cursorY == y )
  		return;
@@ -128,7 +138,7 @@ diff --git a/3rdparty/mainui/controls/Framework.cpp b/3rdparty/mainui/controls/F
 +		if( active )
 +		{
 +			const int line = UI_ThemeHairline() * 2;
-+			UI_FillRect( pt.x, pt.y + sz.h - line, sz.w, line, THEME_ACCENT );
++			UI_FillRect( pt.x, pt.y + sz.h - line, sz.w, line, THEME_ACCENT_FILL );
 +		}
 +
 +		UI_DrawString( uiStatic.hThemeButton, Point( pt.x, pt.y + ( sz.h - charH ) / 2 ), Size( sz.w, charH ),
@@ -479,7 +489,313 @@ diff --git a/3rdparty/mainui/controls/Framework.h b/3rdparty/mainui/controls/Fra
 diff --git a/3rdparty/mainui/controls/ItemsHolder.cpp b/3rdparty/mainui/controls/ItemsHolder.cpp
 --- a/3rdparty/mainui/controls/ItemsHolder.cpp
 +++ b/3rdparty/mainui/controls/ItemsHolder.cpp
-@@ -374,7 +374,10 @@
+@@ -18,6 +18,7 @@
+ #include "PicButton.h"
+ #include "ItemsHolder.h"
+ #include "Scissor.h"
++#include "CoFOptions.h"
+ #include <string.h>
+ 
+ CMenuItemsHolder::CMenuItemsHolder() :
+@@ -171,6 +172,27 @@
+ 		int direction;
+ 		cursorPrev = m_iCursorPrev = m_iCursor;
+ 
++		// Cry of Fear options layout: the focus follows where the controls
++		// are on the screen, not the order they were added in
++		if( UI_CoFOptionsLayout( ))
++		{
++			const int target = UI_CoFNavTarget( this, m_iCursor, key, m_bWrapCursor );
++
++			if( target != COF_NAV_STOCK )
++			{
++				if( target < 0 || target == m_iCursor || !m_pItems.IsValidIndex( target ))
++					return false;
++
++				m_iCursor = target;
++				CursorMoved();
++				m_pItems[m_iCursor]->PlayLocalSound( uiStatic.sounds[SND_MOVE] );
++				if( m_pItems.IsValidIndex( m_iCursorPrev ))
++					ClearBits( m_pItems[m_iCursorPrev]->iFlags, QMF_HASKEYBOARDFOCUS );
++				SetBits( m_pItems[m_iCursor]->iFlags, QMF_HASKEYBOARDFOCUS );
++				return true;
++			}
++		}
++
+ 		if( UI::Key::IsUpArrow( key ) || UI::Key::IsLeftArrow( key ))
+ 			direction = -1;
+ 		else // if( UI::Key::IsDownArrow( key ) || UI::Key::IsRightArrow( key ) || key == K_TAB )
+@@ -359,6 +381,269 @@
+ 
+ /*
+ =================
++UI_CoFNavTarget
++
++Cry of Fear options layout (theme on): pad and arrow-key focus follows where
++the controls are drawn (their render rectangles), not the order they were
++added in, which the pages never kept in step with their layout.
++
++  * edge rows: a control lying wholly below (footer: the button row) or
++    above (header) every control not on its own row, by at least 16 units,
++    belongs to no column;
++  * columns: the other controls whose horizontal extents overlap by at
++    least 30 % of the narrower one, joined transitively (a two-column page
++    has two, a full-width list joins everything);
++  * up / down (Tab = down, Shift+Tab = up) stay in the column: the nearest
++    control beyond the focused one by vertical gap (not on its row), ties to
++    the closest left edge; past the column's end, the nearest edge row
++    control that way (vertical gap + 2 x the distance between the left
++    edges: the button row under either column); past that, the other end of the same column when
++    the holder wraps. From an edge row control: the nearest control that way
++    (the same measure), else (wrapping) the farthest one the other way;
++  * left / right: a control on the same row, or one in another column (not
++    an edge row) - the one at the nearest height (8 x vertical gap +
++    horizontal gap, then the centre distance); never wrapping; nothing that
++    way = the key is not used.
++
++A focused slider, spin control, field or list keeps its own use of the keys
++(value, caret, rows) - only keys it does not use get here. Candidates are
++the items the stock order stops on: visible, not inactive, not mouse-only,
++not greyed. Returns the index to focus, -1 for none, or COF_NAV_STOCK when
++the stock creation order should handle the key (too many items).
++=================
++*/
++struct cofNavBox_t
++{
++	int l, t, r, b;
++};
++
++static int UI_CoFNavOverlap( int a0, int a1, int b0, int b1 )
++{
++	const int o = Q_min( a1, b1 ) - Q_max( a0, b0 );
++	return o > 0 ? o : 0;
++}
++
++static int UI_CoFNavGap( int a0, int a1, int b0, int b1 )
++{
++	const int g = Q_max( a0, b0 ) - Q_min( a1, b1 );
++	return g > 0 ? g : 0;
++}
++
++static bool UI_CoFNavSameColumn( const cofNavBox_t &a, const cofNavBox_t &b )
++{
++	const int narrow = Q_min( a.r - a.l, b.r - b.l );
++	return narrow > 0 && UI_CoFNavOverlap( a.l, a.r, b.l, b.r ) * 10 >= narrow * 3;
++}
++
++static bool UI_CoFNavSameRow( const cofNavBox_t &a, const cofNavBox_t &b )
++{
++	const int low = Q_min( a.b - a.t, b.b - b.t );
++	return low > 0 && UI_CoFNavOverlap( a.t, a.b, b.t, b.b ) * 2 >= low;
++}
++
++bool UI_CoFNavUsable( CMenuBaseItem *item )
++{
++	return item && item->IsVisible() &&
++		!FBitSet( item->iFlags, QMF_INACTIVE | QMF_MOUSEONLY | QMF_GRAYED ) &&
++		item->GetRenderSize().w > 0 && item->GetRenderSize().h > 0;
++}
++
++#define COF_NAV_MAX	160
++
++int UI_CoFNavTarget( CMenuItemsHolder *holder, int cur, int key, bool wrap )
++{
++	const int count = holder ? holder->ItemCount() : 0;
++	int dx = 0, dy = 0;
++
++	if( UI::Key::IsUpArrow( key )) dy = -1;
++	else if( UI::Key::IsDownArrow( key )) dy = 1;
++	else if( UI::Key::IsLeftArrow( key )) dx = -1;
++	else if( UI::Key::IsRightArrow( key )) dx = 1;
++	else if( key == K_TAB ) dy = EngFuncs::KEY_IsDown( K_SHIFT ) ? -1 : 1;
++	else return COF_NAV_STOCK;
++
++	if( count <= 0 || count > COF_NAV_MAX )
++		return COF_NAV_STOCK;
++
++	cofNavBox_t box[COF_NAV_MAX];
++	bool use[COF_NAV_MAX], edge[COF_NAV_MAX];
++	int group[COF_NAV_MAX];
++
++	for( int i = 0; i < count; i++ )
++	{
++		CMenuBaseItem *item = holder->GetItemByIndex( i );
++
++		use[i] = UI_CoFNavUsable( item );
++		edge[i] = false;
++		group[i] = i;
++		if( item )
++		{
++			const Point p = item->GetRenderPosition();
++			const Size sz = item->GetRenderSize();
++
++			box[i].l = p.x;
++			box[i].t = p.y;
++			box[i].r = p.x + sz.w;
++			box[i].b = p.y + sz.h;
++		}
++		else memset( &box[i], 0, sizeof( box[i] ));
++	}
++
++	// no focus yet (or on nothing that has a place): the top-left control
++	if( cur < 0 || cur >= count || !holder->GetItemByIndex( cur ) ||
++		box[cur].r <= box[cur].l || box[cur].b <= box[cur].t )
++	{
++		int best = -1;
++		for( int i = 0; i < count; i++ )
++		{
++			if( use[i] && ( best < 0 || box[i].t < box[best].t ||
++				( box[i].t == box[best].t && box[i].l < box[best].l )))
++				best = i;
++		}
++		return best;
++	}
++
++	// edge rows (header / footer)
++	const int edgeGap = Q_max( 1, (int)( 16 * uiStatic.scaleY ));
++	for( int i = 0; i < count; i++ )
++	{
++		if( !use[i] && i != cur )
++			continue;
++
++		bool below = true, above = true, others = false;
++		for( int j = 0; j < count && ( below || above ); j++ )
++		{
++			if( j == i || ( !use[j] && j != cur ) || UI_CoFNavSameRow( box[i], box[j] ))
++				continue;
++			others = true;
++			if( box[j].b + edgeGap > box[i].t ) below = false;
++			if( box[j].t < box[i].b + edgeGap ) above = false;
++		}
++		edge[i] = others && ( below || above );
++	}
++
++	// columns: union of the non-edge usable items (and the focused one) that
++	// overlap horizontally, transitively
++	for( int pass = 0; pass < count; pass++ )
++	{
++		bool changed = false;
++
++		for( int i = 0; i < count; i++ )
++		{
++			if(( !use[i] && i != cur ) || edge[i] )
++				continue;
++			for( int j = i + 1; j < count; j++ )
++			{
++				if(( !use[j] && j != cur ) || edge[j] || group[i] == group[j] )
++					continue;
++				if( !UI_CoFNavSameColumn( box[i], box[j] ))
++					continue;
++
++				const int from = Q_max( group[i], group[j] ), to = Q_min( group[i], group[j] );
++				for( int k = 0; k < count; k++ )
++				{
++					if( group[k] == from )
++						group[k] = to;
++				}
++				changed = true;
++			}
++		}
++		if( !changed )
++			break;
++	}
++
++	const cofNavBox_t &c = box[cur];
++	const int cx2 = c.l + c.r, cy2 = c.t + c.b;
++	int best = -1;
++	long bestA = 0, bestB = 0;
++
++	auto better = [&]( int i, long a, long b ) -> void
++	{
++		if( best < 0 || a < bestA || ( a == bestA && b < bestB ))
++		{
++			best = i;
++			bestA = a;
++			bestB = b;
++		}
++	};
++	auto beyond = [&]( int i ) -> bool
++	{
++		const int oy2 = box[i].t + box[i].b;
++		return ( dy > 0 ? oy2 > cy2 : oy2 < cy2 ) && !UI_CoFNavSameRow( box[i], c );
++	};
++
++	if( dx )
++	{
++		for( int i = 0; i < count; i++ )
++		{
++			if( !use[i] || i == cur )
++				continue;
++
++			const cofNavBox_t &o = box[i];
++			const int ox2 = o.l + o.r;
++
++			if(( dx > 0 && ox2 <= cx2 ) || ( dx < 0 && ox2 >= cx2 ) || UI_CoFNavSameColumn( o, c ))
++				continue;
++			if( !UI_CoFNavSameRow( o, c ) && ( edge[cur] || edge[i] || group[i] == group[cur] ))
++				continue;
++
++			better( i, 8L * UI_CoFNavGap( c.t, c.b, o.t, o.b ) + UI_CoFNavGap( c.l, c.r, o.l, o.r ),
++				abs(( o.t + o.b ) - cy2 ));
++		}
++		return best;
++	}
++
++	if( edge[cur] )
++	{
++		// from the button row (or a header): the nearest control that way
++		for( int i = 0; i < count; i++ )
++		{
++			if( use[i] && i != cur && beyond( i ))
++				better( i, UI_CoFNavGap( c.t, c.b, box[i].t, box[i].b ) + 2L * abs( box[i].l - c.l ), i );
++		}
++		if( best >= 0 || !wrap )
++			return best;
++
++		// wrapping: the farthest control the other way
++		for( int i = 0; i < count; i++ )
++		{
++			if( !use[i] || i == cur || UI_CoFNavSameRow( box[i], c ))
++				continue;
++			better( i, dy > 0 ? box[i].t : -box[i].b, UI_CoFNavGap( c.l, c.r, box[i].l, box[i].r ));
++		}
++		return best;
++	}
++
++	// up / down in the column
++	for( int i = 0; i < count; i++ )
++	{
++		if( use[i] && i != cur && !edge[i] && group[i] == group[cur] && beyond( i ))
++			better( i, UI_CoFNavGap( c.t, c.b, box[i].t, box[i].b ), abs( box[i].l - c.l ));
++	}
++	if( best >= 0 )
++		return best;
++
++	// past the column's end: the edge row that way (the button row)
++	for( int i = 0; i < count; i++ )
++	{
++		if( use[i] && i != cur && edge[i] && beyond( i ))
++			better( i, UI_CoFNavGap( c.t, c.b, box[i].t, box[i].b ) + 2L * abs( box[i].l - c.l ), i );
++	}
++	if( best >= 0 || !wrap )
++		return best;
++
++	// past everything: the other end of the same column
++	for( int i = 0; i < count; i++ )
++	{
++		if( !use[i] || i == cur || edge[i] || group[i] != group[cur] || UI_CoFNavSameRow( box[i], c ))
++			continue;
++		better( i, dy > 0 ? box[i].t : -box[i].b, abs( box[i].l - c.l ));
++	}
++	return best;
++}
++
++/*
++=================
+ UI_AdjustCursor
+ 
+ This functiont takes the given menu, the direction, and attempts to
+@@ -374,7 +659,10 @@
  	while( m_iCursor >= 0 && m_iCursor < m_pItems.Count() )
  	{
  		item = m_pItems[m_iCursor];
@@ -494,7 +810,15 @@ diff --git a/3rdparty/mainui/controls/ItemsHolder.cpp b/3rdparty/mainui/controls
 diff --git a/3rdparty/mainui/controls/Slider.cpp b/3rdparty/mainui/controls/Slider.cpp
 --- a/3rdparty/mainui/controls/Slider.cpp
 +++ b/3rdparty/mainui/controls/Slider.cpp
-@@ -239,7 +239,7 @@
+@@ -233,13 +233,14 @@
+ 			* ( m_scSize.w - knobW );
+ 
+ 		UI_FillRect( m_scPos.x, trackY, m_scSize.w, trackH, THEME_TRACK );
++		// the filled part is a bar: the deep red (menufix round)
+ 		UI_FillRect( m_scPos.x, trackY, knobX - m_scPos.x + knobW / 2, trackH,
+-			PackAlpha( THEME_ACCENT, 128 ));
++			THEME_ACCENT_FILL );
+ 		UI_FillRect( knobX, m_scPos.y, knobW, m_scSize.h, hot ? THEME_TEXT_HI : THEME_ACCENT );
  
  		textHeight = m_scPos.y - (m_scChSize * 1.5f);
  		UI_DrawString( font, m_scPos.x, textHeight, m_scSize.w, m_scChSize, szName,
@@ -539,16 +863,17 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
  
  private:
  	void _Init( void ) override;
-@@ -322,6 +324,8 @@
+@@ -322,6 +324,9 @@
  	void AdsModeChanged( void );
  	void LangPackChanged( void );
  	void NotifyChanged( void );
 +	void PanelPauseChanged( void );
 +	void PanelTransparentChanged( void );
++	void SubBackingChanged( void );
  
  	CMenuPicButton done, inputDev;
  
-@@ -349,6 +353,12 @@
+@@ -349,9 +354,19 @@
  	// "Show console notifications": the engine's archived cof_notify, whether
  	// the newest console lines are drawn over the top-left corner during play
  	CMenuCheckBox	notifyLines;
@@ -561,7 +886,14 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
  	CMenuSpinControl	language;
  	CMenuSpinControl	hudScale;
  	CMenuSpinControl	adsMode;
-@@ -408,6 +418,24 @@
++	// "Subtitle background": the engine's saved cof_hud_text_backing, the
++	// alpha of the dark strip under subtitles and messages (0 = none); on =
++	// the engine default 120 (patches/cof-hud-text-backing.patch)
++	CMenuCheckBox	subBacking;
+ 	CMenuCoFLanguageModel	languageModel;
+ 	CMenuCoFHudScaleModel	hudScaleModel;
+ 	CMenuCoFAdsModel	adsModel;
+@@ -408,6 +423,25 @@
  		menuSaves.UpdateEditable();
  		notifyLines.LinkCvar( "cof_notify" );
  		notifyLines.UpdateEditable();
@@ -583,10 +915,11 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
 +		}
 +		else
 +			panelTransparent.bChecked = true;
++		subBacking.bChecked = EngFuncs::GetCvarFloat( "cof_hud_text_backing" ) > 0.0f;
  		// the client's own "Subtitle language" control is not on the page any
  		// more (the Language row sets that slot); moving a spinner that has
  		// no parent would raise its change event on no page at all
-@@ -432,7 +460,10 @@
+@@ -432,7 +466,10 @@
  			hudScale.SetCurrentValue( (float)row );
  		}
  
@@ -598,7 +931,7 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
  
  		// the packs are listed again every time the page opens, so a pack
  		// copied in while the game runs shows up without a restart
-@@ -470,6 +501,32 @@
+@@ -470,6 +507,38 @@
  void CAdvancedControls::NotifyChanged()
  {
  	notifyLines.WriteCvar();
@@ -621,6 +954,12 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
 +		EngFuncs::ClientCmdF( false, "set cof_panel_pause %d\n", panelPause.bChecked ? 1 : 0 );
 +}
 +
++// the subtitle strip: on = the engine default alpha, off = 0; saved
++void CAdvancedControls::SubBackingChanged()
++{
++	EngFuncs::CvarSetValue( "cof_hud_text_backing", subBacking.bChecked ? 120.0f : 0.0f );
++}
++
 +// the same, for cof_panel_transparent (engine and FreeVGUI side)
 +void CAdvancedControls::PanelTransparentChanged()
 +{
@@ -631,7 +970,7 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
  }
  
  /*
-@@ -610,6 +667,15 @@
+@@ -610,6 +679,15 @@
  
  void CAdvancedControls::SaveAndPopMenu()
  {
@@ -647,7 +986,7 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
  	crosshair.WriteCvar();
  	lookSpring.WriteCvar();
  	lookStrafe.WriteCvar();
-@@ -638,8 +704,10 @@
+@@ -638,8 +716,10 @@
  
  	m_bCoF = UI_ThemeActive() && UI_IsCryOfFear();
  
@@ -659,10 +998,15 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
  
  	done.szName = L( "Done" );
  	done.SetPicture( PC_DONE );
-@@ -707,6 +775,16 @@
+@@ -707,6 +787,21 @@
  	notifyLines.iFlags |= QMF_NOTIFY;
  	notifyLines.onChanged = VoidCb( &CAdvancedControls::NotifyChanged );
  
++	subBacking.SetNameAndStatus( L( "Subtitle background" ),
++		L( "A dark strip under the subtitles and game messages, so they stay readable" ));
++	subBacking.iFlags |= QMF_NOTIFY;
++	subBacking.onChanged = VoidCb( &CAdvancedControls::SubBackingChanged );
++
 +	panelPause.SetNameAndStatus( L( "Pause on Inventory" ),
 +		L( "Pause the game while the inventory, notes and other item pages are open" ));
 +	panelPause.iFlags |= QMF_NOTIFY;
@@ -676,7 +1020,7 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
  	language.szName = L( "Subtitle language" );
  	language.Setup( &languageModel );
  	language.SetCharSize( QM_SMALLFONT );
-@@ -742,17 +820,24 @@
+@@ -742,17 +837,24 @@
  
  	if( !UI_ThemeActive( ))
  		AddItem( banner );
@@ -709,7 +1053,7 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
  
  	if( UI_ThemeActive( ))
  		AddItem( conEnable );
-@@ -764,15 +849,66 @@
+@@ -764,15 +866,78 @@
  		AddItem( menuSaves );
  		AddItem( notifyLines );
  		AddItem( hudScale );
@@ -722,6 +1066,8 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
 +		}
 +		else
 +			AddItem( adsMode );
++		if( UI_CoFOptionsLayout( ))
++			AddItem( subBacking );	// Game tab: placed by _VidInit after the other boxes
  		AddItem( langPack );
  		AddItem( langNote );
  	}
@@ -752,6 +1098,16 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
 +				y += THEME_ROW_PITCH;
 +		}
 +
++		// Subtitle background (menufix round): the next free place in the
++		// two columns, whatever the list above holds
++		if( numBoxes & 1 )
++			subBacking.SetCoord( right.pt.x, y - THEME_ROW_PITCH );
++		else
++		{
++			subBacking.SetCoord( left.pt.x, y );
++			y += THEME_ROW_PITCH;
++		}
++
 +		y += 6;
 +		inputDev.SetRect( left.pt.x, y, left.sz.w, THEME_ROW_H );
 +		inputDev.eThemeStyle = CMenuPicButton::THEME_ROW;
@@ -777,7 +1133,7 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
  	if( IsPanel( ))
  	{
  		Rect left = ColumnRect( 0, 2 );
-@@ -892,6 +1028,69 @@
+@@ -892,6 +1057,70 @@
  		row, EngFuncs::GetCvarString( "cof_language" ), EngFuncs::GetCvarString( "cof_subtitlelanguage" ));
  }
  
@@ -799,6 +1155,7 @@ diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/
 +	struct { const char *name; CMenuCheckBox *box; const char *cvar; } boxes[] =
 +	{
 +		{ "crosshair", &crosshair, "crosshair" },
++		{ "subbacking", &subBacking, "cof_hud_text_backing" },
 +		{ "lookspring", &lookSpring, "lookspring" },
 +		{ "console", &conEnable, "con_enable" },
 +		{ "pausesaves", &menuSaves, "cof_pause_menu_saves" },
@@ -851,7 +1208,7 @@ diff --git a/3rdparty/mainui/menus/CoFOptions.cpp b/3rdparty/mainui/menus/CoFOpt
 new file mode 100644
 --- /dev/null
 +++ b/3rdparty/mainui/menus/CoFOptions.cpp
-@@ -0,0 +1,1838 @@
+@@ -0,0 +1,2216 @@
 +/*
 +CoFOptions.cpp -- Cry of Fear options layout: the Controls page (aiming,
 +mouse and gamepad settings), the Gamepad controls page (the action on each
@@ -1023,6 +1380,40 @@ new file mode 100644
 +	const char *GetText( int line ) override { return L( g_cofAdsModesC[line ? 1 : 0] ); }
 +};
 +
++// the move stick (cof_pad_move_mode, gamepad round 3): 0 = analogue,
++// 1 = digital-style (full speed in the pushed direction, like the keys)
++static const char *g_cofMoveModesC[] = { "Analogue", "Digital-style" };
++
++class CMenuCoFMoveModelC : public CMenuBaseArrayModel
++{
++public:
++	void Update() override { }
++	int GetRows() const override { return 2; }
++	const char *GetText( int line ) override { return L( g_cofMoveModesC[line ? 1 : 0] ); }
++};
++
++// an engine cvar a later round may add: the spin control shows it when the
++// engine has it (greyed, at the engine default, when not) and writes it live
++static bool UI_CoFHaveCvar( const char *name )
++{
++	const char *s = EngFuncs::GetCvarString( name );
++	return s && s[0];
++}
++
++static void UI_CoFSpinFromCvar( CMenuSpinControl &spin, const char *cvar, int def )
++{
++	const bool have = UI_CoFHaveCvar( cvar );
++
++	spin.SetGrayed( !have );
++	spin.SetCurrentValue( (float)( have ? ( EngFuncs::GetCvarFloat( cvar ) != 0.0f ? 1 : 0 ) : def ));
++}
++
++static void UI_CoFSpinToCvar( CMenuSpinControl &spin, const char *cvar )
++{
++	if( UI_CoFHaveCvar( cvar ))
++		EngFuncs::CvarSetValue( cvar, spin.GetCurrentValue() >= 1.0f ? 1.0f : 0.0f );
++}
++
 +// joy_axis_binding: one letter per SDL axis (left X, left Y, right Y, right X,
 +// then the triggers); "sfpyrl" is the engine default, and the swap puts look
 +// on the left stick and movement on the right (engine/client/input/in_joy.c,
@@ -1049,7 +1440,13 @@ new file mode 100644
 +	void AdsChanged( void );
 +	void PitchInvert( void );
 +
-+	CMenuCoFCaption capMouse, capPad;
++	CMenuCoFCaption capMouse, capPad, capMove;
++
++	// gamepad movement (gamepad rounds 2 and 3): cof_sprint_toggle (L3 sprint
++	// Hold / Toggle), cof_pad_move_mode (analogue / digital-style stick)
++	CMenuSpinControl sprintMode, moveMode;
++	CMenuCoFAdsModelC sprintModel;
++	CMenuCoFMoveModelC moveModel;
 +
 +	// aiming and mouse (moved here from the Game page)
 +	CMenuSpinControl adsMode;
@@ -1091,6 +1488,8 @@ new file mode 100644
 +	sensitivity.bDirty = false;
 +
 +	adsMode.SetCurrentValue( EngFuncs::GetCvarFloat( "cof_ads_toggle" ) != 0.0f ? 1.0f : 0.0f );
++	UI_CoFSpinFromCvar( sprintMode, "cof_sprint_toggle", 1 );
++	UI_CoFSpinFromCvar( moveMode, "cof_pad_move_mode", 1 );
 +
 +	joyEnable.LinkCvar( "joy_enable" );
 +	gyroEnable.LinkCvar( "joy_gyro_enable" );
@@ -1210,6 +1609,21 @@ new file mode 100644
 +
 +	capMouse.szName = L( "AIMING AND MOUSE" );
 +	capPad.szName = L( "GAMEPAD" );
++	capMove.szName = L( "GAMEPAD MOVEMENT" );
++
++	sprintMode.szName = L( "Sprint" );
++	sprintMode.Setup( &sprintModel );
++	sprintMode.SetCharSize( QM_SMALLFONT );
++	sprintMode.iFlags |= QMF_NOTIFY;
++	sprintMode.szStatusText = L( "Hold: sprint while the sprint button is held. Toggle: press it once; sprinting stops when you stop moving" );
++	SET_EVENT( sprintMode.onChanged, UI_CoFSpinToCvar( *(CMenuSpinControl *)pSelf, "cof_sprint_toggle" ));
++
++	moveMode.szName = L( "Stick movement" );
++	moveMode.Setup( &moveModel );
++	moveMode.SetCharSize( QM_SMALLFONT );
++	moveMode.iFlags |= QMF_NOTIFY;
++	moveMode.szStatusText = L( "Analogue: the move stick sets the speed. Digital-style: full speed in the pushed direction, like the movement keys" );
++	SET_EVENT( moveMode.onChanged, UI_CoFSpinToCvar( *(CMenuSpinControl *)pSelf, "cof_pad_move_mode" ));
 +
 +	adsMode.szName = L( "Aim down sights" );
 +	adsMode.Setup( &adsModel );
@@ -1285,6 +1699,9 @@ new file mode 100644
 +	AddItem( mouseLook );
 +	AddItem( invertMouse );
 +	AddItem( lookStrafe );
++	AddItem( capMove );
++	AddItem( sprintMode );
++	AddItem( moveMode );
 +	AddItem( capPad );
 +	AddItem( joyEnable );
 +	AddItem( invertLook );
@@ -1319,6 +1736,17 @@ new file mode 100644
 +	{
 +		mouseBoxes[i]->SetCoord( left.pt.x, y );
 +		y += THEME_ROW_PITCH;
++	}
++
++	// under them: gamepad movement, two half-width spin controls
++	y += 8;
++	capMove.SetRect( left.pt.x, y, left.sz.w, COF_CAPTION_H );
++	y += COF_CAPTION_H + THEME_LABEL_TALL + 12;
++	{
++		const int half = ( left.sz.w - THEME_GUTTER3 ) / 2;
++
++		sprintMode.SetRect( left.pt.x, y, half, THEME_CTRL_H );
++		moveMode.SetRect( left.pt.x + left.sz.w - half, y, half, THEME_CTRL_H );
 +	}
 +
 +	// right: gamepad
@@ -1401,6 +1829,25 @@ new file mode 100644
 +		Con_Printf( "menu_cof_options_select controls: ads = %d (%s) (cof_ads_toggle \"%s\")\n",
 +			(int)adsMode.GetCurrentValue(), adsMode.GetCurrentString(), EngFuncs::GetCvarString( "cof_ads_toggle" ));
 +		return;
++	}
++
++	struct { const char *name; CMenuSpinControl *spin; const char *cvar; } spins[] =
++	{
++		{ "sprint",   &sprintMode, "cof_sprint_toggle" },
++		{ "movemode", &moveMode,   "cof_pad_move_mode" },
++	};
++
++	for( size_t i = 0; i < V_ARRAYSIZE( spins ); i++ )
++	{
++		if( item[0] && stricmp( item, spins[i].name ))
++			continue;
++		if( item[0] && value[0] )
++			UI_CoFProbeSpin( *spins[i].spin, value );
++		Con_Printf( "menu_cof_options_select controls: %s = %d (%s) (%s \"%s\")%s\n", spins[i].name,
++			(int)spins[i].spin->GetCurrentValue(), spins[i].spin->GetCurrentString(), spins[i].cvar,
++			EngFuncs::GetCvarString( spins[i].cvar ), FBitSet( spins[i].spin->iFlags, QMF_GRAYED ) ? " grayed (no such engine cvar)" : "" );
++		if( item[0] )
++			return;
 +	}
 +
 +	bool any = false;
@@ -1508,17 +1955,234 @@ new file mode 100644
 +}
 +
 +#define COF_PAD_DIR		"gfx/shell/gamepad/"
-+#define COF_PAD_PIC_XBOX	COF_PAD_DIR "xbox/controller.png"
-+#define COF_PAD_PIC_PS		COF_PAD_DIR "ps5/controller.png"
 +#define COF_PAD_MAX_ACTIONS	96
++
++// the button styles, cof_pad_style 0..3; the ids are the ones icons.txt
++// and the engine use
++#define COF_PAD_STYLES		4
++static const char *g_cofPadStyleIds[COF_PAD_STYLES] = { "xbox", "ps5", "switch", "steamdeck" };
 +
 +struct cofPadIcon_t
 +{
 +	char key[24];
-+	char file[2][64];	// xbox, ps5 (relative to gfx/shell/gamepad/)
-+	float u[2], v[2];	// marker centre on the picture, fractions of its size
-+	float size;		// marker size, fraction of the picture width
++	char file[COF_PAD_STYLES][64];	// relative to gfx/shell/gamepad/; empty = the Xbox one
++	char label[COF_PAD_STYLES][32];	// the printed name on that pad
++	float u[COF_PAD_STYLES], v[COF_PAD_STYLES];	// marker centre, fractions of the picture
++	float size[COF_PAD_STYLES];	// marker size, fraction of the picture width
++	bool placed[COF_PAD_STYLES];	// u / v / size given for that style
 +};
++
++/*
++=================
++gfx/shell/gamepad/icons.txt
++
++One button or style per line, // comments, three kinds of line:
++
++  <engine key> <xbox icon> <ps5 icon> <xbox label> <ps label>
++      <xbox u> <xbox v> <ps5 u> <ps5 v> <marker size>      (10 fields)
++  "STYLE" <style id> <controller picture>                   (3 fields)
++  <engine key> <style id> <icon> <label> <u> <v> <marker size>   (7 fields)
++
++style ids: xbox, ps5, switch, steamdeck (cof_pad_style 0..3). A key with no
++row for a style uses the Xbox icon and name; a style with no STYLE line uses
++the Xbox picture and the Xbox marker positions; a style that has its own
++picture marks only the keys that have a row for it.
++=================
++*/
++struct cofPadIcons_t
++{
++	cofPadIcon_t icon[48];
++	int count;
++	char pic[COF_PAD_STYLES][96];	// "" = the Xbox picture
++	bool loaded;
++};
++static cofPadIcons_t g_cofPadIcons;
++
++static int UI_CoFPadStyleId( const char *id )
++{
++	for( int i = 0; i < COF_PAD_STYLES; i++ )
++	{
++		if( !stricmp( id, g_cofPadStyleIds[i] ))
++			return i;
++	}
++	return -1;
++}
++
++/*
++cof_pad_style: -1 (or "auto", the default) = Auto: the engine resolves the
++style from the detected controller and reports it in cof_pad_style_auto
++(0..3 or a style id; gamepad round 3); without that cvar Auto shows Xbox.
++0..3 = Xbox, PlayStation, Nintendo, Steam Deck chosen by hand.
++
++A profile saved before Auto existed holds "0" only because that was the old
++default: it becomes Auto once (ui_cof_pad_style_gen 0 -> 1). Called from
++UI_UpdateMenu's first frame (BaseMenu.cpp), after config.cfg has run.
++*/
++void UI_CoFPadStyleMigrate( void )
++{
++	static bool done = false;
++
++	if( done )
++		return;
++	done = true;
++
++	if( EngFuncs::GetCvarFloat( "ui_cof_pad_style_gen" ) >= 1.0f )
++		return;
++
++	const char *s = EngFuncs::GetCvarString( "cof_pad_style" );
++	if( s && !strcmp( s, "0" ))
++	{
++		EngFuncs::CvarSetString( "cof_pad_style", "-1" );
++		Con_DPrintf( "menu_cofgamepad: cof_pad_style 0 from an older profile is now -1 (Auto)\n" );
++	}
++	EngFuncs::CvarSetValue( "ui_cof_pad_style_gen", 1.0f );
++}
++
++static void UI_CoFPadStyleRegister( void )
++{
++	EngFuncs::CvarRegister( "cof_pad_style", "-1", FCVAR_ARCHIVE );
++	EngFuncs::CvarRegister( "ui_cof_pad_style_gen", "0", FCVAR_ARCHIVE );
++}
++
++// the setting: -1 Auto, 0..3 a style chosen by hand
++int UI_CoFPadStyleSetting( void )
++{
++	const char *s = EngFuncs::GetCvarString( "cof_pad_style" );
++	if( !s || !s[0] || !stricmp( s, "auto" ))
++		return -1;
++
++	const int st = atoi( s );
++	return st < 0 ? -1 : st >= COF_PAD_STYLES ? COF_PAD_STYLES - 1 : st;
++}
++
++// the style in force, 0..3
++int UI_CoFPadStyle( void )
++{
++	int st = UI_CoFPadStyleSetting();
++
++	if( st < 0 )
++	{
++		const char *a = EngFuncs::GetCvarString( "cof_pad_style_auto" );
++
++		st = 0;
++		if( a && a[0] )
++			st = UI_CoFPadStyleId( a ) >= 0 ? UI_CoFPadStyleId( a ) : atoi( a );
++	}
++	return st < 0 ? 0 : st >= COF_PAD_STYLES ? COF_PAD_STYLES - 1 : st;
++}
++
++static cofPadIcon_t *UI_CoFPadIconFor( const char *key, bool create )
++{
++	for( int i = 0; i < g_cofPadIcons.count; i++ )
++	{
++		if( !stricmp( g_cofPadIcons.icon[i].key, key ))
++			return &g_cofPadIcons.icon[i];
++	}
++	if( !create || g_cofPadIcons.count >= (int)V_ARRAYSIZE( g_cofPadIcons.icon ))
++		return NULL;
++
++	cofPadIcon_t *ic = &g_cofPadIcons.icon[g_cofPadIcons.count++];
++	memset( ic, 0, sizeof( *ic ));
++	Q_strncpy( ic->key, key, sizeof( ic->key ));
++	return ic;
++}
++
++static void UI_CoFPadIconsLoad( bool force )
++{
++	if( g_cofPadIcons.loaded && !force )
++		return;
++
++	memset( &g_cofPadIcons, 0, sizeof( g_cofPadIcons ));
++	g_cofPadIcons.loaded = true;
++	Q_strncpy( g_cofPadIcons.pic[0], "xbox/controller.png", sizeof( g_cofPadIcons.pic[0] ));
++	Q_strncpy( g_cofPadIcons.pic[1], "ps5/controller.png", sizeof( g_cofPadIcons.pic[1] ));
++
++	char *afile = (char *)EngFuncs::COM_LoadFile( COF_PAD_DIR "icons.txt", NULL );
++	if( !afile )
++	{
++		Con_Printf( "menu_cofgamepad: " COF_PAD_DIR "icons.txt not found, rows without icons\n" );
++		return;
++	}
++
++	int rows = 0, styleRows = 0, styles = 0;
++	char *line = afile;
++
++	while( line && *line )
++	{
++		char *end = line;
++		while( *end && *end != '\n' && *end != '\r' )
++			end++;
++		const char save = *end;
++		*end = 0;
++
++		char *cmt = strstr( line, "//" );
++		if( cmt )
++			*cmt = 0;
++
++		char tok[12][96];
++		int n = 0;
++		char *p = line;
++
++		while( n < 12 && ( p = EngFuncs::COM_ParseFile( p, tok[n], sizeof( tok[n] ))) != NULL )
++			n++;
++
++		if( n == 3 && !stricmp( tok[0], "STYLE" ) && UI_CoFPadStyleId( tok[1] ) >= 0 )
++		{
++			Q_strncpy( g_cofPadIcons.pic[UI_CoFPadStyleId( tok[1] )], tok[2], sizeof( g_cofPadIcons.pic[0] ));
++			styles++;
++		}
++		else if( n >= 10 && strchr( tok[1], '/' ))
++		{
++			cofPadIcon_t *ic = UI_CoFPadIconFor( tok[0], true );
++			if( ic )
++			{
++				for( int s = 0; s < 2; s++ )
++				{
++					Q_strncpy( ic->file[s], tok[1 + s], sizeof( ic->file[s] ));
++					Q_strncpy( ic->label[s], tok[3 + s], sizeof( ic->label[s] ));
++					ic->u[s] = atof( tok[5 + s * 2] );
++					ic->v[s] = atof( tok[6 + s * 2] );
++					ic->size[s] = atof( tok[9] );
++					ic->placed[s] = true;
++				}
++				rows++;
++			}
++		}
++		else if( n >= 7 && UI_CoFPadStyleId( tok[1] ) >= 0 )
++		{
++			const int s = UI_CoFPadStyleId( tok[1] );
++			cofPadIcon_t *ic = UI_CoFPadIconFor( tok[0], true );
++			if( ic )
++			{
++				Q_strncpy( ic->file[s], tok[2], sizeof( ic->file[s] ));
++				Q_strncpy( ic->label[s], tok[3], sizeof( ic->label[s] ));
++				ic->u[s] = atof( tok[4] );
++				ic->v[s] = atof( tok[5] );
++				ic->size[s] = atof( tok[6] );
++				ic->placed[s] = true;
++				styleRows++;
++			}
++		}
++		else if( n > 0 )
++			Con_DPrintf( "menu_cofgamepad: icons.txt line not understood (%d fields, \"%s\")\n", n, tok[0] );
++
++		*end = save;
++		line = end;
++		while( *line == '\n' || *line == '\r' )
++			line++;
++	}
++
++	EngFuncs::COM_FreeFile( afile );
++	Con_DPrintf( "menu_cofgamepad: icons.txt: %d buttons, %d per-style rows, %d style pictures\n", rows, styleRows, styles );
++}
++
++// the icon of a key for a style, the Xbox one when the style has none
++static const char *UI_CoFPadIconFile( const cofPadIcon_t *ic, int st )
++{
++	if( !ic )
++		return "";
++	return ic->file[st][0] ? ic->file[st] : ic->file[0];
++}
 +
 +struct cofPadAction_t
 +{
@@ -1577,14 +2241,15 @@ new file mode 100644
 +	CMenuCoFGamepad *m_pParent;
 +};
 +
-+static const char *g_cofPadStyles[] = { "Xbox", "PlayStation" };
++// the spin control's rows: Auto, then the styles (row = cof_pad_style + 1)
++static const char *g_cofPadStyles[COF_PAD_STYLES + 1] = { "Auto", "Xbox", "PlayStation", "Nintendo", "Steam Deck" };
 +
 +class CMenuCoFStyleModel : public CMenuBaseArrayModel
 +{
 +public:
 +	void Update() override { }
-+	int GetRows() const override { return 2; }
-+	const char *GetText( int line ) override { return L( g_cofPadStyles[line ? 1 : 0] ); }
++	int GetRows() const override { return COF_PAD_STYLES + 1; }
++	const char *GetText( int line ) override { return L( g_cofPadStyles[( line >= 0 && line <= COF_PAD_STYLES ) ? line : 0] ); }
 +};
 +
 +// the controller picture, with the selected row's button marked on it
@@ -1601,11 +2266,11 @@ new file mode 100644
 +public:
 +	typedef CMenuFramework BaseClass;
 +	CMenuCoFGamepad() : CMenuFramework( "CMenuCoFGamepad" ), padModel( this ), actionModel( this ),
-+		m_iNumActions( 0 ), m_iNumIcons( 0 ), m_bSyncing( false ) { }
++		m_iNumActions( 0 ), m_bSyncing( false ) { memset( m_bOwnPic, 0, sizeof( m_bOwnPic )); }
 +
 +	void Show() override;
 +
-+	int Style( void ) const { return EngFuncs::GetCvarFloat( "cof_pad_style" ) >= 1.0f ? 1 : 0; }
++	int Style( void ) const { return UI_CoFPadStyle(); }
 +	int CurrentRow( void ) { return padList.GetCurrentIndex(); }
 +	const char *RowName( int row ) const;
 +	const cofPadIcon_t *Icon( int row ) const;
@@ -1621,7 +2286,9 @@ new file mode 100644
 +
 +	int m_iNumActions;
 +	cofPadAction_t m_actions[COF_PAD_MAX_ACTIONS];	// [0] = not bound
-+	CImage m_pic[2];
++	CImage m_pic[COF_PAD_STYLES];
++	char m_szPic[COF_PAD_STYLES][160];	// CImage keeps the pointer
++	bool m_bOwnPic[COF_PAD_STYLES];	// the style has its own picture (a STYLE line)
 +
 +private:
 +	void _Init( void ) override;
@@ -1629,7 +2296,6 @@ new file mode 100644
 +	void SaveAndPopMenu( void ) override;
 +
 +	void GetConfig( void );
-+	void LoadIcons( void );
 +	void BuildActions( void );
 +	void AddAction( const char *command, const char *label );
 +	void SyncAction( void );
@@ -1649,8 +2315,6 @@ new file mode 100644
 +	char m_szKeyLine[96];
 +
 +	int m_iKey[COF_PAD_ROWS];
-+	cofPadIcon_t m_icons[COF_PAD_ROWS];
-+	int m_iNumIcons;
 +	bool m_bSyncing;
 +
 +	// bindings when the page opened, for Cancel
@@ -1678,8 +2342,9 @@ new file mode 100644
 +			continue;
 +
 +		const cofPadIcon_t *icon = m_pParent->Icon( i );
-+		if( icon && icon->file[m_pParent->Style()][0] )
-+			snprintf( m_szIcon[i], sizeof( m_szIcon[i] ), COF_PAD_DIR "%s", icon->file[m_pParent->Style()] );
++		const char *file = UI_CoFPadIconFile( icon, m_pParent->Style( ));
++		if( file[0] )
++			snprintf( m_szIcon[i], sizeof( m_szIcon[i] ), COF_PAD_DIR "%s", file );
 +
 +		const int key = m_pParent->RowKey( i );
 +		const char *b = key >= 0 ? EngFuncs::KEY_GetBinding( key ) : NULL;
@@ -1754,24 +2419,31 @@ new file mode 100644
 +
 +// ------------------------------------------------------------------ data
 +
++// Xbox and PlayStation: the page's own names (translated); Nintendo and
++// Steam Deck: the printed name icons.txt gives for that pad where it differs
++// from the Xbox one (L, ZR, +, L1, R2 ...), the Xbox row name otherwise (the
++// Nintendo face buttons keep the Xbox letters at their physical places)
 +const char *CMenuCoFGamepad::RowName( int row ) const
 +{
 +	if( row < 0 || row >= COF_PAD_ROWS || !g_cofPadRows[row].key )
 +		return "";
-+	return L( Style() ? g_cofPadRows[row].ps : g_cofPadRows[row].xbox );
++
++	const int st = Style();
++	if( st == 1 )
++		return L( g_cofPadRows[row].ps );
++
++	const cofPadIcon_t *icon = Icon( row );
++	if( st >= 2 && icon && icon->label[st][0] && stricmp( icon->label[st], icon->label[0] ))
++		return L( icon->label[st] );
++
++	return L( g_cofPadRows[row].xbox );
 +}
 +
 +const cofPadIcon_t *CMenuCoFGamepad::Icon( int row ) const
 +{
 +	if( row < 0 || row >= COF_PAD_ROWS || !g_cofPadRows[row].key )
 +		return NULL;
-+
-+	for( int i = 0; i < m_iNumIcons; i++ )
-+	{
-+		if( !stricmp( m_icons[i].key, g_cofPadRows[row].key ))
-+			return &m_icons[i];
-+	}
-+	return NULL;
++	return UI_CoFPadIconFor( g_cofPadRows[row].key, false );
 +}
 +
 +const char *CMenuCoFGamepad::ActionLabel( const char *command ) const
@@ -1782,59 +2454,6 @@ new file mode 100644
 +			return m_actions[i].label;
 +	}
 +	return command;	// a command no list names: shown as it is
-+}
-+
-+/*
-+=================
-+CMenuCoFGamepad::LoadIcons
-+
-+gfx/shell/gamepad/icons.txt, one button per line, // comments:
-+
-+  <engine key> <xbox icon> <ps5 icon> <xbox label> <ps label>
-+      <xbox u> <xbox v> <ps5 u> <ps5 v> <marker size>
-+
-+The labels are for the later "press (A)" hint stage; this page names the
-+rows itself (g_cofPadRows, through the menu's string layer).
-+=================
-+*/
-+void CMenuCoFGamepad::LoadIcons( void )
-+{
-+	m_iNumIcons = 0;
-+
-+	char *afile = (char *)EngFuncs::COM_LoadFile( COF_PAD_DIR "icons.txt", NULL );
-+	if( !afile )
-+	{
-+		Con_Printf( "menu_cofgamepad: " COF_PAD_DIR "icons.txt not found, rows without icons\n" );
-+		return;
-+	}
-+
-+	char *pfile = afile;
-+	char tok[10][64];
-+
-+	while( m_iNumIcons < COF_PAD_ROWS )
-+	{
-+		int n;
-+		for( n = 0; n < 10; n++ )
-+		{
-+			pfile = EngFuncs::COM_ParseFile( pfile, tok[n], sizeof( tok[n] ));
-+			if( !pfile )
-+				break;
-+		}
-+		if( n < 10 )
-+			break;
-+
-+		cofPadIcon_t &ic = m_icons[m_iNumIcons++];
-+		Q_strncpy( ic.key, tok[0], sizeof( ic.key ));
-+		Q_strncpy( ic.file[0], tok[1], sizeof( ic.file[0] ));
-+		Q_strncpy( ic.file[1], tok[2], sizeof( ic.file[1] ));
-+		ic.u[0] = atof( tok[5] );
-+		ic.v[0] = atof( tok[6] );
-+		ic.u[1] = atof( tok[7] );
-+		ic.v[1] = atof( tok[8] );
-+		ic.size = atof( tok[9] );
-+	}
-+
-+	EngFuncs::COM_FreeFile( afile );
 +}
 +
 +void CMenuCoFGamepad::AddAction( const char *command, const char *label )
@@ -1887,13 +2506,21 @@ new file mode 100644
 +				break;
 +			if( !stricmp( bind, "blank" ))
 +				continue;
-+			AddAction( bind, token[0] == '#' ? L( token ) : token );
++			// the game's "Tertiary Attack" (+attack3) is its aim down
++			// sights (LT by default): "Aim", as on the Keybinds tab
++			if( !stricmp( bind, "+attack3" ))
++				AddAction( bind, L( "Aim" ));
++			else AddAction( bind, token[0] == '#' ? L( token ) : token );
 +		}
 +		EngFuncs::COM_FreeFile( afile );
 +	}
 +
-+	// the engine's crouch toggle (gamepad round), in case the list lacks it
++	// the engine's own commands the pad layouts use (gamepad rounds 1-3),
++	// in case the list lacks them; the game's own label wins where it has one
 +	AddAction( "cof_duck_toggle", L( "Crouch (toggle)" ));
++	AddAction( "cof_sprint_toggle_press", L( "Sprint (toggle)" ));
++	AddAction( "cof_quickturn", L( "Quick turn" ));
++	AddAction( "weapontoggle", L( "Toggle weapon function" ));
 +	AddAction( "cancelselect", L( "Open the menu" ));
 +
 +	if(( afile = (char *)EngFuncs::COM_LoadFile( "gfx/shell/kb_def.lst", NULL )) != NULL )
@@ -1926,15 +2553,27 @@ new file mode 100644
 +	for( int i = 0; i < COF_PAD_ROWS; i++ )
 +		m_iKey[i] = g_cofPadRows[i].key ? UI_CoFKeyByName( g_cofPadRows[i].key ) : -1;
 +
-+	LoadIcons();
++	UI_CoFPadIconsLoad( true );	// read again: art copied in while the game runs shows up
 +	BuildActions();
 +
-+	m_pic[0] = COF_PAD_PIC_XBOX;
-+	m_pic[1] = COF_PAD_PIC_PS;
++	for( int s = 0; s < COF_PAD_STYLES; s++ )
++	{
++		m_bOwnPic[s] = g_cofPadIcons.pic[s][0] != 0;
++		snprintf( m_szPic[s], sizeof( m_szPic[s] ), COF_PAD_DIR "%s", m_bOwnPic[s] ? g_cofPadIcons.pic[s] : g_cofPadIcons.pic[0] );
++		m_pic[s] = m_szPic[s];
++		if( !m_pic[s].Handle( ) && s > 0 )
++		{
++			// a STYLE line whose picture is not there (yet): the Xbox one
++			Con_DPrintf( "menu_cofgamepad: %s not found, the Xbox picture instead\n", m_szPic[s] );
++			m_bOwnPic[s] = false;
++			snprintf( m_szPic[s], sizeof( m_szPic[s] ), COF_PAD_DIR "%s", g_cofPadIcons.pic[0] );
++			m_pic[s] = m_szPic[s];
++		}
++	}
 +
 +	m_bSyncing = true;
 +	action.Setup( &actionModel );
-+	style.SetCurrentValue( (float)Style( ));
++	style.SetCurrentValue( (float)( UI_CoFPadStyleSetting() + 1 ));
 +	m_bSyncing = false;
 +
 +	padModel.Update();
@@ -1997,7 +2636,9 @@ new file mode 100644
 +	if( m_bSyncing )
 +		return;
 +
-+	EngFuncs::CvarSetValue( "cof_pad_style", style.GetCurrentValue() >= 1.0f ? 1.0f : 0.0f );
++	int st = (int)style.GetCurrentValue() - 1;	// row 0 = Auto = -1
++	st = st < -1 ? -1 : st >= COF_PAD_STYLES ? COF_PAD_STYLES - 1 : st;
++	EngFuncs::CvarSetValue( "cof_pad_style", (float)st );
 +	padModel.Update();
 +	SyncAction();
 +}
@@ -2178,7 +2819,9 @@ new file mode 100644
 +{
 +	SetPanel( "GAMEPAD CONTROLS", 900, 640 );
 +
-+	EngFuncs::CvarRegister( "cof_pad_style", "0", FCVAR_ARCHIVE );
++	// cof_pad_style is registered once, in UI_CoFGamepad_Precache (before
++	// config.cfg runs): registering an existing cvar again sets it back to
++	// its default (engine Cvar_Get -> Cvar_DirectSet)
 +
 +	padList.SetModel( &padModel );
 +	padList.SetupColumn( 0, NULL, 34.0f, true );
@@ -2197,7 +2840,7 @@ new file mode 100644
 +	style.Setup( &styleModel );
 +	style.SetCharSize( QM_SMALLFONT );
 +	style.iFlags |= QMF_NOTIFY;
-+	style.szStatusText = L( "Button names and pictures of an Xbox or a PlayStation controller" );
++	style.szStatusText = L( "Auto follows the connected controller; or the button names and pictures of an Xbox, PlayStation, Nintendo or Steam Deck controller" );
 +	style.onChanged = VoidCb( &CMenuCoFGamepad::StyleChanged );
 +
 +	picture.m_pPage = this;
@@ -2307,20 +2950,23 @@ new file mode 100644
 +
 +	UI_DrawPic( pt, sz, THEME_TEXT_DIM, pic, QM_DRAWTRANS );
 +
++	// a style with its own picture marks the keys placed on it; one that
++	// shows the Xbox picture uses the Xbox positions and icon
 +	const cofPadIcon_t *icon = m_pPage->Icon( m_pPage->CurrentRow( ));
-+	if( !icon || !icon->file[st][0] || icon->size <= 0.0f )
++	const int ps = m_pPage->m_bOwnPic[st] ? st : 0;
++	if( !icon || !icon->placed[ps] || icon->size[ps] <= 0.0f )
 +		return;
 +
 +	char path[128];
-+	snprintf( path, sizeof( path ), COF_PAD_DIR "%s", icon->file[st] );
++	snprintf( path, sizeof( path ), COF_PAD_DIR "%s", UI_CoFPadIconFile( icon, ps ? st : 0 ));
 +
 +	CImage marker = path;
 +	if( !marker.Handle( ))
 +		return;
 +
-+	const int ms = (int)( icon->size * sz.w );
-+	const int cx = pt.x + (int)( icon->u[st] * sz.w );
-+	const int cy = pt.y + (int)( icon->v[st] * sz.h );
++	const int ms = (int)( icon->size[ps] * sz.w );
++	const int cx = pt.x + (int)( icon->u[ps] * sz.w );
++	const int cy = pt.y + (int)( icon->v[ps] * sz.h );
 +
 +	UI_DrawPic( Point( cx - ms / 2, cy - ms / 2 ), Size( ms, ms ), THEME_ACCENT, marker, QM_DRAWTRANS );
 +}
@@ -2333,7 +2979,7 @@ new file mode 100644
 +    [<KEY> [<command> | <action index>]]  select a row; set its action
 +    [press <KEY> <OTHER KEY>]             the grab box: swap two buttons
 +    [clear <KEY>]                         Delete on a row
-+    [style 0|1] [defaults] [ok] [cancel]
++    [style auto|-1|0|1|2|3] [defaults] [ok] [cancel]
 +Without arguments: every row with its binding.
 +=================
 +*/
@@ -2379,7 +3025,8 @@ new file mode 100644
 +	}
 +	else if( !stricmp( a1, "style" ))
 +	{
-+		style.SetCurrentValue( (float)( atoi( a2 ) ? 1 : 0 ));
++		const int st = !stricmp( a2, "auto" ) ? -1 : atoi( a2 );
++		style.SetCurrentValue( (float)(( st < -1 ? -1 : st >= COF_PAD_STYLES ? COF_PAD_STYLES - 1 : st ) + 1 ));
 +		Con_Printf( "menu_cof_options_select gamepad: style %s (cof_pad_style \"%s\")\n", style.GetCurrentString(), EngFuncs::GetCvarString( "cof_pad_style" ));
 +	}
 +	else if( !stricmp( a1, "press" ))
@@ -2430,6 +3077,7 @@ new file mode 100644
 +
 +static void UI_CoFGamepad_Precache( void )
 +{
++	UI_CoFPadStyleRegister();	// as early as the menu can, before config.cfg if possible
 +	menu_cofgamepad = new CMenuCoFGamepad();
 +}
 +
@@ -2570,12 +3218,33 @@ new file mode 100644
 +
 +const char *UI_CoFPadGlyph( const char *xboxFile, const char *psFile )
 +{
-+	static char path[8][96];	// the hints line holds up to six at once
++	static char path[16][96];	// the hints line holds up to six at once, the keyboard's eight
 +	static int n;
-+	const bool ps = EngFuncs::GetCvarFloat( "cof_pad_style" ) >= 1.0f;
++	const int st = UI_CoFPadStyle();
 +
-+	n = ( n + 1 ) & 7;
-+	snprintf( path[n], sizeof( path[n] ), COF_PAD_DIR "%s/%s", ps ? "ps5" : "xbox", ps ? psFile : xboxFile );
++	n = ( n + 1 ) & 15;
++	if( st <= 1 )
++	{
++		snprintf( path[n], sizeof( path[n] ), COF_PAD_DIR "%s/%s", st ? "ps5" : "xbox", st ? psFile : xboxFile );
++		return path[n];
++	}
++
++	// Nintendo, Steam Deck: the style's own icon for the key whose Xbox icon
++	// this is (icons.txt), else the Xbox icon
++	char xbox[64];
++	snprintf( xbox, sizeof( xbox ), "xbox/%s", xboxFile );
++	UI_CoFPadIconsLoad( false );
++
++	const char *file = xbox;
++	for( int i = 0; i < g_cofPadIcons.count; i++ )
++	{
++		if( !stricmp( g_cofPadIcons.icon[i].file[0], xbox ))
++		{
++			file = UI_CoFPadIconFile( &g_cofPadIcons.icon[i], st );
++			break;
++		}
++	}
++	snprintf( path[n], sizeof( path[n] ), COF_PAD_DIR "%s", file );
 +	return path[n];
 +}
 +
@@ -2629,6 +3298,72 @@ new file mode 100644
 +}
 +
 +ADD_COMMAND( menu_cof_key, UI_CoFKey );
++
++/*
++=================
++menu_cof_nav
++
++Prints the focus graph of the window on top: every control the pad can
++focus, its place in virtual units, and where up / down / left / right take
++the focus from it (controls/ItemsHolder.cpp, UI_CoFNavTarget). A test hook
++that reads the layout only.
++=================
++*/
++static const char *UI_CoFNavName( CMenuBaseItem *item, int index )
++{
++	static char buf[8][80];
++	static int n;
++
++	n = ( n + 1 ) & 7;
++	if( !item )
++		snprintf( buf[n], sizeof( buf[n] ), "-" );
++	else if( item->szName && item->szName[0] )
++		snprintf( buf[n], sizeof( buf[n] ), "#%d \"%s\"", index, item->szName );
++	else
++		snprintf( buf[n], sizeof( buf[n] ), "#%d", index );
++	return buf[n];
++}
++
++static void UI_CoFNav( void )
++{
++	CMenuBaseWindow *win = uiStatic.menu.Current();
++
++	if( !win )
++	{
++		Con_Printf( "menu_cof_nav: no menu window\n" );
++		return;
++	}
++
++	static const int keys[4] = { K_UPARROW, K_DOWNARROW, K_LEFTARROW, K_RIGHTARROW };
++	const float sx = uiStatic.scaleX > 0.0f ? uiStatic.scaleX : 1.0f;
++	const float sy = uiStatic.scaleY > 0.0f ? uiStatic.scaleY : 1.0f;
++
++	Con_Printf( "menu_cof_nav: window %s, %d items, focus %s\n", win->szName ? win->szName : "-", win->ItemCount(),
++		UI_CoFNavName( win->ItemAtCursor(), win->GetCursor( )));
++
++	for( int i = 0; i < win->ItemCount(); i++ )
++	{
++		CMenuBaseItem *item = win->GetItemByIndex( i );
++		if( !UI_CoFNavUsable( item ))
++			continue;
++
++		int t[4];
++		for( int k = 0; k < 4; k++ )
++			t[k] = UI_CoFNavTarget( win, i, keys[k], true );
++
++		Con_Printf( "menu_cof_nav: %s at %d,%d %dx%d: up %s, down %s, left %s, right %s\n",
++			UI_CoFNavName( item, i ),
++			(int)(( item->GetRenderPosition().x - win->GetRenderPosition().x ) / sx ),
++			(int)(( item->GetRenderPosition().y - win->GetRenderPosition().y ) / sy ),
++			(int)( item->GetRenderSize().w / sx ), (int)( item->GetRenderSize().h / sy ),
++			t[0] >= 0 ? UI_CoFNavName( win->GetItemByIndex( t[0] ), t[0] ) : "-",
++			t[1] >= 0 ? UI_CoFNavName( win->GetItemByIndex( t[1] ), t[1] ) : "-",
++			t[2] >= 0 ? UI_CoFNavName( win->GetItemByIndex( t[2] ), t[2] ) : "-",
++			t[3] >= 0 ? UI_CoFNavName( win->GetItemByIndex( t[3] ), t[3] ) : "-" );
++	}
++}
++
++ADD_COMMAND( menu_cof_nav, UI_CoFNav );
 +
 +// ---------------------------------------------------------------------------
 +// menu_cof_options_select <page> [...]
@@ -2694,7 +3429,7 @@ diff --git a/3rdparty/mainui/menus/CoFOptions.h b/3rdparty/mainui/menus/CoFOptio
 new file mode 100644
 --- /dev/null
 +++ b/3rdparty/mainui/menus/CoFOptions.h
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,101 @@
 +/*
 +CoFOptions.h -- Cry of Fear options layout: the Controls and Gamepad controls
 +pages and the cfg-only test hook shared by the four input pages
@@ -2770,8 +3505,25 @@ new file mode 100644
 +// UI_KeyEvent / UI_MouseMove hooks (BaseMenu.cpp); true = the key is used up
 +bool UI_CoFInputEvent( int key, int down );
 +void UI_CoFInputMouse( void );
-+// "gfx/shell/gamepad/<pad>/<file>" for the current button style
++// "gfx/shell/gamepad/<pad>/<file>" for the current button style (Nintendo
++// and Steam Deck: that style's icon for the same key in icons.txt, else Xbox)
 +const char *UI_CoFPadGlyph( const char *xboxFile, const char *psFile );
++// the button style in force: 0 Xbox, 1 PlayStation, 2 Nintendo, 3 Steam
++// Deck (cof_pad_style, Auto resolved through the engine's cof_pad_style_auto)
++int UI_CoFPadStyle( void );
++// the setting itself: -1 Auto (default), 0..3 chosen by hand
++int UI_CoFPadStyleSetting( void );
++// once, after config.cfg: an old profile's cof_pad_style 0 becomes Auto
++void UI_CoFPadStyleMigrate( void );
++
++// pad / arrow-key focus by position (controls/ItemsHolder.cpp): the index
++// of the item the focus moves to from `cur` for a navigation key, -1 for
++// none, COF_NAV_STOCK when the stock creation order should handle it
++class CMenuBaseItem;
++class CMenuItemsHolder;
++#define COF_NAV_STOCK	( -2 )
++int UI_CoFNavTarget( CMenuItemsHolder *holder, int cur, int key, bool wrap );
++bool UI_CoFNavUsable( CMenuBaseItem *item );
 +
 +// set a control the way a click does (its value, then QM_CHANGED)
 +void UI_CoFProbeCheck( CMenuCheckBox &box, const char *value );
@@ -3043,10 +3795,32 @@ diff --git a/3rdparty/mainui/model/KbActListModel.h b/3rdparty/mainui/model/KbAc
  #include <ctype.h>
  
  // Shared model over gfx/shell/kb_act.lst, the list of game actions used
-@@ -100,8 +101,42 @@
+@@ -84,7 +85,11 @@
+ 				if( !pfile )
+ 					break;
+ 
+-				FormatLabel( token, e.display, sizeof( e.display ));
++				// Cry of Fear options layout: the game's "Tertiary Attack"
++				// (+attack3) is its aim down sights, so the list calls it "Aim"
++				if( m_view == VIEW_BINDINGS && UI_CoFOptionsLayout( ) && !stricmp( e.bind, "+attack3" ))
++					FormatLabel( L( "Aim" ), e.display, sizeof( e.display ));
++				else FormatLabel( token, e.display, sizeof( e.display ));
+ 
+ 				if( m_view == VIEW_BINDINGS )
+ 				{
+@@ -100,8 +105,51 @@
  
  		EngFuncs::COM_FreeFile( afile );
  
++		// the sprint toggle and the quick turn (gamepad rounds 2 and 3),
++		// added in code like the crouch toggle below (which lands between
++		// Crouch and Quick turn)
++		if( m_view == VIEW_BINDINGS && UI_CoFOptionsLayout( ))
++		{
++			AddAfter( "+sprint", "cof_sprint_toggle_press", L( "Sprint (toggle)" ));
++			AddAfter( "+duck", "cof_quickturn", L( "Quick turn" ));
++		}
++
 +		// Cry of Fear options layout: the engine's crouch toggle
 +		// (cof_duck_toggle, gamepad round) under the game's own Crouch row,
 +		// unless the list already has it - the game's kb_act.lst is not
@@ -3086,7 +3860,7 @@ diff --git a/3rdparty/mainui/model/KbActListModel.h b/3rdparty/mainui/model/KbAc
  	}
  
  	/*
-@@ -213,6 +248,11 @@
+@@ -213,6 +261,11 @@
  
  			const char *b = EngFuncs::KEY_GetBinding( i );
  			if( !b )

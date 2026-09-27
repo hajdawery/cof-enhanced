@@ -8,7 +8,8 @@
 
 Scope: give the engine menu one minimalist Source-era look — translucent dark
 panels with a title band and a close X, a centred main-menu list with a text
-wordmark, muted grey type on a single amber accent, and primitive-drawn
+wordmark, muted grey type on a single accent (amber at first, deep red since
+the menufix round), and primitive-drawn
 controls so nothing depends on `gfx/shell` artwork Cry of Fear does not ship.
 Milestone 1 (`docs/patches/cof-ui-m1-plumbing.md`) put the engine menu over the live
 scene, milestone 2 (`docs/patches/cof-ui-m2-cof-menu.md`) made it *be* Cry of Fear's
@@ -89,16 +90,18 @@ live in code.
 | `THEME_TEXT` | 190 190 190 | body, rows, items at rest |
 | `THEME_TEXT_DIM` | 140 140 140 | labels above controls, hints, the status line |
 | `THEME_TEXT_HI` | 240 240 240 | hovered |
-| `THEME_ACCENT` | 240 180 24 | the single accent: selected row, tick, knob, focused frame |
-| `THEME_SELECT_FILL` | 240 180 24 @ 51 | behind the selected row |
+| `THEME_ACCENT` | 255 82 74 (menufix round; was 240 180 24) | the accent for text and thin strokes: selected-row text, tick, knob, focused frame, spinner and list arrows, the gamepad marker |
+| `THEME_ACCENT_FILL` | 163 21 21 (menufix round, new) | the accent for fills, bars and underlines: active tab underline, slider fill |
+| `THEME_SELECT_FILL` | 163 21 21 @ 64 (was 240 180 24 @ 51) | behind the selected row and the active tab |
 | `THEME_HOVER_FILL` | 255 255 255 @ 20 | behind a hovered row or button |
 | `THEME_DISABLED` | 100 100 100 | grayed |
 | `THEME_INPUT_BG` / `_BORDER` | 12 12 12 @ 200 / 90 90 90 | control boxes |
 | `THEME_TRACK` | 60 60 60 | slider track |
 | `THEME_SEPARATOR` | 255 255 255 @ 64 | hairlines under the title band and above the button row |
 
-The accent is MainUI's own `uiPromptTextColor`, kept rather than invented, so
-`colors.lst PROMPT_TEXT_COLOR` stays meaningful.
+The accent was MainUI's own amber `uiPromptTextColor` until the menufix round
+(2026-09-24), which made it Cry of Fear's deep red in two strengths (see
+"Menu fixes round" at the end of this page).
 
 ### The border
 
@@ -1902,3 +1905,79 @@ resized to 1024 px), `icons.txt` (engine key, Xbox file, PS5 file, labels,
 marker position on the picture; also meant for the later in-game prompt
 stage) and `LICENSE-Zacksly.txt`; built by `scripts/make-gamepad-assets.py`.
 CC BY 3.0, see `THIRD-PARTY-NOTICES.md`.
+
+## Menu fixes round, 2026-09-24
+
+`cof-mainui-source-theme` (Theme.h only) and `cof-mainui-options-layout` were
+regenerated in place (steps 35 and 48 of the [patch stack](../dev/patch-stack.md)).
+Evidence, screenshots and the focus graphs: `stage1/menufix-20260924/RESULTS.md`.
+
+### Deep-red accent
+
+Palette constants only, no layout change. The light red is the lightest
+saturated red that keeps 4.5:1 against the panel even over a white scene
+(measured 4.74:1 for the selected-row text on the selection fill in the
+screenshots, 1080p and 2160p); the deep red carries every fill, bar and
+underline. The tab underline (`Framework.cpp`) and the slider fill
+(`Slider.cpp`) use `THEME_ACCENT_FILL`; everything else that used the accent
+follows `THEME_ACCENT` / `THEME_SELECT_FILL` on its own. White text, the pad
+cursor and the death page are unchanged.
+
+### Focus follows the layout
+
+Pad and arrow-key focus in every Cry of Fear window (tabbed windows, pause
+menu, death page, dialogs) is computed from the controls' render rectangles
+(`controls/ItemsHolder.cpp`, `UI_CoFNavTarget`), no longer from the order the
+pages add them:
+
+* edge rows: a control wholly below (the button row) or above every control
+  not on its own row, by 16 units or more, belongs to no column;
+* columns: the other controls whose horizontal extents overlap by 30 % of
+  the narrower one, joined transitively;
+* up / down stay in the column (nearest by vertical gap, ties to the closest
+  left edge); past the column's end the nearest edge-row control that way
+  (vertical gap + 2 x left-edge distance), then the other end of the column;
+  from an edge row the nearest control that way, then the farthest the other
+  way;
+* left / right: a control on the same row, or one in another column (not an
+  edge row), nearest in height (8 x vertical gap + horizontal gap); never
+  wrapping.
+
+A focused slider, spin control, field or list keeps its own use of the keys
+(value, caret, rows). `menu_cof_nav` prints the whole graph of the window on
+top.
+
+### New rows and labels
+
+* Controls: caption "Gamepad movement" with two half-width spin controls,
+  **Sprint** Hold / Toggle (`cof_sprint_toggle`, 1 = Toggle) and **Stick
+  movement** Analogue / Digital-style (`cof_pad_move_mode`, 1); a row whose
+  engine cvar does not exist is greyed at its default. Quick turn speed and
+  the cursor rows did not fit.
+* Game: **Subtitle background** (`cof_hud_text_backing`: on = 120, off = 0),
+  placed in the next free place of the two checkbox columns.
+* Gamepad and Keybinds: "Sprint (toggle)" (`cof_sprint_toggle_press`),
+  "Quick turn" (`cof_quickturn`), "Crouch (toggle)", and "Toggle weapon
+  function" when `kb_act.lst` lacks `weapontoggle`.
+* Button style: **Auto** (default, `cof_pad_style` -1: the engine's
+  `cof_pad_style_auto`, Xbox without it), Xbox, PlayStation, Nintendo, Steam
+  Deck (0..3). `gfx/shell/gamepad/icons.txt` gains `"STYLE" <id> <picture>`
+  lines and 7-field `<key> <style id> <icon> <label> <u> <v> <size>` rows;
+  a missing icon or name falls back to Xbox, a style without its own
+  picture uses the Xbox picture and positions. The prompts line and the
+  on-screen keyboard use the same per-style icons. A profile that saved the
+  old default `cof_pad_style 0` becomes Auto once (`ui_cof_pad_style_gen`).
+
+## m9 integration, 2026-09-24
+
+* **Aim** (user decision): the game's own `kb_act.lst` calls `+attack3` - its
+  aim down sights, LT on a pad - "Tertiary Attack". The Keybinds and Gamepad
+  tabs show it as **Aim** (`L( "Aim" )` in `model/KbActListModel.h` and
+  `CMenuCoFGamepad::BuildActions`, part of `cof-mainui-options-layout`); the
+  game's file is not shipped modified. One new key in all seven
+  `menu-strings.tsv` (Celowanie, Zielen, Viser, Apuntar, Richten, Sikt, Sikta).
+* **Nintendo prompts** show the physical letters (user decision): the bottom
+  button (`A_BUTTON`, confirm) is drawn and named "B", the right one "A", so a
+  Switch pad's prompts read "B Select, A Back" (`icons.txt`, gamepad round 3).
+* **Steam Deck picture**: L1/R1 markers on the raised lip of the top edge,
+  L2/R2 on the top corners (they floated above the drawing before).

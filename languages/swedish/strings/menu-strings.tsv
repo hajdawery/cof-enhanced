@@ -565,3 +565,26 @@ Space	Mellanslag	menus/CoFOsk.cpp
 Type	Skriv	menus/CoFOsk.cpp
 Clear	Rensa	menus/CoFOsk.cpp
 Symbols	Symboler	menus/CoFOsk.cpp
+Quick save	Snabbsparning	menus/Main.cpp;model/KbActListModel.h
+Quick load	Snabbinläsning	model/KbActListModel.h
+Quick saves	Snabbsparning	menus/AdvancedControls.cpp
+F5 quick save, F9 quick load; Quick save also heads the pause menu and the Load list	F5: snabbsparning, F9: snabbinläsning; Snabbsparning står också överst i pausmenyn och i inläsningslistan	menus/AdvancedControls.cpp
+Save to the quick save slot now and return to the game	Spara nu på snabbsparplatsen och återgå till spelet	menus/Main.cpp
+Quick	Snabb	menus/LoadGame.cpp (Slot column of the quick save row)
+Quick save (%s)	Snabbsparning (%s)	engine/server/sv_save.c (title of the quick save, in the Load list)
+# menufix round (Controls: sprint and stick movement; Gamepad: Auto, Nintendo, Steam Deck; Game: subtitle background), 2026-09-24: machine-drafted like the rest, please review
+Subtitle background	Bakgrund för undertexter	menus/AdvancedControls.cpp:800
+A dark strip under the subtitles and game messages, so they stay readable	En mörk remsa under undertexter och spelmeddelanden så att de går att läsa	menus/AdvancedControls.cpp:801
+Sprint (toggle)	Sprinta (växla)	model/KbActListModel.h:114;menus/CoFOptions.cpp:1309
+Quick turn	Snabb vändning	model/KbActListModel.h:115;menus/CoFOptions.cpp:1310
+Analogue	Analog	menus/CoFOptions.cpp:175
+Digital-style	Som tangenterna	menus/CoFOptions.cpp:175
+GAMEPAD MOVEMENT	RÖRELSE MED HANDKONTROLL	menus/CoFOptions.cpp:402
+Hold: sprint while the sprint button is held. Toggle: press it once; sprinting stops when you stop moving	Håll: sprinta medan sprintknappen hålls ned. Växla: tryck en gång; sprinten slutar när du stannar	menus/CoFOptions.cpp:408
+Stick movement	Rörelse med spak	menus/CoFOptions.cpp:411
+Analogue: the move stick sets the speed. Digital-style: full speed in the pushed direction, like the movement keys	Analog: rörelsespaken styr farten. Som tangenterna: full fart åt det håll du trycker, som med rörelsetangenterna	menus/CoFOptions.cpp:415
+Nintendo	Nintendo	menus/CoFOptions.cpp:1037
+Steam Deck	Steam Deck	menus/CoFOptions.cpp:1037
+Auto follows the connected controller; or the button names and pictures of an Xbox, PlayStation, Nintendo or Steam Deck controller	Auto följer den anslutna handkontrollen; eller knappnamn och bilder för en Xbox-, PlayStation-, Nintendo- eller Steam Deck-kontroll	menus/CoFOptions.cpp:1629
+# m9 integration (the aim action: the game's "Tertiary Attack" is called "Aim" in the Keybinds and Gamepad lists), 2026-09-24: machine-drafted like the rest, please review
+Aim	Sikta	model/KbActListModel.h:91;menus/CoFOptions.cpp:1302

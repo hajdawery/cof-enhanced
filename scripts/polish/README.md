@@ -47,7 +47,7 @@ committed pack byte for byte (checked 2026-09-22 in `stage1/lang3-20260922`).
 | `extract_sign_textures.py` | `textures/<name>.tga` | embedded miptex of both BSP trees; images identical to any game miptex or WAD texture of that name are dropped |
 | `build_model_textures.py` | `models/<model>/<texture>.bmp` | both model trees: a model must differ only in texture pixels/palettes, else it is reported and left out |
 | `copy_overlay_assets.py` | `overlay/` | the translation's changed TGAs (cryoffear/ and platform/), minus font strips, pixel-identical re-encodes and the review list |
-| `build_dll_strings_tsv.py` | `strings/dll-strings.tsv` | the binary string-diff tables in `stage1/polish-mod-analysis-20260922/binaries/data/` and `string_overrides_polish.tsv` |
+| `build_dll_strings_tsv.py` | `strings/dll-strings.tsv` | the binary string-diff tables in `stage1/polish-mod-analysis-20260922/binaries/data/` and `string_overrides_polish.tsv` (its rows with `source_dll` `engine` are appended as extra rows: text the engine draws itself, e.g. the quick save messages) |
 | `build_manifest.py` | `manifest.txt`, `README.md`, `MANIFEST.tsv` | the pack on disk; fails on any rule violation |
 
 Shared code: `langpack_common.py` (paths, the `LANGUAGES` table, the

@@ -67,6 +67,7 @@ reaches the same code path a click would:
 | `menu_cof_strings reload` | menu strings | re-reads the active pack's `menu-strings.tsv` |
 | `menu_cof_options_select <page> ...` | options layout | opens an Options tab and sets a control / binds / presses a button like a click |
 | `menu_cof_key <KEY> [down\|up]` | options layout | feeds a key (pad buttons too) to the menu's own `UI_KeyEvent` |
+| `menu_cof_nav` | options layout (menufix round) | prints the focus graph of the window on top: every focusable control, its place in virtual units and where up / down / left / right take the focus (`UI_CoFNavTarget`) |
 | `menu_cof_host_start` | co-op pages | presses Start on the Host page |
 | `cof_font_probe "<scheme> text"` | VGUI Inter fonts | draws a string with an engine font (code-page check) |
 | `cof_hud_text_probe`, `cof_hud_msg_probe` | HUD text | draws a HUD text line / a message-strip line |

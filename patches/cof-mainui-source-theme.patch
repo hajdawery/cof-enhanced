@@ -721,10 +721,10 @@ index 0000000..569e82c
 +}
 diff --git a/3rdparty/mainui/Theme.h b/3rdparty/mainui/Theme.h
 new file mode 100644
-index 0000000..63aeb54
+index 0000000..073210e
 --- /dev/null
 +++ b/3rdparty/mainui/Theme.h
-@@ -0,0 +1,204 @@
+@@ -0,0 +1,211 @@
 +/*
 +Theme.h -- Source-style theme for the Cry of Fear unified UI (milestone 3a)
 +
@@ -768,8 +768,15 @@ index 0000000..63aeb54
 +#define THEME_TEXT          0xFFBEBEBEu // 190 190 190    body, rows, items at rest
 +#define THEME_TEXT_DIM      0xFF8C8C8Cu // 140 140 140    labels above controls, hints
 +#define THEME_TEXT_HI       0xFFF0F0F0u // 240 240 240    hovered
-+#define THEME_ACCENT        0xFFF0B418u // 240 180 24     the single accent
-+#define THEME_SELECT_FILL   0x33F0B418u
++// The accent is Cry of Fear's deep red, in two strengths (menufix round,
++// 2026-09-24): a light red for text and thin strokes on the dark panel
++// (focused frames, ticks, knobs, spinner and list arrows, selected-row
++// text, the gamepad marker), which keeps 4.5:1 or more against the panel
++// even over a white scene, and the deep red itself for fills, bars and
++// underlines (active tab underline, slider fill, selection fill).
++#define THEME_ACCENT        0xFFFF524Au // 255 82 74      light red: text and thin strokes
++#define THEME_ACCENT_FILL   0xFFA31515u // 163 21 21      deep red: fills, bars, underlines
++#define THEME_SELECT_FILL   0x40A31515u // 163 21 21 @ 64 behind the selected row / tab
 +#define THEME_HOVER_FILL    0x14FFFFFFu
 +#define THEME_PRESS_FILL    0x28FFFFFFu
 +#define THEME_DISABLED      0xFF646464u // 100 100 100

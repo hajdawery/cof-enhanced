@@ -24,11 +24,11 @@ The translation is the fan mod **Cry of Fear: Spolszczenie**, published on the S
 | `textures/*.tga` | 107 | repainted world signs and posters, one per texture name |
 | `models/<model>/<texture>.bmp` | 38 | repainted textures embedded in 22 studio models (phone screens, newspapers, book pages, signs), 8-bit BMP; the engine swaps them into the loaded model |
 | `overlay/` | 187 | translated interface images (menus, notes, item and weapon cards, maps, dialogs), same path as the game's |
-| `strings/dll-strings.tsv` | 1 | English -> Polski table for the strings compiled into client.dll / hl.dll (216 rows) |
+| `strings/dll-strings.tsv` | 1 | English -> Polski table for the strings compiled into client.dll / hl.dll (216 rows), plus 5 rows for text the engine draws itself |
 | `strings/menu-strings.tsv` | 1 | this project's own menu (hand-maintained, see below) |
 | `LICENSE-NOTE.md`, `README.md`, `MANIFEST.tsv` | 3 | licence note, this file, file list with hashes |
 
-Total: **534 files, 69,416,249 bytes** (every file but `MANIFEST.tsv` and `README.md` is listed in `MANIFEST.tsv` with its size and SHA-256).
+Total: **534 files, 69,426,749 bytes** (every file but `MANIFEST.tsv` and `README.md` is listed in `MANIFEST.tsv` with its size and SHA-256).
 
 ## What was left out, and why
 
@@ -66,6 +66,8 @@ Kept, but worth a look: `gfx/vgui/hansts1.tga` and `saxts1.tga` (timetable maps:
 ## DLL strings (`strings/dll-strings.tsv`)
 
 216 rows recovered from the mod's hex patches of client.dll and hl.dll; 16 pairs the mod's blanket find-and-replace corrupted (identifiers such as `ammo_buckshot`, C-runtime day names, one overrun string) are excluded by offset in `build_dll_strings_tsv.py`. Rows whose mod bytes were chosen for the old bitmap font rather than real Windows-1250 are replaced by the project's corrections in `scripts/polish/string_overrides_polish.tsv`.
+
+5 more rows (`source_dll` `engine`, at the end) translate text the engine itself draws on the game's message strip, the quick save messages: `Quick saved`, `Quick loaded`, `Quick saves are disabled in Options > Game`, `There is no quick save yet`, `Quick saves work in single player only`. They are machine-drafted by the project and come from the same `string_overrides_polish.tsv` (rows with `source_dll` `engine`), so a regenerated pack keeps them.
 
 8 rows were retranslated by the project (the `flagged` column says so): `Simon's Book`, `Your message is too long. Rewrite it!`, `What the... The door is jammed!`, `Inventory full`, `Saved`, `Nothing to look at!`, `Shotgun`, `Axe`.
 

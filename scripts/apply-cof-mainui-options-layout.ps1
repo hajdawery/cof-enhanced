@@ -29,6 +29,22 @@ param(
 #   * menus/Controls.cpp, model/KbActListModel.h: the Keybinds tab (title,
 #     KEY_SetBinding, pad buttons left to the Gamepad tab, X = Use defaults).
 #
+# menufix round (2026-09-24), regenerated in place:
+#   * controls/ItemsHolder.cpp: pad / arrow-key focus follows the controls'
+#     places on the screen (UI_CoFNavTarget: columns, edge rows, left/right
+#     to the other column), menu_cof_nav prints the focus graph.
+#   * menus/CoFOptions.cpp: Controls "Sprint" Hold/Toggle (cof_sprint_toggle)
+#     and "Stick movement" (cof_pad_move_mode, greyed without the engine
+#     cvar); labels Sprint (toggle) / Quick turn; button styles Auto, Xbox,
+#     PlayStation, Nintendo, Steam Deck from icons.txt (STYLE lines, 7-field
+#     per-style rows; Auto = the engine's cof_pad_style_auto).
+#   * menus/AdvancedControls.cpp: Game "Subtitle background"
+#     (cof_hud_text_backing 120 / 0).
+#   * controls/Framework.cpp, Slider.cpp: the tab underline and the slider
+#     fill in THEME_ACCENT_FILL (the deep red of the regenerated
+#     cof-mainui-source-theme palette); BaseMenu.cpp: the one-time pad-style
+#     migration after config.cfg.
+#
 # Goes on after cof-mainui-source-theme, cof-mainui-language-selector,
 # cof-mainui-menu-strings, cof-mainui-coop and cof-notify-option, before
 # apply-cof-cheats.ps1 (engine only).
@@ -92,6 +108,9 @@ if ($Reverse) {
         -not $t.fw.Contains('void CMenuFramework::DrawPanelChrome()') -or -not $t.fwh.Contains('Rect  RowRect( int index ) const;')) {
         throw 'Prerequisite missing: apply patches/cof-mainui-source-theme.patch first.'
     }
+    if (-not (Slurp ($mu + 'Theme.h')).Contains('THEME_ACCENT_FILL')) {
+        throw 'Prerequisite missing: the deep-red palette of patches/cof-mainui-source-theme.patch (menufix round, THEME_ACCENT_FILL).'
+    }
     if (-not $t.game.Contains('CMenuSpinControl	langPack;') -or -not $t.game.Contains('notifyLines.LinkCvar( "cof_notify" );') -or
         -not $t.game.Contains('SetPanel( "GAME", 760, m_bCoF ? 580 + THEME_ROW_PITCH : 520 );')) {
         throw 'Prerequisite missing: apply patches/cof-mainui-language-selector.patch and patches/cof-notify-option.patch first.'
@@ -137,6 +156,14 @@ try {
         'greyed skipped'             = $t.holder.Contains('( UI_ThemeActive() && ( item->iFlags & QMF_GRAYED ))')
         'slider focus label'         = $t.slider.Contains('hot ? THEME_TEXT_HI : THEME_TEXT_DIM')
         'triggers page lists'        = $t.table.Contains('key == K_JOY1') -and $t.table.Contains('key == K_JOY2')
+        'focus by position'          = $t.holder.Contains('UI_CoFNavTarget( this, m_iCursor, key, m_bWrapCursor )') -and
+                                       $t.cpp.Contains('ADD_COMMAND( menu_cof_nav, UI_CoFNav );')
+        'sprint and stick rows'      = $t.cpp.Contains('"cof_sprint_toggle"') -and $t.cpp.Contains('"cof_pad_move_mode"')
+        'pad styles'                 = $t.cpp.Contains('"steamdeck"') -and $t.cpp.Contains('"cof_pad_style_auto"') -and
+                                       $t.base.Contains('UI_CoFPadStyleMigrate();')
+        'subtitle background'        = $t.game.Contains('"cof_hud_text_backing"')
+        'Aim label (m9)'             = $t.model.Contains('L( "Aim" )') -and $t.cpp.Contains('AddAction( bind, L( "Aim" ));')
+        'deep red fills'             = $t.fw.Contains('THEME_ACCENT_FILL') -and $t.slider.Contains('THEME_ACCENT_FILL')
         'input hooks'                = $t.base.Contains('if( UI_CoFInputEvent( key, down ))') -and $t.base.Contains('UI_CoFInputMouse();')
         'Extras tabbed window'       = $t.main.Contains('UI_CoFHost_Menu();')
         'new pages and hooks'        = $t.cpp.Contains('ADD_COMMAND( menu_cof_options_select, UI_CoFOptionsSelect );') -and
