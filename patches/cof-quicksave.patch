@@ -1,0 +1,384 @@
+diff --git a/engine/server/server.h b/engine/server/server.h
+--- a/engine/server/server.h
++++ b/engine/server/server.h
+@@ -681,6 +681,11 @@ void SV_SetLogAddress_f( void );
+ //
+ qboolean SV_SaveGame( const char *pName );
+ qboolean SV_CoFMenuSave( int slot );
++// Cry of Fear quick save (engine/client/cof_quicksave.c): SAVE/cofquick.sav
++// through the same root-SAVE transaction as the pause-menu saves
++#define COF_QUICKSAVE_NAME "cofquick"
++qboolean SV_CoFQuickSave( void );
++qboolean SV_CoFQuickSaveExists( void );
+ qboolean SV_LoadGame( const char *pName );
+ qboolean SV_CoFSaveDelete( const char *pName );
+ int SV_LoadGameState( char const *level );
+diff --git a/engine/server/sv_save.c b/engine/server/sv_save.c
+--- a/engine/server/sv_save.c
++++ b/engine/server/sv_save.c
+@@ -2443,12 +2443,16 @@ qboolean SV_SaveGame( const char *pName )
+ 	return SaveGameSlot( savename, comment );
+ }
+ 
+-/* Menu saves share CoF's five slots, but never enter the tape-use path. */
+-qboolean SV_CoFMenuSave( int slot )
+-{
+-	char name[32], save[MAX_QPATH], saveBackup[MAX_QPATH];
+-	char label[MAX_QPATH], labelTemp[MAX_QPATH], labelBackup[MAX_QPATH];
+-	char title[96], stamp[64], text[160];
++/* Menu saves share CoF's five slots, but never enter the tape-use path.
++ * The quick save (cof_quicksave) is one more file written the same way, so the
++ * transaction is shared: name = the .sav base name, label = its display label
++ * in cryoffear/SAVE, title = the label text before " - <timestamp>", what =
++ * how the messages name it. */
++static qboolean SV_CoFSaveTransaction( const char *name, const char *label, const char *title, const char *what )
++{
++	char save[MAX_QPATH], saveBackup[MAX_QPATH];
++	char labelTemp[MAX_QPATH], labelBackup[MAX_QPATH];
++	char stamp[64], text[160];
+ 	qboolean hadSave, hadLabel, saved = false, labelMoved = false;
+ 	file_t *file;
+ 	time_t now;
+@@ -2456,11 +2460,6 @@ qboolean SV_CoFMenuSave( int slot )
+ 	fs_offset_t written;
+ 	int length, closeResult;
+ 
+-	if( !SV_CoFRootSaveCompat() || !Cvar_VariableInteger( "cof_pause_menu_saves" ) || slot < 1 || slot > 5 )
+-	{
+-		Con_Printf( "Cry of Fear menu saving is disabled or the slot is invalid.\n" );
+-		return false;
+-	}
+ 	/* The original client does not always register game_menu in Xash. */
+ 	if( !Q_stricmp( sv.name, "c_game_menu1" ) || Cvar_VariableInteger( "game_menu" ))
+ 	{
+@@ -2470,21 +2469,18 @@ qboolean SV_CoFMenuSave( int slot )
+ 	if( !IsValidSave() )
+ 		return false;
+ 
+-	Q_snprintf( name, sizeof( name ), "cofsave%d", slot );
+ 	Q_snprintf( save, sizeof( save ), "save/%s.sav", name );
+ 	Q_snprintf( saveBackup, sizeof( saveBackup ), "%s.coffix-backup", save );
+-	Q_snprintf( label, sizeof( label ), "SAVE/saveinfo%d.cof", slot );
+ 	Q_snprintf( labelTemp, sizeof( labelTemp ), "%s.coffix-temp", label );
+ 	Q_snprintf( labelBackup, sizeof( labelBackup ), "%s.coffix-backup", label );
+ 	/* Raw filesystem calls intentionally keep metadata in cryoffear/SAVE. */
+ 	if( SV_SaveFSFileExists( saveBackup, true ) || g_fsapi.FileExists( labelTemp, true ) ||
+ 		g_fsapi.FileExists( labelBackup, true ))
+ 	{
+-		Con_Printf( S_ERROR "slot %d has a pending recovery file; resolve it before saving again.\n", slot );
++		Con_Printf( S_ERROR "%s has a pending recovery file; resolve it before saving again.\n", what );
+ 		return false;
+ 	}
+ 
+-	Q_snprintf( title, sizeof( title ), "Pause Save (%.64s)", sv.name );
+ 	now = time( NULL );
+ 	local = localtime( &now );
+ 	if( !local || !strftime( stamp, sizeof( stamp ), "%a %b %d %H:%M:%S %Y", local ))
+@@ -2529,7 +2525,6 @@ qboolean SV_CoFMenuSave( int slot )
+ 		Con_Printf( S_WARN "saved, but retained recovery file %s\n", saveBackup );
+ 	if( labelMoved && !g_fsapi.Delete( labelBackup ))
+ 		Con_Printf( S_WARN "saved, but retained recovery file %s\n", labelBackup );
+-	Con_Printf( "CoF menu save committed to slot %d.\n", slot );
+ 	return true;
+ 
+ rollback:
+@@ -2539,10 +2534,58 @@ rollback:
+ 	if( saved || SV_SaveFSFileExists( save, true )) SV_SaveFSDelete( save );
+ 	if( hadSave && !SV_SaveFSRename( saveBackup, save ))
+ 		Con_Printf( S_ERROR "restore save manually from %s\n", saveBackup );
+-	Con_Printf( S_ERROR "CoF menu save failed; existing slot recovery was attempted.\n" );
++	Con_Printf( S_ERROR "CoF %s failed; recovery of the previous files was attempted.\n", what );
+ 	return false;
+ }
+ 
++qboolean SV_CoFMenuSave( int slot )
++{
++	char name[32], label[MAX_QPATH], title[96], what[32];
++
++	if( !SV_CoFRootSaveCompat() || !Cvar_VariableInteger( "cof_pause_menu_saves" ) || slot < 1 || slot > 5 )
++	{
++		Con_Printf( "Cry of Fear menu saving is disabled or the slot is invalid.\n" );
++		return false;
++	}
++
++	Q_snprintf( name, sizeof( name ), "cofsave%d", slot );
++	Q_snprintf( label, sizeof( label ), "SAVE/saveinfo%d.cof", slot );
++	Q_snprintf( title, sizeof( title ), "Pause Save (%.64s)", sv.name );
++	Q_snprintf( what, sizeof( what ), "menu save to slot %d", slot );
++	if( !SV_CoFSaveTransaction( name, label, title, what ))
++		return false;
++
++	Con_Printf( "CoF menu save committed to slot %d.\n", slot );
++	return true;
++}
++
++/* The quick save: SAVE/cofquick.sav (+ its .bmp) at the runtime root and the
++ * label cryoffear/SAVE/saveinfoquick.cof "Quick save (<map>) - <timestamp>".
++ * Whether a quick save may happen now (the option, single player, in play, no
++ * menu or panel) is decided by the caller, engine/client/cof_quicksave.c. */
++qboolean SV_CoFQuickSave( void )
++{
++	char title[96];
++
++	if( !SV_CoFRootSaveCompat( ))
++	{
++		Con_Printf( "Quick saves need the Cry of Fear root SAVE folder (cof_save_root_compat 1).\n" );
++		return false;
++	}
++
++	Q_snprintf( title, sizeof( title ), "Quick save (%.64s)", sv.name );
++	if( !SV_CoFSaveTransaction( COF_QUICKSAVE_NAME, "SAVE/saveinfoquick.cof", title, "quick save" ))
++		return false;
++
++	Con_Reportf( "CoF quick save committed (%s).\n", sv.name );
++	return true;
++}
++
++qboolean SV_CoFQuickSaveExists( void )
++{
++	return SV_CoFRootSaveCompat( ) && SV_SaveFSFileExists( DEFAULT_SAVE_DIRECTORY COF_QUICKSAVE_NAME ".sav", true );
++}
++
+ static int SV_CompareFileTime( int ft1, int ft2 )
+ {
+ 	if( ft1 < ft2 )
+diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
+--- a/engine/client/cl_main.c
++++ b/engine/client/cl_main.c
+@@ -6183,6 +6183,7 @@ static void CL_InitLocal( void )
+ 	Cvar_RegisterVariable( &cl_maxframetime );
+ 	Cvar_RegisterVariable( &cl_fixmodelinterpolationartifacts );
+ 	{ void V_CoF_RegisterFovCvars( void ); V_CoF_RegisterFovCvars(); } // cof_fov, cof_fov_zoom_knee; both live in engine\client\cl_view.c
++	{ void CL_CoF_QuickSaveInit( void ); CL_CoF_QuickSaveInit(); } // cof_quick_saves, cof_quicksave, cof_quickload; engine\client\cof_quicksave.c
+ 
+ 	// server commands
+ 	Cmd_AddCommand ("noclip", NULL, "enable or disable no clipping mode" );
+@@ -6363,6 +6364,10 @@ void Host_ClientFrame( void )
+ 	// and independent of whatever the command buffer is waiting on
+ 	CL_CoF_DeathPump ();
+ 
++	// Cry of Fear quick load (cof_quick_saves): "Quick loaded" on the
++	// message strip once the loaded level is up; engine\client\cof_quicksave.c
++	{ void CL_CoF_QuickSaveFrame( void ); CL_CoF_QuickSaveFrame(); }
++
+ 	// do prediction again in case we got
+ 	// a new portion updates from server
+ 	CL_RedoPrediction ();
+diff --git a/engine/client/cof_quicksave.c b/engine/client/cof_quicksave.c
+new file mode 100644
+--- /dev/null
++++ b/engine/client/cof_quicksave.c
+@@ -0,0 +1,213 @@
++/*
++cof_quicksave.c - Cry of Fear: quick save and quick load (cof_quick_saves)
++
++This program is free software: you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation, either version 3 of the License, or
++(at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++
++====================================================================
++
++cof_quick_saves (saved, default 0)
++
++Cry of Fear keeps five shared save slots (the tape recorders, and with
++cof_pause_menu_saves the pause menu). This adds one more file of its own, the
++quick save, written and read through exactly the same root-SAVE path:
++
++	cof_quicksave   F5   SAVE/cofquick.sav (+ .bmp) and cryoffear/SAVE/
++	                     saveinfoquick.cof, "Quick save (<map>) - <date>"
++	cof_quickload   F9   loads SAVE/cofquick.sav
++
++The writing itself is SV_CoFQuickSave (server/sv_save.c): the same
++transaction as a pause-menu save (label first, the old files kept as
++.coffix-backup until the new pair is in place, rollback on any I/O error).
++This file only decides whether a quick save may happen now:
++
++	off                 cof_quick_saves 0: "Quick saves are disabled in
++	                    Options > Game", nothing else
++	multiplayer         co-op host or joiner: never (a load would end the
++	                    session, a save is refused by the engine anyway)
++	not in play         no local game, the menu background map, a level still
++	                    loading (loading plaque up), a server not yet active
++	menu or console     key_dest is not key_game (this includes the death page)
++	a panel             the client shows its arrow cursor (host.mouse_visible):
++	                    inventory, notes, tape recorder page, computer, ...
++	dead / no player    IsValidSave (server/sv_save.c) says so
++
++The quick load needs only the option, single player and the file.
++
++What the player is told goes where the game tells its own: the client's
++message strip under the middle of the screen (CHUDControl), through the
++"ProFont" user message hl.dll uses for the pickup lines and for the tape
++recorder's own "Saved" (hl.dll 100DF132: ProFont, colour 4). So these lines
++get everything that strip already has: the placement (cof_hud_msg_y_pct), the
++Inter SemiBold face and its size (the "credits" role, times the HUD scale),
++the backing strip (cof_hud_text_backing, 0 = off), the client's own fade, and
++the language pack's string table at the client's setText
++(languages/<code>/strings/dll-strings.tsv, English key = the text below).
++Nothing goes to the top-left notify lines: the log lines are developer-only
++(Con_Reportf). What a player can only reach from the console (menu, panel,
++loading, dead) is answered in the console.
++
++The menu side (the Game tab switch, the pause menu's first item, the Load
++list's first row and the two Keybinds rows) is
++patches/cof-mainui-quicksave.patch.
++*/
++
++#include "common.h"
++#include "client.h"
++#include "server.h"
++
++static CVAR_DEFINE_AUTO( cof_quick_saves, "0", FCVAR_ARCHIVE, "Cry of Fear: allow the quick save (cof_quicksave, F5) and the quick load (cof_quickload, F9); off by default" );
++
++// the message strip's colour index (cof_hud_msg_probe lists them)
++#define COF_QUICK_GREEN 4 // hl.dll's own "Saved"
++#define COF_QUICK_GREY  5 // the pickup lines
++
++// the "Quick loaded" line waits for the loaded level: up, loading plaque gone,
++// and drawn for a few frames, so the client's strip is there to take it
++static qboolean cof_quick_load_pending;
++static double   cof_quick_load_deadline;
++static int      cof_quick_load_settle;
++
++static void CL_CoF_QuickShow( const char *text, int colour )
++{
++	byte	buf[256];
++	int	len;
++
++	Con_Reportf( "[cof-quick] %s\n", text );
++
++	if( cls.state != ca_active )
++		return;
++
++	buf[0] = (byte)colour;
++	Q_strncpy( (char *)buf + 1, text, sizeof( buf ) - 1 );
++	len = 1 + Q_strlen( (char *)buf + 1 ) + 1;
++
++	if( !CL_DispatchUserMessage( "ProFont", len, buf ))
++		Con_Printf( "%s\n", text ); // no strip (another client): at least the console
++}
++
++static qboolean CL_CoF_QuickEnabled( void )
++{
++	if( cof_quick_saves.value != 0.0f )
++		return true;
++
++	if( cls.state == ca_active )
++		CL_CoF_QuickShow( "Quick saves are disabled in Options > Game", COF_QUICK_GREY );
++	else
++		Con_Printf( "Quick saves are disabled in Options > Game\n" );
++	return false;
++}
++
++// a co-op session, as host (local server with more than one slot) or as a
++// joiner (connected to a server with more than one slot)
++static qboolean CL_CoF_QuickMultiplayer( void )
++{
++	if( SV_Active( ) && SV_GetMaxClients( ) > 1 )
++		return true;
++
++	if( cls.state >= ca_connected && cl.maxclients > 1 )
++		return true;
++
++	return false;
++}
++
++static void CL_CoF_QuickSave_f( void )
++{
++	if( !CL_CoF_QuickEnabled( ))
++		return;
++
++	if( CL_CoF_QuickMultiplayer( ))
++	{
++		CL_CoF_QuickShow( "Quick saves work in single player only", COF_QUICK_GREY );
++		return;
++	}
++
++	if( !SV_Active( ) || cls.state != ca_active || cl.background || cls.disable_screen != 0.0f )
++	{
++		Con_Printf( "Quick save: not in play (no game, the menu map, or still loading).\n" );
++		return;
++	}
++
++	if( cls.key_dest != key_game )
++	{
++		Con_Printf( "Quick save: close the menu or the console first.\n" );
++		return;
++	}
++
++	if( host.mouse_visible )
++	{
++		Con_Printf( "Quick save: close the open panel first.\n" );
++		return;
++	}
++
++	if( SV_CoFQuickSave( ))
++		CL_CoF_QuickShow( "Quick saved", COF_QUICK_GREEN );
++}
++
++static void CL_CoF_QuickLoad_f( void )
++{
++	if( !CL_CoF_QuickEnabled( ))
++		return;
++
++	if( CL_CoF_QuickMultiplayer( ))
++	{
++		CL_CoF_QuickShow( "Quick saves work in single player only", COF_QUICK_GREY );
++		return;
++	}
++
++	if( !SV_CoFQuickSaveExists( ))
++	{
++		if( cls.state == ca_active )
++			CL_CoF_QuickShow( "There is no quick save yet", COF_QUICK_GREY );
++		else
++			Con_Printf( "There is no quick save yet\n" );
++		return;
++	}
++
++	Con_Reportf( "[cof-quick] loading " DEFAULT_SAVE_DIRECTORY COF_QUICKSAVE_NAME ".sav\n" );
++	cof_quick_load_pending = SV_LoadGame( DEFAULT_SAVE_DIRECTORY COF_QUICKSAVE_NAME ".sav" );
++	cof_quick_load_deadline = host.realtime + 120.0;
++	cof_quick_load_settle = 0;
++}
++
++/*
++====================
++CL_CoF_QuickSaveFrame
++
++Host_ClientFrame, every frame: "Quick loaded" once the level the quick load
++started is up (not from the command buffer, which a running cfg can hold up).
++====================
++*/
++void CL_CoF_QuickSaveFrame( void )
++{
++	if( !cof_quick_load_pending )
++		return;
++
++	if( cls.state != ca_active || cls.disable_screen != 0.0f || cl.background )
++	{
++		cof_quick_load_settle = 0;
++		if( host.realtime > cof_quick_load_deadline )
++			cof_quick_load_pending = false; // the load never finished: say nothing
++		return;
++	}
++
++	if( ++cof_quick_load_settle < 20 )
++		return;
++
++	cof_quick_load_pending = false;
++	CL_CoF_QuickShow( "Quick loaded", COF_QUICK_GREEN );
++}
++
++void CL_CoF_QuickSaveInit( void )
++{
++	Cvar_RegisterVariable( &cof_quick_saves );
++	Cmd_AddCommand( "cof_quicksave", CL_CoF_QuickSave_f, "Cry of Fear: quick save (SAVE/cofquick.sav) when cof_quick_saves is on" );
++	Cmd_AddCommand( "cof_quickload", CL_CoF_QuickLoad_f, "Cry of Fear: load the quick save when cof_quick_saves is on" );
++}

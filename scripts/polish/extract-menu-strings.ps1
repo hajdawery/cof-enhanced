@@ -299,6 +299,7 @@ if (Test-Path -LiteralPath $kb) {
 # ------------------------------------------------------------------ engine text the menu draws
 # Strings that reach a menu page from the engine rather than from MainUI.
 Add-Key 'Pause Save (%s)' 'engine/server/sv_save.c (title of a pause-menu save, in the Load list)'
+Add-Key 'Quick save (%s)' 'engine/server/sv_save.c (title of the quick save, in the Load list)'
 
 # ------------------------------------------------------------------ output
 $utf8 = New-Object Text.UTF8Encoding $false

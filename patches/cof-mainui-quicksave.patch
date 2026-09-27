@@ -1,0 +1,297 @@
+diff --git a/3rdparty/mainui/menus/LoadGame.cpp b/3rdparty/mainui/menus/LoadGame.cpp
+--- a/3rdparty/mainui/menus/LoadGame.cpp
++++ b/3rdparty/mainui/menus/LoadGame.cpp
+@@ -52,6 +52,15 @@ static bool UI_CoFMenuSavesEnabled()
+ 	return UI_IsCoFRootSaveGame() && EngFuncs::GetCvarFloat( "cof_pause_menu_saves" ) != 0.0f;
+ }
+ 
++// Cry of Fear quick save (engine cof_quick_saves; cof_quicksave writes
++// SAVE/cofquick.sav and the label cryoffear/SAVE/saveinfoquick.cof)
++#define COF_QUICKSAVE_NAME "cofquick"
++
++static bool UI_CoFQuickSavesEnabled()
++{
++	return UI_IsCoFRootSaveGame() && EngFuncs::GetCvarFloat( "cof_quick_saves" ) != 0.0f;
++}
++
+ static bool UI_IsCoFSaveTimestamp( const char *text )
+ {
+ 	char weekday[4], month[4];
+@@ -253,6 +262,52 @@ void CMenuSavesListModel::Update( void )
+ 	RemoveAll();
+ 	if( UI_IsCoFRootSaveGame() )
+ 	{
++		// The quick save (cof_quicksave, F5; patches/cof-quicksave.patch):
++		// a row of its own at the top of the Load list while the option is
++		// on and the file exists. Never in the Save tab - only F5 and the
++		// pause menu's Quick save write it - so nothing here can overwrite.
++		if( !parent->IsSaveMode() && UI_CoFQuickSavesEnabled() &&
++			EngFuncs::FileExists( "SAVE/" COF_QUICKSAVE_NAME ".sav", false ))
++		{
++			save_t save;
++			char comment[256];
++			int length = 0;
++			byte *info = EngFuncs::COM_LoadFile( "SAVE/saveinfoquick.cof", &length );
++
++			Q_strncpy( save.name, COF_QUICKSAVE_NAME, sizeof( save.name ));
++			// "Quick" in the Slot column (short: the column is narrow and
++			// "Quick save" does not fit it in every language); the label
++			// "Quick save (<map>)" in the Save column, translated at draw
++			// time like "Pause Save (%s)" (key "Quick save (%s)"), and the
++			// timestamp in the Date column, exactly like the five slots
++			Q_strncpy( save.date, L( "Quick" ), sizeof( save.date ));
++			save.comment[0] = '\0';
++			save.elapsed_time[0] = '\0';
++			if( info && length > 0 )
++			{
++				const size_t copy = Q_min( (size_t)length, sizeof( save.comment ) - 1 );
++				memcpy( save.comment, info, copy );
++				save.comment[copy] = '\0';
++				char *stamp = NULL;
++				for( char *candidate = strstr( save.comment, " - " ); candidate;
++					candidate = strstr( candidate + 3, " - " ))
++					stamp = candidate;
++				if( stamp && UI_IsCoFSaveTimestamp( stamp + 3 ))
++				{
++					*stamp = '\0';
++					Q_strncpy( save.elapsed_time, stamp + 3, sizeof( save.elapsed_time ));
++				}
++			}
++			if( info )
++				EngFuncs::COM_FreeFile( info );
++			if( !save.comment[0] && EngFuncs::GetSaveComment( "SAVE/" COF_QUICKSAVE_NAME ".sav", comment ))
++				Q_strncpy( save.comment, comment, sizeof( save.comment ));
++
++			Con_DPrintf( "Load list: quick save row \"%s\" | \"%s\" | \"%s\"\n",
++				save.date, save.comment, save.elapsed_time );
++			AddToTail( save );
++		}
++
+ 		// CoF owns five named slots. Their .sav files are at the runtime
+ 		// root and their optional display labels remain in cryoffear/SAVE.
+ 		for( int slot = 1; slot <= 5; slot++ )
+@@ -696,6 +751,7 @@ void UI_LoadSaveGame_Precache( void )
+ {
+ 	menu_loadgame = new CMenuLoadGame();
+ 	EngFuncs::CvarRegister( "cof_pause_menu_saves", "0", FCVAR_ARCHIVE );
++	EngFuncs::CvarRegister( "cof_quick_saves", "0", FCVAR_ARCHIVE );
+ 	EngFuncs::PIC_Load( ART_BANNER_SAVE );
+ 	EngFuncs::PIC_Load( ART_BANNER_LOAD );
+ }
+diff --git a/3rdparty/mainui/menus/Main.cpp b/3rdparty/mainui/menus/Main.cpp
+--- a/3rdparty/mainui/menus/Main.cpp
++++ b/3rdparty/mainui/menus/Main.cpp
+@@ -48,6 +48,21 @@ static bool CoFInMultiplayer( void )
+ 	return gpGlobals->maxClients > 1;
+ }
+ 
++// the Game options switch "Quick saves" (engine cof_quick_saves)
++static bool CoFQuickSavesEnabled( void )
++{
++	return EngFuncs::GetCvarFloat( "cof_quick_saves" ) != 0.0f;
++}
++
++// the pause list's "Quick save": the engine's cof_quicksave, then back to the
++// game. The command runs from the command buffer on the next frame, when the
++// menu is already closed, so it is not refused as "menu open".
++static void UI_CoFQuickSave( void )
++{
++	EngFuncs::ClientCmd( false, "cof_quicksave\n" );
++	UI_CloseMenu();
++}
++
+ #define ART_MINIMIZE_N	"gfx/shell/min_n"
+ #define ART_MINIMIZE_F	"gfx/shell/min_f"
+ #define ART_MINIMIZE_D	"gfx/shell/min_d"
+@@ -184,6 +199,9 @@ private:
+ 	// pause list: "Save Game" of its own, shown only while pause-menu saves
+ 	// are enabled (cof_pause_menu_saves); saveRestore is "Load Game" there
+ 	CMenuPicButton	cofSaveGame;
++	// pause list: "Quick save" (cof_quicksave), the FIRST item while quick
++	// saves are on (cof_quick_saves), single player only
++	CMenuPicButton	cofQuickSave;
+ 	CMenuCoFLogo	cofLogo;
+ 
+ 	// buttons on top right. Maybe should be drawn if fullscreen == 1?
+@@ -575,6 +593,11 @@ void CMenuMain::InitCoF( void )
+ 	cofSaveGame.iFlags |= QMF_NOTIFY;
+ 	cofSaveGame.onReleased = UI_SaveGame_Menu;
+ 
++	cofQuickSave.SetNameAndStatus( L( "Quick save" ), L( "Save to the quick save slot now and return to the game" ) );
++	cofQuickSave.SetPicture( PC_SAVE_GAME );
++	cofQuickSave.iFlags |= QMF_NOTIFY;
++	cofQuickSave.onReleased = UI_CoFQuickSave;
++
+ 	if( UI_ThemeActive( ))
+ 		AddItem( cofLogo );
+ 	else
+@@ -583,6 +606,7 @@ void CMenuMain::InitCoF( void )
+ 	// AddItem order is also the keyboard navigation order (CMenuItemsHolder::
+ 	// AdjustCursor walks m_pItems and steps over everything invisible), so the
+ 	// two levels are added in the order each is drawn and never interleaved.
++	AddItem( cofQuickSave );
+ 	AddItem( resumeGame );
+ 	AddItem( newGame );
+ 	AddItem( cofSaveGame );
+@@ -707,6 +731,7 @@ void CMenuMain::VidInitCoF( bool connected )
+ 	// Save Game only in game and only with pause-menu saves on; Think() lays
+ 	// the list out again when the option is switched while this menu is open
+ 	cofSaveGame.SetVisibility( connected && !mp && CoFPauseSavesEnabled( ));
++	cofQuickSave.SetVisibility( connected && !mp && CoFQuickSavesEnabled( ));
+ 
+ 	if( connected )
+ 	{
+@@ -730,7 +755,7 @@ void CMenuMain::VidInitCoF( bool connected )
+ 	CMenuPicButton *order[] =
+ 	{
+ 		// pause list, and the first level of the main list
+-		&resumeGame, &newGame, &cofSaveGame, &saveRestore, &cofCampaign, &cofExtras,
++		&cofQuickSave, &resumeGame, &newGame, &cofSaveGame, &saveRestore, &cofCampaign, &cofExtras,
+ 		&configuration, &cofQuitToMenu, &quit,
+ 		// second level of the main list
+ 		&cofJoinServer, &cofHostServer, &cofUnlockables, &cofLinks, &cofCredits,
+@@ -936,7 +961,8 @@ void CMenuMain::Think()
+ 		// list is underneath it; when that changed what the list should
+ 		// hold, lay it out again (same four calls as CoFSetLevel)
+ 		if( CL_IsActive( ) && ( bCoFLaidOutMP != CoFInMultiplayer( ) ||
+-			cofSaveGame.IsVisible( ) != ( CoFPauseSavesEnabled( ) && !CoFInMultiplayer( ))))
++			cofSaveGame.IsVisible( ) != ( CoFPauseSavesEnabled( ) && !CoFInMultiplayer( )) ||
++			cofQuickSave.IsVisible( ) != ( CoFQuickSavesEnabled( ) && !CoFInMultiplayer( ))))
+ 		{
+ 			VidInit( true );
+ 			CalcPosition();
+diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/AdvancedControls.cpp
+--- a/3rdparty/mainui/menus/AdvancedControls.cpp
++++ b/3rdparty/mainui/menus/AdvancedControls.cpp
+@@ -359,6 +359,9 @@ private:
+ 	// "Transparent UI background": the saved engine cvar cof_panel_transparent
+ 	// (0/1, default 1), the world instead of black behind those panels
+ 	CMenuCheckBox	panelTransparent;
++	// "Quick saves": the saved engine cvar cof_quick_saves (0/1): F5 / F9,
++	// the pause menu's Quick save and the Load list's quick row
++	CMenuCheckBox	quickSaves;
+ 	CMenuSpinControl	language;
+ 	CMenuSpinControl	hudScale;
+ 	CMenuSpinControl	adsMode;
+@@ -418,6 +421,8 @@ void CAdvancedControls::GetConfig( )
+ 		menuSaves.UpdateEditable();
+ 		notifyLines.LinkCvar( "cof_notify" );
+ 		notifyLines.UpdateEditable();
++		quickSaves.LinkCvar( "cof_quick_saves" );
++		quickSaves.UpdateEditable();
+ 		// the two panel switches link only to a cvar that exists: an engine
+ 		// without them shows their engine defaults (pause 0, transparent 1),
+ 		// and the page's Reload cannot turn a missing cvar into a 0
+@@ -785,6 +790,13 @@ void CAdvancedControls::_Init( void )
+ 	panelTransparent.iFlags |= QMF_NOTIFY;
+ 	panelTransparent.onChanged = VoidCb( &CAdvancedControls::PanelTransparentChanged );
+ 
++	// written at once, like Pause menu saves: the engine reads it on every
++	// cof_quicksave / cof_quickload, the pause list lays itself out again
++	quickSaves.SetNameAndStatus( L( "Quick saves" ),
++		L( "F5 quick save, F9 quick load; Quick save also heads the pause menu and the Load list" ));
++	quickSaves.iFlags |= QMF_NOTIFY;
++	SET_EVENT( quickSaves.onChanged, ((CMenuCheckBox *)pSelf)->WriteCvar( ));
++
+ 	language.szName = L( "Subtitle language" );
+ 	language.Setup( &languageModel );
+ 	language.SetCharSize( QM_SMALLFONT );
+@@ -854,6 +866,7 @@ void CAdvancedControls::_Init( void )
+ 		{
+ 			AddItem( panelPause );
+ 			AddItem( panelTransparent );
++			AddItem( quickSaves );
+ 		}
+ 		else
+ 			AddItem( adsMode );
+@@ -876,7 +889,7 @@ void CAdvancedControls::_VidInit()
+ 		// language note, as before.
+ 		Rect left = ColumnRect( 0, 2 );
+ 		Rect right = ColumnRect( 1, 2 );
+-		CMenuCheckBox *boxes[] = { &crosshair, &lookSpring, &conEnable, &menuSaves, &notifyLines, &panelPause, &panelTransparent };
++		CMenuCheckBox *boxes[] = { &crosshair, &lookSpring, &conEnable, &menuSaves, &notifyLines, &panelPause, &panelTransparent, &quickSaves };
+ 		const int numBoxes = (int)V_ARRAYSIZE( boxes );
+ 		int y = left.pt.y;
+ 
+@@ -1052,6 +1065,7 @@ void CAdvancedControls::OptionsProbe( void )
+ 		{ "notify", &notifyLines, "cof_notify" },
+ 		{ "panelpause", &panelPause, "cof_panel_pause" },
+ 		{ "transparent", &panelTransparent, "cof_panel_transparent" },
++		{ "quicksaves", &quickSaves, "cof_quick_saves" },
+ 	};
+ 
+ 	if( !stricmp( item, "close" ))
+diff --git a/3rdparty/mainui/model/KbActListModel.h b/3rdparty/mainui/model/KbActListModel.h
+--- a/3rdparty/mainui/model/KbActListModel.h
++++ b/3rdparty/mainui/model/KbActListModel.h
+@@ -108,6 +108,15 @@ public:
+ 		if( m_view == VIEW_BINDINGS && UI_CoFOptionsLayout( ))
+ 			AddAfter( "+duck", "cof_duck_toggle", L( "Crouch (toggle)" ));
+ 
++		// quick save / quick load (engine cof_quicksave / cof_quickload,
++		// F5 / F9 by default, patches/cof-mainui-quicksave.patch) under the
++		// game's own "Pause game" row, added in code like the crouch toggle
++		if( m_view == VIEW_BINDINGS && UI_CoFOptionsLayout( ))
++		{
++			AddAfter( "pause", "cof_quicksave", L( "Quick save" ));
++			AddAfter( "cof_quicksave", "cof_quickload", L( "Quick load" ));
++		}
++
+ 		if( UI_ThemeActive( ))
+ 			CollapseSections();
+ 	}
+diff --git a/3rdparty/mainui/Theme.cpp b/3rdparty/mainui/Theme.cpp
+--- a/3rdparty/mainui/Theme.cpp
++++ b/3rdparty/mainui/Theme.cpp
+@@ -34,7 +34,8 @@ static cvar_t *ui_cof_scene_defaults = NULL;
+ // MOUSE2/MOUSE3 swap (aim on the right button). Raise this when a new one-shot
+ // default is added; UI_ThemeApplyDeferredDefaults then applies only the steps
+ // between the recorded generation and this one.
+-#define COF_SCENE_DEFAULTS_GEN	4
++// 5 = F5 quick save / F9 quick load (patches/cof-mainui-quicksave.patch)
++#define COF_SCENE_DEFAULTS_GEN	5
+ 
+ /*
+ =================
+@@ -120,6 +121,41 @@ void UI_ThemeApplyDeferredDefaults( void )
+ 	if( generation >= COF_SCENE_DEFAULTS_GEN )
+ 		return; // nothing new here; the user's choices stand
+ 
++	if( generation < 5 )
++	{
++		// Generation 5 (quick saves): F5 = cof_quicksave, F9 = cof_quickload,
++		// the default keys of the quick save (off until "Quick saves" is
++		// ticked in Options > Game; gfx/shell/kb_def.lst carries the same for
++		// "Use defaults"). A key is taken only when it is free - F9 unbound,
++		// F5 unbound or still holding the game's shipped "snapshot" (which
++		// then moves to F12, if F12 is free); a key the player bound to
++		// anything else is left alone. Offered exactly once.
++		const char *f5 = EngFuncs::KEY_GetBinding( K_F5 );
++		const char *f9 = EngFuncs::KEY_GetBinding( K_F9 );
++		const char *f12 = EngFuncs::KEY_GetBinding( K_F12 );
++
++		if( !f9 || !f9[0] )
++		{
++			EngFuncs::ClientCmd( false, "bind F9 \"cof_quickload\"\n" );
++			Con_Printf( "Cry of Fear: default binds updated - F9 quick load (cof_quickload)\n" );
++		}
++		else
++			Con_Printf( "Cry of Fear: F9 is bound to \"%s\", left as it is (quick load has no key)\n", f9 );
++
++		if( !f5 || !f5[0] )
++		{
++			EngFuncs::ClientCmd( false, "bind F5 \"cof_quicksave\"\n" );
++			Con_Printf( "Cry of Fear: default binds updated - F5 quick save (cof_quicksave)\n" );
++		}
++		else if( !stricmp( f5, "snapshot" ) && ( !f12 || !f12[0] ))
++		{
++			EngFuncs::ClientCmd( false, "bind F5 \"cof_quicksave\"\nbind F12 \"snapshot\"\n" );
++			Con_Printf( "Cry of Fear: default binds updated - F5 quick save (cof_quicksave), screenshot moved from F5 to F12\n" );
++		}
++		else
++			Con_Printf( "Cry of Fear: F5 is bound to \"%s\", left as it is (quick save has no key)\n", f5 );
++	}
++
+ 	if( generation < 4 )
+ 	{
+ 		// Generation 4 (milestone 5b): aim down sights on the right mouse
