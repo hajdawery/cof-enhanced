@@ -56,9 +56,23 @@ foreach ($p in @($Project, $SourceRoot)) {
 
 $header = Join-Path $SourceRoot 'engine\cof_version.h'
 
+# Waf's scanner can miss a header behind __has_include. Invalidate only the
+# consuming object so an incremental build cannot retain an earlier stamp.
+function Invalidate-VersionObject {
+	foreach ($build in Get-ChildItem -LiteralPath $SourceRoot -Directory | Where-Object { $_.Name -eq 'build' -or $_.Name -like 'build-*' }) {
+		$objects = Join-Path $build.FullName 'engine\client'
+		if (-not (Test-Path -LiteralPath $objects -PathType Container)) { continue }
+		foreach ($object in Get-ChildItem -LiteralPath $objects -File -Filter 'console.c.*.o') {
+			Remove-Item -LiteralPath $object.FullName -Force
+			Write-Host "invalidated version object: $($object.FullName)"
+		}
+	}
+}
+
 if ($Remove) {
 	if (Test-Path -LiteralPath $header) { Remove-Item -LiteralPath $header -Force; Write-Host "removed $header" }
 	else { Write-Host "nothing to remove at $header" }
+	Invalidate-VersionObject
 	return
 }
 
@@ -105,6 +119,7 @@ to "dev" values when this file is absent.
 New-Item -ItemType Directory -Force -Path (Split-Path $header) | Out-Null
 # LF, no BOM: the engine tree is LF and this file is generated, never committed
 [System.IO.File]::WriteAllText($header, ($text -replace "`r`n", "`n"), (New-Object System.Text.UTF8Encoding($false)))
+Invalidate-VersionObject
 
 Write-Host "wrote $header"
 Write-Host "  cofenhanced $version ($milestone, $commit)"

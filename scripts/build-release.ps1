@@ -89,6 +89,8 @@ $info = @{}
 foreach ($line in [IO.File]::ReadAllLines((Join-Path $Binaries 'BUILD-INFO.txt'))) { if ($line -match '^([a-z_0-9]+)=(.*)$') { $info[$Matches[1]] = $Matches[2] } }
 foreach ($k in 'binaries_commit', 'stamp') { if (-not $info.ContainsKey($k)) { throw "BUILD-INFO.txt has no $k=" } }
 if (-not $info['stamp'].Contains($Version)) { throw "The staged binaries are stamped '$($info['stamp'])', not version $Version" }
+$engineBytes = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes((Join-Path $Binaries 'xash.dll')))
+if (-not $engineBytes.Contains($info['stamp'])) { throw 'xash.dll does not contain the declared build stamp. Regenerate the version header and rebuild the console object.' }
 $binaryFiles = 'CoFLaunchApp.exe', 'xash.dll', 'ref_gl.dll', 'vgui.dll', 'FileSystem_Stdio.dll', 'SDL2.dll', 'cryoffear/cl_dlls/menu.dll'
 
 # ---- stage -------------------------------------------------------------------

@@ -135,7 +135,18 @@
      if( !textured || !CL_CoF_HudRemakeQuad( kind, color[3] )) return false;
      if( kind == HUD_STAMINA && w > 0 && h > 0 )
      {
-@@ -510,6 +607,19 @@
+@@ -506,10 +603,30 @@
+     return true;
+ }
+ 
++// Every verified stock 200x45 empty image has its original name below row 30.
++// Keep that artwork in the original painter; replace only the health graphics.
++float CL_CoF_HudRemakeBossLabelStart( int kind )
++{
++ return hud_boss.skin>=0 && kind==HUD_BOSS_FIRST+hud_boss.skin*2 ? 31.0f/45.0f : 0;
++}
++
+ void CL_CoF_HudRemakeBars( void )
  {
  	if(!HudEnabled() || !HudIcons()) return;
  	float scale=HudScale(), margin=28*scale, bottom=refState.height-margin;
@@ -155,3 +166,44 @@
  	if(hud.health_frame==host.framecount)
  	{
  		byte color[4]={245,245,245,hud.health_alpha};
+--- a/engine/client/client.h
++++ b/engine/client/client.h
+@@ -1368,6 +1368,7 @@
+ void CL_CoF_HudRemakeBegin( void );
+ void CL_CoF_HudRemakeAmmo( void );
+ void CL_CoF_HudRemakeBars( void );
++float CL_CoF_HudRemakeBossLabelStart( int kind );
+ int CL_CoF_HudRemakeTexture( const byte *hash );
+ qboolean CL_CoF_HudRemakeQuad( int kind, int alpha );
+ void CL_CoF_HudRemakeVguiBegin( void );
+--- a/engine/client/vgui/vgui_draw.c
++++ b/engine/client/vgui/vgui_draw.c
+@@ -280,8 +280,27 @@
+ 
+ 	SPR_AdjustSize( &x, &y, &w, &h );
+ 
++	// Deferred HUD draws run after R_Set2DOffset is reset. Supply absolute
++	// device coordinates, not the local coordinates used by the draw below.
++	float hudX=ul->point[0], hudY=ul->point[1], hudW=0, hudH=0;
++	CL_CoF_UIScaleRect( &hudX, &hudY, &hudW, &hudH );
++	SPR_AdjustSize( &hudX, &hudY, &hudW, &hudH );
+ 	if( CL_CoF_HudRemakeVguiQuad( vgui.enable_texture ? vgui.textures[vgui.bound_texture].cof_hud_kind : 0,
+-		vgui.enable_texture, x, y, w, h, vgui.color )) return;
++		vgui.enable_texture, hudX, hudY, w, h, vgui.color ))
++	{
++		// The stock empty boss texture also carries its name below the bar.
++		// Draw that exact strip with the current painter offset, preserving labels.
++		float label = vgui.enable_texture ? CL_CoF_HudRemakeBossLabelStart( vgui.textures[vgui.bound_texture].cof_hud_kind ) : 0;
++		if( vgui.enable_texture && label > 0 && lr->coord[1] > label && lr->coord[1] > ul->coord[1] )
++		{
++			float cut = bound( 0.0f, (label-ul->coord[1])/(lr->coord[1]-ul->coord[1]), 1.0f );
++			float top = ul->coord[1] + (lr->coord[1]-ul->coord[1])*cut;
++			ref.dllFuncs.Color4ub( vgui.color[0], vgui.color[1], vgui.color[2], vgui.color[3] );
++			ref.dllFuncs.R_DrawStretchPic( x, y+h*cut, w, h*(1-cut), ul->coord[0], top,
++				lr->coord[0], lr->coord[1], vgui.textures[vgui.bound_texture].gl_texturenum );
++		}
++		return;
++	}
+ 	if( vgui.enable_texture )
+ 	{
+ 		float s1 = ul->coord[0];

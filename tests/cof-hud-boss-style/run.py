@@ -54,7 +54,8 @@ static float CL_CoF_UIScaleUser(void){return multiplier;}
 static int Find(const char *name){for(int i=0;i<loaded;i++)if(!strcmp(name,loadedNames[i]))return i+1;return 0;}
 static void SetMode(int mode){lastMode=mode;}
 static void Color(byte r,byte g,byte b,byte alpha){lastColor[0]=r;lastColor[1]=g;lastColor[2]=b;lastColor[3]=alpha;}
-static void Pic(float x,float y,float w,float h,float s,float t,float s2,float t2,int tex){assert(w>=0&&h>=0);draws++;}
+static struct {float x,y,w,h,t,t2;} lastPic;
+static void Pic(float x,float y,float w,float h,float s,float t,float s2,float t2,int tex){assert(w>=0&&h>=0);draws++;lastPic.x=x;lastPic.y=y;lastPic.w=w;lastPic.h=h;lastPic.t=t;lastPic.t2=t2;}
 static struct {float x,y,w,h;int r,g,b,a;} rects[512];
 static void Fill(int mode,float x,float y,float w,float h,int r,int g,int b,int alpha){assert(w>=0&&h>=0);assert(fills<512);rects[fills].x=x;rects[fills].y=y;rects[fills].w=w;rects[fills].h=h;rects[fills].r=r;rects[fills].g=g;rects[fills].b=b;rects[fills].a=alpha;fills++;}
 static struct {struct {int (*GL_FindTexture)(const char*);void (*GL_SetRenderMode)(int);void (*Color4ub)(byte,byte,byte,byte);void (*R_DrawStretchPic)(float,float,float,float,float,float,float,float,int);void(*FillRGBA)(int,float,float,float,float,int,int,int,int);}dllFuncs;}ref={{Find,SetMode,Color,Pic,Fill}};
@@ -134,6 +135,46 @@ if a.game_root:
     checks.append('{byte h[16]={'+digest+'};assert(CL_CoF_HudRemakeTexture(h)==HUD_BOSS_FIRST+'+str(i*2+j)+');}')
  test=test.replace('int main(void){','int main(void){'+''.join(checks))
  print('Checking 40 stock decoded texture fingerprints against installed art')
-file=a.out/'hud-boss.c';file.write_text(stub+'\n'+code+'\n'+test)
+# Compile the real VGUI draw entry as well: painter offsets are not zero in game.
+vgui_source=(a.source_root/'engine/client/vgui/vgui_draw.c').read_text()
+start=vgui_source.index('static void GAME_EXPORT VGUI_DrawQuad(')
+end=vgui_source.index('static void GAME_EXPORT VGUI_EnableTexture',start)
+vgui_stub=r'''
+#define GAME_EXPORT
+#define Vector4Set(v,a,b,c,d) ((v)[0]=(a),(v)[1]=(b),(v)[2]=(c),(v)[3]=(d))
+typedef struct {float point[2],coord[2];} vpoint_t;
+static struct {int paint_offset[2],enable_texture,bound_texture;byte color[4];struct {int cof_hud_kind,gl_texturenum;}textures[1];} vgui;
+static float testUiScale=1,testHudScale=1;
+static void CL_CoF_UIScaleRect(float*x,float*y,float*w,float*h){*x*=testUiScale;*y*=testUiScale;*w*=testUiScale;*h*=testUiScale;}
+static void SPR_AdjustSize(float*x,float*y,float*w,float*h){*x*=testHudScale;*y*=testHudScale;*w*=testHudScale;*h*=testHudScale;}
+'''
+extra=r'''
+ // Same absolute quad at different paint origins must produce identical overlay.
+ refState.height=1080;multiplier=1;boss(3,1,500,1000);
+ vgui.enable_texture=1;vgui.textures[0].cof_hud_kind=HUD_BOSS_FIRST+6;
+ memcpy(vgui.color,white,4);testUiScale=1.5f;testHudScale=2;
+ vpoint_t ul={{540,45},{0,0}},lr={{740,90},{1,1}};
+ for(int offset=0;offset<=540;offset+=270){
+  vgui.paint_offset[0]=offset;vgui.paint_offset[1]=45;
+  CL_CoF_HudRemakeVguiBegin();draws=0;VGUI_DrawQuad(&ul,&lr);
+  assert(draws==1); // original name survives in its active painter coordinates
+  assert(fabsf(lastPic.x-(540-offset)*3)<0.001f&&fabsf(lastPic.y-93)<0.001f);
+  assert(lastPic.w==600&&fabsf(lastPic.h-42)<0.001f);
+  assert(fabsf(lastPic.t-31.0f/45.0f)<0.0001f&&lastPic.t2==1);
+
+  assert(hud_boss.x==1620&&hud_boss.y==135&&hud_boss.w==600&&hud_boss.h==135);
+  vgui.paint_offset[0]=vgui.paint_offset[1]=0; // real end-of-paint reset
+  fills=0;CL_CoF_HudRemakeBars();assert(fills==3&&rects[0].x==1620&&rects[0].w==600&&rects[0].y==200.5f);
+ }
+ // A quad cropped entirely above the label draws no name; full boss images
+ // are suppressed without drawing their duplicate names.
+ draws=0;lr.coord[1]=0.5f;VGUI_DrawQuad(&ul,&lr);assert(draws==0);
+ lr.coord[1]=1;vgui.textures[0].cof_hud_kind=HUD_BOSS_FIRST+7;VGUI_DrawQuad(&ul,&lr);assert(draws==0);
+ // Partial lower-strip clipping keeps its remaining exact UV range.
+ vgui.textures[0].cof_hud_kind=HUD_BOSS_FIRST+6;ul.coord[1]=0.8f;VGUI_DrawQuad(&ul,&lr);assert(draws==1&&lastPic.t==0.8f);
+ puts("PASS actual VGUI_DrawQuad: nonzero panel offsets, UI+HUD scaling, deferred absolute position, original label crop/clipping");
+'''
+test=test.replace(' puts("PASS BossBar',extra+' puts("PASS BossBar')
+file=a.out/'hud-boss.c';file.write_text(stub+'\n'+code+'\n'+vgui_stub+'\n'+vgui_source[start:end]+'\n'+test)
 subprocess.run(['cl','/nologo','/W3','/std:c11',str(file.resolve()),'/Fe:hud-boss.exe'],cwd=a.out,check=True)
 subprocess.run([str((a.out/'hud-boss.exe').resolve())],cwd=a.out,check=True)

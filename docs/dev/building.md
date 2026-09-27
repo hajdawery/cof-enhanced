@@ -140,6 +140,12 @@ the window, but that is before `-log` opens its file, so the log does not
 carry it). Bumping `VERSION` and rebuilding the launcher updates the version
 strings.
 
+After changing `VERSION` or committing release changes, run
+`scripts/write-cof-version.ps1` before the engine build. It invalidates the
+cached `console.c` object because Waf can miss the generated header behind
+`__has_include`. The release packager also checks the complete declared stamp
+inside `xash.dll`; a metadata-only version bump is rejected.
+
 ## Data files
 
 Nothing to build except the font atlases, which are committed and reproducible
