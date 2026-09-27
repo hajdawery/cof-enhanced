@@ -16,6 +16,29 @@
 //
 // Written by hand from the pictures made by scripts/make-gamepad-assets.py
 // (xbox 1024x726, ps5 1024x692).
+//
+// Styles (cof_pad_style 0..3 = xbox, ps5, switch, steamdeck; -1 = Auto, the
+// style of the pad in use, published by the engine as cof_pad_style_auto).
+// The ten-column lines above are the xbox and ps5 styles. Further lines, any
+// order:
+//
+//   "STYLE" <style id> <controller picture>
+//   <engine key> <style id> <icon> <label> <u> <v> <marker size>
+//
+// A key with no line for a style falls back to its Xbox icon and label; a
+// style without a STYLE line falls back to the Xbox picture (markers then at
+// the Xbox u/v). The engine keys are POSITIONS on every pad (A_BUTTON = the
+// bottom face button, B_BUTTON = right, X_BUTTON = left, Y_BUTTON = top; the
+// engine makes SDL report Nintendo pads by position, cof_pad_positional), so a
+// Nintendo pad's A_BUTTON is the button printed "B": its line shows the Xbox
+// "B" letter at the bottom of the Joy-Con. switch/ and steamdeck/ are haej's
+// art (some icons derived from Zacksly's CC BY 3.0 icons, see
+// LICENSE-NOTE.md), made by scripts/make-gamepad-style-art.py (switch
+// 1024x1015, steamdeck 1024x592); u/v measured on those pictures. Steam Deck
+// extras (MODE = STEAM, MISC_BUTTON = the Quick Access "..." button,
+// PADDLE1..4 = R4, L4, R5, L5, SDL's names for the back grips) only arrive
+// when the game reads the Deck's own controller (outside Steam Input or with
+// a template that passes them); Steam keeps STEAM and "..." for itself.
 
 "A_BUTTON"   "xbox/a.png"          "ps5/cross.png"       "A"     "Cross"     0.744  0.379   0.806  0.409   0.070
 "B_BUTTON"   "xbox/b.png"          "ps5/circle.png"      "B"     "Circle"    0.809  0.289   0.879  0.301   0.070
@@ -33,3 +56,54 @@
 "DPAD_RIGHT" "xbox/dpad_right.png" "ps5/dpad_right.png"  "Right" "Right"     0.422  0.510   0.240  0.301   0.060
 "START"      "xbox/menu.png"       "ps5/options.png"     "Menu"  "Options"   0.568  0.288   0.729  0.137   0.055
 "BACK"       "xbox/view.png"       "ps5/create.png"      "View"  "Create"    0.430  0.288   0.269  0.137   0.055
+
+"STYLE"      "xbox"      "xbox/controller.png"
+"STYLE"      "ps5"       "ps5/controller.png"
+
+// Nintendo (Switch Pro Controller, Joy-Cons, pads in Switch mode such as the
+// 8BitDo Ultimate): face buttons by position, Nintendo letters
+"STYLE"      "switch"    "switch/controller.png"
+"A_BUTTON"   "switch"    "xbox/b.png"             "B"        0.699  0.430  0.065
+"B_BUTTON"   "switch"    "xbox/a.png"             "A"        0.761  0.365  0.065
+"X_BUTTON"   "switch"    "xbox/y.png"             "Y"        0.637  0.366  0.065
+"Y_BUTTON"   "switch"    "xbox/x.png"             "X"        0.699  0.298  0.065
+"L1_BUTTON"  "switch"    "switch/l.png"           "L"        0.257  0.160  0.085
+"R1_BUTTON"  "switch"    "switch/r.png"           "R"        0.722  0.160  0.085
+"LTRIGGER"   "switch"    "switch/zl.png"          "ZL"       0.200  0.060  0.075
+"RTRIGGER"   "switch"    "switch/zr.png"          "ZR"       0.780  0.060  0.075
+"STICK1"     "switch"    "switch/ls.png"          "L stick"  0.281  0.358  0.100
+"STICK2"     "switch"    "switch/rs.png"          "R stick"  0.708  0.591  0.100
+"DPAD_UP"    "switch"    "switch/dpad_up.png"     "Up"       0.281  0.517  0.060
+"DPAD_DOWN"  "switch"    "switch/dpad_down.png"   "Down"     0.281  0.645  0.060
+"DPAD_LEFT"  "switch"    "switch/dpad_left.png"   "Left"     0.217  0.581  0.060
+"DPAD_RIGHT" "switch"    "switch/dpad_right.png"  "Right"    0.344  0.581  0.060
+"START"      "switch"    "switch/plus.png"        "+"        0.625  0.227  0.055
+"BACK"       "switch"    "switch/minus.png"       "-"        0.357  0.229  0.055
+
+// Steam Deck: Xbox face-button letters and positions, L1/R1 bumpers, L2/R2
+// triggers, L3/R3 stick clicks, View / Menu, STEAM, Quick Access, back grips;
+// the Deck is drawn from the front with nothing above it, so L1/R1 sit on the
+// raised lip of the top edge and L2/R2 on the top corners (measured, m9)
+"STYLE"      "steamdeck" "steamdeck/controller.png"
+"A_BUTTON"   "steamdeck" "xbox/a.png"             "A"        0.895  0.388  0.045
+"B_BUTTON"   "steamdeck" "xbox/b.png"             "B"        0.921  0.341  0.045
+"X_BUTTON"   "steamdeck" "xbox/x.png"             "X"        0.868  0.341  0.045
+"Y_BUTTON"   "steamdeck" "xbox/y.png"             "Y"        0.895  0.295  0.045
+"L1_BUTTON"  "steamdeck" "steamdeck/l1.png"       "L1"       0.137  0.230  0.070
+"R1_BUTTON"  "steamdeck" "steamdeck/r1.png"       "R1"       0.863  0.230  0.070
+"LTRIGGER"   "steamdeck" "steamdeck/l2.png"       "L2"       0.068  0.270  0.070
+"RTRIGGER"   "steamdeck" "steamdeck/r2.png"       "R2"       0.932  0.270  0.070
+"STICK1"     "steamdeck" "steamdeck/l3.png"       "L3"       0.193  0.365  0.070
+"STICK2"     "steamdeck" "steamdeck/r3.png"       "R3"       0.806  0.365  0.070
+"DPAD_UP"    "steamdeck" "xbox/dpad_up.png"       "Up"       0.107  0.305  0.040
+"DPAD_DOWN"  "steamdeck" "xbox/dpad_down.png"     "Down"     0.107  0.381  0.040
+"DPAD_LEFT"  "steamdeck" "xbox/dpad_left.png"     "Left"     0.086  0.343  0.040
+"DPAD_RIGHT" "steamdeck" "xbox/dpad_right.png"    "Right"    0.128  0.343  0.040
+"START"      "steamdeck" "xbox/menu.png"          "Menu"     0.841  0.276  0.040
+"BACK"       "steamdeck" "xbox/view.png"          "View"     0.159  0.276  0.040
+"MODE"       "steamdeck" "steamdeck/steam.png"    "STEAM"    0.208  0.654  0.060
+"MISC_BUTTON" "steamdeck" "steamdeck/quick_access.png" "Quick Access" 0.792 0.654 0.060
+"PADDLE1"    "steamdeck" "steamdeck/r4.png"       "R4"       0.930  0.560  0.060
+"PADDLE2"    "steamdeck" "steamdeck/l4.png"       "L4"       0.070  0.560  0.060
+"PADDLE3"    "steamdeck" "steamdeck/r5.png"       "R5"       0.880  0.770  0.060
+"PADDLE4"    "steamdeck" "steamdeck/l5.png"       "L5"       0.120  0.770  0.060

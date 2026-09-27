@@ -22,25 +22,39 @@ param(
 #     with a dark shadow; the drawn ring when the file is missing), the last
 #     input device (cof_last_input, from the SDL events; the OS arrow stays
 #     hidden in menus and over panels while it is the pad, cof_pad_hide_cursor),
-#     the once-per-profile default pad layout (generation 3: D-pad down
-#     weapontoggle, L3 cof_sprint_toggle_press; cof_pad_defaults,
-#     cof_pad_defaults_gen), the sprint toggle (cof_sprint_toggle), the client's
+#     the once-per-profile default pad layout (generation 4: A jump, B crouch
+#     toggle, X reload, Y use, LB +attack2, RB quick turn, View inventory;
+#     cof_pad_defaults, cof_pad_defaults_gen; older generations migrate their
+#     untouched keys), the quick turn (cof_quickturn), the trigger hysteresis
+#     (cof_pad_trigger_hyst), the left stick shaped like the movement keys
+#     (cof_pad_move_mode and friends), the pad styles (cof_pad_style -1 = Auto,
+#     cof_pad_style_auto, Nintendo face buttons by position:
+#     cof_pad_positional), the sprint toggle (cof_sprint_toggle), the client's
 #     WinMM joystick kept off (cof_joy_legacy_off), the crouch toggle
 #     (cof_duck_toggle), gyro aiming off by default, the dodge guard
 #     (cof_joy_pulse_hysteresis), cof_pad_status, cof_pad_panel_dump and the
-#     developer hooks cof_joy_axis_probe / cof_vcursor_test / cof_input_trace.
+#     developer hooks cof_joy_axis_probe / cof_vcursor_test / cof_input_trace /
+#     cof_pad_measure / cof_pad_jitter / cof_pad_style_test / cof_pad_virtual.
 #   * engine/client/input/input.c: CL_CoF_PadInit in IN_Init, stick suppression
-#     in IN_EngineAppendMove, the pulse hysteresis in IN_JoyAppendMove, the
-#     cursor frame in Host_InputFrame.
+#     and the quick turn in IN_EngineAppendMove, the pulse hysteresis and the
+#     movement-key thresholds in IN_JoyAppendMove, the cursor frame in
+#     Host_InputFrame.
 #   * engine/client/input/in_keys.c: START in the cof_ui_input_gate Escape
 #     bypass; pad keys on an open panel routed before the client sees them.
-#   * engine/client/input/in_joy.c: the Joy_CoF_AxisValue accessor; joy_gyro_enable
-#     defaults to 0; a deflected axis marks the pad as the last input device.
+#   * engine/client/input/in_joy.c: the Joy_CoF_AxisValue / Joy_CoF_AxisRaw
+#     accessors; joy_gyro_enable defaults to 0; a deflected axis marks the pad
+#     as the last input device; trigger hysteresis in Joy_ProcessTrigger; the
+#     stick movement shape in Joy_FinalizeMove.
 #   * engine/client/vgui/vgui_draw.c/.h: VGUI_GetMousePos reads the gamepad
 #     cursor; VGui_Paint draws it last; VGui_CoF_PanelAction.
 #   * engine/vgui_api.h: vguiapi_t::CofPanelAction + COF_VGUI_PANEL_*.
 #   * engine/platform/sdl2/host_sdl2.c: every SDL event goes past
-#     CL_CoF_InputEvent (the last input device).
+#     CL_CoF_InputEvent (the last input device); the event loop's time and
+#     count for cof_pad_measure.
+#   * engine/platform/sdl2/joy_sdl2.c: SDL_GAMECONTROLLER_USE_BUTTON_LABELS 0 at
+#     init (Nintendo face buttons by position); the pad in use reported to
+#     CL_CoF_PadActivated (pad style); an axis makes its pad the active one only
+#     past 8000 of 32767.
 #   * engine/platform/sdl2/in_sdl2.c: Platform_SetMousePos notes the engine's own
 #     warps; Platform_SetCursorType asks CL_CoF_OSCursorRequest before it shows
 #     the arrow.
@@ -82,11 +96,12 @@ $newRel   = 'engine\client\input\cof_gamepad.c'
 $apiRel   = 'engine\vgui_api.h'
 $hostRel  = 'engine\platform\sdl2\host_sdl2.c'
 $insdlRel = 'engine\platform\sdl2\in_sdl2.c'
+$sdljRel = 'engine\platform\sdl2\joy_sdl2.c'
 $panRel   = '3rdparty\freevgui\platform\xash3d-fwgs\cofpanels.cpp'
 $appRel   = '3rdparty\freevgui\platform\xash3d-fwgs\app.cpp'
 $loadRel  = '3rdparty\mainui\menus\LoadGame.cpp'
 $optRel   = '3rdparty\mainui\menus\CoFOptions.cpp'
-foreach ($relative in @($inputRel, $keysRel, $joyRel, $vguiRel, $hdrRel, $apiRel, $hostRel, $insdlRel, $appRel, $loadRel)) {
+foreach ($relative in @($inputRel, $keysRel, $joyRel, $vguiRel, $hdrRel, $apiRel, $hostRel, $insdlRel, $sdljRel, $appRel, $loadRel)) {
     if (!(Test-Path -LiteralPath (Join-Path $source $relative))) {
         throw "Not an FWGS source tree with FreeVGUI and MainUI: $(Join-Path $source $relative)"
     }
@@ -149,6 +164,7 @@ try {
     $api    = Slurp $apiRel
     $hostC  = Slurp $hostRel
     $insdl  = Slurp $insdlRel
+    $sdlj   = Slurp $sdljRel
     $pan    = Slurp $panRel
     $app    = Slurp $appRel
     $load   = Slurp $loadRel
@@ -158,7 +174,7 @@ try {
         if ((Test-Path -LiteralPath (Join-Path $source $newRel)) -or $inputC.Contains('CL_CoF_Pad') -or $keys.Contains('CL_CoF_Pad') -or
             $joy.Contains('Joy_CoF_AxisValue') -or $joy.Contains('CL_CoF_NotePadAxis') -or $vgui.Contains('CL_CoF_VCursorPos') -or
             $vgui.Contains('VGui_CoF_PanelAction') -or $hdr.Contains('CL_CoF_Pad') -or $api.Contains('CofPanelAction') -or
-            $hostC.Contains('CL_CoF_InputEvent') -or $insdl.Contains('CL_CoF_') -or $pan.Contains('CofPanels_Action') -or
+            $hostC.Contains('CL_CoF_InputEvent') -or $hostC.Contains('CL_CoF_NoteEventLoop') -or $insdl.Contains('CL_CoF_') -or $sdlj.Contains('CL_CoF_') -or $pan.Contains('CofPanels_Action') -or
             $app.Contains('CofPanelAction') -or $load.Contains('CMenuSavesListModel::OnActivateEntry') -or
             $opt.Contains('"cof_last_input", "pad"')) {
             throw 'Reversed, but gamepad-input markers remain. Inspect the tree.'
@@ -173,7 +189,16 @@ try {
     $ok = $newC.Contains('qboolean CL_CoF_ClickablePanelOpen( void )') -and
           $newC.Contains('classes = CL_CoF_PanelsOnScreen( &reporting );') -and
           $newC.Contains('static CVAR_DEFINE_AUTO( cof_pad_panel_gate, "1", FCVAR_ARCHIVE,') -and
-          $newC.Contains('#define COF_PAD_DEFAULTS_GENERATION 3') -and
+          $newC.Contains('#define COF_PAD_DEFAULTS_GENERATION 4') -and
+          $newC.Contains('{ K_R1_BUTTON,     "cof_quickturn" },   // quick 180-degree turn') -and
+          $newC.Contains('{ K_BACK_BUTTON,   "+inventory" },      // View: opens and closes the inventory') -and
+          $newC.Contains('static const cof_pad_bind_t cof_pad_layout_gen3[] =') -and
+          $newC.Contains('Cmd_AddCommand( "cof_quickturn", CL_CoF_QuickTurn_f,') -and
+          $newC.Contains('static CVAR_DEFINE_AUTO( cof_pad_trigger_hyst, "0.1", FCVAR_ARCHIVE,') -and
+          $newC.Contains('static CVAR_DEFINE_AUTO( cof_pad_move_mode, "1", FCVAR_ARCHIVE,') -and
+          $newC.Contains('CVAR_DEFINE_AUTO( cof_pad_style, "-1", FCVAR_ARCHIVE,') -and
+          $newC.Contains('static CVAR_DEFINE_AUTO( cof_pad_style_auto, "0", FCVAR_READ_ONLY,') -and
+          $newC.Contains('static int CL_CoF_StyleForPad( int type, int vid, int pid, const char *name, qboolean deck_env, const char **why )') -and
           $newC.Contains('{ K_DPAD_DOWN,     "weapontoggle" },') -and
           $newC.Contains('Cmd_AddCommand( "cof_duck_toggle", CL_CoF_DuckToggle_f,') -and
           $newC.Contains('Cmd_AddCommand( "cof_sprint_toggle_press", CL_CoF_SprintPress_f,') -and
@@ -189,7 +214,9 @@ try {
 
     $ok = $inputC.Contains('CL_CoF_PadInit(); // Cry of Fear gamepad cvars, before config.cfg runs') -and
           $inputC.Contains('if( CL_CoF_PadSuppressMove( ))') -and
-          $inputC.Contains('else if ( forwardmove < 0.7f - hyst && ( moveflags & F ))') -and
+          $inputC.Contains('else if ( forwardmove < fthr - hyst && ( moveflags & F ))') -and
+          $inputC.Contains('CL_CoF_PadMoveKeyThresholds( &fthr, &sthr );') -and
+          $inputC.Contains('yaw += CL_CoF_QuickTurnYaw( );') -and
           $inputC.Contains('if( !CL_CoF_PadFrame( ))')
     if (-not $ok) { throw 'Applied, but the input.c markers are missing. Inspect the tree.' }
 
@@ -200,6 +227,9 @@ try {
     $ok = $joy.Contains('short Joy_CoF_AxisValue( engineAxis_t axis )') -and
           $joy.Contains('static CVAR_DEFINE_AUTO( joy_gyro_enable, "0",') -and
           $joy.Contains('CL_CoF_NotePadAxis( engineAxis, value );') -and
+          $joy.Contains('if( trigButton && CL_CoF_TriggerHysteresis( ) > 0.0f )') -and
+          $joy.Contains('if( !CL_CoF_PadMoveShape( fw, side, joy_forward.value, joy_side.value ))') -and
+          $joy.Contains('short Joy_CoF_AxisRaw( engineAxis_t axis )') -and
           $vgui.Contains('if( !CL_CoF_VCursorPos( &x, &y ))') -and
           $vgui.Contains('CL_CoF_VCursorDraw( );') -and
           $vgui.Contains('int VGui_CoF_PanelAction( int action, char *info, int infoSize )') -and
@@ -207,9 +237,12 @@ try {
           $hdr.Contains('qboolean CL_CoF_OSCursorRequest( int type );') -and
           $api.Contains('int	(*CofPanelAction)( int action, char *info, int infoSize );') -and
           $hostC.Contains('CL_CoF_InputEvent( event );') -and
+          $hostC.Contains('CL_CoF_NoteEventLoop( Sys_DoubleTime( ) - cof_t0, cof_events );') -and
+          $sdlj.Contains('SDL_SetHint( SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, "0" );') -and
+          $sdlj.Contains('CL_CoF_PadActivated( g_current_gamepad );') -and
           $insdl.Contains('CL_CoF_NoteMouseWarp( x, y );') -and
           $insdl.Contains('SDL_ShowCursor( CL_CoF_OSCursorRequest( type ));')
-    if (-not $ok) { throw 'Applied, but the in_joy.c / vgui_draw.c / input.h / vgui_api.h / SDL platform markers are missing. Inspect the tree.' }
+    if (-not $ok) { throw 'Applied, but the in_joy.c / vgui_draw.c / input.h / vgui_api.h / SDL platform (host, input, joystick) markers are missing. Inspect the tree.' }
 
     $ok = $pan.Contains('int vgui::CofPanels_Action( int action, char *info, int infoSize )') -and
           $app.Contains('api->CofPanelAction = CofPanels_Action;') -and

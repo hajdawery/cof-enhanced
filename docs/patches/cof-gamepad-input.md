@@ -6,10 +6,10 @@ go together; a new `vguiapi_t` entry).
 Script: `scripts/apply-cof-gamepad-input.ps1` (`-SourceRoot <tree>`, `-Reverse`).
 Data: the pad lines in `gamedata/cryoffear/gfx/shell/kb_def.lst`; the cursor
 art `gamedata/cryoffear/gfx/shell/gamepad/cursor.png`.
-Stack position: step 55 of `docs/dev/patch-stack.md`, after the on-screen
-keyboard steps 49-52 and the panel patches 53-54, before `cof-cheats` (56,
-the last step); the same patch also applies without the keyboard steps (the
-m8 order). Needs `cof-ui-input-gate`, `cof-console-style`, `cof-ads-toggle`,
+Stack position: step 57 of `docs/dev/patch-stack.md` (since m9), after the
+on-screen keyboard steps 49-52, the quick save steps 53-54 (its `LoadGame.cpp`
+hunks use lines of step 54 as context; regenerated in m9, offsets only) and
+the panel patches 55-56, before `cof-cheats` (58, the last step). Needs `cof-ui-input-gate`, `cof-console-style`, `cof-ads-toggle`,
 `cof-ui-scale`, `cof-mainui-options-layout`, `cof-panel-pause` and
 `cof-panel-transparency` (the script checks their markers).
 
@@ -19,7 +19,7 @@ buttons are keys (`A_BUTTON`, `LTRIGGER`...), the engine menu is usable with a
 pad. What Cry of Fear needed on top is in the new file
 `engine/client/input/cof_gamepad.c`, with small hooks in `input.c`,
 `in_keys.c`, `in_joy.c`, `vgui_draw.c`/`.h`, `vgui_api.h`, `input.h`, the SDL2
-platform files `host_sdl2.c` and `in_sdl2.c`; the panel buttons in the VGUI
+platform files `host_sdl2.c`, `in_sdl2.c` and `joy_sdl2.c`; the panel buttons in the VGUI
 support library (`3rdparty/freevgui/platform/xash3d-fwgs/cofpanels.cpp`,
 `support.h`, `app.cpp`); two MainUI hunks (`menus/LoadGame.cpp`,
 `menus/CoFOptions.cpp`).
@@ -31,7 +31,7 @@ background map) **and** a modal Cry of Fear panel is on screen.
 
 **One source of truth (m8).** The panel is identified by its client class
 name, the same report the panel pause uses
-([`cof-panel-pause`](cof-panel-pause.md), step 49): the VGUI support library
+([`cof-panel-pause`](cof-panel-pause.md), step 55): the VGUI support library
 names every visible client panel each painted frame, and
 `CL_CoF_PanelsOnScreen()` (declared in `engine/common/common.h`) hands the
 engine its `COF_PANEL_*` bits (the HUD container left out). Any bit = a panel
@@ -53,8 +53,8 @@ FreeVGUI re-applies it every painted frame and the engine records it in
 `host.mouse_visible` (`Platform_SetCursorType`). No client offsets, no hash gate.
 The telescope, cutscene masks, HUD and subtitles show no arrow and are not
 "panels" here. Other code can call the function (declared in `input.h`).
-The gamepad patch therefore goes on after the panel pause (stack step 51,
-after 49-50); its apply script refuses a tree without `CL_CoF_PanelsOnScreen`.
+The gamepad patch therefore goes on after the panel pause (stack step 57,
+after 55-56); its apply script refuses a tree without `CL_CoF_PanelsOnScreen`.
 
 While it holds and `cof_pad_panel_gate` is 1:
 
@@ -128,15 +128,17 @@ class and command (the evidence behind the table); `cof_vcursor_test button
 The game's `config.cfg` starts with `unbindall`, which removes the engine's
 built-in (Half-Life) pad binds. Once per profile, when `config.cfg` has run,
 the engine checks `cof_pad_defaults_gen` (archived, 0 on a profile that never
-had it) against the current layout generation, **3**:
+had it) against the current layout generation, **4** (gamepad3 round, 2026-09-24):
 
 * **no** pad key bound (START's `cancelselect`, which `unbindall` itself
   restores, does not count): the layout below is bound;
-* generation 1 (the first staging of this patch) or 2 (m8): every pad key
-  that still holds exactly its bind of that generation moves to the layout
-  below (generation 2 -> 3: D-pad down `flashlight` -> `weapontoggle`, L3
-  `+sprint` -> `cof_sprint_toggle_press`); a key the player rebound or
-  cleared keeps what it has;
+* generation 1 (the first staging of this patch), 2 (m8) or 3 (gamepad2):
+  every pad key that still holds exactly its bind of that generation moves to
+  the layout below (generation 3 -> 4: X `+use` -> `+reload`, Y `+inventory` ->
+  `+use`, LB `+reload` -> `+attack2`, RB `+attack2` -> `cof_quickturn`, View
+  `+objectives` -> `+inventory`; 2 -> 3 was D-pad down `flashlight` ->
+  `weapontoggle`, L3 `+sprint` -> `cof_sprint_toggle_press`); a key the player
+  rebound or cleared keeps what it has;
 * otherwise (the player bound pad keys by hand) nothing is touched.
 
 Every profile below generation 2 also gets `joy_gyro_enable 0` once (gyro
@@ -146,27 +148,32 @@ rest at the next save. `cof_pad_defaults` (`force` to overwrite, `list` to
 compare) does it by hand; Options > Keybinds > Use defaults restores the same
 layout from `kb_def.lst`.
 
-| pad (Xbox / PlayStation) | engine key | in play | bind | on an open panel |
+The engine key names are **positions**: `A_BUTTON` is the bottom face button,
+`B_BUTTON` the right one, `X_BUTTON` the left one, `Y_BUTTON` the top one, on
+every pad - Nintendo pads included (section 2d) - so the layout is positional.
+
+| position (Xbox / PlayStation / Nintendo / Steam Deck) | engine key | in play | bind | on an open panel |
 | --- | --- | --- | --- | --- |
-| left stick | axes | move | (engine axis) | panel cursor |
+| left stick | axes | move (shaped like the keys, section 2c) | (engine axis) | panel cursor |
 | right stick | axes | look | (engine axis) | panel cursor |
-| RT / R2 | `RTRIGGER` | attack | `+attack` | |
-| LT / L2 | `LTRIGGER` | aim down sights (Hold/Toggle per `cof_ads_toggle`) | `+attack3` | |
-| A / Cross | `A_BUTTON` | jump | `+jump` | left click |
-| B / Circle | `B_BUTTON` | crouch, **toggle** | `cof_duck_toggle` | closes the inventory |
-| X / Square | `X_BUTTON` | use / interact | `+use` | right click |
-| Y / Triangle | `Y_BUTTON` | inventory (also closes it) | `+inventory` | closes the inventory (the game's own check) |
-| LB / L1 | `L1_BUTTON` | reload | `+reload` | |
-| RB / R1 | `R1_BUTTON` | secondary attack: bash, weapon mode, the light of the flashlight and phone weapons (the MOUSE3 action) | `+attack2` | |
+| RT / R2 / ZR / R2 | `RTRIGGER` | attack | `+attack` | |
+| LT / L2 / ZL / L2 | `LTRIGGER` | aim down sights (Hold/Toggle per `cof_ads_toggle`) | `+attack3` | |
+| bottom: A / Cross / B / A | `A_BUTTON` | jump | `+jump` | left click |
+| right: B / Circle / A / B | `B_BUTTON` | crouch, **toggle** | `cof_duck_toggle` | backs out of the panel |
+| left: X / Square / Y / X | `X_BUTTON` | reload | `+reload` | right click |
+| top: Y / Triangle / X / Y | `Y_BUTTON` | use / interact | `+use` | |
+| LB / L1 / L / L1 | `L1_BUTTON` | secondary attack: bash, weapon mode, the light of the flashlight and phone weapons (the MOUSE3 action) | `+attack2` | |
+| RB / R1 / R / R1 | `R1_BUTTON` | quick 180-degree turn (section 2a) | `cof_quickturn` | (ignored) |
 | left stick click (L3) | `STICK1` | sprint, Toggle or Hold (`cof_sprint_toggle`) | `cof_sprint_toggle_press` | |
 | right stick click (R3) | `STICK2` | crouch while held | `+duck` | |
 | d-pad up / left / right | `DPAD_UP` / `DPAD_LEFT` / `DPAD_RIGHT` | quick slot 1 / 2 / 3 | `quicksel 1..3` | |
 | d-pad down | `DPAD_DOWN` | toggle weapon function (the game's `weapontoggle`, kb_act "Toggle weapon function", keyboard Z) | `weapontoggle` | |
-| View / Create (Back) | `BACK` | current objective | `+objectives` | |
-| Menu / Options (Start) | `START` | pause menu | `cancelselect` | pause menu |
+| View / Create / - / View | `BACK` | inventory, opens and closes it (the game's own key check) | `+inventory` | closes the inventory |
+| Menu / Options / + / Menu | `START` | pause menu | `cancelselect` | pause menu |
 
-Weapons come from the inventory and the quick slots; the shoulder buttons no
-longer switch weapons. Not bound by default (Keybinds page): `+dodge`,
+The objective (`+objectives`, keyboard B) is not bound by default.
+Weapons come from the inventory and the quick slots; the shoulder buttons do
+not switch weapons. Not bound by default (Keybinds page): `+objectives`, `+dodge`,
 `flashlight` (keyboard F; kb_act calls it "Flashlight (coop only)"; RB's
 `+attack2` switches the light of the flashlight and phone weapons),
 `invprev`/`invnext`. A dodge also works as on the keyboard:
@@ -214,6 +221,125 @@ at 0 whenever the client is loaded (`cof_joy_legacy_off`, default 1; checked
 twice a second), so an XInput pad is never read twice; the engine's SDL pad is
 the only source.
 
+## 2a. Quick turn (`cof_quickturn`, RB)
+
+A smooth 180-degree turn over `cof_quickturn_time` seconds (0.18, archived,
+0.05..1), eased in and out (smoothstep sampled at the accumulated time, so the
+frame steps always add up to exactly 180 degrees). The yaw is added in
+`IN_EngineAppendMove`, the path the right stick turns the player with, after
+the client built its command, so it does not fight the client's own view
+handling or the aim down sights. Ignored outside play, while a panel or a menu
+is open, and while a turn runs; a level change or a load drops a turn in
+progress. `cof_quickturn` is a plain command, bindable to any key (Keybinds
+row for the options worker: `"cof_quickturn" "Quick turn"`). Measured
+(gamepad3 round): 180.0 degrees in 0.180-0.184 s at 200-240 fps, 0.401 s with
+`cof_quickturn_time 0.4`; RB (the generation-4 bind) turns; a second press
+while turning is ignored; with the inventory open: "ignored: a panel is open".
+
+## 2b. Triggers: one key edge per pull (`cof_pad_trigger_hyst`)
+
+The engine's `Joy_ProcessTrigger` pressed `LTRIGGER` / `RTRIGGER` when the
+value crossed `joy_lt_threshold` / `joy_rt_threshold` (16384 = half a pull)
+upwards and released it when it crossed downwards. A finger resting near the
+threshold therefore produced a key edge for every jitter of the analogue
+value, and with the default Toggle the aim down sights flipped on every press
+(measured: LT moving between 16000 and 16800 every frame = 958 key events in
+3 s, the zoom ending wherever the last accepted toggle left it). Now a pulled
+trigger is a state with hysteresis: pressed above threshold +
+`cof_pad_trigger_hyst` x 32767, released below threshold - that (0.1:
+press above 0.6, release below 0.4 of the pull); the same jitter gives no key
+event at all, a jitter across the press point exactly one. `0` restores the
+plain threshold. The menu's trigger-threshold slider still moves the centre.
+
+## 2c. The left stick shaped like the movement keys (`cof_pad_move_mode`)
+
+Measured (c_forest3, `cof_pad_measure`, every case out and back along the
+same line; u/s = units per second):
+
+| input | mode 0 (engine) | mode 1 (default) | keyboard |
+| --- | ---: | ---: | ---: |
+| straight, full | 225.0 | 225.0 | 225.0 (+forward) |
+| diagonal 45 degrees, full | **132.3** | **225.0** (187.5 with `cof_pad_move_diagonal 1`) | 187.5 (+forward +moveright) |
+| diagonal, 75 % push | 99.4 | 225.0 | |
+| diagonal, 50 % push | 65.8 | 145.4 (below the walk threshold) | |
+| straight, 50 % push | 112.5 (m0 C in round 1) | 174.7 | |
+| sideways, full | 150.0 | 150.0 | |
+| sprint straight, full | 300.0 | 300.0 | 300.0 |
+| sprint diagonal, full | 265.0 | 300.0 | 300.0 |
+| 30 degrees, full, mode 2 (8-way) | | 187.5 (snapped to 45; 225 with the boost) | |
+
+Cry of Fear walks at a speed that depends on the direction (straight 225,
+sideways 150, diagonal 187.5 with keys) times the LARGER of forwardmove /
+sidemove over the full value, capped at the straight speed; sprinting runs
+straight ahead at 300 whatever the side input. The engine's round stick sends
+0.71 / 0.71 at 45 degrees, so it walked at 187.5 x 0.71 = 132 - the lost
+momentum. Mode 1 ("digital-style", the default): a radial deadzone
+(`cof_pad_move_deadzone` 0.15); from `cof_pad_move_walk` (0.6) on the stick
+counts as fully pushed in its direction, mapped onto the keys' square (45
+degrees = full forward AND full side, like two held keys); below that the
+player walks slower along `cof_pad_move_curve` (1 = linear from the deadzone
+to the walk threshold); then `cof_pad_move_diagonal` (1.2 = 225 / 187.5) lifts
+the diagonals to the straight speed - it grows with the smaller component, so
+straight and pure sideways stay the keyboard's, and the game's cap keeps
+straight at 225 (measured: 1.2 on a straight push is still 225.0). The
++forward/+back/+moveleft/+moveright keys the engine presses for the stick
+follow the direction's sector once the stick counts as fully pushed (both keys
+on a diagonal), none below. Mode 2 snaps the direction to 8; mode 0 is the
+engine's own proportional stick (0.7 / 0.9 key thresholds).
+
+## 2d. Pad styles, Nintendo and Steam Deck (`cof_pad_style`, `cof_pad_style_auto`, `cof_pad_positional`)
+
+`cof_pad_style` (archived, **-1** = Auto, the string `auto` too; 0 Xbox, 1
+PlayStation, 2 Nintendo, 3 Steam Deck by hand) is registered by the engine;
+the menu shows the pictures of that style, or of `cof_pad_style_auto`
+(read-only, 0..3) when it is Auto. `cof_pad_style_auto` is the style of the
+pad in use - the one that sent the last button or a stick/trigger push past
+8000 of 32767 (`joy_sdl2.c`; an idle second pad's resting noise no longer
+takes the active role) - and updates when pads connect and disconnect (the
+first remaining game controller stands in after the active one goes; 0
+without any pad). `cof_pad_type` (read-only) holds the same as a style id.
+Detection (`CL_CoF_StyleForPad`), in this order: name "Steam Deck" or Valve
+28DE:1205 (the Deck's built-in controller through SDL's HIDAPI driver) ->
+Steam Deck; SDL type PS3/PS4/PS5 -> PlayStation; SDL type
+NINTENDO_SWITCH_PRO / JOYCON_LEFT / JOYCON_RIGHT / JOYCON_PAIR -> Nintendo
+(the 8BitDo Ultimate in Switch mode presents itself as a Pro Controller,
+057E:2009); Nintendo vendor 057E or a Nintendo name -> Nintendo; Valve 28DE
+(Steam Input's virtual gamepad) with `SteamDeck=1` in the environment (Steam
+sets it in the Deck's game mode) -> Steam Deck (when Steam tells SDL through
+`SteamVirtualGamepadInfo` that a PlayStation or Nintendo pad is behind the
+virtual one, SDL reports that type and it wins); anything else -> Xbox.
+
+**Positions, not labels.** SDL 2's default for Nintendo pads is to report
+the face buttons by their printed label (hint
+`SDL_GAMECONTROLLER_USE_BUTTON_LABELS` = 1), which puts the Nintendo "B" -
+the bottom button - on `B_BUTTON`. The engine sets the hint to 0 before the
+game-controller subsystem starts (`joy_sdl2.c`) and follows
+`cof_pad_positional` (archived, default 1; 0 = by label) at run time: SDL's
+HIDAPI Switch driver (Pro Controller, Joy-Cons, pads in Switch mode) watches
+the hint with a callback (SDL 2.30.9 headers and the
+`release-2.30.x` source of `SDL_hidapi_switch.c`: `RemapButton` swaps A/B and
+X/Y only while labels are wanted). So `A_BUTTON` is the bottom button on every
+pad, and the layout, the menus (A select / B back), the on-screen keyboard and
+the panels agree without a second remap. SDL 2.30 has no
+`SDL_GameControllerGetButtonLabel` (that is SDL 3); the prompts take the
+printed letter from `icons.txt`: a Nintendo pad's `A_BUTTON` shows the Xbox
+"B" glyph at the bottom of the Joy-Con picture, `B_BUTTON` the "A" on the
+right, `X_BUTTON` "Y", `Y_BUTTON` "X".
+
+**Steam Deck labels** (Valve's own names; SDL 2.30 `SDL_hidapi_steamdeck.c`):
+A/B/X/Y in the Xbox positions; bumpers L1/R1 (`L1_BUTTON`/`R1_BUTTON`),
+analogue triggers L2/R2 (`LTRIGGER`/`RTRIGGER`), stick clicks L3/R3; View
+(two rectangles, `BACK`) upper left, Menu (three lines, `START`) upper right;
+STEAM below the left trackpad (`MODE`, the guide button) and Quick Access
+"..." below the right one (`MISC_BUTTON`, SDL's MISC1); back grips L4/L5
+(upper/lower left) and R4/R5 (upper/lower right) = SDL `PADDLE2`/`PADDLE4` and
+`PADDLE1`/`PADDLE3`. In the Deck's game mode Steam Input keeps STEAM and
+"..." for itself and passes the grips only if the controller template maps
+them.
+
+Art and the per-style rows: `gfx/shell/gamepad/switch/`, `steamdeck/`,
+`icons.txt` (format in its header), `LICENSE-NOTE.md`;
+`scripts/make-gamepad-style-art.py` rebuilds them from haej's originals.
 ## 3. The panel cursor (virtual cursor)
 
 While a clickable panel is open, the stick pushed further (left or right)
@@ -310,7 +436,18 @@ pressed it. A deliberate double flick through the centre still dodges.
 | `cof_vcursor_rclick_key` | `X_BUTTON` | yes | right click key |
 | `cof_joy_pulse_hysteresis` | 0.25 | yes | section 4, 0..0.6 |
 | `cof_joy_legacy_off` | 1 | yes | keep the client's `joystick` at 0 |
-| `cof_pad_defaults_gen` | 0 | yes | layout generation already applied (current: 3) |
+| `cof_pad_defaults_gen` | 0 | yes | layout generation already applied (current: 4) |
+| `cof_quickturn_time` | 0.18 | yes | seconds of the quick 180-degree turn (0.05..1) |
+| `cof_pad_trigger_hyst` | 0.1 | yes | trigger hysteresis around `joy_lt/rt_threshold`, 0..0.4 of the pull (0 = plain threshold) |
+| `cof_pad_move_mode` | 1 | yes | left stick: 0 = the engine's proportional stick, 1 = shaped like the movement keys, 2 = the same, 8 directions |
+| `cof_pad_move_deadzone` | 0.15 | yes | modes 1/2: radial deadzone, 0..0.5 |
+| `cof_pad_move_walk` | 0.6 | yes | modes 1/2: from this push on the stick counts as fully pushed |
+| `cof_pad_move_curve` | 1 | yes | modes 1/2: response exponent below the walk threshold |
+| `cof_pad_move_diagonal` | 1.2 | yes | modes 1/2: diagonal boost, 1 = the keyboard's diagonal (187.5 u/s), 1.2 = as fast as straight (225) |
+| `cof_pad_style` | -1 | yes | button pictures: -1 / `auto` = the pad in use, 0 Xbox, 1 PlayStation, 2 Nintendo, 3 Steam Deck |
+| `cof_pad_style_auto` | 0 | no (read-only) | the style of the pad in use, 0..3 (what Auto shows) |
+| `cof_pad_type` | none | no (read-only) | the same as a style id: xbox, ps5, switch, steamdeck, none |
+| `cof_pad_positional` | 1 | yes | 1 = Nintendo face buttons by position (SDL hint), 0 = by printed label |
 | `cof_input_trace` | 0 | no | developer log (`[cof-pad]`) |
 
 Commands: `cof_pad_status [binds]` (controllers SDL sees, panel state, cursor,
@@ -318,9 +455,20 @@ sticks, client `joystick`, what the defaults check did, crouch toggle, player
 hull, view height, gyro, optionally the pad binds), `cof_pad_defaults
 [force|list]`, `cof_duck_toggle` (the crouch toggle; bindable to any key),
 `cof_sprint_toggle_press` (the sprint, Toggle or Hold; bindable to any key),
-`cof_pad_panel_dump` (the open panels' buttons with their handlers).
+`cof_pad_panel_dump` (the open panels' buttons with their handlers),
+`cof_quickturn` (the quick turn; bindable to any key).
 
-Developer hooks (need `developer 1`, restricted, no OS input): `cof_joy_axis_probe
+Developer hooks (need `developer 1`, restricted, no OS input):
+`cof_pad_measure <label> <seconds> [alias]` (frame rate, slowest frame, SDL event
+loop time, SDL / axis / sensor events, trigger edges, pad keys, active-pad
+switches, the player's horizontal speed and yaw over a window; runs the alias
+afterwards), `cof_pad_jitter <sdl axis> <lo> <hi> [virtual] | off` (an axis moved
+between two values every frame), `cof_pad_style_test` (the style detection over
+14 simulated pads, PASS/FAIL), `cof_pad_virtual <switchpro|joycons|deck|xbox|ps5>
+| button <n> <0|1> | axis <n> <v> | off` (an SDL virtual game controller with a
+real pad's ids and name, in process; while it is attached SDL's
+`SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS` is 1, so a test does not depend on the
+window having the focus), `cof_joy_axis_probe
 <side|fwd|pitch|yaw|lt|rt> <value>` feeds `Joy_AxisMotionEvent` (the entry point
 the SDL backend feeds), `cof_vcursor_test [abs] <x> <y> [0|1|2]` moves the panel
 cursor and optionally clicks (`cof_vcursor_test button <handler class>
@@ -353,6 +501,14 @@ With two pads the engine takes input from **both** at once; the "active" pad
 last event. There is no cvar to pick one.
 
 ## 7. Verification
+
+Round 3 (`stage1/gamepad3-20260924/RESULTS.md`): the frame-rate check on
+c_trainride (idle, mouse ADS, pad ADS steady / jittering, Toggle and Hold,
+through the engine and through an SDL virtual pad), the movement table of
+section 2c, the quick turn, the generation 3 -> 4 migration and a fresh
+generation 4, View opening and closing the inventory, the style test (14 of
+14) and virtual Switch Pro / Steam Deck pads (style, `cof_pad_style_auto`,
+keys). No Nintendo or Steam Deck hardware was available.
 
 Round 2 (`stage1/gamepad2-20260923/RESULTS.md`): B on the keypad, landline,
 YES/NO, tape page, note, padlock, billboard, computer and boiler puzzle

@@ -3,13 +3,15 @@
 // in cryoffear/config.cfg, with one change (milestone 5b): MOUSE2 aims down
 // sights (+attack3) and MOUSE3 is the secondary attack (+attack2); the game
 // shipped them the other way round. The game ships no kb_def.lst of its own.
-// Gamepad (cof-gamepad-input, layout generation 3): the Cry of Fear
+// Gamepad (cof-gamepad-input, layout generation 4): the Cry of Fear
 // controller layout, the same list the engine binds once per profile
 // (cof_pad_defaults); key names are the engine's (LTRIGGER/RTRIGGER are the
 // analogue triggers, STICK1/STICK2 the stick clicks, L1/R1 the shoulder
 // buttons). cof_duck_toggle is the engine's crouch toggle,
 // cof_sprint_toggle_press its sprint (Toggle / Hold per cof_sprint_toggle),
-// weapontoggle the game's own "Toggle weapon function".
+// weapontoggle the game's own "Toggle weapon function", cof_quickturn the
+// engine's quick 180-degree turn. A/B/X/Y are positions (bottom/right/left/top)
+// on every pad, Nintendo ones included.
 "TAB"	"+inventory"
 "ESCAPE"	"cancelselect"
 "SPACE"	"+jump"
@@ -47,7 +49,9 @@
 "SHIFT"	"+sprint"
 "F1"	"vote 1"
 "F2"	"vote 0"
-"F5"	"snapshot"
+"F5"	"cof_quicksave"
+"F9"	"cof_quickload"
+"F12"	"snapshot"
 "INS"	"+klook"
 "MOUSE1"	"+attack"
 "MOUSE2"	"+attack3"
@@ -57,15 +61,15 @@
 "LTRIGGER"	"+attack3"
 "A_BUTTON"	"+jump"
 "B_BUTTON"	"cof_duck_toggle"
-"X_BUTTON"	"+use"
-"Y_BUTTON"	"+inventory"
-"L1_BUTTON"	"+reload"
-"R1_BUTTON"	"+attack2"
+"X_BUTTON"	"+reload"
+"Y_BUTTON"	"+use"
+"L1_BUTTON"	"+attack2"
+"R1_BUTTON"	"cof_quickturn"
 "STICK1"	"cof_sprint_toggle_press"
 "STICK2"	"+duck"
 "DPAD_UP"	"quicksel 1"
 "DPAD_LEFT"	"quicksel 2"
 "DPAD_RIGHT"	"quicksel 3"
 "DPAD_DOWN"	"weapontoggle"
-"BACK"	"+objectives"
+"BACK"	"+inventory"
 "START"	"cancelselect"

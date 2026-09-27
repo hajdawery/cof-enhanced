@@ -2,7 +2,7 @@ diff --git a/engine/client/input/cof_gamepad.c b/engine/client/input/cof_gamepad
 new file mode 100644
 --- /dev/null
 +++ b/engine/client/input/cof_gamepad.c
-@@ -0,0 +1,2049 @@
+@@ -0,0 +1,2964 @@
 +/*
 +cof_gamepad.c - Cry of Fear: Enhanced gamepad support (engine input side)
 +Copyright (C) 2026 haej (Cry of Fear: Enhanced contributors)
@@ -75,6 +75,19 @@ new file mode 100644
 +    gets the gamepad cursor at once.
 + 4. The client's own WinMM joystick code (cvar "joystick") is kept off, so the
 +    engine's SDL pad is the only source (cof_joy_legacy_off).
++ 6. cof_quickturn (RB): a smooth 180-degree turn on the pad look's view-angle
++    path (cof_quickturn_time).
++ 7. Triggers with hysteresis (cof_pad_trigger_hyst, in_joy.c): one key edge per
++    real pull, so a trigger resting near its threshold cannot flip the aim
++    down sights on and off.
++ 8. The left stick shaped like the movement keys (cof_pad_move_mode and
++    friends): the game walks at the larger of forwardmove / sidemove, so the
++    round stick lost speed on every diagonal.
++ 9. Pad styles (cof_pad_style, cof_pad_style_auto): the style of the pad in
++    use from SDL's controller type and ids (Xbox, PlayStation, Nintendo,
++    Steam Deck), and face buttons by POSITION on Nintendo pads too
++    (cof_pad_positional), so the layout, the menus, the on-screen keyboard
++    and the panels agree on every pad.
 +
 +Nothing here does anything without a gamepad: the sticks are zero, pad keys
 +never arrive, the binds are inert. The developer hooks cof_joy_axis_probe and
@@ -101,7 +114,7 @@ new file mode 100644
 +
 +// bump when the default layout changes in a way existing profiles should get
 +// (CL_CoF_PadDefaultsCheck migrates keys still holding the previous defaults)
-+#define COF_PAD_DEFAULTS_GENERATION 3
++#define COF_PAD_DEFAULTS_GENERATION 4
 +
 +static CVAR_DEFINE_AUTO( cof_pad_panel_gate, "1", FCVAR_ARCHIVE, "Cry of Fear gamepad: while a clickable panel (inventory, note, keypad...) is open the sticks do not move the player, START opens the pause menu, the close key closes the inventory and A/X click" );
 +static CVAR_DEFINE_AUTO( cof_pad_close_key, "B_BUTTON", FCVAR_ARCHIVE, "Cry of Fear gamepad: key that backs out of an open panel (its own Back/Close/Cancel/No button; the inventory closes through its +inventory binding); empty = off" );
@@ -127,32 +140,69 @@ new file mode 100644
 +static CVAR_DEFINE_AUTO( cof_pad_defaults_gen, "0", FCVAR_ARCHIVE, "Cry of Fear gamepad: default layout generation already applied to this profile (0 = never)" );
 +static CVAR_DEFINE_AUTO( cof_input_trace, "0", 0, "Cry of Fear gamepad: developer log of the panel check, START/close/click routing, stick suppression and the virtual cursor" );
 +
++// gamepad3 round: quick turn, trigger hysteresis, stick movement shape, pad styles
++static CVAR_DEFINE_AUTO( cof_quickturn_time, "0.18", FCVAR_ARCHIVE, "Cry of Fear: seconds cof_quickturn takes for its 180-degree turn (0.05..1; eased in and out)" );
++static CVAR_DEFINE_AUTO( cof_pad_trigger_hyst, "0.1", FCVAR_ARCHIVE, "Cry of Fear gamepad: trigger hysteresis, 0..0.4 of the full pull around joy_lt_threshold / joy_rt_threshold: LT/RT press above threshold + this and release below threshold - this (0 = the engine's plain threshold)" );
++static CVAR_DEFINE_AUTO( cof_pad_move_mode, "1", FCVAR_ARCHIVE, "Cry of Fear gamepad movement: 0 = raw analogue stick, 1 = digital-style (above cof_pad_move_walk the stick counts as fully pushed in its direction, like the movement keys), 2 = digital-style snapped to 8 directions" );
++static CVAR_DEFINE_AUTO( cof_pad_move_deadzone, "0.15", FCVAR_ARCHIVE, "Cry of Fear gamepad movement (modes 1 and 2): radial deadzone of the left stick, 0..0.5 of full deflection" );
++static CVAR_DEFINE_AUTO( cof_pad_move_walk, "0.6", FCVAR_ARCHIVE, "Cry of Fear gamepad movement (modes 1 and 2): deflection (0.2..1) from which the stick counts as fully pushed; below it the player walks slower, shaped by cof_pad_move_curve" );
++static CVAR_DEFINE_AUTO( cof_pad_move_diagonal, "1.2", FCVAR_ARCHIVE, "Cry of Fear gamepad movement (modes 1 and 2): diagonal boost, 1..1.5 - 1 = the keyboard's diagonal speed (the game walks diagonals at 187.5 instead of 225 u/s), 1.2 = diagonals as fast as straight ahead (the game caps at the straight speed)" );
++static CVAR_DEFINE_AUTO( cof_pad_move_curve, "1", FCVAR_ARCHIVE, "Cry of Fear gamepad movement (modes 1 and 2): response exponent between the deadzone and cof_pad_move_walk (1 = linear, 2 = finer control of slow walking)" );
++CVAR_DEFINE_AUTO( cof_pad_style, "-1", FCVAR_ARCHIVE, "Cry of Fear gamepad: button pictures and names - -1 (or auto) = Auto, the style of the pad in use (cof_pad_style_auto); 0 = Xbox, 1 = PlayStation, 2 = Nintendo, 3 = Steam Deck by hand" );
++static CVAR_DEFINE_AUTO( cof_pad_style_auto, "0", FCVAR_READ_ONLY, "Cry of Fear gamepad: the style of the pad in use, 0..3 = Xbox, PlayStation, Nintendo, Steam Deck (Xbox without a pad); what cof_pad_style -1 (Auto) shows" );
++static CVAR_DEFINE_AUTO( cof_pad_positional, "1", FCVAR_ARCHIVE, "Cry of Fear gamepad: 1 = face buttons by POSITION on every pad (a Nintendo pad's bottom button is A_BUTTON = jump / confirm, its right one B_BUTTON = back), 0 = by the printed label (SDL's default for Nintendo pads)" );
++static CVAR_DEFINE_AUTO( cof_pad_type, "none", FCVAR_READ_ONLY, "Cry of Fear gamepad: the style detected for the pad in use (xbox, ps5, switch, steamdeck; none = no pad)" );
++
 +typedef struct
 +{
 +	int        key;
 +	const char *binding;
 +} cof_pad_bind_t;
 +
-+// the Cry of Fear gamepad layout (generation 2); the same list is in
++// the Cry of Fear gamepad layout (generation 4); the same list is in
 +// gfx/shell/kb_def.lst (Options > Keybinds > Use defaults) and
-+// docs/patches/cof-gamepad-input.md. On an open panel A/X click and B closes
-+// the inventory instead (CL_CoF_PadKeyEvent).
++// docs/patches/cof-gamepad-input.md. The engine key names are POSITIONS
++// (A = the bottom face button, B = right, X = left, Y = top) on every pad,
++// Nintendo pads included (cof_pad_positional), so the layout is positional.
++// On an open panel A/X click and B backs out instead (CL_CoF_PadKeyEvent).
 +static const cof_pad_bind_t cof_pad_layout[] =
 +{
 +	{ K_JOY2,          "+attack" },         // RTRIGGER
 +	{ K_JOY1,          "+attack3" },        // LTRIGGER: aim down sights, Hold/Toggle per cof_ads_toggle
 +	{ K_A_BUTTON,      "+jump" },
 +	{ K_B_BUTTON,      "cof_duck_toggle" }, // crouch, press to toggle
-+	{ K_X_BUTTON,      "+use" },
-+	{ K_Y_BUTTON,      "+inventory" },      // also closes it (the game's own key check)
-+	{ K_L1_BUTTON,     "+reload" },
-+	{ K_R1_BUTTON,     "+attack2" },        // bash / weapon mode (the MOUSE3 action)
++	{ K_X_BUTTON,      "+reload" },
++	{ K_Y_BUTTON,      "+use" },
++	{ K_L1_BUTTON,     "+attack2" },        // secondary: bash / weapon mode / flashlight (the MOUSE3 action)
++	{ K_R1_BUTTON,     "cof_quickturn" },   // quick 180-degree turn
 +	{ K_LSTICK,        "cof_sprint_toggle_press" }, // sprint, Toggle / Hold per cof_sprint_toggle
 +	{ K_RSTICK,        "+duck" },           // crouch while held
 +	{ K_DPAD_UP,       "quicksel 1" },
 +	{ K_DPAD_LEFT,     "quicksel 2" },
 +	{ K_DPAD_RIGHT,    "quicksel 3" },
 +	{ K_DPAD_DOWN,     "weapontoggle" },    // the game's "Toggle weapon function"
++	{ K_BACK_BUTTON,   "+inventory" },      // View: opens and closes the inventory (the game's own key check)
++	{ K_START_BUTTON,  "cancelselect" },
++};
++
++// generation 3 (gamepad2 round): a key that still holds its generation-3 bind
++// was never customised and moves to the layout above
++static const cof_pad_bind_t cof_pad_layout_gen3[] =
++{
++	{ K_JOY2,          "+attack" },
++	{ K_JOY1,          "+attack3" },
++	{ K_A_BUTTON,      "+jump" },
++	{ K_B_BUTTON,      "cof_duck_toggle" },
++	{ K_X_BUTTON,      "+use" },
++	{ K_Y_BUTTON,      "+inventory" },
++	{ K_L1_BUTTON,     "+reload" },
++	{ K_R1_BUTTON,     "+attack2" },
++	{ K_LSTICK,        "cof_sprint_toggle_press" },
++	{ K_RSTICK,        "+duck" },
++	{ K_DPAD_UP,       "quicksel 1" },
++	{ K_DPAD_LEFT,     "quicksel 2" },
++	{ K_DPAD_RIGHT,    "quicksel 3" },
++	{ K_DPAD_DOWN,     "weapontoggle" },
 +	{ K_BACK_BUTTON,   "+objectives" },
 +	{ K_START_BUTTON,  "cancelselect" },
 +};
@@ -249,8 +299,46 @@ new file mode 100644
 +	// pad key presses captured while a panel was open: what their release
 +	// must do (K_MOUSE1/K_MOUSE2 = release that button, -1 = swallow)
 +	short    captured[256];
++
++	// quick turn (cof_quickturn)
++	qboolean turn_on;
++	double   turn_t;           // seconds into the turn
++	float    turn_done;        // degrees applied so far
++	float    turn_yaw0;
++	int      turn_servercount;
++
++	// stick movement shape: the stick counts as fully pushed this frame
++	qboolean move_saturated;
++
++	// pad styles (-1 = not known yet)
++	int      style_detected;   // the style of the pad in use
++	int      style_resolved;   // cof_pad_style_auto as last set
++	int      hint_labels;      // SDL_GAMECONTROLLER_USE_BUTTON_LABELS as last set
++	int      pad_type;         // SDL_GameControllerType of the pad in use
++	char     pad_name[64];
++
++	// input counters (cof_pad_measure)
++	int      stat_events, stat_axis_events, stat_sensor_events, stat_trigger_edges, stat_pad_keys, stat_pad_switches;
++	double   stat_event_time;
++
++	// a cof_pad_measure window
++	qboolean meas_on;
++	char     meas_label[64];
++	double   meas_start, meas_end, meas_sum, meas_max, meas_event_time;
++	int      meas_frames;
++	int      meas_c[6];
++	float    meas_vmax, meas_vsum;
++	vec3_t   meas_org;
++	char     meas_next[64];    // alias to run when the window ends
++
++	// cof_pad_jitter: an axis moved between two values every frame
++	int      jit_axis;         // -1 = off
++	int      jit_lo, jit_hi, jit_phase;
++	qboolean jit_virtual;
 +} cof_pad;
 +
++static void CL_CoF_MeasureFrame( void );
++static void CL_CoF_PadStyleFrame( void );
 +static void CL_CoF_PadTrace( const char *fmt, ... ) FORMAT_CHECK( 1 );
 +static void CL_CoF_PadTrace( const char *fmt, ... )
 +{
@@ -547,7 +635,11 @@ new file mode 100644
 +	case SDL_CONTROLLERBUTTONDOWN:
 +		CL_CoF_NoteInput( COF_INPUT_PAD, "gamepad button" );
 +		break;
++	case SDL_CONTROLLERSENSORUPDATE:
++		cof_pad.stat_sensor_events++;
++		break;
 +	case SDL_CONTROLLERAXISMOTION:
++		cof_pad.stat_axis_events++;
 +		if( abs( ev->caxis.value ) > 12000 )
 +			CL_CoF_NoteInput( COF_INPUT_PAD, "gamepad stick" );
 +		break;
@@ -1196,6 +1288,9 @@ new file mode 100644
 +	}
 +
 +	// a gamepad key (the SDL event already said so; this covers cof_key_probe)
++	cof_pad.stat_pad_keys++;
++	if( cof_input_trace.value )
++		CL_CoF_PadTrace( "%s down (binding \"%s\")\n", Key_KeynumToString( key ), Key_GetBinding( key ) ? Key_GetBinding( key ) : "" );
 +	CL_CoF_NoteInput( COF_INPUT_PAD, "gamepad key" );
 +
 +	if( cof_pad.captured[key] ) // a press already captured and not released: ignore repeats
@@ -1368,13 +1463,15 @@ new file mode 100644
 +		int n = CL_CoF_PadApplyLayout( false );
 +		Q_snprintf( cof_pad.defaults_note, sizeof( cof_pad.defaults_note ), "default layout applied (%d binds, generation %d)%s", n, COF_PAD_DEFAULTS_GENERATION, gen < 2 ? ", gyro aiming off" : "" );
 +	}
-+	else if( gen == 1 || gen == 2 )
++	else if( gen >= 1 && gen <= 3 )
 +	{
 +		int moved, kept;
 +
 +		if( gen == 1 )
 +			CL_CoF_PadMigrate( cof_pad_layout_gen1, ARRAYSIZE( cof_pad_layout_gen1 ), &moved, &kept );
-+		else CL_CoF_PadMigrate( cof_pad_layout_gen2, ARRAYSIZE( cof_pad_layout_gen2 ), &moved, &kept );
++		else if( gen == 2 )
++			CL_CoF_PadMigrate( cof_pad_layout_gen2, ARRAYSIZE( cof_pad_layout_gen2 ), &moved, &kept );
++		else CL_CoF_PadMigrate( cof_pad_layout_gen3, ARRAYSIZE( cof_pad_layout_gen3 ), &moved, &kept );
 +
 +		Q_snprintf( cof_pad.defaults_note, sizeof( cof_pad.defaults_note ), "generation %d layout migrated to generation %d (%d binds changed, %d customised keys kept)%s", gen, COF_PAD_DEFAULTS_GENERATION, moved, kept, gen < 2 ? ", gyro aiming off" : "" );
 +	}
@@ -1649,11 +1746,15 @@ new file mode 100644
 +	float    lx, ly, rx, ry, sx, sy, m, dz, dt;
 +	int      real_x, real_y;
 +
++	CL_CoF_MeasureFrame( );
++
 +	if( !cof_pad.defaults_checked && host.config_executed )
 +	{
 +		cof_pad.defaults_checked = true;
 +		CL_CoF_PadDefaultsCheck( );
 +	}
++
++	CL_CoF_PadStyleFrame( );
 +
 +	CL_CoF_PadLegacyJoystick( );
 +
@@ -1775,6 +1876,792 @@ new file mode 100644
 +	}
 +
 +	return cof_pad.engaged;
++}
++
++/*
++==============================================================================
++
++Quick turn (cof_quickturn, RB's default bind)
++
++A smooth 180-degree turn over cof_quickturn_time seconds (eased in and out),
++added to the yaw of IN_EngineAppendMove - the same view-angle path the right
++stick turns the player with, after the client built its command - so it never
++fights the client's own view handling or the aim down sights. Ignored while a
++panel or a menu is open, outside play, and while a turn is running; a level
++change or a load drops a turn in progress. Bindable to any key.
++
++==============================================================================
++*/
++static void CL_CoF_QuickTurn_f( void )
++{
++	if( cls.state != ca_active || cls.key_dest != key_game || cl.background || cl.paused || cl.intermission )
++	{
++		CL_CoF_PadTrace( "quick turn ignored: not in play\n" );
++		return;
++	}
++
++	if( CL_CoF_ClickablePanelOpen( ))
++	{
++		CL_CoF_PadTrace( "quick turn ignored: a panel is open\n" );
++		return;
++	}
++
++	if( cof_pad.turn_on )
++	{
++		CL_CoF_PadTrace( "quick turn ignored: already turning\n" );
++		return;
++	}
++
++	cof_pad.turn_on = true;
++	cof_pad.turn_t = 0.0;
++	cof_pad.turn_done = 0.0f;
++	cof_pad.turn_servercount = cl.servercount;
++	cof_pad.turn_yaw0 = cl.viewangles[YAW];
++	Con_Reportf( "[cof-pad] quick turn: start at yaw %.1f, %.2f s\n", cl.viewangles[YAW], bound( 0.05f, cof_quickturn_time.value, 1.0f ));
++}
++
++static float CL_CoF_Ease( float x )
++{
++	x = bound( 0.0f, x, 1.0f );
++	return x * x * ( 3.0f - 2.0f * x );
++}
++
++/*
++============
++CL_CoF_QuickTurnYaw
++
++input.c IN_EngineAppendMove, every command frame in play: the yaw this frame
++adds to the turn (0 when no turn runs). The eased curve is sampled at the
++accumulated time, so the frame deltas always add up to exactly 180 degrees.
++============
++*/
++float CL_CoF_QuickTurnYaw( void )
++{
++	float T, t, delta;
++
++	if( !cof_pad.turn_on )
++		return 0.0f;
++
++	if( cls.state != ca_active || cl.servercount != cof_pad.turn_servercount )
++	{
++		cof_pad.turn_on = false;
++		Con_Reportf( "[cof-pad] quick turn dropped (level change / load)\n" );
++		return 0.0f;
++	}
++
++	T = bound( 0.05f, cof_quickturn_time.value, 1.0f );
++	t = cof_pad.turn_t + bound( 0.0f, (float)host.realframetime, 0.1f );
++	delta = 180.0f * CL_CoF_Ease( t / T ) - cof_pad.turn_done;
++
++	cof_pad.turn_t = t;
++	cof_pad.turn_done += delta;
++
++	if( t >= T )
++	{
++		cof_pad.turn_on = false;
++		Con_Reportf( "[cof-pad] quick turn: done, %.1f degrees in %.3f s (yaw %.1f -> %.1f)\n", cof_pad.turn_done, t,
++			cof_pad.turn_yaw0, anglemod( cl.viewangles[YAW] + delta ));
++	}
++
++	return delta;
++}
++
++/*
++==============================================================================
++
++Triggers: one key edge per real pull (cof_pad_trigger_hyst)
++
++==============================================================================
++*/
++float CL_CoF_TriggerHysteresis( void )
++{
++	return bound( 0.0f, cof_pad_trigger_hyst.value, 0.4f );
++}
++
++void CL_CoF_NoteTriggerEdge( int axis, qboolean down, short value, int threshold )
++{
++	cof_pad.stat_trigger_edges++;
++	CL_CoF_PadTrace( "%s %s at %d (threshold %d, hysteresis %.2f)\n", axis == JOY_AXIS_LT ? "LT" : "RT", down ? "pressed" : "released",
++		(int)value, threshold, CL_CoF_TriggerHysteresis( ));
++}
++
++/*
++==============================================================================
++
++Stick movement shape (cof_pad_move_mode)
++
++The engine turns the left stick into forwardmove / sidemove proportionally,
++with a square deadzone per axis (joy_forward_deadzone / joy_side_deadzone),
++and presses +forward / +back past 0.7 and +moveleft / +moveright past 0.9 of
++the deflection (IN_JoyAppendMove). Cry of Fear scales the walking speed by
++the LARGER of forwardmove and sidemove and caps it at the straight speed, so
++the round stick lost speed on every diagonal (MEASURED, c_forest3: straight
++225 u/s, sideways 150, keyboard diagonal 187.5, stick at 45 degrees 132.3,
++half a push at 45 degrees 65.8). Mode 1 ("digital-style") makes the stick
++behave like the movement keys: a radial deadzone, and from cof_pad_move_walk
++on the stick counts as fully pushed in its own direction, mapped onto the
++keys' square (a diagonal is full forward AND full side); below that the
++player walks slower, shaped by cof_pad_move_curve; cof_pad_move_diagonal then
++lifts the diagonals to the straight speed. The movement keys then
++follow the direction's sector (every key whose axis is within 67.5 degrees of
++the direction), so a diagonal holds both of its keys like the keyboard. Mode 2
++also snaps the direction to the nearest of 8. Mode 0 is the engine's own.
++
++==============================================================================
++*/
++qboolean CL_CoF_PadMoveShape( float *fw, float *side, float fwscale, float sidescale )
++{
++	const int mode = (int)cof_pad_move_mode.value;
++	float     x, y, m, dz, walk, mag;
++
++	cof_pad.move_saturated = false;
++
++	if( mode < 1 || mode > 2 )
++		return false;
++
++	x = (float)Joy_CoF_AxisRaw( JOY_AXIS_SIDE ) / (float)SHRT_MAX;
++	y = -(float)Joy_CoF_AxisRaw( JOY_AXIS_FWD ) / (float)SHRT_MAX;
++	m = sqrt( x * x + y * y );
++
++	dz = bound( 0.0f, cof_pad_move_deadzone.value, 0.5f );
++	walk = bound( dz + 0.05f, cof_pad_move_walk.value, 1.0f );
++
++	if( m <= dz || m <= 0.0f )
++		return true;
++
++	x /= m;
++	y /= m;
++
++	if( mode == 2 )
++	{
++		float a = atan2( y, x );
++
++		a = floor( a / ( M_PI_F * 0.25f ) + 0.5f ) * ( M_PI_F * 0.25f );
++		x = cos( a );
++		y = sin( a );
++		if( fabs( x ) < 0.001f ) x = 0.0f;
++		if( fabs( y ) < 0.001f ) y = 0.0f;
++	}
++
++	if( m >= walk )
++	{
++		mag = 1.0f;
++		cof_pad.move_saturated = true;
++	}
++	else mag = pow(( m - dz ) / ( walk - dz ), Q_max( 0.2f, cof_pad_move_curve.value ));
++
++	// the keys' square: the larger component of the direction becomes 1, so a
++	// diagonal sends full forward AND full side like two held keys. The game
++	// scales its speed by the larger of the two and caps it at the straight
++	// speed (MEASURED, c_forest3: straight 225 u/s, sideways 150, keyboard
++	// diagonal 187.5, the plain stick at 45 degrees 132.3). Then the diagonal
++	// boost (cof_pad_move_diagonal, 1.2 = 225 / 187.5) lifts the diagonals to
++	// the straight speed; it grows with the smaller component, so straight and
++	// pure sideways movement stay exactly the keyboard's.
++	{
++		const float big = Q_max( fabs( x ), fabs( y ));
++		float boost, k;
++
++		if( big > 0.0f )
++		{
++			x /= big;
++			y /= big;
++		}
++
++		boost = bound( 1.0f, cof_pad_move_diagonal.value, 1.5f );
++		k = 1.0f + ( boost - 1.0f ) * Q_min( fabs( x ), fabs( y ));
++		x *= k;
++		y *= k;
++	}
++
++	*fw += y * mag * fwscale;
++	*side += x * mag * sidescale;
++	return true;
++}
++
++/*
++============
++CL_CoF_PadMoveKeyThresholds
++
++input.c IN_JoyAppendMove: the deflections that press +forward / +back and
+++moveleft / +moveright. Mode 0: the engine's 0.7 / 0.9; modes 1 and 2: the
++direction's sector (0.38 = cos 67.5 degrees) once the stick counts as fully
++pushed, no keys while walking slower.
++============
++*/
++void CL_CoF_PadMoveKeyThresholds( float *forward, float *side )
++{
++	const int mode = (int)cof_pad_move_mode.value;
++
++	if( mode < 1 || mode > 2 )
++		return;
++
++	if( cof_pad.move_saturated )
++		*forward = *side = 0.38f;
++	else *forward = *side = 1.5f;
++}
++
++/*
++==============================================================================
++
++Pad styles (cof_pad_style 0..3 = Xbox, PlayStation, Nintendo, Steam Deck)
++
++The style only decides which button pictures and names the menus show
++(gfx/shell/gamepad/icons.txt, style ids xbox / ps5 / switch / steamdeck). What
++a button DOES is decided by its position: the engine key names are positions
++(A_BUTTON = the bottom face button, B_BUTTON = right, X_BUTTON = left,
++Y_BUTTON = top), and cof_pad_positional (default 1) makes SDL report a
++Nintendo pad's face buttons by position too - SDL 2's default is by the
++printed label, which would put the Nintendo "B" (bottom) on B_BUTTON. SDL's
++own HIDAPI Switch driver (Pro Controller, Joy-Cons, pads in Switch mode such
++as the 8BitDo Ultimate, which present themselves as a Pro Controller) follows
++the hint at run time, so the menus, the on-screen keyboard and the panels,
++which all read the engine keys, agree with each other without a remap of
++their own.
++
++==============================================================================
++*/
++enum
++{
++	COF_STYLE_XBOX = 0,
++	COF_STYLE_PLAYSTATION,
++	COF_STYLE_NINTENDO,
++	COF_STYLE_STEAMDECK,
++	COF_STYLE_COUNT
++};
++
++static const char *const cof_style_names[COF_STYLE_COUNT] = { "xbox", "playstation", "nintendo", "steamdeck" };
++static const char *const cof_style_icon_ids[COF_STYLE_COUNT] = { "xbox", "ps5", "switch", "steamdeck" };
++
++#if XASH_SDL == 2
++static const char *CL_CoF_PadTypeName( int type )
++{
++	switch( type )
++	{
++	case SDL_CONTROLLER_TYPE_XBOX360: return "XBOX360";
++	case SDL_CONTROLLER_TYPE_XBOXONE: return "XBOXONE";
++	case SDL_CONTROLLER_TYPE_PS3: return "PS3";
++	case SDL_CONTROLLER_TYPE_PS4: return "PS4";
++	case SDL_CONTROLLER_TYPE_PS5: return "PS5";
++	case SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_PRO: return "NINTENDO_SWITCH_PRO";
++	case SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_LEFT: return "NINTENDO_SWITCH_JOYCON_LEFT";
++	case SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT: return "NINTENDO_SWITCH_JOYCON_RIGHT";
++	case SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_PAIR: return "NINTENDO_SWITCH_JOYCON_PAIR";
++	case SDL_CONTROLLER_TYPE_VIRTUAL: return "VIRTUAL";
++	case SDL_CONTROLLER_TYPE_AMAZON_LUNA: return "AMAZON_LUNA";
++	case SDL_CONTROLLER_TYPE_GOOGLE_STADIA: return "GOOGLE_STADIA";
++	case SDL_CONTROLLER_TYPE_NVIDIA_SHIELD: return "NVIDIA_SHIELD";
++	}
++	return "UNKNOWN";
++}
++
++/*
++============
++CL_CoF_StyleForPad
++
++Which style fits a pad: SDL's controller type first, then the USB ids and the
++name. The Steam Deck: its built-in controller ("Steam Deck", Valve 28DE:1205,
++SDL's HIDAPI driver), or - in the Deck's game mode, where Steam sets
++SteamDeck=1 in the game's environment - Steam Input's virtual gamepad (Valve
++28DE), unless Steam tells SDL (SteamVirtualGamepadInfo) that a PlayStation or
++Nintendo pad is behind it.
++============
++*/
++static int CL_CoF_StyleForPad( int type, int vid, int pid, const char *name, qboolean deck_env, const char **why )
++{
++	if( name && Q_stristr( name, "Steam Deck" ))
++		return *why = "name \"Steam Deck\"", COF_STYLE_STEAMDECK;
++
++	if( vid == 0x28DE && pid == 0x1205 )
++		return *why = "Valve 28DE:1205 (Steam Deck built-in controller)", COF_STYLE_STEAMDECK;
++
++	switch( type )
++	{
++	case SDL_CONTROLLER_TYPE_PS3:
++	case SDL_CONTROLLER_TYPE_PS4:
++	case SDL_CONTROLLER_TYPE_PS5:
++		return *why = "SDL type PlayStation", COF_STYLE_PLAYSTATION;
++	case SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_PRO:
++	case SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_LEFT:
++	case SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT:
++	case SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_PAIR:
++		return *why = "SDL type Nintendo Switch", COF_STYLE_NINTENDO;
++	}
++
++	if( vid == 0x057E )
++		return *why = "Nintendo vendor id 057E", COF_STYLE_NINTENDO;
++
++	if( name && ( Q_stristr( name, "Nintendo" ) || Q_stristr( name, "Joy-Con" ) || Q_stristr( name, "Switch Pro" )))
++		return *why = "Nintendo name", COF_STYLE_NINTENDO;
++
++	if( deck_env && vid == 0x28DE )
++		return *why = "Steam Input virtual gamepad with SteamDeck=1", COF_STYLE_STEAMDECK;
++
++	return *why = "default", COF_STYLE_XBOX;
++}
++
++static qboolean CL_CoF_DeckEnv( void )
++{
++	const char *s = getenv( "SteamDeck" );
++	return s && s[0] == '1';
++}
++#endif // XASH_SDL == 2
++
++/*
++============
++CL_CoF_PadActivated
++
++joy_sdl2.c SDLash_SetActiveGameController: the pad that sent the last event
++changed (or the first pad appeared). Only noted here; CL_CoF_PadStyleFrame
++applies the style once the profile's config has run.
++============
++*/
++void CL_CoF_PadActivated( void *gamecontroller )
++{
++	cof_pad.stat_pad_switches++;
++
++#if XASH_SDL == 2
++	{
++		SDL_GameController *gc = (SDL_GameController *)gamecontroller;
++		const char *why = "";
++		int         type, vid, pid, style;
++		const char  *name;
++
++		if( gc )
++		{
++			type = SDL_GameControllerGetType( gc );
++			vid = SDL_GameControllerGetVendor( gc );
++			pid = SDL_GameControllerGetProduct( gc );
++			name = SDL_GameControllerName( gc );
++		}
++		else
++		{
++			// the pad in use went away: the first other game controller
++			// still connected stands for it until one sends an event
++			int i, n = SDL_WasInit( SDL_INIT_GAMECONTROLLER ) ? SDL_NumJoysticks( ) : 0;
++
++			for( i = 0; i < n && !SDL_IsGameController( i ); i++ );
++
++			if( i >= n )
++			{
++				cof_pad.style_detected = -1;
++				cof_pad.pad_name[0] = 0;
++				Cvar_FullSet( cof_pad_type.name, "none", cof_pad_type.flags );
++				Con_Reportf( "[cof-pad] no gamepad in use\n" );
++				return;
++			}
++
++			type = SDL_GameControllerTypeForIndex( i );
++			vid = SDL_JoystickGetDeviceVendor( i );
++			pid = SDL_JoystickGetDeviceProduct( i );
++			name = SDL_GameControllerNameForIndex( i );
++		}
++		style = CL_CoF_StyleForPad( type, vid, pid, name, CL_CoF_DeckEnv( ), &why );
++
++		if( style != cof_pad.style_detected || Q_strcmp( cof_pad.pad_name, name ? name : "" ))
++		{
++			Con_Reportf( "[cof-pad] gamepad in use: \"%s\" (SDL type %s, %04X:%04X): style %s (%s)\n", name ? name : "?",
++				CL_CoF_PadTypeName( type ), vid, pid, cof_style_names[style], why );
++		}
++
++		Q_strncpy( cof_pad.pad_name, name ? name : "", sizeof( cof_pad.pad_name ));
++		cof_pad.pad_type = type;
++		cof_pad.style_detected = style;
++		Cvar_FullSet( cof_pad_type.name, cof_style_icon_ids[style], cof_pad_type.flags );
++	}
++#else
++	(void)gamecontroller;
++#endif
++}
++
++// cof_pad_style: -1 (or "auto") = follow the pad in use, 0..3 = that style
++static int CL_CoF_PadStyleSetting( void )
++{
++	int v;
++
++	if( !Q_stricmp( cof_pad_style.string, "auto" ))
++		return -1;
++
++	v = (int)cof_pad_style.value;
++	return ( v >= 0 && v < COF_STYLE_COUNT ) ? v : -1;
++}
++
++static void CL_CoF_PadStyleFrame( void )
++{
++#if XASH_SDL == 2
++	// the face buttons by position (see above); SDL follows the hint at once
++	{
++		const int labels = cof_pad_positional.value ? 0 : 1;
++
++		if( labels != cof_pad.hint_labels )
++		{
++			SDL_SetHint( SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, labels ? "1" : "0" );
++			cof_pad.hint_labels = labels;
++			Con_Reportf( "[cof-pad] Nintendo face buttons reported by %s (SDL_GAMECONTROLLER_USE_BUTTON_LABELS %s)\n",
++				labels ? "their printed label" : "position", SDL_GetHint( SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS ));
++		}
++	}
++#endif
++
++	// cof_pad_style_auto: the style of the pad in use, for Auto (-1)
++	{
++		const int detected = cof_pad.style_detected >= 0 ? cof_pad.style_detected : COF_STYLE_XBOX;
++
++		if( detected != cof_pad.style_resolved )
++		{
++			cof_pad.style_resolved = detected;
++			Cvar_FullSet( cof_pad_style_auto.name, va( "%d", detected ), cof_pad_style_auto.flags );
++			Con_Reportf( "[cof-pad] cof_pad_style_auto %d (%s: %s)\n", detected, cof_style_icon_ids[detected],
++				cof_pad.style_detected >= 0 ? cof_pad.pad_name : "no pad" );
++		}
++	}
++}
++
++/*
++============
++cof_pad_style_test
++
++Developer: the style detection and the button positions run over a table of
++simulated pads (no device, no OS input), one line per case with PASS / FAIL.
++============
++*/
++static void CL_CoF_PadStyleTest_f( void )
++{
++#if XASH_SDL == 2
++	static const struct
++	{
++		int        type, vid, pid;
++		const char *name;
++		qboolean   deck;
++		int        want;
++	} cases[] =
++	{
++		{ SDL_CONTROLLER_TYPE_XBOXONE, 0x045E, 0x02FF, "Xbox One Controller", false, COF_STYLE_XBOX },
++		{ SDL_CONTROLLER_TYPE_XBOX360, 0x045E, 0x028E, "Xbox 360 Controller", false, COF_STYLE_XBOX },
++		{ SDL_CONTROLLER_TYPE_PS5, 0x054C, 0x0CE6, "DualSense Wireless Controller", false, COF_STYLE_PLAYSTATION },
++		{ SDL_CONTROLLER_TYPE_PS4, 0x054C, 0x09CC, "PS4 Controller", false, COF_STYLE_PLAYSTATION },
++		{ SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_PRO, 0x057E, 0x2009, "Nintendo Switch Pro Controller", false, COF_STYLE_NINTENDO },
++		{ SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_PRO, 0x057E, 0x2009, "Pro Controller", false, COF_STYLE_NINTENDO }, // 8BitDo Ultimate in Switch mode
++		{ SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_PAIR, 0x057E, 0x2008, "Nintendo Switch Joy-Con (L/R)", false, COF_STYLE_NINTENDO },
++		{ SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_LEFT, 0x057E, 0x2006, "Nintendo Switch Joy-Con (L)", false, COF_STYLE_NINTENDO },
++		{ SDL_CONTROLLER_TYPE_UNKNOWN, 0x057E, 0x2017, "SNES Controller", false, COF_STYLE_NINTENDO },
++		{ SDL_CONTROLLER_TYPE_UNKNOWN, 0x28DE, 0x1205, "Steam Deck", false, COF_STYLE_STEAMDECK },
++		{ SDL_CONTROLLER_TYPE_XBOX360, 0x28DE, 0x11FF, "Steam Virtual Gamepad", true, COF_STYLE_STEAMDECK },
++		{ SDL_CONTROLLER_TYPE_XBOX360, 0x28DE, 0x11FF, "Steam Virtual Gamepad", false, COF_STYLE_XBOX },
++		{ SDL_CONTROLLER_TYPE_PS5, 0x28DE, 0x11FF, "PS5 Controller", true, COF_STYLE_PLAYSTATION }, // a DualSense on a Deck, through Steam Input
++		{ SDL_CONTROLLER_TYPE_XBOXONE, 0x2DC8, 0x3106, "8BitDo Ultimate Wireless / Pro 2 Wired Controller", false, COF_STYLE_XBOX }, // X-input mode
++	};
++	int pass = 0;
++
++	for( int i = 0; i < ARRAYSIZE( cases ); i++ )
++	{
++		const char *why = "";
++		int got = CL_CoF_StyleForPad( cases[i].type, cases[i].vid, cases[i].pid, cases[i].name, cases[i].deck, &why );
++
++		if( got == cases[i].want )
++			pass++;
++
++		Con_Printf( "[cof-pad] style test %2d %s: \"%s\" %s %04X:%04X%s -> %s (%s)\n", i + 1, got == cases[i].want ? "PASS" : "FAIL",
++			cases[i].name, CL_CoF_PadTypeName( cases[i].type ), cases[i].vid, cases[i].pid, cases[i].deck ? " SteamDeck=1" : "",
++			cof_style_names[got], why );
++	}
++
++	Con_Printf( "[cof-pad] style test: %d of %d pass; SDL_GAMECONTROLLER_USE_BUTTON_LABELS is \"%s\" (\"0\" = Nintendo face buttons by position)\n",
++		pass, (int)ARRAYSIZE( cases ), SDL_GetHint( SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS ) ? SDL_GetHint( SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS ) : "(unset)" );
++#endif
++}
++
++/*
++============
++cof_pad_virtual <switchpro|joycons|deck|xbox|ps5> | button <0..20> <0|1> | axis <0..5> <value> | off
++
++Developer: an SDL virtual game controller (in-process, no OS device, no OS
++input) with the USB ids and the name of a real pad, so the style detection
++and the whole SDL -> engine key path run as for that pad; "button" presses
++one of its SDL buttons (0 = SDL A, 1 = B, 2 = X, 3 = Y ...).
++============
++*/
++#if XASH_SDL == 2 && SDL_VERSION_ATLEAST( 2, 0, 24 )
++static int           cof_virtual_index = -1;
++static SDL_Joystick *cof_virtual_joy;
++static char          cof_virtual_bg_hint[8]; // SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS before the test
++#endif
++
++static void CL_CoF_PadVirtualAxis( int axis, int value )
++{
++#if XASH_SDL == 2 && SDL_VERSION_ATLEAST( 2, 0, 24 )
++	if( cof_virtual_joy )
++		SDL_JoystickSetVirtualAxis( cof_virtual_joy, axis, (Sint16)bound( -32768, value, 32767 ));
++#else
++	(void)axis; (void)value;
++#endif
++}
++
++static void CL_CoF_PadVirtual_f( void )
++{
++#if XASH_SDL == 2 && SDL_VERSION_ATLEAST( 2, 0, 24 )
++	static const struct { const char *id; int vid, pid; const char *name; } pads[] =
++	{
++		{ "switchpro", 0x057E, 0x2009, "Nintendo Switch Pro Controller" },
++		{ "joycons",   0x057E, 0x2008, "Nintendo Switch Joy-Con (L/R)" },
++		{ "deck",      0x28DE, 0x1205, "Steam Deck" },
++		{ "xbox",      0x045E, 0x02FF, "Xbox One Controller" },
++		{ "ps5",       0x054C, 0x0CE6, "DualSense Wireless Controller" },
++	};
++	const char *arg = Cmd_Argc( ) > 1 ? Cmd_Argv( 1 ) : "";
++
++	if( !host_developer.value )
++	{
++		Con_Printf( "cof_pad_virtual is a developer command: set \"developer 1\" first\n" );
++		return;
++	}
++
++	if( !Q_stricmp( arg, "button" ) && Cmd_Argc( ) == 4 )
++	{
++		if( !cof_virtual_joy )
++		{
++			Con_Printf( "[cof-pad] virtual pad: none attached\n" );
++			return;
++		}
++
++		if( SDL_JoystickSetVirtualButton( cof_virtual_joy, Q_atoi( Cmd_Argv( 2 )), Q_atoi( Cmd_Argv( 3 )) ? SDL_PRESSED : SDL_RELEASED ) < 0 )
++			Con_Printf( "[cof-pad] virtual pad: SDL_JoystickSetVirtualButton failed: %s\n", SDL_GetError( ));
++		else Con_Printf( "[cof-pad] virtual pad: SDL button %d %s\n", Q_atoi( Cmd_Argv( 2 )), Q_atoi( Cmd_Argv( 3 )) ? "down" : "up" );
++		return;
++	}
++
++	if( !Q_stricmp( arg, "axis" ) && Cmd_Argc( ) == 4 )
++	{
++		if( !cof_virtual_joy )
++		{
++			Con_Printf( "[cof-pad] virtual pad: none attached\n" );
++			return;
++		}
++
++		// quiet: a test cfg may move an axis every frame
++		CL_CoF_PadVirtualAxis( Q_atoi( Cmd_Argv( 2 )), Q_atoi( Cmd_Argv( 3 )));
++		return;
++	}
++
++	if( !Q_stricmp( arg, "off" ))
++	{
++		if( cof_virtual_joy )
++			SDL_JoystickClose( cof_virtual_joy );
++		cof_virtual_joy = NULL;
++		if( cof_virtual_index >= 0 )
++			SDL_JoystickDetachVirtual( cof_virtual_index );
++		cof_virtual_index = -1;
++		if( cof_virtual_bg_hint[0] == '-' )
++			SDL_ResetHint( SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS );
++		else if( cof_virtual_bg_hint[0] )
++			SDL_SetHint( SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, cof_virtual_bg_hint );
++		cof_virtual_bg_hint[0] = 0;
++		Con_Printf( "[cof-pad] virtual pad detached\n" );
++		return;
++	}
++
++	for( int i = 0; i < ARRAYSIZE( pads ); i++ )
++	{
++		SDL_VirtualJoystickDesc desc;
++
++		if( Q_stricmp( arg, pads[i].id ))
++			continue;
++
++		if( cof_virtual_index >= 0 )
++		{
++			Con_Printf( "[cof-pad] virtual pad: one is attached already (cof_pad_virtual off)\n" );
++			return;
++		}
++
++		SDL_zero( desc );
++		desc.version = SDL_VIRTUAL_JOYSTICK_DESC_VERSION;
++		desc.type = SDL_JOYSTICK_TYPE_GAMECONTROLLER;
++		desc.naxes = SDL_CONTROLLER_AXIS_MAX;
++		desc.nbuttons = SDL_CONTROLLER_BUTTON_MAX;
++		desc.button_mask = ( 1u << SDL_CONTROLLER_BUTTON_MAX ) - 1; // every button and axis mapped (0 = none on SDL 2.30+)
++		desc.axis_mask = ( 1u << SDL_CONTROLLER_AXIS_MAX ) - 1;
++		desc.vendor_id = pads[i].vid;
++		desc.product_id = pads[i].pid;
++		desc.name = pads[i].name;
++
++		cof_virtual_index = SDL_JoystickAttachVirtualEx( &desc );
++		if( cof_virtual_index < 0 )
++		{
++			Con_Printf( "[cof-pad] virtual pad: SDL_JoystickAttachVirtualEx failed: %s\n", SDL_GetError( ));
++			return;
++		}
++
++		cof_virtual_joy = SDL_JoystickOpen( cof_virtual_index );
++
++		// SDL drops joystick events while the window is not focused; a test
++		// launch must not depend on focus (nothing here may take it), so the
++		// virtual pad's events are let through until it is detached
++		{
++			const char *bg = SDL_GetHint( SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS );
++
++			Q_strncpy( cof_virtual_bg_hint, bg ? bg : "-", sizeof( cof_virtual_bg_hint ));
++			SDL_SetHint( SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1" );
++		}
++		Con_Printf( "[cof-pad] virtual pad \"%s\" %04X:%04X attached as device %d (game controller %d, SDL type %s)\n", pads[i].name,
++			pads[i].vid, pads[i].pid, cof_virtual_index, SDL_IsGameController( cof_virtual_index ),
++			CL_CoF_PadTypeName( SDL_GameControllerTypeForIndex( cof_virtual_index )));
++		return;
++	}
++
++	Con_Printf( S_USAGE "cof_pad_virtual <switchpro|joycons|deck|xbox|ps5> | button <n> <0|1> | axis <n> <value> | off\n" );
++#else
++	Con_Printf( "cof_pad_virtual: needs SDL 2.0.24 or newer\n" );
++#endif
++}
++
++/*
++==============================================================================
++
++Measurement (developer): cof_pad_measure <label> <seconds>
++
++Frame rate (mean, slowest frame), the time the SDL event loop took, the
++input counters (SDL events, gamepad axis events, trigger key edges, pad keys,
++active-pad switches) and the player's horizontal speed over a window. For the
++frame-rate and the movement checks of this round; nothing else uses it.
++
++==============================================================================
++*/
++void CL_CoF_NoteEventLoop( double seconds, int events )
++{
++	cof_pad.stat_event_time += seconds;
++	cof_pad.stat_events += events;
++}
++
++static void CL_CoF_PadVirtualAxis( int axis, int value );
++
++static void CL_CoF_JitterFrame( void )
++{
++	static const engineAxis_t sdl_to_engine[6] = { JOY_AXIS_SIDE, JOY_AXIS_FWD, JOY_AXIS_YAW, JOY_AXIS_PITCH, JOY_AXIS_LT, JOY_AXIS_RT };
++	int value;
++
++	if( cof_pad.jit_axis < 0 )
++		return;
++
++	cof_pad.jit_phase ^= 1;
++	value = cof_pad.jit_phase ? cof_pad.jit_hi : cof_pad.jit_lo;
++
++	if( cof_pad.jit_virtual )
++		CL_CoF_PadVirtualAxis( cof_pad.jit_axis, value );
++	else Joy_AxisMotionEvent( sdl_to_engine[cof_pad.jit_axis], value );
++}
++
++/*
++============
++cof_pad_jitter <sdl axis 0..5> <lo> <hi> [virtual] | off
++
++Developer: move one axis between two values every frame (a trigger resting
++near its threshold). SDL axis numbers: 0/1 left stick x/y, 2/3 right stick
++x/y, 4 LT, 5 RT. Without `virtual` the values go into Joy_AxisMotionEvent
++(like cof_joy_axis_probe); with it into the attached cof_pad_virtual pad, so
++they come back through SDL's own event path.
++============
++*/
++static void CL_CoF_Jitter_f( void )
++{
++	if( !host_developer.value )
++	{
++		Con_Printf( "cof_pad_jitter is a developer command: set \"developer 1\" first\n" );
++		return;
++	}
++
++	if( Cmd_Argc( ) == 2 && !Q_stricmp( Cmd_Argv( 1 ), "off" ))
++	{
++		cof_pad.jit_axis = -1;
++		Con_Printf( "[cof-pad] jitter off\n" );
++		return;
++	}
++
++	if( Cmd_Argc( ) < 4 )
++	{
++		Con_Printf( S_USAGE "cof_pad_jitter <sdl axis 0..5> <lo> <hi> [virtual] | off\n" );
++		return;
++	}
++
++	cof_pad.jit_axis = bound( 0, Q_atoi( Cmd_Argv( 1 )), 5 );
++	cof_pad.jit_lo = bound( -32768, Q_atoi( Cmd_Argv( 2 )), 32767 );
++	cof_pad.jit_hi = bound( -32768, Q_atoi( Cmd_Argv( 3 )), 32767 );
++	cof_pad.jit_virtual = Cmd_Argc( ) > 4 && !Q_stricmp( Cmd_Argv( 4 ), "virtual" );
++	cof_pad.jit_phase = 0;
++	Con_Printf( "[cof-pad] jitter: SDL axis %d between %d and %d every frame%s\n", cof_pad.jit_axis, cof_pad.jit_lo, cof_pad.jit_hi,
++		cof_pad.jit_virtual ? " (virtual pad, SDL event path)" : "" );
++}
++
++static void CL_CoF_MeasureFrame( void )
++{
++	const double ft = host.realframetime;
++	float        v;
++
++	CL_CoF_JitterFrame( );
++
++	if( !cof_pad.meas_on )
++		return;
++
++	if( cof_pad.meas_frames > 0 ) // the first frame belongs to the command's own frame
++	{
++		cof_pad.meas_sum += ft;
++		cof_pad.meas_max = Q_max( cof_pad.meas_max, ft );
++	}
++	cof_pad.meas_frames++;
++
++	v = sqrt( cl.simvel[0] * cl.simvel[0] + cl.simvel[1] * cl.simvel[1] );
++	cof_pad.meas_vmax = Q_max( cof_pad.meas_vmax, v );
++	cof_pad.meas_vsum += v;
++
++	if( host.realtime < cof_pad.meas_end )
++		return;
++
++	{
++		const double dt = host.realtime - cof_pad.meas_start;
++		const int    n = cof_pad.meas_frames - 1;
++		const float  dx = cl.simorg[0] - cof_pad.meas_org[0], dy = cl.simorg[1] - cof_pad.meas_org[1];
++		const float  dist = sqrt( dx * dx + dy * dy );
++
++		cof_pad.meas_on = false;
++		if( cof_pad.meas_next[0] )
++			Cbuf_AddText( va( "%s\n", cof_pad.meas_next ));
++		Con_Printf( "[cof-meas] %s: %.2f s, %d frames, %.1f fps (mean frame %.2f ms, slowest %.2f ms), SDL event loop %.3f ms/frame, "
++			"events %d (axis %d, sensor %d), trigger edges %d, pad keys %d, pad switches %d; speed %.1f u/s (velocity mean %.1f, max %.1f), moved %.1f %.1f, yaw %.1f; "
++			"zoom target %g, fov %.1f; sticks fwd %.2f side %.2f, lt %.2f; cof_pad_move_mode %s\n",
++			cof_pad.meas_label, dt, n, n > 0 ? n / cof_pad.meas_sum : 0.0, n > 0 ? cof_pad.meas_sum * 1000.0 / n : 0.0, cof_pad.meas_max * 1000.0,
++			n > 0 ? ( cof_pad.stat_event_time - cof_pad.meas_event_time ) * 1000.0 / n : 0.0,
++			cof_pad.stat_events - cof_pad.meas_c[0], cof_pad.stat_axis_events - cof_pad.meas_c[1], cof_pad.stat_sensor_events - cof_pad.meas_c[2],
++			cof_pad.stat_trigger_edges - cof_pad.meas_c[3], cof_pad.stat_pad_keys - cof_pad.meas_c[4], cof_pad.stat_pad_switches - cof_pad.meas_c[5],
++			dt > 0.0 ? dist / dt : 0.0, cof_pad.meas_frames > 0 ? cof_pad.meas_vsum / cof_pad.meas_frames : 0.0f, cof_pad.meas_vmax, dx, dy, cl.viewangles[YAW],
++			cls.state == ca_active ? cl.frames[cl.parsecountmod].clientdata.vuser2[0] : -1.0f, cl.local.scr_fov,
++			CL_CoF_PadAxis( JOY_AXIS_FWD ), CL_CoF_PadAxis( JOY_AXIS_SIDE ), CL_CoF_PadAxis( JOY_AXIS_LT ), cof_pad_move_mode.string );
++	}
++}
++
++static void CL_CoF_Measure_f( void )
++{
++	if( Cmd_Argc( ) != 3 && Cmd_Argc( ) != 4 )
++	{
++		Con_Printf( S_USAGE "cof_pad_measure <label> <seconds> [alias to run afterwards] : frame rate, input counters and horizontal speed over a window\n" );
++		return;
++	}
++
++	Q_strncpy( cof_pad.meas_next, Cmd_Argc( ) == 4 ? Cmd_Argv( 3 ) : "", sizeof( cof_pad.meas_next ));
++
++	Q_strncpy( cof_pad.meas_label, Cmd_Argv( 1 ), sizeof( cof_pad.meas_label ));
++	cof_pad.meas_on = true;
++	cof_pad.meas_start = host.realtime;
++	cof_pad.meas_end = host.realtime + bound( 0.1, Q_atof( Cmd_Argv( 2 )), 60.0 );
++	cof_pad.meas_frames = 0;
++	cof_pad.meas_sum = cof_pad.meas_max = 0.0;
++	cof_pad.meas_vmax = cof_pad.meas_vsum = 0.0f;
++	cof_pad.meas_event_time = cof_pad.stat_event_time;
++	cof_pad.meas_c[0] = cof_pad.stat_events;
++	cof_pad.meas_c[1] = cof_pad.stat_axis_events;
++	cof_pad.meas_c[2] = cof_pad.stat_sensor_events;
++	cof_pad.meas_c[3] = cof_pad.stat_trigger_edges;
++	cof_pad.meas_c[4] = cof_pad.stat_pad_keys;
++	cof_pad.meas_c[5] = cof_pad.stat_pad_switches;
++	VectorCopy( cl.simorg, cof_pad.meas_org );
 +}
 +
 +/*
@@ -1986,6 +2873,15 @@ new file mode 100644
 +		joystick ? joystick->string : "(not registered)", cof_pad_defaults_gen.value );
 +	Con_Printf( "[cof-pad] origin %.1f %.1f %.1f, angles %.1f %.1f\n", cl.simorg[0], cl.simorg[1], cl.simorg[2], cl.viewangles[PITCH], cl.viewangles[YAW] );
 +	Con_Printf( "[cof-pad] defaults this launch: %s\n", cof_pad.defaults_note[0] ? cof_pad.defaults_note : "nothing to do (generation already applied)" );
++	Con_Printf( "[cof-pad] style %s (cof_pad_style %s, cof_pad_style_auto %s; pad in use \"%s\" SDL type %s -> %s), face buttons by %s, quick turn %s (%.2f s), move mode %s, trigger hysteresis %.2f\n",
++		CL_CoF_PadStyleSetting( ) < 0 ? "auto" : cof_style_names[CL_CoF_PadStyleSetting( )], cof_pad_style.string, cof_pad_style_auto.string, cof_pad.pad_name,
++#if XASH_SDL == 2
++		cof_pad.style_detected >= 0 ? CL_CoF_PadTypeName( cof_pad.pad_type ) : "-",
++#else
++		"-",
++#endif
++		cof_pad.style_detected >= 0 ? cof_style_icon_ids[cof_pad.style_detected] : "-", cof_pad_positional.value ? "position" : "label",
++		cof_pad.turn_on ? "RUNNING" : "idle", bound( 0.05f, cof_quickturn_time.value, 1.0f ), cof_pad_move_mode.string, CL_CoF_TriggerHysteresis( ));
 +	Con_Printf( "[cof-pad] crouch toggle %s, player hull %d (1 = crouched), view height %.1f, gyro aiming %s\n",
 +		cof_pad.duck_on ? "ON" : "off", cl.local.usehull, cl.viewheight[2], Cvar_VariableString( "joy_gyro_enable" ));
 +	Con_Printf( "[cof-pad] sprint %s (%s mode, cof_sprint_toggle %g), last input %s, OS arrow %s (hidden by the pad %d, host.mouse_visible %d), cursor art %s\n",
@@ -2043,6 +2939,20 @@ new file mode 100644
 +	Cvar_RegisterVariable( &cof_joy_legacy_off );
 +	Cvar_RegisterVariable( &cof_pad_defaults_gen );
 +	Cvar_RegisterVariable( &cof_input_trace );
++	Cvar_RegisterVariable( &cof_quickturn_time );
++	Cvar_RegisterVariable( &cof_pad_trigger_hyst );
++	Cvar_RegisterVariable( &cof_pad_move_mode );
++	Cvar_RegisterVariable( &cof_pad_move_deadzone );
++	Cvar_RegisterVariable( &cof_pad_move_walk );
++	Cvar_RegisterVariable( &cof_pad_move_curve );
++	Cvar_RegisterVariable( &cof_pad_move_diagonal );
++	Cvar_RegisterVariable( &cof_pad_style );
++	Cvar_RegisterVariable( &cof_pad_style_auto );
++	Cvar_RegisterVariable( &cof_pad_positional );
++	Cvar_RegisterVariable( &cof_pad_type );
++
++	cof_pad.style_detected = cof_pad.style_resolved = cof_pad.hint_labels = -1;
++	cof_pad.jit_axis = -1;
 +
 +	Cmd_AddCommand( "cof_duck_toggle", CL_CoF_DuckToggle_f, "Cry of Fear: crouch toggle - the first press crouches (holds +duck), the next one stands up; released on every level change and load" );
 +	Cmd_AddCommand( "cof_sprint_toggle_press", CL_CoF_SprintPress_f, "Cry of Fear: sprint - toggle (cof_sprint_toggle 1: sprints until you stop moving or press again) or hold (0: while the key is held); released on every level change and load" );
@@ -2051,15 +2961,21 @@ new file mode 100644
 +	Cmd_AddCommand( "cof_pad_status", CL_CoF_PadStatus_f, "print the Cry of Fear gamepad state: controllers, panel check, virtual cursor, sticks (binds: also the pad binds)" );
 +	Cmd_AddRestrictedCommand( "cof_joy_axis_probe", CL_CoF_JoyAxisProbe_f, "developer: feed a gamepad axis value to the engine's own axis path, without any OS input" );
 +	Cmd_AddRestrictedCommand( "cof_vcursor_test", CL_CoF_VCursorTest_f, "developer: move the gamepad cursor and optionally click, while a CoF panel is open" );
++	Cmd_AddCommand( "cof_quickturn", CL_CoF_QuickTurn_f, "Cry of Fear: quick 180-degree turn (cof_quickturn_time seconds); in play only" );
++	Cmd_AddRestrictedCommand( "cof_pad_measure", CL_CoF_Measure_f, "developer: frame rate, input counters and horizontal speed over a window" );
++	Cmd_AddRestrictedCommand( "cof_pad_jitter", CL_CoF_Jitter_f, "developer: move one gamepad axis between two values every frame" );
++	Cmd_AddRestrictedCommand( "cof_pad_style_test", CL_CoF_PadStyleTest_f, "developer: run the pad style detection over simulated pads" );
++	Cmd_AddRestrictedCommand( "cof_pad_virtual", CL_CoF_PadVirtual_f, "developer: attach an SDL virtual game controller with a real pad's ids (in-process, no OS input)" );
 +}
 diff --git a/engine/client/input.h b/engine/client/input.h
 --- a/engine/client/input.h
 +++ b/engine/client/input.h
-@@ -162,5 +162,27 @@
+@@ -162,5 +162,35 @@
  void Joy_DrawDebug( void );
  void Joy_Init( void );
  void Joy_Shutdown( void );
 +short Joy_CoF_AxisValue( engineAxis_t axis );
++short Joy_CoF_AxisRaw( engineAxis_t axis );
 +
 +//
 +// cof_gamepad.c (Cry of Fear: Enhanced gamepad support)
@@ -2081,6 +2997,13 @@ diff --git a/engine/client/input.h b/engine/client/input.h
 +void CL_CoF_NoteMouseWarp( int x, int y );		// in_sdl2.c Platform_SetMousePos
 +qboolean CL_CoF_PadHidesOSCursor( void );
 +qboolean CL_CoF_OSCursorRequest( int type );		// in_sdl2.c Platform_SetCursorType
++float CL_CoF_QuickTurnYaw( void );			// input.c IN_EngineAppendMove: cof_quickturn
++float CL_CoF_TriggerHysteresis( void );			// in_joy.c Joy_ProcessTrigger
++void CL_CoF_NoteTriggerEdge( int axis, qboolean down, short value, int threshold );
++qboolean CL_CoF_PadMoveShape( float *fw, float *side, float fwscale, float sidescale ); // in_joy.c Joy_FinalizeMove
++void CL_CoF_PadMoveKeyThresholds( float *forward, float *side );	// input.c IN_JoyAppendMove
++void CL_CoF_PadActivated( void *gamecontroller );	// joy_sdl2.c: the pad in use changed
++void CL_CoF_NoteEventLoop( double seconds, int events );	// host_sdl2.c Platform_RunEvents
  
  #endif//INPUT_H
 diff --git a/engine/client/input/input.c b/engine/client/input/input.c
@@ -2095,7 +3018,7 @@ diff --git a/engine/client/input/input.c b/engine/client/input/input.c
  		Touch_Init();
  
  #if XASH_USE_EVDEV
-@@ -507,6 +509,14 @@
+@@ -507,6 +509,19 @@
  static void IN_JoyAppendMove( usercmd_t *cmd, float forwardmove, float sidemove )
  {
  	static uint moveflags = T | S;
@@ -2107,42 +3030,65 @@ diff --git a/engine/client/input/input.c b/engine/client/input/input.c
 +	// through the centre still dodges, like a double tap on the keyboard.
 +	const float hyst = CL_CoF_JoyPulseHysteresis( );
 +	const uint oldflags = moveflags;
++	// the deflections that press the keys: 0.7 / 0.9, or the direction's
++	// sector with cof_pad_move_mode 1/2 (cof_gamepad.c)
++	float fthr = 0.7f, sthr = 0.9f;
++
++	CL_CoF_PadMoveKeyThresholds( &fthr, &sthr );
  
  	if( forwardmove ) cmd->forwardmove  = forwardmove * cl_forwardspeed.value;
  	if( sidemove ) cmd->sidemove  = sidemove * cl_sidespeed.value;
-@@ -538,7 +548,7 @@
+@@ -533,49 +548,52 @@
+ 		moveflags |= S;
+ 	}
+ 
+-	if ( forwardmove > 0.7f && !( moveflags & F ))
++	if ( forwardmove > fthr && !( moveflags & F ))
+ 	{
  		moveflags |= F;
  		Cmd_ExecuteString( "+forward" );
  	}
 -	else if ( forwardmove < 0.7f && ( moveflags & F ))
-+	else if ( forwardmove < 0.7f - hyst && ( moveflags & F ))
++	else if ( forwardmove < fthr - hyst && ( moveflags & F ))
  	{
  		moveflags &= ~F;
  		Cmd_ExecuteString( "-forward" );
-@@ -549,7 +559,7 @@
+ 	}
+ 
+-	if ( forwardmove < -0.7f && !( moveflags & B ))
++	if ( forwardmove < -fthr && !( moveflags & B ))
+ 	{
  		moveflags |= B;
  		Cmd_ExecuteString( "+back" );
  	}
 -	else if ( forwardmove > -0.7f && ( moveflags & B ))
-+	else if ( forwardmove > -0.7f + hyst && ( moveflags & B ))
++	else if ( forwardmove > -fthr + hyst && ( moveflags & B ))
  	{
  		moveflags &= ~B;
  		Cmd_ExecuteString( "-back" );
-@@ -560,7 +570,7 @@
+ 	}
+ 
+-	if ( sidemove > 0.9f && !( moveflags & R ))
++	if ( sidemove > sthr && !( moveflags & R ))
+ 	{
  		moveflags |= R;
  		Cmd_ExecuteString( "+moveright" );
  	}
 -	else if ( sidemove < 0.9f && ( moveflags & R ))
-+	else if ( sidemove < 0.9f - hyst && ( moveflags & R ))
++	else if ( sidemove < sthr - hyst && ( moveflags & R ))
  	{
  		moveflags &= ~R;
  		Cmd_ExecuteString( "-moveright" );
-@@ -571,11 +581,14 @@
+ 	}
+ 
+-	if ( sidemove < -0.9f && !( moveflags & L ))
++	if ( sidemove < -sthr && !( moveflags & L ))
+ 	{
  		moveflags |= L;
  		Cmd_ExecuteString( "+moveleft" );
  	}
 -	else if ( sidemove > -0.9f && ( moveflags & L ))
-+	else if ( sidemove > -0.9f + hyst && ( moveflags & L ))
++	else if ( sidemove > -sthr + hyst && ( moveflags & L ))
  	{
  		moveflags &= ~L;
  		Cmd_ExecuteString( "-moveleft" );
@@ -2153,7 +3099,7 @@ diff --git a/engine/client/input/input.c b/engine/client/input/input.c
  }
  
  static void IN_CollectInput( float *forward, float *side, float *pitch, float *yaw, qboolean includeMouse )
-@@ -621,6 +634,17 @@
+@@ -621,6 +639,17 @@
  	if( cls.key_dest != key_game || cl.paused || cl.intermission )
  		return;
  
@@ -2171,15 +3117,19 @@ diff --git a/engine/client/input/input.c b/engine/client/input/input.c
  	if( active )
  	{
  		float forward = 0, side = 0, pitch = 0, yaw = 0;
-@@ -629,6 +653,7 @@
+@@ -629,6 +658,11 @@
  		IN_CollectInput( &forward, &side, &pitch, &yaw, false );
  
  		IN_JoyAppendMove( cmd, forward, side );
 +		CL_CoF_PadTraceMove( cmd->forwardmove, cmd->sidemove, false );
++
++		// Cry of Fear: the quick turn (cof_quickturn) goes through the same
++		// view-angle path as the right stick
++		yaw += CL_CoF_QuickTurnYaw( );
  
  		if( pitch || yaw )
  		{
-@@ -676,5 +701,8 @@
+@@ -676,5 +710,8 @@
  {
  	IN_Commands();
  
@@ -2233,7 +3183,7 @@ diff --git a/engine/client/input/in_joy.c b/engine/client/input/in_joy.c
  static CVAR_DEFINE_AUTO( joy_debug, "0", 0, "visualize gamepad axes and buttons" );
  static CVAR_DEFINE_AUTO( joy_have_touchpads, "0", FCVAR_READ_ONLY, "tells how many trackpads current active gamepad has" );
  static CVAR_DEFINE_AUTO( joy_touchpad_left_mode, "0", FCVAR_ARCHIVE | FCVAR_FILTERABLE, "left trackpad mode: off (0), look (1) or move (2)" );
-@@ -118,6 +120,22 @@
+@@ -118,6 +120,32 @@
  qboolean Joy_IsActive( void )
  {
  	return joy_enable.value;
@@ -2253,10 +3203,53 @@ diff --git a/engine/client/input/in_joy.c b/engine/client/input/in_joy.c
 +		return 0;
 +
 +	return joyaxis[axis].val;
++}
++
++// the same before the stick deadzone (cof_pad_move_mode shapes the left stick
++// itself, with a radial deadzone)
++short Joy_CoF_AxisRaw( engineAxis_t axis )
++{
++	if( axis < 0 || axis >= MAX_AXES )
++		return 0;
++
++	return joyaxis[axis].rawval;
  }
  
  /*
-@@ -320,6 +338,10 @@
+@@ -210,6 +238,32 @@
+ 	// update axis values
+ 	joyaxis[engineAxis].prevval = joyaxis[engineAxis].val;
+ 	joyaxis[engineAxis].val = value;
++
++	// Cry of Fear: a pressed trigger is a state with hysteresis, so a finger
++	// resting near the threshold gives one press and one release, not a key
++	// edge for every jitter of the analogue value (cof_pad_trigger_hyst in
++	// cof_gamepad.c; 0 = the plain threshold below)
++	if( trigButton && CL_CoF_TriggerHysteresis( ) > 0.0f )
++	{
++		static qboolean trigdown[MAX_AXES];
++		const int hyst = (int)( CL_CoF_TriggerHysteresis( ) * SHRT_MAX );
++		const int press = Q_min( trigThreshold + hyst, SHRT_MAX - 1 );
++		const int release = Q_max( trigThreshold - hyst, 1 );
++
++		if( !trigdown[engineAxis] && value > press )
++		{
++			trigdown[engineAxis] = true;
++			CL_CoF_NoteTriggerEdge( engineAxis, true, value, trigThreshold );
++			Key_Event( trigButton, true );
++		}
++		else if( trigdown[engineAxis] && value < release )
++		{
++			trigdown[engineAxis] = false;
++			CL_CoF_NoteTriggerEdge( engineAxis, false, value, trigThreshold );
++			Key_Event( trigButton, false );
++		}
++		return;
++	}
+ 
+ 	if( joyaxis[engineAxis].val > trigThreshold &&
+ 		joyaxis[engineAxis].prevval <= trigThreshold ) // ignore random press
+@@ -320,6 +374,10 @@
  	if( value == joyaxis[engineAxis].val )
  		return; // it is not an update
  
@@ -2267,6 +3260,20 @@ diff --git a/engine/client/input/in_joy.c b/engine/client/input/in_joy.c
  	if( engineAxis >= JOY_AXIS_RT )
  		Joy_ProcessTrigger( engineAxis, value );
  	else
+@@ -506,8 +564,13 @@
+ 		ClearBits( joy_axis_binding.flags, FCVAR_CHANGED );
+ 	}
+ 
++	// Cry of Fear: cof_pad_move_mode 1/2 shapes the left stick like the movement
++	// keys (cof_gamepad.c); 0 = the engine's own proportional move below
++	if( !CL_CoF_PadMoveShape( fw, side, joy_forward.value, joy_side.value ))
++	{
+ 	*fw     -= joy_forward.value * (float)joyaxis[JOY_AXIS_FWD ].val/(float)SHRT_MAX;  // must be form -1.0 to 1.0
+ 	*side   += joy_side.value    * (float)joyaxis[JOY_AXIS_SIDE].val/(float)SHRT_MAX;
++	}
+ 	*dpitch += joy_pitch.value * (float)joyaxis[JOY_AXIS_PITCH].val/(float)SHRT_MAX * host.realframetime;
+ 	*dyaw   -= joy_yaw.value   * (float)joyaxis[JOY_AXIS_YAW  ].val/(float)SHRT_MAX * host.realframetime;
+ 
 diff --git a/engine/client/vgui/vgui_draw.c b/engine/client/vgui/vgui_draw.c
 --- a/engine/client/vgui/vgui_draw.c
 +++ b/engine/client/vgui/vgui_draw.c
@@ -2369,6 +3376,24 @@ diff --git a/engine/platform/sdl2/host_sdl2.c b/engine/platform/sdl2/host_sdl2.c
  	switch ( event->type )
  	{
  	/* Mouse events */
+@@ -429,9 +433,17 @@
+ void Platform_RunEvents( void )
+ {
+ 	SDL_Event event;
++	const double cof_t0 = Sys_DoubleTime( );
++	int cof_events = 0;
+ 
+ 	while( host.status != HOST_CRASHED && !host.shutdown_issued && SDL_PollEvent( &event ) )
++	{
+ 		SDLash_EventHandler( &event );
++		cof_events++;
++	}
++
++	// Cry of Fear: input counters for cof_pad_measure (cof_gamepad.c)
++	CL_CoF_NoteEventLoop( Sys_DoubleTime( ) - cof_t0, cof_events );
+ 
+ #if XASH_PSVITA
+ 	PSVita_InputUpdate();
 diff --git a/engine/platform/sdl2/in_sdl2.c b/engine/platform/sdl2/in_sdl2.c
 --- a/engine/platform/sdl2/in_sdl2.c
 +++ b/engine/platform/sdl2/in_sdl2.c
@@ -2393,6 +3418,45 @@ diff --git a/engine/platform/sdl2/in_sdl2.c b/engine/platform/sdl2/in_sdl2.c
  
  		// restore the last mouse position
  		if( in_visible_cursor_pos.pushed )
+diff --git a/engine/platform/sdl2/joy_sdl2.c b/engine/platform/sdl2/joy_sdl2.c
+--- a/engine/platform/sdl2/joy_sdl2.c
++++ b/engine/platform/sdl2/joy_sdl2.c
+@@ -193,6 +193,9 @@
+ 
+ 		Joy_SetCapabilities( have_gyro, num_touchpads );
+ 	}
++
++	// Cry of Fear: the pad in use, for the button style (cof_gamepad.c)
++	CL_CoF_PadActivated( g_current_gamepad );
+ }
+ 
+ static void SDLash_GameControllerAdded( int device_index )
+@@ -310,7 +313,12 @@
+ 	switch( ev->type )
+ 	{
+ 	case SDL_CONTROLLERAXISMOTION:
+-		SDLash_SetActiveGameController( ev->caxis.which );
++		// Cry of Fear: an axis makes its pad the active one (rumble, gyro, the
++		// button style) only when it is pushed well past rest, so the resting
++		// noise of a second, unused pad cannot flip the active pad - and switch
++		// the gyro sensors and restart their calibration - on every event
++		if( g_current_gamepad_id < 0 || abs( ev->caxis.value ) > 8000 )
++			SDLash_SetActiveGameController( ev->caxis.which );
+ 		x = ev->caxis.axis;
+ 		if( x >= 0 && x < ARRAYSIZE( g_axis_mapping ))
+ 			Joy_AxisMotionEvent( g_axis_mapping[x], ev->caxis.value );
+@@ -389,6 +397,11 @@
+ 	SDL_SetHint( SDL_HINT_JOYSTICK_HIDAPI_PS4_RUMBLE, "1" );
+ 	SDL_SetHint( SDL_HINT_JOYSTICK_HIDAPI_PS5_RUMBLE, "1" );
+ 
++	// Cry of Fear: face buttons by position on every pad, Nintendo ones too (the
++	// bottom button is A_BUTTON); cof_pad_positional 0 switches back to SDL's
++	// by-label default at run time (cof_gamepad.c)
++	SDL_SetHint( SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, "0" );
++
+ 	Con_Reportf( "Joystick: SDL GameController API\n" );
+ 	if( SDL_WasInit( SDL_INIT_GAMECONTROLLER ) != SDL_INIT_GAMECONTROLLER &&
+ 		SDL_InitSubSystem( SDL_INIT_GAMECONTROLLER ))
 diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/cofpanels.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/cofpanels.cpp
 --- a/3rdparty/freevgui/platform/xash3d-fwgs/cofpanels.cpp
 +++ b/3rdparty/freevgui/platform/xash3d-fwgs/cofpanels.cpp
@@ -2914,7 +3978,7 @@ diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp b/3rdparty/freevgui/
 diff --git a/3rdparty/mainui/menus/LoadGame.cpp b/3rdparty/mainui/menus/LoadGame.cpp
 --- a/3rdparty/mainui/menus/LoadGame.cpp
 +++ b/3rdparty/mainui/menus/LoadGame.cpp
-@@ -178,6 +178,7 @@
+@@ -187,6 +187,7 @@
  	}
  
  	void OnDeleteEntry( int line ) override;
@@ -2922,7 +3986,7 @@ diff --git a/3rdparty/mainui/menus/LoadGame.cpp b/3rdparty/mainui/menus/LoadGame
  private:
  	CMenuLoadGame *parent;
  };
-@@ -429,6 +430,19 @@
+@@ -484,6 +485,19 @@
  	parent->UpdateGame();
  }
  
@@ -2945,7 +4009,7 @@ diff --git a/3rdparty/mainui/menus/LoadGame.cpp b/3rdparty/mainui/menus/LoadGame
 diff --git a/3rdparty/mainui/menus/CoFOptions.cpp b/3rdparty/mainui/menus/CoFOptions.cpp
 --- a/3rdparty/mainui/menus/CoFOptions.cpp
 +++ b/3rdparty/mainui/menus/CoFOptions.cpp
-@@ -1695,6 +1695,16 @@
+@@ -1986,6 +1986,16 @@
  	const char *name = EngFuncs::KeynumToString( key );
  	const bool pad = name && UI_CoFIsPadKeyName( name );
  
