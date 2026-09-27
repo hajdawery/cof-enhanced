@@ -1,0 +1,120 @@
+--- a/engine/client/cof_enter_hook.c
++++ b/engine/client/cof_enter_hook.c
+@@ -62,6 +62,7 @@
+ #endif
+ 
+ static CVAR_DEFINE_AUTO( cof_enter_pad, "1", FCVAR_ARCHIVE, "Cry of Fear: while the game waits for Enter (the computer login, a Press Enter card), the gamepad's START presses it" );
++static CVAR_DEFINE_AUTO( cof_osk_dismiss_guard, "1", FCVAR_ARCHIVE, "Cry of Fear: keep on-screen keyboard dismissal keys from submitting the underlying form until released" );
+ static CVAR_DEFINE_AUTO( cof_enter_trace, "0", 0, "developer: log every Enter poll of client.dll the hook answered" );
+ 
+ #define COF_ENTER_POLL_RECENT	0.25	// seconds: "the game is polling for Enter right now"
+@@ -80,9 +81,29 @@
+ 	int pulse_frame;	// host.framecount of its first answer, -1 before
+ 	qboolean held;		// +cof_enter
+ 	qboolean start_swallowed;
++	unsigned int osk_release_keys; // ENTER, KP_ENTER, START: ignore repeated downs until key-up
++	qboolean osk_release_return; // Windows VK_RETURN must be observed released
+ 	double last_poll;	// host.realtime of the latest VK_RETURN poll, -1 none
+ 	unsigned int polls, answered, masked;
+ } cof_enter = { 0 };
++
++// Called before applying an OSK result and before its confirmation key is
++// offered to MainUI. Discard synthetic Enter state from the dismissed overlay.
++void CL_CoF_EnterOskDismiss( void )
++{
++	if( !cof_osk_dismiss_guard.value ) return;
++	cof_enter.pulse = false;
++	cof_enter.pulse_frame = -1;
++	cof_enter.held = false;
++	cof_enter.start_swallowed = false;
++	cof_enter.osk_release_return = Key_IsDown( K_ENTER ) || Key_IsDown( K_KP_ENTER );
++#if XASH_WIN32
++	if( GetAsyncKeyState( VK_RETURN ) & 0x8000 ) cof_enter.osk_release_return = true;
++#endif
++	if( Key_IsDown( K_ENTER )) cof_enter.osk_release_keys |= 1;
++	if( Key_IsDown( K_KP_ENTER )) cof_enter.osk_release_keys |= 2;
++	if( Key_IsDown( K_START_BUTTON )) cof_enter.osk_release_keys |= 4;
++}
+ 
+ static void CL_CoF_EnterArm( const char *why )
+ {
+@@ -110,6 +131,15 @@
+ 
+ 	cof_enter.polls++;
+ 	cof_enter.last_poll = host.realtime;
++
++	// Closing the OSK changes key_dest before a held physical Enter is up.
++	// Swallow even the first released poll (including Windows' low edge bit).
++	if( cof_osk_dismiss_guard.value && cof_enter.osk_release_return )
++	{
++		if( !( real & 0x8000 )) cof_enter.osk_release_return = false;
++		cof_enter.masked++;
++		return 0;
++	}
+ 
+ 	// Enter typed into the console, the menu or its keyboard is theirs
+ 	if( CL_CoF_UIGateActive( ))
+@@ -268,6 +298,35 @@
+ */
+ qboolean CL_CoF_EnterKeyEvent( int key, int down )
+ {
++
++	const unsigned int bit = key == K_ENTER ? 1 : key == K_KP_ENTER ? 2 : key == K_START_BUTTON ? 4 : 0;
++
++	if( !cof_osk_dismiss_guard.value )
++	{
++		cof_enter.osk_release_keys = 0;
++		cof_enter.osk_release_return = false;
++	}
++	else if( bit )
++	{
++		if( cof_enter.osk_release_keys & bit )
++		{
++			if( !down ) cof_enter.osk_release_keys &= ~bit;
++			// Let key-up clear engine key bookkeeping; it cannot arm Enter.
++			return down ? true : false;
++		}
++		if( down && CL_CoF_OskOverGame( ))
++		{
++			CL_CoF_EnterOskDismiss();
++			cof_enter.osk_release_keys |= bit;
++			if( bit != 4 ) cof_enter.osk_release_return = true;
++			return false; // first press still belongs to the OSK
++		}
++		// A new engine press after key-up is also proof of release, even
++		// when the client did not poll Windows between the two presses.
++		if( down && bit != 4 && !( cof_enter.osk_release_keys & 3 ))
++			cof_enter.osk_release_return = false;
++	}
++
+ 	if( key != K_START_BUTTON )
+ 		return false;
+ 
+@@ -318,6 +377,7 @@
+ 	cof_enter.last_poll = -1.0;
+ 	cof_enter.pulse_frame = -1;
+ 	Cvar_RegisterVariable( &cof_enter_pad );
++	Cvar_RegisterVariable( &cof_osk_dismiss_guard );
+ 	Cvar_RegisterVariable( &cof_enter_trace );
+ 	Cmd_AddCommand( "cof_enter_pulse", CL_CoF_EnterPulse_f, "Cry of Fear: the game's next Enter check sees one Enter press (the computer login, Press Enter cards)" );
+ 	Cmd_AddCommand( "+cof_enter", CL_CoF_EnterDown_f, "Cry of Fear: the game's Enter check sees Enter held while this is held" );
+--- a/engine/client/client.h
++++ b/engine/client/client.h
+@@ -1358,6 +1358,7 @@
+ // Cry of Fear Enter hook (cof_enter_hook.c): client.dll's
+ // GetAsyncKeyState(VK_RETURN) answered for a gamepad
+ void CL_CoF_EnterInit( void );
++void CL_CoF_EnterOskDismiss( void ); // discard confirmation through release
+ void CL_CoF_EnterHookModule( void *hInstance, const char *name );
+ qboolean CL_CoF_EnterKeyEvent( int key, int down );
+ extern net_api_t gNetApi;
+--- a/engine/client/cof_osk.c
++++ b/engine/client/cof_osk.c
+@@ -187,6 +187,7 @@
+ 	if( cof_osk_submit.value )
+ 	{
+ 		const int submit = (int)cof_osk_submit.value;
++		CL_CoF_EnterOskDismiss();
+ 
+ 		if( CL_CoF_OskPut( cof_osk_result.string ) && submit == 2 )
+ 		{

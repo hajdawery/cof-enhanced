@@ -75,3 +75,15 @@ differently:
   VGUI strips, built as "Arial"; the resolution table caps at 1600 and the
   strips stop changing at the 1024 bucket, which is why they could not scale.
   `cof_ui_inter_fonts 0` restores them.
+
+## Bold grey message treatment (2026-09-27)
+
+Transient game text uses true Inter Bold with `cof_hud_text_style 1`; menu typography is unchanged. The original SemiBold assets remain for the opt-out and other roles. See the message-style patch documentation for renderer scope and limitations.
+
+The added unmodified `Inter-Bold.ttf` is the hinted Windows desktop face from the official [Inter3.19 release](https://github.com/rsms/inter/releases/tag/v3.19), member `Inter Hinted for Windows/Desktop/Inter-Bold.ttf`. Version3.019, git0a5106e0b; SHA256 `e6c172fd8a2f957414a7a63ec8deb7f2aa239182394cfa5ee2ea6927c6194389`. Existing Regular/SemiBold faces report the same version but differ from the release's hinted faces and are retained unchanged. `Inter-Bold-OFL.txt` preserves the release's original copyright and license beside both the TTF and generated atlases.
+
+Regenerate the separate Bold atlases with:
+
+```powershell
+python scripts/make-cof-console-font.py --ttf gamedata/cryoffear/gfx/fonts/Inter-Bold.ttf --out gamedata/cryoffear/fonts --name cof_hudtext_bold --sizes 14,19
+```

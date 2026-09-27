@@ -109,3 +109,32 @@ Steam `hl.dll`), backs up the game files it replaces into
 `maps\c_game_menu1.ent` from the player's own files, and verifies everything
 against `MANIFEST.sha256`; `Uninstall.cmd` reverses it. Details in the release
 manifest, section 0.
+
+
+## Automated public-release upgrade check
+
+Before publishing, run `tests/release-upgrade/run.py` with `--previous-zip`
+pointing to the downloaded, checksum-verified previous public player ZIP,
+`--new-zip` pointing to the exact new player ZIP, `--canonical-game` pointing
+to an unmodified retail installation, and `--out` pointing to a new ignored
+fixture directory outside that game directory. The latest previous public
+release for test3 is `v0.4.0-test1`; its player ZIP SHA-256 is
+`31751BD288C846B230F345592D73A1CCA8EB11A0988DA4467339D35EE25E9517`.
+
+The harness copies only the minimal retail files required by the real
+installer plus original files replaced by either payload. It runs the
+unmodified Windows PowerShell 5.1 installers and new uninstaller in isolated
+fresh-install and upgrade fixtures. It verifies every payload hash and state
+entry, added assets, retained original backups, repeated installation,
+obsolete-file cleanup, byte-for-byte save/config/custom-binding preservation,
+and exact original restoration on uninstall. It retains logs and `result.json`,
+including the exact tested archive hashes. The Windows PowerShell module path
+is set explicitly because running from PowerShell 7 can otherwise hide its
+standard modules.
+
+No game process is launched and no campaign save is loaded by this test.
+Separately run `tests/cof-pad-upgrade-settings/run.py` in an x86 MSVC shell
+against the patched source to check the real controller migration functions.
+This covers saved gyro values, customized/cleared bindings, old-generation
+defaults and repeat migration; a file-preservation test alone cannot check
+settings changed by the engine after startup.

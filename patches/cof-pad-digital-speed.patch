@@ -1,0 +1,179 @@
+--- a/engine/client/input/input.c
++++ b/engine/client/input/input.c
+@@ -612,6 +612,8 @@
+ 		CL_CoF_PadMoveCommand( "-moveleft" );
+ 	}
+ 
++	CL_CoF_PadMoveCorrectCommand( cmd, forwardmove, sidemove );
++
+ 	IN_CoFMoveDiagnostic( cmd, preForward, preSide, forwardmove, sidemove, moveflags );
+ 
+ 	if( moveflags != oldflags )
+--- a/engine/client/input/cof_gamepad.c
++++ b/engine/client/input/cof_gamepad.c
+@@ -76,8 +76,8 @@
+     real pull, so a trigger resting near its threshold cannot flip the aim
+     down sights on and off.
+  8. The left stick shaped like the movement keys (cof_pad_move_mode and
+-    friends): the game walks at the larger of forwardmove / sidemove, so the
+-    round stick lost speed on every diagonal.
++    friends): Digital-style preserves continuous direction and cancels retail
++    CoF's mixed-axis forward halving; mode 2 retains its snapped mapping.
+  9. Pad styles (cof_pad_style, cof_pad_style_auto): the style of the pad in
+     use from SDL's controller type and ids (Xbox, PlayStation, Nintendo,
+     Steam Deck), and face buttons by POSITION on Nintendo pads too
+@@ -90,6 +90,7 @@
+ does for keys, without any OS input.
+ */
+ 
++#include <float.h>
+ #if XASH_SDL == 2
+ #include <SDL.h>
+ #endif
+@@ -139,6 +140,7 @@
+ // gamepad3 round: quick turn, trigger hysteresis, stick movement shape, pad styles
+ static CVAR_DEFINE_AUTO( cof_quickturn_time, "0.18", FCVAR_ARCHIVE, "Cry of Fear: seconds cof_quickturn takes for its 180-degree turn (0.05..1; eased in and out)" );
+ static CVAR_DEFINE_AUTO( cof_pad_trigger_hyst, "0.1", FCVAR_ARCHIVE, "Cry of Fear gamepad: trigger hysteresis, 0..0.4 of the full pull around joy_lt_threshold / joy_rt_threshold: LT/RT press above threshold + this and release below threshold - this (0 = the engine's plain threshold)" );
++static CVAR_DEFINE_AUTO( cof_pad_move_fix, "1", FCVAR_ARCHIVE, "Cry of Fear Digital-style movement: cancel retail mixed-axis forward slowdown; 0 restores legacy behavior" );
+ static CVAR_DEFINE_AUTO( cof_pad_move_mode, "1", FCVAR_ARCHIVE, "Cry of Fear gamepad movement: 0 = raw analogue stick, 1 = digital-style (above cof_pad_move_walk the stick counts as fully pushed in its direction, like the movement keys), 2 = digital-style snapped to 8 directions" );
+ static CVAR_DEFINE_AUTO( cof_pad_move_deadzone, "0.15", FCVAR_ARCHIVE, "Cry of Fear gamepad movement (modes 1 and 2): radial deadzone of the left stick, 0..0.5 of full deflection" );
+ static CVAR_DEFINE_AUTO( cof_pad_move_walk, "0.6", FCVAR_ARCHIVE, "Cry of Fear gamepad movement (modes 1 and 2): deflection (0.2..1) from which the stick counts as fully pushed; below it the player walks slower, shaped by cof_pad_move_curve" );
+@@ -326,6 +328,7 @@
+ 
+ 	// stick movement shape: the stick counts as fully pushed this frame
+ 	qboolean move_saturated;
++	qboolean move_digital_active;
+ 
+ 	// pad styles (-1 = not known yet)
+ 	int      style_detected;   // the style of the pad in use
+@@ -2027,22 +2030,17 @@
+ 
+ Stick movement shape (cof_pad_move_mode)
+ 
+-The engine turns the left stick into forwardmove / sidemove proportionally,
+-with a square deadzone per axis (joy_forward_deadzone / joy_side_deadzone),
+-and presses +forward / +back past 0.7 and +moveleft / +moveright past 0.9 of
+-the deflection (IN_JoyAppendMove). Cry of Fear scales the walking speed by
+-the LARGER of forwardmove and sidemove and caps it at the straight speed, so
+-the round stick lost speed on every diagonal (MEASURED, c_forest3: straight
+-225 u/s, sideways 150, keyboard diagonal 187.5, stick at 45 degrees 132.3,
+-half a push at 45 degrees 65.8). Mode 1 ("digital-style") makes the stick
+-behave like the movement keys: a radial deadzone, and from cof_pad_move_walk
+-on the stick counts as fully pushed in its own direction, mapped onto the
+-keys' square (a diagonal is full forward AND full side); below that the
+-player walks slower, shaped by cof_pad_move_curve; cof_pad_move_diagonal then
+-lifts the diagonals to the straight speed. The movement keys then
+-follow the direction's sector (every key whose axis is within 67.5 degrees of
+-the direction), so a diagonal holds both of its keys like the keyboard. Mode 2
+-also snaps the direction to the nearest of 8. Mode 0 is the engine's own.
++The engine starts with proportional left-stick input. Retail CoF halves the
++forward command whenever both movement components are nonzero, then uses the
++Euclidean wish-vector length and its game speed limits. Even tiny lateral
++stick drift can therefore halve straight walking speed.
++
++With cof_pad_move_fix enabled, mode 1 preserves the radial direction and
++input.c calls CL_CoF_PadMoveCorrectCommand after composing the usercmd to cancel
++that exact factor. Below cof_pad_move_walk magnitude follows the deadzone and
++response curve; above it magnitude is one. The existing diagonal preference
++remains available. Mode 2 retains the legacy square eight-direction mapping;
++mode 0 and the opt-out retain their previous behavior.
+ 
+ ==============================================================================
+ */
+@@ -2052,6 +2050,7 @@
+ 	float     x, y, m, dz, walk, mag;
+ 
+ 	cof_pad.move_saturated = false;
++	cof_pad.move_digital_active = false;
+ 
+ 	if( mode < 1 || mode > 2 )
+ 		return false;
+@@ -2066,6 +2065,7 @@
+ 	if( m <= dz || m <= 0.0f )
+ 		return true;
+ 
++	cof_pad.move_digital_active = mode == 1 && cof_pad_move_fix.value != 0 && GI && !Q_stricmp( GI->gamefolder, "cryoffear" );
+ 	x /= m;
+ 	y /= m;
+ 
+@@ -2087,26 +2087,16 @@
+ 	}
+ 	else mag = pow(( m - dz ) / ( walk - dz ), Q_max( 0.2f, cof_pad_move_curve.value ));
+ 
+-	// the keys' square: the larger component of the direction becomes 1, so a
+-	// diagonal sends full forward AND full side like two held keys. The game
+-	// scales its speed by the larger of the two and caps it at the straight
+-	// speed (MEASURED, c_forest3: straight 225 u/s, sideways 150, keyboard
+-	// diagonal 187.5, the plain stick at 45 degrees 132.3). Then the diagonal
+-	// boost (cof_pad_move_diagonal, 1.2 = 225 / 187.5) lifts the diagonals to
+-	// the straight speed; it grows with the smaller component, so straight and
+-	// pure sideways movement stay exactly the keyboard's.
++	// Mode 1 keeps a continuous radial direction. The retail PM code halves
++	// forward whenever both command axes are nonzero; input.c cancels that
++	// exact factor after composing the command. Mode 2 retains its existing
++	// square, eight-direction behavior. Keep the user's diagonal preference.
+ 	{
+ 		const float big = Q_max( fabs( x ), fabs( y ));
+-		float boost, k;
+-
+-		if( big > 0.0f )
+-		{
+-			x /= big;
+-			y /= big;
+-		}
+-
+-		boost = bound( 1.0f, cof_pad_move_diagonal.value, 1.5f );
+-		k = 1.0f + ( boost - 1.0f ) * Q_min( fabs( x ), fabs( y ));
++		const float ratio = big > 0.0f ? Q_min( fabs( x ), fabs( y )) / big : 0.0f;
++		const float boost = bound( 1.0f, cof_pad_move_diagonal.value, 1.5f );
++		const float k = 1.0f + ( boost - 1.0f ) * ratio;
++		if(( mode == 2 || !cof_pad.move_digital_active ) && big > 0.0f ) { x /= big; y /= big; }
+ 		x *= k;
+ 		y *= k;
+ 	}
+@@ -2114,6 +2104,27 @@
+ 	*fw += y * mag * fwscale;
+ 	*side += x * mag * sidescale;
+ 	return true;
++}
++
++// Retail PM_CheckParameters (client 10010DC0) halves forward for every
++// mixed-axis command, even tiny stick drift. Invert only that factor for
++// continuous Digital-style input. The game's speed cap remains authoritative.
++void CL_CoF_PadMoveCorrectCommand( usercmd_t *cmd, float forward, float side )
++{
++    if( (!forward && !side) || !Joy_IsActive() || !cof_pad.move_digital_active || !cof_pad_move_fix.value ||
++        (int)cof_pad_move_mode.value != 1 || !GI || Q_stricmp( GI->gamefolder, "cryoffear" )) return;
++    // Reject non-finite components before arithmetic. Commands cannot validly
++    // exceed the finite float range; division also avoids overflow on doubling.
++    if( !(fabs( cmd->forwardmove ) <= FLT_MAX / 2.0f) || !(fabs( cmd->sidemove ) <= FLT_MAX)) return;
++    // Wire components truncate to whole units. Make sub-unit zero locally too,
++    // so prediction and server agree on the mixed-axis branch.
++    if( fabs( cmd->forwardmove ) < 1.0f ) cmd->forwardmove = 0.0f;
++    if( fabs( cmd->sidemove ) < 1.0f ) cmd->sidemove = 0.0f;
++    if( !cmd->forwardmove || !cmd->sidemove ) return;
++    // Retail's active sprint branch zeros side and does not halve forward.
++    // 0x40000 is the CoF-specific player flag tested by that branch.
++    if(( cmd->buttons & IN_RUN ) && clgame.pmove && ( clgame.pmove->flags & 0x40000 )) return;
++    cmd->forwardmove *= 2.0f;
+ }
+ 
+ /*
+@@ -2979,6 +2990,7 @@
+ 	Cvar_RegisterVariable( &cof_input_trace );
+ 	Cvar_RegisterVariable( &cof_quickturn_time );
+ 	Cvar_RegisterVariable( &cof_pad_trigger_hyst );
++	Cvar_RegisterVariable( &cof_pad_move_fix );
+ 	Cvar_RegisterVariable( &cof_pad_move_mode );
+ 	Cvar_RegisterVariable( &cof_pad_move_deadzone );
+ 	Cvar_RegisterVariable( &cof_pad_move_walk );
+--- a/engine/client/input.h
++++ b/engine/client/input.h
+@@ -189,6 +189,7 @@
+ float CL_CoF_QuickTurnYaw( void );			// input.c IN_EngineAppendMove: cof_quickturn
+ float CL_CoF_TriggerHysteresis( void );			// in_joy.c Joy_ProcessTrigger
+ void CL_CoF_NoteTriggerEdge( int axis, qboolean down, short value, int threshold );
++void CL_CoF_PadMoveCorrectCommand( usercmd_t *cmd, float forward, float side );
+ qboolean CL_CoF_PadMoveShape( float *fw, float *side, float fwscale, float sidescale ); // in_joy.c Joy_FinalizeMove
+ void CL_CoF_PadMoveKeyThresholds( float *forward, float *side );	// input.c IN_JoyAppendMove
+ void CL_CoF_PadActivated( void *gamecontroller );	// joy_sdl2.c: the pad in use changed

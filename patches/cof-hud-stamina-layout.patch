@@ -1,0 +1,101 @@
+--- a/engine/client/client.h
++++ b/engine/client/client.h
+@@ -1370,6 +1370,8 @@
+ void CL_CoF_HudRemakeBars( void );
+ int CL_CoF_HudRemakeTexture( const byte *hash );
+ qboolean CL_CoF_HudRemakeQuad( int kind, int alpha );
++void CL_CoF_HudRemakeVguiBegin( void );
++qboolean CL_CoF_HudRemakeVguiQuad( int kind, qboolean textured, float x, float y, float w, float h, const byte *color );
+ qboolean CL_CoF_HudRemakeSprite( const char *name, const wrect_t *rc, int mode, int texture,
+     float x,float y,float w,float h,float s1,float t1,float s2,float t2,const byte *color );
+ void CL_CoF_EnterHookModule( void *hInstance, const char *name );
+--- a/engine/client/cof_hud_remake.c
++++ b/engine/client/cof_hud_remake.c
+@@ -277,6 +277,47 @@
+ 	return false;
+ }
+ 
++// Retail stamina image's child Panel paints its red recovery-delay background
++// immediately after the parent image, at identical bounds (client 10036FC5).
++// Match that measured pair, not arbitrary red UI rectangles or screen regions.
++static struct {
++    qboolean pending;
++    int frame, flash_frame;
++    float x, y, w, h;
++    byte flash_alpha;
++} stamina_overlay;
++
++void CL_CoF_HudRemakeVguiBegin( void )
++{
++    memset( &stamina_overlay, 0, sizeof( stamina_overlay ));
++    stamina_overlay.frame = stamina_overlay.flash_frame = -1;
++}
++
++qboolean CL_CoF_HudRemakeVguiQuad( int kind, qboolean textured,
++    float x, float y, float w, float h, const byte *color )
++{
++    const qboolean paired = stamina_overlay.pending && stamina_overlay.frame == host.framecount;
++    stamina_overlay.pending = false; // any intervening quad breaks the pair
++    if( !textured && paired && HudEnabled() && HudIcons() && hud.stamina >= 0 &&
++        color[0] == 255 && color[1] == 0 && color[2] == 0 &&
++        fabsf( x - stamina_overlay.x ) < 0.01f && fabsf( y - stamina_overlay.y ) < 0.01f &&
++        fabsf( w - stamina_overlay.w ) < 0.01f && fabsf( h - stamina_overlay.h ) < 0.01f )
++    {
++        stamina_overlay.flash_frame = host.framecount;
++        stamina_overlay.flash_alpha = color[3]; // already converted from VGUI transparency
++        return true;
++    }
++    if( !textured || !CL_CoF_HudRemakeQuad( kind, color[3] )) return false;
++    if( kind == HUD_STAMINA && w > 0 && h > 0 )
++    {
++        stamina_overlay.pending = true;
++        stamina_overlay.frame = host.framecount;
++        stamina_overlay.x = x; stamina_overlay.y = y;
++        stamina_overlay.w = w; stamina_overlay.h = h;
++    }
++    return true;
++}
++
+ void CL_CoF_HudRemakeBars( void )
+ {
+ 	if(!HudEnabled() || !HudIcons()) return;
+@@ -292,11 +333,14 @@
+ 		ref.dllFuncs.FillRGBA(kRenderTransTexture,x,y,w,h,32,32,32,color[3]/2);
+ 		ref.dllFuncs.FillRGBA(kRenderTransTexture,x,y,w*fraction,h,color[0],color[1],color[2],color[3]);
+ 	}
+-	if(hud.stamina_frame==host.framecount && hud.stamina<100)
+-	{
+-		float w=150*scale,x=(refState.width-w)*0.5f,y=bottom-3*scale,h=2*scale;
++	if(hud.stamina_frame==host.framecount && (hud.stamina<100 ||
++		(stamina_overlay.flash_frame==host.framecount && stamina_overlay.flash_alpha>0)))
++	{
++		float w=280*scale,x=(refState.width-w)*0.5f,y=bottom-4*scale,h=4*scale;
+ 		ref.dllFuncs.FillRGBA(kRenderTransTexture,x,y,w,h,32,32,32,hud.stamina_alpha/2);
+ 		ref.dllFuncs.FillRGBA(kRenderTransTexture,x,y,w*hud.stamina/100.0f,h,245,245,245,hud.stamina_alpha);
++		if(stamina_overlay.flash_frame==host.framecount && stamina_overlay.flash_alpha>0)
++			ref.dllFuncs.FillRGBA(kRenderTransTexture,x,y,w,h,255,0,0,stamina_overlay.flash_alpha);
+ 	}
+ 	ref.dllFuncs.GL_SetRenderMode(kRenderNormal); ref.dllFuncs.Color4ub(255,255,255,255);
+ }
+--- a/engine/client/vgui/vgui_draw.c
++++ b/engine/client/vgui/vgui_draw.c
+@@ -280,9 +280,10 @@
+ 
+ 	SPR_AdjustSize( &x, &y, &w, &h );
+ 
++	if( CL_CoF_HudRemakeVguiQuad( vgui.enable_texture ? vgui.textures[vgui.bound_texture].cof_hud_kind : 0,
++		vgui.enable_texture, x, y, w, h, vgui.color )) return;
+ 	if( vgui.enable_texture )
+ 	{
+-		if( CL_CoF_HudRemakeQuad( vgui.textures[vgui.bound_texture].cof_hud_kind, vgui.color[3] )) return;
+ 		float s1 = ul->coord[0];
+ 		float t1 = ul->coord[1];
+ 		float s2 = lr->coord[0];
+@@ -814,6 +815,7 @@
+ 	if( CL_CoF_UIGateActive( ) && !osk_over_game )
+ 		return;
+ 
++	CL_CoF_HudRemakeVguiBegin();
+ 	if( vgui.dllFuncs.Paint )
+ 		vgui.dllFuncs.Paint();
+ 

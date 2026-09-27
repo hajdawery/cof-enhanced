@@ -8,7 +8,7 @@ instead.
 
 * [Building](dev/building.md) - toolchain, source tree, configure flags, outputs.
 * [The patch stack](dev/patch-stack.md) - **the authoritative apply order** of
-  all 48 patches, the apply-script conventions and how to verify a stack.
+  all patches, the apply-script conventions and how to verify a stack.
 * [Patch index](patches/README.md) - what every patch changes and why, with
   its cvars and commands.
 * [Engine and game facts](history/engine-and-game-facts.md) - what we know

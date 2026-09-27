@@ -45,6 +45,20 @@ game, or to install a newer test build over this one) upgrades in place; the
 backup of your original files is kept as it is. What each run did is written to
 `cof-enhanced-install.log`.
 
+## Upgrade from an earlier Enhanced release
+
+Close the game, extract the WHOLE new player ZIP into the same Cry of Fear
+folder and replace the old extracted installer files when asked. Run
+`Install.cmd` again. Do not uninstall first, and keep `{{BACKUP_FOLDER}}`:
+it contains the original game files, not the previous Enhanced version.
+
+The installer keeps both save folders, configuration files and custom
+bindings. Saved gyro preferences are also retained. Existing customized or
+cleared controller bindings stay as they are; bindings still equal to an old
+default may migrate to the current layout. New options use their defaults
+until you change them. An upgrade does not establish compatibility of every
+campaign save; keep your save backup while testing.
+
 ## Uninstall
 
 Double-click `Uninstall.cmd` in the Cry of Fear folder. It removes every file

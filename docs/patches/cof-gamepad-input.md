@@ -1,5 +1,10 @@
 # Gamepad input (`cof-gamepad-input`)
 
+Round 4 adds [updated controls](cof-gamepad-controls.md) after this base patch:
+RB dodge, R3 quick turn and pad-only double-tap suppression. The base-patch
+history below describes generation 4. For missing cursor/controller pictures,
+see the [art delivery repair](cof-gamepad-art-delivery.md).
+
 Patch: `patches/cof-gamepad-input.patch` (engine, plus small FreeVGUI and
 MainUI hunks since the gamepad2 round: `xash.dll`, `vgui.dll` and `menu.dll`
 go together; a new `vguiapi_t` entry).
@@ -9,7 +14,7 @@ art `gamedata/cryoffear/gfx/shell/gamepad/cursor.png`.
 Stack position: step 57 of `docs/dev/patch-stack.md` (since m9), after the
 on-screen keyboard steps 49-52, the quick save steps 53-54 (its `LoadGame.cpp`
 hunks use lines of step 54 as context; regenerated in m9, offsets only) and
-the panel patches 55-56, before `cof-cheats` (58, the last step). Needs `cof-ui-input-gate`, `cof-console-style`, `cof-ads-toggle`,
+the panel patches 55-56, before the round-4 follow-ups (58-59) and `cof-cheats` (63, the last step). Needs `cof-ui-input-gate`, `cof-console-style`, `cof-ads-toggle`,
 `cof-ui-scale`, `cof-mainui-options-layout`, `cof-panel-pause` and
 `cof-panel-transparency` (the script checks their markers).
 

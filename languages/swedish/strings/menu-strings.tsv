@@ -588,3 +588,9 @@ Steam Deck	Steam Deck	menus/CoFOptions.cpp:1037
 Auto follows the connected controller; or the button names and pictures of an Xbox, PlayStation, Nintendo or Steam Deck controller	Auto följer den anslutna handkontrollen; eller knappnamn och bilder för en Xbox-, PlayStation-, Nintendo- eller Steam Deck-kontroll	menus/CoFOptions.cpp:1629
 # m9 integration (the aim action: the game's "Tertiary Attack" is called "Aim" in the Keybinds and Gamepad lists), 2026-09-24: machine-drafted like the rest, please review
 Aim	Sikta	model/KbActListModel.h:91;menus/CoFOptions.cpp:1302
+# gamepad5 OSK field context, 2026-09-27; machine-drafted, please review
+Field %d of %d	Fält %d av %d	menus/CoFOsk.cpp
+# Optional HUD selector, 2026-09-27; machine-drafted, please review
+HUD	HUD	menus/AdvancedControls.cpp
+Classic	Klassisk	menus/AdvancedControls.cpp
+Remake	Remake	menus/AdvancedControls.cpp

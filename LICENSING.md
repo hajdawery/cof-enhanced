@@ -274,3 +274,7 @@ The patcher must also:
 - No Steam files (`steam_api.dll`, `steamclient.dll` and so on).
 - No build output (`.dll`, `.exe`, `.pdb`), dumps, saves or screenshots in
   git; binaries are published only as release assets.
+
+### Optional Remake HUD pictograms (2026-09-27)
+
+`gamedata/cryoffear/gfx/shell/hud_remake/*.png` are newly AI-generated monochrome icons for this project, not extracted from the game or cancelled remake. Distributed under GPL-3.0-or-later to the extent copyright applies; provenance and design briefs are in that folder's LICENSE-NOTE.md.

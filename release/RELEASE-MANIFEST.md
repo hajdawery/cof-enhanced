@@ -66,12 +66,15 @@ staged build (`stage1\releases\v<version>\pdb\`) for reading crash reports.
 | `cryoffear\gfx\fonts\Inter-Regular.ttf` | add | `gamedata\cryoffear\gfx\fonts\` |
 | `cryoffear\gfx\fonts\Inter-Medium.ttf` | add | same |
 | `cryoffear\gfx\fonts\Inter-SemiBold.ttf` | add | same |
+| `cryoffear\gfx\fonts\Inter-Bold.ttf`, `Inter-Bold-OFL.txt` | add | official Inter 3.019 hinted Bold and original release license |
 | `cryoffear\gfx\fonts\OFL.txt` | add | same (**required** beside the TTFs) |
 | `cryoffear\fonts\cof_console0.fnt`, `cof_console1.fnt`, `cof_console2.fnt` | add | `gamedata\cryoffear\fonts\` |
 | `cryoffear\fonts\cof_hudtext0.fnt`, `cof_hudtext1.fnt` | add | same |
+| `cryoffear\fonts\cof_hudtext_bold0.fnt`, `cof_hudtext_bold1.fnt`, `Inter-Bold-OFL.txt` | add | Bold message atlases and original font license |
 | `cryoffear\fonts\OFL.txt` | add | same (**required** beside the atlases; the current deploy script forgets it) |
 | `cryoffear\resource\cryoffear_english.txt` | add | `gamedata\cryoffear\resource\` (our own four menu strings) |
 | `cryoffear\gfx\shell\kb_def.lst` | add | `gamedata\cryoffear\gfx\shell\` (the game ships none) |
+| `cryoffear\gfx\shell\gamepad\` | add | complete tracked art folder: cursor, `icons.txt`, Xbox/PlayStation/Switch/Steam Deck pictures and button icons, `LICENSE-Zacksly.txt`, `LICENSE-NOTE.md`; validated by `scripts/test-gamepad-art.ps1` |
 | `cryoffear\scripts\chapterbackgrounds.txt` | add | `gamedata\cryoffear\scripts\` |
 
 Generated on the player's machine by `install.ps1`, **never shipped**:
@@ -160,3 +163,5 @@ go to `cof-enhanced-backup\` (the player README's `{{BACKUP_FOLDER}}`).
    archive is byte-identical to a file of the canonical game (rerun the legal
    audit's hash match, `stage1/legal-audit-20260922/hashmatch.py`).
 4. The download is free of charge and not gated (Valve SDK header notice).
+
+Optional Remake HUD requires all four `cryoffear/gfx/shell/hud_remake/{heart,bullet,magazine,shell}.png` files and `LICENSE-NOTE.md`. They are project-generated standalone pictograms, not original game assets. Classic remains the default.

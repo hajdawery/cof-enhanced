@@ -1,0 +1,27 @@
+diff --git a/engine/client/input/cof_gamepad.c b/engine/client/input/cof_gamepad.c
+--- a/engine/client/input/cof_gamepad.c
++++ b/engine/client/input/cof_gamepad.c
+@@ -1046,6 +1046,10 @@
+ 	h = pic->height;
+ 
+ 	{
++		// Mipmap upload may overwrite its input in place. Keep the decoded
++		// alpha intact: it is still needed below to build the cursor shadow.
++		byte *upload = Z_Malloc( w * h * 4 );
++		memcpy( upload, pic->buffer, w * h * 4 );
+ 		rgbdata_t art =
+ 		{
+ 			.width = w,
+@@ -1053,10 +1057,11 @@
+ 			.type = PF_RGBA_32,
+ 			.size = w * h * 4,
+ 			.flags = IMAGE_HAS_COLOR|IMAGE_HAS_ALPHA,
+-			.buffer = pic->buffer,
++			.buffer = upload,
+ 		};
+ 
+ 		cof_pad.art_tex = GL_LoadTextureInternal( "*cof_vcursor_art", &art, TF_CLAMP );
++		Z_Free( upload );
+ 	}
+ 
+ 	// the shadow: alpha spread over a disc of r pixels, then a 3x3 box blur

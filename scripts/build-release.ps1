@@ -32,6 +32,7 @@
 
   The payload (files\) is: the binaries above; from gamedata\cryoffear the
   fonts + OFL.txt, gfx\fonts (Inter + OFL.txt), gfx\shell\kb_def.lst,
+  gfx\shell\gamepad (cursor, four controller styles and attribution),
   resource\cryoffear_english.txt, scripts\chapterbackgrounds.txt; and every
   language pack under languages\ (checked against its MANIFEST.tsv) as
   cryoffear\languages\<pack>\. cryoffear\gameinfo.txt and
@@ -92,7 +93,7 @@ $binaryFiles = 'CoFLaunchApp.exe', 'xash.dll', 'ref_gl.dll', 'vgui.dll', 'FileSy
 
 # ---- stage -------------------------------------------------------------------
 $stage = Join-Path $OutDir "_stage-$Version"
-if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
+if (Test-Path -LiteralPath $stage) { throw "Release staging directory already exists: $stage. Choose a fresh output directory." }
 $pkg = Join-Path $stage 'cof-enhanced'
 $files = Join-Path $pkg 'files'
 New-Item -ItemType Directory -Force -Path $files | Out-Null
@@ -114,13 +115,15 @@ foreach ($b in $binaryFiles) {
 # gamedata: the files the game folder needs (not gameinfo.keys, READMEs, .gitignore)
 $gd = 'gamedata/cryoffear/'
 $gamedata = @(Tracked-Under "${gd}fonts/") + @(Tracked-Under "${gd}gfx/fonts/") +
+    @(Tracked-Under "${gd}gfx/shell/gamepad/") + @(Tracked-Under "${gd}gfx/shell/hud_remake/") +
     @("${gd}gfx/shell/kb_def.lst", "${gd}resource/cryoffear_english.txt", "${gd}scripts/chapterbackgrounds.txt")
 foreach ($g in $gamedata) {
     if ($tracked -notcontains $g) { throw "$g is not tracked at HEAD" }
     Put (Join-Path $Repo $g.Replace('/', '\')) ('cryoffear/' + $g.Substring($gd.Length))
 }
-foreach ($must in 'cryoffear/fonts/OFL.txt', 'cryoffear/gfx/fonts/OFL.txt') {
-    if (-not (Test-Path -LiteralPath (Join-Path $files $must.Replace('/', '\')))) { throw "missing $must (the OFL must ship beside the fonts)" }
+& (Join-Path $PSScriptRoot 'test-gamepad-art.ps1') -Root (Join-Path $files 'cryoffear\gfx\shell\gamepad')
+foreach ($must in 'cryoffear/fonts/OFL.txt', 'cryoffear/gfx/fonts/OFL.txt', 'cryoffear/gfx/fonts/Inter-Bold.ttf', 'cryoffear/gfx/fonts/Inter-Bold-OFL.txt', 'cryoffear/fonts/cof_hudtext_bold0.fnt', 'cryoffear/fonts/cof_hudtext_bold1.fnt', 'cryoffear/fonts/Inter-Bold-OFL.txt', 'cryoffear/gfx/shell/hud_remake/heart.png', 'cryoffear/gfx/shell/hud_remake/bullet.png', 'cryoffear/gfx/shell/hud_remake/magazine.png', 'cryoffear/gfx/shell/hud_remake/shell.png', 'cryoffear/gfx/shell/hud_remake/items.png', 'cryoffear/gfx/shell/hud_remake/LICENSE-NOTE.md') {
+    if (-not (Test-Path -LiteralPath (Join-Path $files $must.Replace('/', '\')))) { throw "missing required font asset/license: $must" }
 }
 
 # language packs: every languages/<pack>/ with a MANIFEST.tsv, checked file by file
@@ -256,7 +259,7 @@ foreach ($line in ($tpl -replace "`r`n", "`n").Split("`n")) {
 # ---- the player archive ----------------------------------------------------------
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 function New-Zip([string]$zipPath, [string]$root, [string]$prefix = '') {
-    if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
+    if (Test-Path -LiteralPath $zipPath) { throw "Release archive already exists: $zipPath. Choose a fresh output directory." }
     $zip = [IO.Compression.ZipFile]::Open($zipPath, [IO.Compression.ZipArchiveMode]::Create)
     try {
         foreach ($f in (Get-ChildItem -LiteralPath $root -Recurse -File | Sort-Object FullName)) {
@@ -271,7 +274,7 @@ Write-Host ("player archive: {0} ({1:N0} bytes, {2} payload files)" -f $zipPath,
 
 # ---- the source archive -----------------------------------------------------------
 $srcZip = Join-Path $OutDir $sourceZipName
-if (Test-Path -LiteralPath $srcZip) { Remove-Item -LiteralPath $srcZip -Force }
+if (Test-Path -LiteralPath $srcZip) { throw "Source archive already exists: $srcZip. Choose a fresh output directory." }
 Invoke-Git archive --format=zip "--prefix=cof-enhanced-$Version/" -o $srcZip $commit.TrimEnd('+') | Out-Null
 $zip = [IO.Compression.ZipFile]::Open($srcZip, [IO.Compression.ZipArchiveMode]::Update)
 try {
@@ -302,5 +305,5 @@ Write-Host ("source archive: {0} ({1:N0} bytes)" -f $srcZip, (Get-Item -LiteralP
 $sumLines = foreach ($f in $zipPath, $srcZip) { '{0}  {1}' -f (Hash $f).ToLowerInvariant(), (Split-Path -Leaf $f) }
 [IO.File]::WriteAllText((Join-Path $OutDir 'SHA256SUMS.txt'), (($sumLines -join "`n") + "`n"))
 $sumLines | ForEach-Object { Write-Host $_ }
-Remove-Item -LiteralPath $stage -Recurse -Force
+Write-Host "Retained release staging directory for inspection: $stage"
 Write-Host "release $Version built from commit $commit"

@@ -1,0 +1,50 @@
+--- a/engine/client/input/cof_gamepad.c
++++ b/engine/client/input/cof_gamepad.c
+@@ -46,8 +46,8 @@
+     Cry of Fear layout below if no pad key is bound at all; a profile that has
+     an older generation's defaults gets every key it did not customise moved to
+     the new layout. The binds then live in config.cfg like any other bind.
+-    Gyro aiming (joy_gyro_enable) is off by default and switched off once for
+-    profiles below generation 2. B is a crouch toggle (cof_duck_toggle, an
++    Gyro aiming (joy_gyro_enable) is off by default; saved profiles retain
++    their gyro setting. B is a crouch toggle (cof_duck_toggle, an
+     engine-side latch on the game's +duck, released on every level change and
+     load). L3 is cof_sprint_toggle_press (cof_sprint_toggle: 1 = the first
+     press holds the game's +sprint until the player stops moving, presses it
+@@ -1485,21 +1485,16 @@
+ static void CL_CoF_PadDefaultsCheck( void )
+ {
+ 	int      gen = (int)cof_pad_defaults_gen.value;
+-	convar_t *gyro;
+ 
+ 	if( gen >= COF_PAD_DEFAULTS_GENERATION )
+ 		return;
+ 
+-	// generation 2: gyro aiming off unless the player turns it on again
+-	// (upstream's default was on and got saved into every config.cfg); a
+-	// generation-2 profile already had that done once
+-	if( gen < 2 && ( gyro = Cvar_FindVar( "joy_gyro_enable" )) != NULL && gyro->value )
+-		Cvar_DirectSet( gyro, "0" );
++	// Preserve saved gyro settings on upgrade. Fresh profiles use the cvar default.
+ 
+ 	if( gen == 0 && !CL_CoF_PadAnyBound( ))
+ 	{
+ 		int n = CL_CoF_PadApplyLayout( false );
+-		Q_snprintf( cof_pad.defaults_note, sizeof( cof_pad.defaults_note ), "default layout applied (%d binds, generation %d)%s", n, COF_PAD_DEFAULTS_GENERATION, gen < 2 ? ", gyro aiming off" : "" );
++		Q_snprintf( cof_pad.defaults_note, sizeof( cof_pad.defaults_note ), "default layout applied (%d binds, generation %d)", n, COF_PAD_DEFAULTS_GENERATION );
+ 	}
+ 	else if( gen >= 1 && gen <= 4 )
+ 	{
+@@ -1513,9 +1508,9 @@
+ 			CL_CoF_PadMigrate( cof_pad_layout_gen3, ARRAYSIZE( cof_pad_layout_gen3 ), &moved, &kept );
+ 		else CL_CoF_PadMigrate( cof_pad_layout_gen4, ARRAYSIZE( cof_pad_layout_gen4 ), &moved, &kept );
+ 
+-		Q_snprintf( cof_pad.defaults_note, sizeof( cof_pad.defaults_note ), "generation %d layout migrated to generation %d (%d binds changed, %d customised keys kept)%s", gen, COF_PAD_DEFAULTS_GENERATION, moved, kept, gen < 2 ? ", gyro aiming off" : "" );
+-	}
+-	else Q_snprintf( cof_pad.defaults_note, sizeof( cof_pad.defaults_note ), "gamepad keys already bound, default layout not applied (generation %d)%s", COF_PAD_DEFAULTS_GENERATION, gen < 2 ? ", gyro aiming off" : "" );
++		Q_snprintf( cof_pad.defaults_note, sizeof( cof_pad.defaults_note ), "generation %d layout migrated to generation %d (%d binds changed, %d customised keys kept)", gen, COF_PAD_DEFAULTS_GENERATION, moved, kept );
++	}
++	else Q_snprintf( cof_pad.defaults_note, sizeof( cof_pad.defaults_note ), "gamepad keys already bound, default layout not applied (generation %d)", COF_PAD_DEFAULTS_GENERATION );
+ 
+ 	Con_Printf( "Cry of Fear gamepad: %s\n", cof_pad.defaults_note );
+ 

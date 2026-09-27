@@ -9,8 +9,8 @@ The order below is the order the stack verifiers in `stage1/` apply
 (`stage1/m7-integration-20260923/stackverify-m7.py` reads it from this page;
 before it `stage1/lang3-20260922/stackverify-lang3.ps1` and the per-round
 ones), and it matches the
-order the old README gave, group by group. It covers all 59 patches in
-`patches/` and all 59 `scripts/apply-*.ps1` scripts.
+order the old README gave, group by group. It covers all 77 patches in
+`patches/` and all 77 `scripts/apply-*.ps1` scripts.
 
 > **Verification status (m7, 2026-09-23).** The complete list below, steps
 > 1-48 in this order, was applied in one run to a fresh `pristine-clean` copy
@@ -250,7 +250,7 @@ order that is known to apply.
 | 43 | `apply-cof-mainui-language-selector` | `cof-mainui-language-selector` | M | [language packs](../design/language-packs.md) section 7 |
 | 44 | `apply-cof-mainui-menu-strings` | `cof-mainui-menu-strings` | M | [language packs](../design/language-packs.md) section 8 |
 
-### Co-op bridge, the notifications option, the options relayout, the on-screen keyboard and window name, quick saves, the panels, the gamepad, then the cheats last
+### Co-op bridge, the notifications option, the options relayout, the on-screen keyboard and window name, quick saves, the panels, the gamepad, field navigation and controls, then the cheats last
 
 | # | Script | Patch | Target | Doc |
 | ---: | --- | --- | --- | --- |
@@ -267,7 +267,25 @@ order that is known to apply.
 | 55 | `apply-cof-panel-pause` | `cof-panel-pause` | E + V | [panel pause](../patches/cof-panel-pause.md) (`cof_panel_pause`; the client's panels identified by class); needs 22, 24, 42 |
 | 56 | `apply-cof-panel-transparency` | `cof-panel-transparency` | E + V | [world behind the panels](../patches/cof-panel-transparency.md) (`cof_panel_transparent`); needs 22, 23, 25, 55 |
 | 57 | `apply-cof-gamepad-input` | `cof-gamepad-input` | E + V + M | [gamepad input](../patches/cof-gamepad-input.md) (layout generation 4, quick turn, trigger hysteresis, stick movement, pad styles; `menus/LoadGame.cpp` / `CoFOptions.cpp`: A on a save row, the last input device); needs 9, 14, 21, 39, 48, 54 (its `LoadGame.cpp` lines are context) and 55 (the panel check reads the panel identity of 55), 56 |
-| 58 | `apply-cof-cheats` | `cof-cheats` | E | [cheats internals](../design/cheats.md); **always last**, needs steps 2 and 4 |
+| 58 | `apply-cof-osk-field-navigation` | `cof-osk-field-navigation` | E + V | [OSK field navigation](../design/osk.md); Done advances within the same form, last field submits; needs 50-51 |
+| 59 | `apply-cof-gamepad-controls` | `cof-gamepad-controls` | E + M | [gamepad round 4 controls](../patches/cof-gamepad-controls.md); generation 5: RB dodge, R3 quick turn, pad-only double-tap suppression; needs 57 |
+| 60 | `apply-cof-osk-compact-context` | `cof-osk-compact-context` | E + V + M | [compact OSK and field context](../design/osk.md); smaller keyboard, field number, Done never submits; needs 58 |
+| 61 | `apply-cof-osk-dismiss-guard` | `cof-osk-dismiss-guard` | E | [OSK dismissal guard](../design/osk.md); hold closing Enter/Start until release; needs 51, 60 |
+| 62 | `apply-cof-vcursor-shadow-source` | `cof-vcursor-shadow-source` | E | [cursor shadow](../patches/cof-vcursor-shadow-source.md); preserve alpha through texture upload; needs 57 |
+| 63 | `apply-cof-hud-text-style` | `cof-hud-text-style` | E + V | [Bold grey message text](../patches/cof-hud-text-style.md); soft shadow, independent optional background off by default; needs font/message patches |
+| 64 | `apply-cof-mainui-compact-scale` | `cof-mainui-compact-scale` | M | [compact menus](../patches/cof-mainui-compact-scale.md); 12% smaller, keyboard size preserved; needs 60 |
+| 65 | `apply-cof-mainui-hud-style` | `cof-mainui-hud-style` | M | [HUD selector](../patches/cof-mainui-hud-style.md); Classic/Remake, disabled if renderer missing |
+| 66 | `apply-cof-hud-remake` | `cof-hud-remake` | E | [optional Remake HUD](../patches/cof-hud-remake.md); Classic default; needs 63 |
+| 67 | `apply-cof-hud-ammo-state` | `cof-hud-ammo-state` | E | [all stock equipment and direct ammunition state](../patches/cof-hud-ammo-state.md); needs 66 |
+| 68 | `apply-cof-hud-stamina-layout` | `cof-hud-stamina-layout` | E | [larger stamina bar and relocated dodge flash](../patches/cof-hud-stamina-layout.md); needs 66 |
+| 69 | `apply-cof-selection-list` | `cof-selection-list` | M | [dropdowns and complete controller traversal](../patches/cof-selection-list.md); needs 64-65 |
+| 70 | `apply-cof-pad-move-diagnostics` | `cof-pad-move-diagnostics` | E | [optional movement trace](../patches/cof-pad-move-diagnostics.md); observes input without changing speed |
+| 71 | `apply-cof-panel-escape` | `cof-panel-escape` | E + V | [close active pane before Pause](../patches/cof-panel-escape.md); needs 57 |
+| 72 | `apply-cof-pad-digital-speed` | `cof-pad-digital-speed` | E | [Digital movement correction](../patches/cof-pad-digital-speed.md); needs 70 |
+| 73 | `apply-cof-hud-ammo-compact` | `cof-hud-ammo-compact` | E | [compact boxed ammunition](../patches/cof-hud-ammo-compact.md); needs 67 |
+| 74 | `apply-cof-pad-upgrade-settings` | `cof-pad-upgrade-settings` | E | [upgrade settings](../patches/cof-pad-upgrade-settings.md); preserve existing gyro preferences; needs 59 |
+| 75 | `apply-cof-hud-boss-style` | `cof-hud-boss-style` | E | [Remake boss health](../patches/cof-hud-boss-style.md); match player health colors and bar style; needs 66 |
+| 76 | `apply-cof-cheats` | `cof-cheats` | E | [cheats internals](../design/cheats.md); **always last**, needs steps 2 and 4 |
 
 ## After applying
 
@@ -278,7 +296,8 @@ order that is known to apply.
    which patches: E -> `xash.dll`, R -> `ref_gl.dll`, V -> `vgui.dll`,
    M -> `cryoffear/cl_dlls/menu.dll`. `xash.dll` and `vgui.dll` must always be
    deployed together (steps 21, 23, 25, 42, 45, 50, 55, 56 and 57 all edit the shared
-   `engine/vgui_api.h` interface).
+   `engine/vgui_api.h` interface). Step 58 also requires its matching engine and
+   FreeVGUI pair for the new field-navigation operation.
 
 ## Verifying a stack
 

@@ -1,0 +1,154 @@
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/cofpanels.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/cofpanels.cpp
+@@ -444,9 +444,9 @@
+ {
+ 	{ ".?AVCSave@@",              ".?AVCSaveHandler_Command@@",         8, {  3,  1 }, "save confirm: No / Cancel" },
+ 	{ ".?AVCYesno@@",             ".?AVCYesnoHandler_Command@@",        8, {  3, -1 }, "YES/NO: No (yesnono)" },
+-	{ ".?AVCDocuments@@",         ".?AVCDocumentsHandler_Command@@",    8, { 25, -1 }, "notes list: Back to the inventory" },
+ 	{ ".?AVCNoteDocument@@",      ".?AVCNoteDocumentHandler_Command@@", 8, {  3, -1 }, "note: Close (closedocument)" },
+ 	{ ".?AVCUserDocument@@",      ".?AVCUserDocumentHandler_Command@@", 8, {  1, -1 }, "user document: Close (closedocument)" },
++	{ ".?AVCDocuments@@",         ".?AVCDocumentsHandler_Command@@",    8, { 25, -1 }, "notes list: Back to the inventory" },
+ 	{ ".?AVCSaveLoad@@",          ".?AVCSaveLoadHandler_Command@@",     8, {  1, -1 }, "tape recorder page: Cancel" },
+ 	{ ".?AVCVGUIBillboard@@",     ".?AVCBillboardHandler_Command@@",    8, {  1, -1 }, "billboard: Close" },
+ 	{ ".?AVCKeypad@@",            ".?AVCKeypadHandler_Command@@",       8, {  1, -1 }, "keypad: Close" },
+@@ -492,13 +492,13 @@
+ }
+ 
+ // the visible button below `panel` with a handler of that class and command
+-Button *CofFindButton( Panel *panel, const CofBackRule &rule, int depth )
++Button *CofFindButton( Panel *panel, const CofBackRule &rule, int depth, bool includeHidden = false )
+ {
+ 	for( int i = 0; i < panel->getChildCount(); i++ )
+ 	{
+ 		Panel *child = panel->getChild( i );
+ 
+-		if( !child || !child->isVisible( ))
++		if( !child || ( !includeHidden && !child->isVisible( )))
+ 			continue;
+ 
+ 		if( CofIsButton( child ))
+@@ -522,7 +522,7 @@
+ 
+ 		if( depth < 6 )
+ 		{
+-			Button *found = CofFindButton( child, rule, depth + 1 );
++			Button *found = CofFindButton( child, rule, depth + 1, includeHidden );
+ 
+ 			if( found )
+ 				return found;
+@@ -547,6 +547,15 @@
+ 			continue;
+ 
+ 		Button *button = CofFindButton( panel, g_cofBack[r], 1 );
++
++        // Retail notes may hide their X while retaining the native close signal.
++        // Only these exact close commands may bypass child visibility; the
++        // identified parent and its ancestry were verified visible above.
++        const CofBackRule &rule = g_cofBack[r];
++        const bool hiddenClose =
++            ( !strcmp(rule.panel,".?AVCNoteDocument@@") && !strcmp(rule.handler,".?AVCNoteDocumentHandler_Command@@") && rule.offset==8 && rule.cmds[0]==3 ) ||
++            ( !strcmp(rule.panel,".?AVCUserDocument@@") && !strcmp(rule.handler,".?AVCUserDocumentHandler_Command@@") && rule.offset==8 && rule.cmds[0]==1 );
++        if( !button && hiddenClose ) button = CofFindButton( panel, rule, 1, true );
+ 
+ 		if( !button )
+ 		{
+--- a/engine/client/input/in_keys.c
++++ b/engine/client/input/in_keys.c
+@@ -41,6 +41,43 @@
+ // as no limit is imposed by client.dll API, this can be safely extended
+ // if needed
+ static enginekey_t keys[265];
++static CVAR_DEFINE_AUTO( cof_panel_escape, "1", FCVAR_ARCHIVE, "Cry of Fear: Escape closes the open game pane before opening pause (0 restores engine-first Escape)" );
++static qboolean cof_panel_escape_down[ARRAYSIZE(keys)];
++
++// Capture the complete physical press, even if closing the pane changes key_dest.
++static qboolean Key_CoF_PanelEscape( int key, qboolean down, const char *binding )
++{
++ if(cof_panel_escape_down[key])
++ {
++  if(!down) cof_panel_escape_down[key]=false;
++  keys[key].gamedown=false; keys[key].repeats=0;
++  VGui_CoF_ForgetKey(key);
++  return true;
++ }
++ if(!down || !cof_panel_escape.value || cls.key_dest!=key_game || cls.state!=ca_active || cl.background ||
++  !GI || Q_stricmp(GI->gamefolder,"cryoffear") || !VGui_IsActive()) return false;
++ if(key!=K_ESCAPE && !(key==K_START_BUTTON && binding && !Q_stricmp(binding,"cancelselect"))) return false;
++ qboolean reporting=false;
++ unsigned int classes=CL_CoF_PanelsOnScreen(&reporting);
++ if(!reporting || !classes) return false;
++ cof_panel_escape_down[key]=true;
++ keys[key].gamedown=false; keys[key].repeats=0;
++ VGui_CoF_ForgetKey(key);
++ char info[256];
++ if(VGui_CoF_PanelAction(COF_VGUI_PANEL_BACK,info,sizeof(info))) return true;
++ if(classes==COF_PANEL_INVENTORY)
++ {
++  clgame.dllFuncs.pfnKey_Event(true,key,"+inventory");
++  clgame.dllFuncs.pfnKey_Event(false,key,"+inventory");
++ }
++ else
++ {
++  clgame.dllFuncs.pfnKey_Event(true,K_ESCAPE,"cancelselect");
++  clgame.dllFuncs.pfnKey_Event(false,K_ESCAPE,"cancelselect");
++ }
++ return true; // never open pause on the same physical press that was offered to a pane
++}
++
+ 
+ // where the menu or the client edits the text, in render coordinates
+ static struct
+@@ -630,6 +667,7 @@
+ 		Key_SetBinding( keynames[i].keynum, keynames[i].binding );
+ 
+ 	Cvar_RegisterVariable( &key_rotate );
++	Cvar_RegisterVariable( &cof_panel_escape );
+ 
+ 	// Cry of Fear on-screen keyboard, the engine half (cof_osk.c)
+ 	CL_CoF_OskInit();
+@@ -795,6 +833,15 @@
+ {
+ 	key = Key_Rotate( key );
+ 
++    // Finish a pane-owned press before OSK/Enter can acquire its repeat/release.
++    // Fresh presses still use the normal OSK/Enter priority below.
++    if( key>=0 && key<ARRAYSIZE(keys) && cof_panel_escape_down[key] )
++    {
++        keys[key].down=down?true:false;
++        Key_CoF_PanelEscape(key,down,keys[key].binding);
++        return;
++    }
++
+ 	if( OSK_KeyEvent( key, down ) )
+ 		return;
+ 
+@@ -813,6 +860,9 @@
+ 	const char *kb = keys[key].binding;
+ 	keys[key].down = down ? true : false;
+ 
++	if( Key_CoF_PanelEscape( key, down, kb ))
++		return;
++
+ #ifdef HACKS_RELATED_HLMODS
+ 	if(( cls.key_dest == key_game ) && ( cls.state == ca_cinematic ) && ( key != K_ESCAPE || !down ))
+ 	{
+@@ -821,8 +871,8 @@
+ 		return;
+ 	}
+ #endif
+-	// Cry of Fear unified UI (cof_ui_input_gate, default on): escape must always
+-	// reach the engine so the engine menu can be opened, even while a client
++	// Cry of Fear unified UI: after optional pane-first handling above, Escape
++	// reaches the engine so the engine menu can be opened, even while a client
+ 	// VGUI panel is up. client.dll's TeamFortressViewport::KeyInput answers
+ 	// "handled" for K_ESCAPE whenever one of its panels is visible (the 3D menu,
+ 	// the keypad, the computer, the save selector, the phone), and the client
+@@ -1148,6 +1198,8 @@
+ 		keys[i].gamedown = 0;
+ 	}
+ 
++	memset( cof_panel_escape_down, 0, sizeof( cof_panel_escape_down ));
++
+ 	// ensure that only actual mouse buttons are released
+ 	IN_ClearMouseState();
+ 

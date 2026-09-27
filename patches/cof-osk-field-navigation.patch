@@ -1,0 +1,147 @@
+diff --git a/engine/client/cof_osk.c b/engine/client/cof_osk.c
+--- a/engine/client/cof_osk.c
++++ b/engine/client/cof_osk.c
+@@ -59,7 +59,8 @@
+ static CVAR_DEFINE_AUTO( cof_osk_field, "", 0, "Cry of Fear: the text of the game text field the on-screen keyboard was opened for" );
+ static CVAR_DEFINE_AUTO( cof_osk_hidden, "0", 0, "Cry of Fear: 1 when that field hides its text (a password)" );
+ static CVAR_DEFINE_AUTO( cof_osk_result, "", 0, "Cry of Fear: set by the menu's on-screen keyboard: the typed text, hex bytes" );
+-static CVAR_DEFINE_AUTO( cof_osk_submit, "0", 0, "Cry of Fear: set by the menu's on-screen keyboard: 1 Close, 2 Done (also presses Enter for the game)" );
++static CVAR_DEFINE_AUTO( cof_osk_submit, "0", 0, "Cry of Fear: set by the menu's on-screen keyboard: 1 Close, 2 Done (next field or Enter)" );
++static CVAR_DEFINE_AUTO( cof_osk_next_field, "1", FCVAR_ARCHIVE, "Cry of Fear: Done advances to the next game text field before submitting the last field" );
+ static CVAR_DEFINE_AUTO( cof_osk_trace, "0", 0, "developer: log the game text field reports and the keyboard requests" );
+ 
+ #define COF_OSK_OPEN_DELAY 2	// painted frames between the click and the keyboard
+@@ -189,10 +190,27 @@
+ 
+ 		if( CL_CoF_OskPut( cof_osk_result.string ) && submit == 2 )
+ 		{
+-			if( Cmd_Exists( "cof_enter_pulse" ))
+-				Cbuf_InsertText( "cof_enter_pulse\n" );
+-			else
+-				Con_Reportf( "[cof-osk] Done: this engine has no Enter hook (cof_enter_pulse)\n" );
++			// The menu has closed before handing its result back. Advance only
++			// within the same live form; never submit after losing game focus.
++			const int next = !CL_CoF_OskGameHasFocus( ) ? -1 :
++				cof_osk_next_field.value ? VGui_CoF_OskCall( 3, NULL, 0 ) : 0;
++
++			if( next > 0 )
++			{
++				// Keep the pad's request even when Done was clicked with a mouse.
++				// FreeVGUI commits its deferred focus before we reopen.
++				osk_state.pad_last = true;
++				osk_state.pending = COF_OSK_OPEN_DELAY;
++				Con_Reportf( "[cof-osk] Done: next field\n" );
++			}
++			else if( next == 0 )
++			{
++				if( Cmd_Exists( "cof_enter_pulse" ))
++					Cbuf_InsertText( "cof_enter_pulse\n" );
++				else
++					Con_Reportf( "[cof-osk] Done: this engine has no Enter hook (cof_enter_pulse)\n" );
++			}
++			else Con_Reportf( "[cof-osk] Done: form no longer available; not submitted\n" );
+ 		}
+ 		Cvar_DirectSet( &cof_osk_result, "" );
+ 		Cvar_DirectSet( &cof_osk_submit, "0" );
+@@ -321,6 +339,7 @@
+ 	Cvar_RegisterVariable( &cof_osk_result );
+ 	Cvar_RegisterVariable( &cof_osk_submit );
+ 	Cvar_RegisterVariable( &cof_osk_trace );
++	Cvar_RegisterVariable( &cof_osk_next_field );
+ 	Cmd_AddCommand( "cof_osk_set", CL_CoF_OskSet_f, "on-screen keyboard: text (hex bytes) into the focused text field of the game" );
+ 	Cmd_AddCommand( "cof_osk_probe", CL_CoF_OskProbe_f, "test hook: click the n-th visible game text field as the mouse would, the gamepad the last input" );
+ 	Cmd_AddCommand( "cof_osk_status", CL_CoF_OskStatus_f, "on-screen keyboard: the engine's state and the focused game text field" );
+diff --git a/3rdparty/freevgui/platform/xash3d-fwgs/cofosk.cpp b/3rdparty/freevgui/platform/xash3d-fwgs/cofosk.cpp
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/cofosk.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/cofosk.cpp
+@@ -15,6 +15,7 @@
+ //     op 1  test hook: click the n-th visible entry on screen (the entry's
+ //           own mouse-press handler: the focus and the "clicked" report)
+ //     op 2  the focused entry's text; returns 2 when it hides its text
++//     op 3  next field in the same form: 1 advanced, 0 last, -1 unavailable
+ //
+ // Only entries the hook has seen constructed are ever touched, and a stored
+ // pointer is only used while App::getFocus() still returns it, or after it
+@@ -97,13 +98,24 @@
+ 	g_engine->CofOskEntry( event, hidden ? 1 : 0, text );
+ }
+ 
++static TextEntry *CofOsk_FindVisible( Panel *panel, int &index );
++
+ static TextEntry *CofOsk_Focused( void )
+ {
+ 	App *app = App::getInstance();
+ 
+ 	if( !s_focused || !app || app->getFocus() != (Panel *)s_focused )
+ 		return nullptr;
+-	return s_focused;
++	// Focus can outlive a destroyed/hidden form. Never dereference the
++	// remembered address until it has been rediscovered in the live tree.
++	for( int i = 0; i < COF_OSK_REGISTRY; i++ )
++	{
++		int index = i;
++		TextEntry *entry = CofOsk_FindVisible( g_rootPanel, index );
++		if( !entry ) break;
++		if( entry == s_focused ) return entry;
++	}
++	return nullptr;
+ }
+ 
+ // depth-first over the live tree; visible panels only
+@@ -129,12 +141,56 @@
+ 	return nullptr;
+ }
+ 
++// Done visits sibling entries in reading order, never another form or a
++// hidden/disabled field. Check the live tree before dereferencing focus.
++static int CofOsk_NextField( void )
++{
++	TextEntry *current = CofOsk_Focused();
++	if( !current ) return -1;
++	for( Panel *p = current; p; p = p->getParent() )
++		if( !p->isEnabled() ) return -1;
++
++	Panel *parent = current->getParent();
++	if( !parent ) return -1;
++	int cx, cy, currentIndex = -1;
++	current->getPos( cx, cy );
++	for( int i = 0; i < parent->getChildCount(); i++ )
++		if( parent->getChild( i ) == current ) { currentIndex = i; break; }
++	if( currentIndex < 0 ) return -1;
++
++	TextEntry *next = nullptr;
++	int nx = 0, ny = 0, nextIndex = -1;
++	for( int i = 0; i < parent->getChildCount(); i++ )
++	{
++		Panel *child = parent->getChild( i );
++		if( child == current || CofOsk_Slot( child ) < 0 ||
++			!child->isVisible() || !child->isEnabled() ) continue;
++		int x, y;
++		child->getPos( x, y );
++		if( y < cy || ( y == cy && ( x < cx || ( x == cx && i <= currentIndex )))) continue;
++		if( !next || y < ny || ( y == ny && ( x < nx || ( x == nx && i < nextIndex ))))
++		{
++			next = (TextEntry *)child;
++			nx = x; ny = y; nextIndex = i;
++		}
++	}
++	if( !next ) return 0;
++	// Same internal entry-click path as the measured cof_osk_probe flow.
++	// App::requestFocus is deferred until externalTick; the engine reads
++	// the focused entry again after its existing two-frame delay.
++	static_cast<InputSignal *>( next )->mousePressed( vgui::MOUSE_LEFT, next );
++	static_cast<InputSignal *>( next )->mouseReleased( vgui::MOUSE_LEFT, next );
++	return 1;
++}
++
+ static int CofOsk_Call( int op, char *buf, int size )
+ {
+ 	TextEntry *entry;
+ 
+ 	switch( op )
+ 	{
++	case 3:
++		return CofOsk_NextField();
+ 	case 0:	// put buf into the focused entry
+ 		if( !buf || !( entry = CofOsk_Focused( )))
+ 			return 0;

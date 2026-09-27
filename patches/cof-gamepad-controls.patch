@@ -1,0 +1,234 @@
+--- a/engine/client/input/cof_gamepad.c
++++ b/engine/client/input/cof_gamepad.c
+@@ -70,7 +70,7 @@
+     gets the gamepad cursor at once.
+  4. The client's own WinMM joystick code (cvar "joystick") is kept off, so the
+     engine's SDL pad is the only source (cof_joy_legacy_off).
+- 6. cof_quickturn (RB): a smooth 180-degree turn on the pad look's view-angle
++ 6. cof_quickturn (R3): a smooth 180-degree turn on the pad look's view-angle
+     path (cof_quickturn_time).
+  7. Triggers with hysteresis (cof_pad_trigger_hyst, in_joy.c): one key edge per
+     real pull, so a trigger resting near its threshold cannot flip the aim
+@@ -109,7 +109,7 @@
+ 
+ // bump when the default layout changes in a way existing profiles should get
+ // (CL_CoF_PadDefaultsCheck migrates keys still holding the previous defaults)
+-#define COF_PAD_DEFAULTS_GENERATION 4
++#define COF_PAD_DEFAULTS_GENERATION 5
+ 
+ static CVAR_DEFINE_AUTO( cof_pad_panel_gate, "1", FCVAR_ARCHIVE, "Cry of Fear gamepad: while a clickable panel (inventory, note, keypad...) is open the sticks do not move the player, START opens the pause menu, the close key closes the inventory and A/X click" );
+ static CVAR_DEFINE_AUTO( cof_pad_close_key, "B_BUTTON", FCVAR_ARCHIVE, "Cry of Fear gamepad: key that backs out of an open panel (its own Back/Close/Cancel/No button; the inventory closes through its +inventory binding); empty = off" );
+@@ -131,6 +131,7 @@
+ static CVAR_DEFINE_AUTO( cof_sprint_stop_threshold, "0.2", FCVAR_ARCHIVE, "Cry of Fear sprint toggle: below this left-stick deflection (0..0.9, and with no movement key held) the player counts as stopped" );
+ static CVAR_DEFINE_AUTO( cof_sprint_stop_time, "0.15", FCVAR_ARCHIVE, "Cry of Fear sprint toggle: seconds of standing still that release the sprint" );
+ CVAR_DEFINE_AUTO( cof_joy_pulse_hysteresis, "0.25", FCVAR_ARCHIVE, "Cry of Fear gamepad: a stick's +forward/+back/+moveleft/+moveright key is released only this far (0..0.6 of full deflection) below the level that pressed it, so a stick resting near the walk threshold cannot double-tap a dodge" );
++static CVAR_DEFINE_AUTO( cof_pad_no_doubletap, "1", FCVAR_ARCHIVE, "Cry of Fear: suppress dodge from engine stick movement pulses only; 0 restores stick double-tap dodge (keyboard unchanged)" );
+ static CVAR_DEFINE_AUTO( cof_joy_legacy_off, "1", FCVAR_ARCHIVE, "Cry of Fear gamepad: keep the game's own WinMM joystick code off (cvar joystick 0) so the engine's gamepad is the only source" );
+ static CVAR_DEFINE_AUTO( cof_pad_defaults_gen, "0", FCVAR_ARCHIVE, "Cry of Fear gamepad: default layout generation already applied to this profile (0 = never)" );
+ static CVAR_DEFINE_AUTO( cof_input_trace, "0", 0, "Cry of Fear gamepad: developer log of the panel check, START/close/click routing, stick suppression and the virtual cursor" );
+@@ -154,13 +155,34 @@
+ 	const char *binding;
+ } cof_pad_bind_t;
+ 
+-// the Cry of Fear gamepad layout (generation 4); the same list is in
++// the Cry of Fear gamepad layout (generation 5); the same list is in
+ // gfx/shell/kb_def.lst (Options > Keybinds > Use defaults) and
+ // docs/patches/cof-gamepad-input.md. The engine key names are POSITIONS
+ // (A = the bottom face button, B = right, X = left, Y = top) on every pad,
+ // Nintendo pads included (cof_pad_positional), so the layout is positional.
+ // On an open panel A/X click and B backs out instead (CL_CoF_PadKeyEvent).
+ static const cof_pad_bind_t cof_pad_layout[] =
++{
++	{ K_JOY2,          "+attack" },         // RTRIGGER
++	{ K_JOY1,          "+attack3" },        // LTRIGGER: aim down sights, Hold/Toggle per cof_ads_toggle
++	{ K_A_BUTTON,      "+jump" },
++	{ K_B_BUTTON,      "cof_duck_toggle" }, // crouch, press to toggle
++	{ K_X_BUTTON,      "+reload" },
++	{ K_Y_BUTTON,      "+use" },
++	{ K_L1_BUTTON,     "+attack2" },        // secondary: bash / weapon mode / flashlight (the MOUSE3 action)
++	{ K_R1_BUTTON,     "+dodge" },          // ALT action
++	{ K_LSTICK,        "cof_sprint_toggle_press" }, // sprint, Toggle / Hold per cof_sprint_toggle
++	{ K_RSTICK,        "cof_quickturn" },    // quick 180-degree turn
++	{ K_DPAD_UP,       "quicksel 1" },
++	{ K_DPAD_LEFT,     "quicksel 2" },
++	{ K_DPAD_RIGHT,    "quicksel 3" },
++	{ K_DPAD_DOWN,     "weapontoggle" },    // the game's "Toggle weapon function"
++	{ K_BACK_BUTTON,   "+inventory" },      // View: opens and closes the inventory (the game's own key check)
++	{ K_START_BUTTON,  "cancelselect" },
++};
++
++// Generation 4 defaults: migrate only bindings that still match.
++static const cof_pad_bind_t cof_pad_layout_gen4[] =
+ {
+ 	{ K_JOY2,          "+attack" },         // RTRIGGER
+ 	{ K_JOY1,          "+attack3" },        // LTRIGGER: aim down sights, Hold/Toggle per cof_ads_toggle
+@@ -1392,6 +1414,19 @@
+ 	return n;
+ }
+ 
++// Only the engine stick path calls this helper. The client tests its cvar's
++// numeric value synchronously in the directional command handler. Keep the
++// player's string, flags and saved setting intact; never persist an override.
++void CL_CoF_PadMoveCommand( const char *command )
++{
++	convar_t *guard = cof_pad_no_doubletap.value ? Cvar_FindVar( "cl_nodoubletapdodge" ) : NULL;
++	float saved = guard ? guard->value : 0.0f;
++
++	if( guard ) guard->value = 1.0f;
++	Cmd_ExecuteString( command );
++	if( guard ) guard->value = saved;
++}
++
+ static const char *CL_CoF_PadLayoutBind( const cof_pad_bind_t *layout, int count, int key )
+ {
+ 	for( int i = 0; i < count; i++ )
+@@ -1453,12 +1488,12 @@
+ 	if( gen < 2 && ( gyro = Cvar_FindVar( "joy_gyro_enable" )) != NULL && gyro->value )
+ 		Cvar_DirectSet( gyro, "0" );
+ 
+-	if( !CL_CoF_PadAnyBound( ))
++	if( gen == 0 && !CL_CoF_PadAnyBound( ))
+ 	{
+ 		int n = CL_CoF_PadApplyLayout( false );
+ 		Q_snprintf( cof_pad.defaults_note, sizeof( cof_pad.defaults_note ), "default layout applied (%d binds, generation %d)%s", n, COF_PAD_DEFAULTS_GENERATION, gen < 2 ? ", gyro aiming off" : "" );
+ 	}
+-	else if( gen >= 1 && gen <= 3 )
++	else if( gen >= 1 && gen <= 4 )
+ 	{
+ 		int moved, kept;
+ 
+@@ -1466,7 +1501,9 @@
+ 			CL_CoF_PadMigrate( cof_pad_layout_gen1, ARRAYSIZE( cof_pad_layout_gen1 ), &moved, &kept );
+ 		else if( gen == 2 )
+ 			CL_CoF_PadMigrate( cof_pad_layout_gen2, ARRAYSIZE( cof_pad_layout_gen2 ), &moved, &kept );
+-		else CL_CoF_PadMigrate( cof_pad_layout_gen3, ARRAYSIZE( cof_pad_layout_gen3 ), &moved, &kept );
++		else if( gen == 3 )
++			CL_CoF_PadMigrate( cof_pad_layout_gen3, ARRAYSIZE( cof_pad_layout_gen3 ), &moved, &kept );
++		else CL_CoF_PadMigrate( cof_pad_layout_gen4, ARRAYSIZE( cof_pad_layout_gen4 ), &moved, &kept );
+ 
+ 		Q_snprintf( cof_pad.defaults_note, sizeof( cof_pad.defaults_note ), "generation %d layout migrated to generation %d (%d binds changed, %d customised keys kept)%s", gen, COF_PAD_DEFAULTS_GENERATION, moved, kept, gen < 2 ? ", gyro aiming off" : "" );
+ 	}
+@@ -1876,7 +1913,7 @@
+ /*
+ ==============================================================================
+ 
+-Quick turn (cof_quickturn, RB's default bind)
++Quick turn (cof_quickturn, R3's default bind)
+ 
+ A smooth 180-degree turn over cof_quickturn_time seconds (eased in and out),
+ added to the yaw of IN_EngineAppendMove - the same view-angle path the right
+@@ -2932,6 +2969,7 @@
+ 	Cvar_RegisterVariable( &cof_sprint_stop_time );
+ 	Cvar_RegisterVariable( &cof_joy_pulse_hysteresis );
+ 	Cvar_RegisterVariable( &cof_joy_legacy_off );
++	Cvar_RegisterVariable( &cof_pad_no_doubletap );
+ 	Cvar_RegisterVariable( &cof_pad_defaults_gen );
+ 	Cvar_RegisterVariable( &cof_input_trace );
+ 	Cvar_RegisterVariable( &cof_quickturn_time );
+--- a/engine/client/input/input.c
++++ b/engine/client/input/input.c
+@@ -514,7 +514,8 @@
+ 	// 0.9 thresholds used to press and release the key every few frames and
+ 	// dodge on its own; a pressed key is now released only below the
+ 	// threshold minus cof_joy_pulse_hysteresis. A deliberate double flick
+-	// through the centre still dodges, like a double tap on the keyboard.
++	// through the centre still emits pulses. CL_CoF_PadMoveCommand blocks
++	// their double-tap dodge unless cof_pad_no_doubletap is disabled.
+ 	const float hyst = CL_CoF_JoyPulseHysteresis( );
+ 	const uint oldflags = moveflags;
+ 	// the deflections that press the keys: 0.7 / 0.9, or the direction's
+@@ -532,8 +533,8 @@
+ 	}
+ 	else if( !( moveflags & T ) )
+ 	{
+-		Cmd_ExecuteString( "-back" );
+-		Cmd_ExecuteString( "-forward" );
++		CL_CoF_PadMoveCommand( "-back" );
++		CL_CoF_PadMoveCommand( "-forward" );
+ 		moveflags |= T;
+ 	}
+ 
+@@ -543,53 +544,53 @@
+ 	}
+ 	else if( !( moveflags & S ) )
+ 	{
+-		Cmd_ExecuteString( "-moveleft" );
+-		Cmd_ExecuteString( "-moveright" );
++		CL_CoF_PadMoveCommand( "-moveleft" );
++		CL_CoF_PadMoveCommand( "-moveright" );
+ 		moveflags |= S;
+ 	}
+ 
+ 	if ( forwardmove > fthr && !( moveflags & F ))
+ 	{
+ 		moveflags |= F;
+-		Cmd_ExecuteString( "+forward" );
++		CL_CoF_PadMoveCommand( "+forward" );
+ 	}
+ 	else if ( forwardmove < fthr - hyst && ( moveflags & F ))
+ 	{
+ 		moveflags &= ~F;
+-		Cmd_ExecuteString( "-forward" );
++		CL_CoF_PadMoveCommand( "-forward" );
+ 	}
+ 
+ 	if ( forwardmove < -fthr && !( moveflags & B ))
+ 	{
+ 		moveflags |= B;
+-		Cmd_ExecuteString( "+back" );
++		CL_CoF_PadMoveCommand( "+back" );
+ 	}
+ 	else if ( forwardmove > -fthr + hyst && ( moveflags & B ))
+ 	{
+ 		moveflags &= ~B;
+-		Cmd_ExecuteString( "-back" );
++		CL_CoF_PadMoveCommand( "-back" );
+ 	}
+ 
+ 	if ( sidemove > sthr && !( moveflags & R ))
+ 	{
+ 		moveflags |= R;
+-		Cmd_ExecuteString( "+moveright" );
++		CL_CoF_PadMoveCommand( "+moveright" );
+ 	}
+ 	else if ( sidemove < sthr - hyst && ( moveflags & R ))
+ 	{
+ 		moveflags &= ~R;
+-		Cmd_ExecuteString( "-moveright" );
++		CL_CoF_PadMoveCommand( "-moveright" );
+ 	}
+ 
+ 	if ( sidemove < -sthr && !( moveflags & L ))
+ 	{
+ 		moveflags |= L;
+-		Cmd_ExecuteString( "+moveleft" );
++		CL_CoF_PadMoveCommand( "+moveleft" );
+ 	}
+ 	else if ( sidemove > -sthr + hyst && ( moveflags & L ))
+ 	{
+ 		moveflags &= ~L;
+-		Cmd_ExecuteString( "-moveleft" );
++		CL_CoF_PadMoveCommand( "-moveleft" );
+ 	}
+ 
+ 	if( moveflags != oldflags )
+--- a/engine/client/input.h
++++ b/engine/client/input.h
+@@ -170,6 +170,7 @@
+ //
+ extern convar_t cof_joy_pulse_hysteresis;
+ void CL_CoF_PadInit( void );
++void CL_CoF_PadMoveCommand( const char *command ); // scoped stick dodge guard
+ qboolean CL_CoF_ClickablePanelOpen( void );
+ qboolean CL_CoF_PadSuppressMove( void );
+ void CL_CoF_PadTraceMove( float forwardmove, float sidemove, qboolean suppressed );
+--- a/3rdparty/mainui/menus/CoFOptions.cpp
++++ b/3rdparty/mainui/menus/CoFOptions.cpp
+@@ -1310,6 +1310,7 @@
+ 	AddAction( "cof_duck_toggle", L( "Crouch (toggle)" ));
+ 	AddAction( "cof_sprint_toggle_press", L( "Sprint (toggle)" ));
+ 	AddAction( "cof_quickturn", L( "Quick turn" ));
++	AddAction( "+dodge", L( "Dodge" )); // ALT action; RB default since generation 5
+ 	AddAction( "weapontoggle", L( "Toggle weapon function" ));
+ 	AddAction( "cancelselect", L( "Open the menu" ));
+ 

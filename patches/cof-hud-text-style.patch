@@ -1,0 +1,390 @@
+--- a/engine/client/cl_main.c
++++ b/engine/client/cl_main.c
+@@ -114,8 +114,9 @@
+ // Milestone 4b, the engine HUD text legibility round. All archived: they are
+ // display preferences. cof_hud_text_font needs a font reload, the other two are
+ // pure draw-time state and take effect on the next frame.
++CVAR_DEFINE_AUTO( cof_hud_text_style, "1", FCVAR_ARCHIVE, "Cry of Fear transient text: Inter Bold, muted grey and soft shadow; 0 restores the earlier face and colours; background remains independent" );
+ CVAR_DEFINE_AUTO( cof_hud_text_font, "1", FCVAR_ARCHIVE, "draw the engine HUD text (hints, subtitles, pickup notifications) from the generated Inter SemiBold atlas fonts/cof_hudtext*.fnt instead of the game's own thin gfx/creditsfont.fnt; 0 = the game's font" );
+-CVAR_DEFINE_AUTO( cof_hud_text_backing, "120", FCVAR_ARCHIVE, "alpha, 0-255, of the translucent dark strip drawn behind each line of engine HUD text; 0 = no strip" );
++CVAR_DEFINE_AUTO( cof_hud_text_backing, "0", FCVAR_ARCHIVE, "alpha, 0-255, of the translucent dark strip drawn behind each line of engine HUD text; 0 = no strip" );
+ CVAR_DEFINE_AUTO( cof_hud_text_y, "0", FCVAR_ARCHIVE, "extra vertical offset for the engine HUD text, as a percentage of the render height; positive moves it down. Added on top of the automatic correction, see cof_hud_text_y_shift" );
+ CVAR_DEFINE_AUTO( cof_hud_text_y_shift, "0", 0, "correction for the engine HUD text position, in glyph-growth units: how many extra glyph heights the client's own vertical formula would have taken off the anchor. MEASURED 0 for Cry of Fear, whose messages use an absolute screen fraction and ignore the block height (see docs/cof-hud-text-legibility.md); 0.5 would be a centred block, 1.0 a bottom-aligned one" );
+ CVAR_DEFINE_AUTO( cof_hud_msg_y_pct, "78", FCVAR_ARCHIVE, "where the client's in-game message text (item pickups, cutscene subtitles) sits, as a percentage of the render height. The client centres that panel on the screen, so 50 restores its own placement and 78 puts the text in the lower quarter, where the original game had it" );
+@@ -434,6 +435,7 @@
+ 	if( !FBitSet( cof_ui_scale.flags, FCVAR_CHANGED ) &&
+ 		!FBitSet( cof_ui_scale_user.flags, FCVAR_CHANGED ) &&
+ 		!FBitSet( cof_hud_text_font.flags, FCVAR_CHANGED ) &&
++		!FBitSet( cof_hud_text_style.flags, FCVAR_CHANGED ) &&
+ 		!FBitSet( cof_hud_text_height_pct.flags, FCVAR_CHANGED ))
+ 		return;
+ 
+@@ -698,9 +700,9 @@
+ static struct
+ {
+ 	string		latched_role;
+-	byte		*ttf[2];		// 0 = Regular, 1 = SemiBold
+-	int		ttf_size[2];
+-	qboolean	ttf_tried[2];
++	byte		*ttf[3];		// 0 = Regular, 1 = SemiBold, 2 = Bold
++	int		ttf_size[3];
++	qboolean	ttf_tried[3];
+ } cof_font;
+ 
+ /*
+@@ -851,7 +853,7 @@
+ 	out->devicePx = Q_rint( device );
+ 	out->logicalPx = Q_max( 6, Q_rint( device / ( scale > 0.0f ? scale : 1.0f )));
+ 	out->codepage = codepage;
+-	out->semibold = semibold ? 1 : 0;
++	out->semibold = cof_hud_text_style.value && CL_CoF_FontRoleIsMessage( role ) ? 2 : semibold ? 1 : 0;
+ 
+ 	// milestone 4b: the same translucent strip the engine HUD text gets, for
+ 	// the notes and document reader, and (4c) for the in-game message text.
+@@ -904,7 +906,7 @@
+ */
+ const byte *CL_CoF_FontFile( int semibold, int *size )
+ {
+-	int	slot = semibold ? 1 : 0;
++	int	slot = bound( 0, semibold, 2 );
+ 
+ 	if( size )
+ 		*size = 0;
+@@ -912,7 +914,7 @@
+ 	if( !cof_font.ttf_tried[slot] )
+ 	{
+ 		fs_offset_t	length = 0;
+-		const char	*path = semibold ? "gfx/fonts/Inter-SemiBold.ttf" : "gfx/fonts/Inter-Regular.ttf";
++		const char	*path = slot == 2 ? "gfx/fonts/Inter-Bold.ttf" : slot == 1 ? "gfx/fonts/Inter-SemiBold.ttf" : "gfx/fonts/Inter-Regular.ttf";
+ 
+ 		cof_font.ttf_tried[slot] = true;
+ 		cof_font.ttf[slot] = FS_LoadFile( path, &length, false );
+@@ -927,7 +929,7 @@
+ 		Con_Reportf( "[cof-font] file request slot %i -> %s\n", slot, cof_font.ttf[slot] ? "ok" : "MISSING" );
+ 
+ 	if( !cof_font.ttf[slot] )
+-		return NULL;
++		return slot == 2 ? CL_CoF_FontFile( 1, size ) : NULL;
+ 
+ 	if( size )
+ 		*size = cof_font.ttf_size[slot];
+@@ -6176,6 +6178,7 @@
+ 	Cvar_RegisterVariable( &cof_ui_scale_sprites );
+ 	Cvar_RegisterVariable( &cof_hud_text_height_pct );
+ 	Cvar_RegisterVariable( &cof_hud_text_font );
++	Cvar_RegisterVariable( &cof_hud_text_style );
+ 	Cvar_RegisterVariable( &cof_hud_text_backing );
+ 	Cvar_RegisterVariable( &cof_hud_text_y );
+ 	Cvar_RegisterVariable( &cof_hud_text_y_shift );
+--- a/engine/client/client.h
++++ b/engine/client/client.h
+@@ -725,6 +725,7 @@
+ extern convar_t cof_text_codepage;
+ extern convar_t cof_hud_text_height_pct;
+ extern convar_t cof_hud_text_font;
++extern convar_t cof_hud_text_style;
+ extern convar_t cof_hud_text_backing;
+ extern convar_t cof_hud_text_y;
+ extern convar_t cof_hud_text_y_shift;
+--- a/engine/client/cl_scrn.c
++++ b/engine/client/cl_scrn.c
+@@ -976,7 +976,10 @@
+ 		}
+ 
+ 		memset( &atlas, 0, sizeof( atlas ));
+-		Q_snprintf( path, sizeof( path ), "fonts/cof_hudtext%i.fnt", page );
++		Q_snprintf( path, sizeof( path ), cof_hud_text_style.value ? "fonts/cof_hudtext_bold%i.fnt" : "fonts/cof_hudtext%i.fnt", page );
++		// A partial installation keeps the earlier atlas rather than losing text.
++		if( cof_hud_text_style.value && !FS_FileExists( path, false ))
++			Q_snprintf( path, sizeof( path ), "fonts/cof_hudtext%i.fnt", page );
+ 
+ 		if( Con_LoadVariableWidthFont( path, &atlas, scale, &hud_fontrender, TF_FONT ))
+ 		{
+@@ -1161,9 +1164,10 @@
+ 	// VidInit, which runs below, so the new metrics are in place in time
+ 	// which atlas is loaded is not a function of the target height, so
+ 	// cof_hud_text_font has to force the reload on its own
+-	if( scr_hud_text_target != SCR_HudTextTargetHeight( ) || FBitSet( cof_hud_text_font.flags, FCVAR_CHANGED ))
++	if( scr_hud_text_target != SCR_HudTextTargetHeight( ) || FBitSet( cof_hud_text_font.flags, FCVAR_CHANGED ) || FBitSet( cof_hud_text_style.flags, FCVAR_CHANGED ))
+ 	{
+ 		ClearBits( cof_hud_text_font.flags, FCVAR_CHANGED );
++		ClearBits( cof_hud_text_style.flags, FCVAR_CHANGED );
+ 		CL_FreeFont( &cls.creditsFont );
+ 		SCR_LoadCreditsFont();
+ 	}
+--- a/engine/client/dll_int/cl_game.c
++++ b/engine/client/dll_int/cl_game.c
+@@ -20,6 +20,7 @@
+ #endif // XASH_SDL
+ 
+ #include "common.h"
++#include "cof_text_style.h"
+ #include "client.h"
+ #include "const.h"
+ #include "triangleapi.h"
+@@ -2292,11 +2293,36 @@
+ CL_CoF_HudTextBackingActive
+ ====================
+ */
++static qboolean CL_CoF_HudStyleActive( void )
++{
++	return cof_hud_text_style.value && hud_utf8.value == 0.0f && GI && !Q_stricmp( GI->gamefolder, "cryoffear" );
++}
++
++static int CL_CoF_DrawStyledHudChar( int x, int y, int number, const rgba_t color, cl_font_t *font, int flags, int pass )
++{
++	int ink[4]; rgba_t draw;
++	CoF_TextStyleColor( color[0], color[1], color[2], color[3], 1, ink );
++	if( pass == 1 )
++	{
++		for( int i = 0; i < 4; i++ ) draw[i] = (byte)ink[i];
++		return CL_DrawCharacter( x, y, number, draw, font, flags );
++	}
++	for( int tap = 0; tap < 5; tap++ )
++	{
++		float dx, dy; int weight;
++		CoF_TextShadowTap( font->charHeight, tap, &dx, &dy, &weight );
++		draw[0] = 24; draw[1] = 25; draw[2] = 27;
++		draw[3] = (byte)( ink[3] * weight / 255 );
++		if( draw[3] ) CL_DrawCharacter( x + dx, y + dy, number, draw, font, flags );
++	}
++	return 0;
++}
++
+ static qboolean CL_CoF_HudTextDeferActive( void )
+ {
+ 	// the trace reconstructs whole lines out of the same list, so it needs the
+ 	// collection even when no strip is wanted
+-	if( cof_hud_text_backing.value <= 0.0f && cof_hud_text_trace.value == 0.0f )
++	if( cof_hud_text_backing.value <= 0.0f && cof_hud_text_trace.value == 0.0f && !CL_CoF_HudStyleActive( ))
+ 		return false;
+ 
+ 	if( hud_utf8.value != 0.0f )
+@@ -2506,12 +2532,13 @@
+ 				backing[0], backing[1], backing[2], backing[3] );
+ 		}
+ 
++		for( int pass = CL_CoF_HudStyleActive( ) ? 0 : 1; pass < 2; pass++ )
+ 		for( j = 0; j < line->count; j++ )
+ 		{
+ 			const cof_hudtext_glyph_t *glyph = &cof_hudtext.glyphs[line->first + j];
+-
+-			CL_DrawCharacter( glyph->x, glyph->y, glyph->number, glyph->color,
+-				font, FONT_DRAW_HUD );
++			if( CL_CoF_HudStyleActive( ))
++				CL_CoF_DrawStyledHudChar( glyph->x, glyph->y, glyph->number, glyph->color, font, FONT_DRAW_HUD, pass );
++			else CL_DrawCharacter( glyph->x, glyph->y, glyph->number, glyph->color, font, FONT_DRAW_HUD );
+ 		}
+ 	}
+ 
+@@ -2552,6 +2579,11 @@
+ 		return font->charWidths[idx];
+ 	}
+ 
++	if( CL_CoF_HudStyleActive( ))
++	{
++		CL_CoF_DrawStyledHudChar( x, y, number, color, &cls.creditsFont, flags, 0 );
++		return CL_CoF_DrawStyledHudChar( x, y, number, color, &cls.creditsFont, flags, 1 );
++	}
+ 	return CL_DrawCharacter( x, y, number, color, &cls.creditsFont, flags );
+ }
+ 
+--- a/engine/vgui_api.h
++++ b/engine/vgui_api.h
+@@ -183,7 +183,7 @@
+ 				// cof_ui_scale surface transform maps the atlas onto
+ 				// exactly the device pixels it was rasterised for
+ 	int	codepage;	// 1250, 1251 or 1252: how a text byte becomes a glyph
+-	int	semibold;	// use the SemiBold face rather than Regular
++	int	semibold;	// face: 0 Regular, 1 SemiBold, 2 Bold transient style (same ABI)
+ 	int	ytarget;	// milestone 4c: where this role's text belongs, as a
+ 				// DEVICE y for the first line of a run; the support
+ 				// library shifts the whole run so that line lands
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/coffont.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/coffont.cpp
+@@ -607,3 +607,16 @@
+ 
+ 	return nullptr;
+ }
++
++bool vgui::CofFont_MessageStyle( Font *font )
++{
++	for( int i = 0; i < g_cacheCount; i++ )
++	{
++		if( (Font *)g_cache[i].font != font ) continue;
++		cof_vgui_font_t desc;
++		memset( &desc, 0, sizeof( desc ));
++		return g_engine && g_engine->CofFontDesc &&
++			g_engine->CofFontDesc( g_cache[i].role, &desc ) && desc.semibold == 2;
++	}
++	return false;
++}
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/coffont.h
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/coffont.h
+@@ -60,6 +60,7 @@
+ // a font the engine did NOT substitute is traced too - which is the only way to
+ // see that it was not substituted.
+ bool CofFont_TraceOn( void );
++bool CofFont_MessageStyle( Font *font ); // live engine-selected transient style
+ 
+ // milestone 4b: alpha 0-255 of the translucent strip to draw behind each line
+ // of text in this font, 0 for every role that does not want one
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp
+@@ -5,6 +5,7 @@
+ #include "font.h"
+ #include "support.h"
+ #include "coffont.h"
++#include "cof_text_style.h"
+ 
+ using namespace vgui;
+ 
+@@ -20,7 +21,7 @@
+ 	SurfaceBase( embeddedPanel ),
+ 	currentFont( nullptr ), currentFontCache( nullptr ),
+ 	sawCaret( false ), colorIndex( DEFAULT_COLOR ), paintStackPos( 0 ),
+-	backingGlyphCount( 0 ), backingLineCount( 0 ), backingAlpha( 0 ),
++	backingGlyphCount( 0 ), backingLineCount( 0 ), backingAlpha( 0 ), textMessageStyle( false ),
+ 	textYTarget( -1 ), textTrace( 0 ), textRole( "" )
+ {
+ 	// don't forget alpha is inverted in VGUI... 255 means fully transparent
+@@ -375,10 +376,12 @@
+ 	// substitute is traced too
+ 	wantTrace = CofFont_TraceOn() ? 1 : 0;
+ 
+-	if( wantBacking != backingAlpha || wantTarget != textYTarget || wantTrace != textTrace )
++	const bool wantStyle = CofFont_MessageStyle( font );
++	if( wantBacking != backingAlpha || wantTarget != textYTarget || wantTrace != textTrace || wantStyle != textMessageStyle )
+ 		flushBackingText();
+ 
+ 	backingAlpha = wantBacking;
++	textMessageStyle = wantStyle;
+ 	textYTarget = wantTarget;
+ 	textTrace = wantTrace;
+ 	textRole = wantRole;
+@@ -407,6 +410,35 @@
+ 		currentFontCache = buildFontCache( font );
+ }
+ 
++// VGUI uses inverse alpha. Both direct overflow draws and deferred lines
++// share this renderer, so fade/clip handling cannot diverge.
++static void CofDrawStyledQuad( vpoint_t topLeft, vpoint_t bottomRight, const int *color, bool styled, int pass, int tall )
++{
++	int ink[4];
++	if( styled ) CoF_TextStyleColor( color[0], color[1], color[2], 255 - color[3], 0, ink );
++	else { for( int i = 0; i < 4; i++ ) ink[i] = color[i]; ink[3] = 255 - color[3]; }
++	for( int tap = 0; tap < ( pass == 0 ? 5 : 1 ); tap++ )
++	{
++		vpoint_t a = topLeft, b = bottomRight, ca, cb;
++		int draw[4] = { ink[0], ink[1], ink[2], 255 - ink[3] };
++		if( pass == 0 )
++		{
++			float dx, dy; int weight;
++			CoF_TextShadowTap( tall, tap, &dx, &dy, &weight );
++			a.point[0] += dx; b.point[0] += dx;
++			a.point[1] += dy; b.point[1] += dy;
++			draw[0] = 24; draw[1] = 25; draw[2] = 27;
++			draw[3] = 255 - ink[3] * weight / 255;
++		}
++		if( draw[3] >= 255 ) continue;
++		if( g_scissor.clip( a, b, ca, cb ))
++		{
++			g_engine->SetupDrawingImage( draw );
++			g_engine->DrawQuad( &ca, &cb );
++		}
++	}
++}
++
+ void XashSurface::drawPrintText( const char *text, int textLen )
+ {
+ 	if( !text || textLen <= 0 )
+@@ -472,7 +504,7 @@
+ 		currentFont->getCharABCwide( ch, a, b, c );
+ 		advance += a;
+ 
+-		if( !Q_isspace( ch ) && ( backingAlpha > 0 || textTrace || textYTarget >= 0 ) &&
++		if( !Q_isspace( ch ) && ( backingAlpha > 0 || textTrace || textYTarget >= 0 || textMessageStyle ) &&
+ 			deferBackingGlyph( ch, x + advance, y, b, tall, color ))
+ 		{
+ 			// Cry of Fear, milestone 4b: collected, drawn in flushBackingText()
+@@ -492,12 +524,9 @@
+ 			bottomRight.coord[0] = currentFontCache->coord[ch][2];
+ 			bottomRight.coord[1] = currentFontCache->coord[ch][3];
+ 
+-			if( g_scissor.clip( topLeft, bottomRight, clippedTopLeft, clippedBottomRight ))
+-			{
+-				g_engine->BindTexture( currentFontCache->texture[currentFontCache->page[ch]] );
+-				g_engine->SetupDrawingImage( color );
+-				g_engine->DrawQuad( &clippedTopLeft, &clippedBottomRight );
+-			}
++			g_engine->BindTexture( currentFontCache->texture[currentFontCache->page[ch]] );
++			if( textMessageStyle ) CofDrawStyledQuad( topLeft, bottomRight, color, true, 0, tall );
++			CofDrawStyledQuad( topLeft, bottomRight, color, textMessageStyle, 1, tall );
+ 		}
+ 
+ 		advance += b + c;
+@@ -920,6 +949,8 @@
+ 			drawSetColor( saved[0], saved[1], saved[2], saved[3] );
+ 		}
+ 
++		// The whole line's shadow precedes all foreground ink.
++		for( int pass = textMessageStyle ? 0 : 1; pass < 2; pass++ )
+ 		for( int j = 0; j < line.count; j++ )
+ 		{
+ 			const BackingGlyph &g = backingGlyphs[line.first + j];
+@@ -937,12 +968,8 @@
+ 			bottomRight.coord[0] = g.cache->coord[g.ch][2];
+ 			bottomRight.coord[1] = g.cache->coord[g.ch][3];
+ 
+-			if( g_scissor.clip( topLeft, bottomRight, clippedTopLeft, clippedBottomRight ))
+-			{
+-				g_engine->BindTexture( g.cache->texture[g.cache->page[g.ch]] );
+-				g_engine->SetupDrawingImage( (int *)g.color );
+-				g_engine->DrawQuad( &clippedTopLeft, &clippedBottomRight );
+-			}
++			g_engine->BindTexture( g.cache->texture[g.cache->page[g.ch]] );
++			CofDrawStyledQuad( topLeft, bottomRight, g.color, textMessageStyle, pass, g.tall );
+ 		}
+ 
+ 		if( lineWidened )
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/support.h
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/support.h
+@@ -257,6 +257,7 @@
+ 	int          backingGlyphCount;
+ 	int          backingLineCount;
+ 	int          backingAlpha;
++	bool         textMessageStyle;
+ 	// milestone 4c: the device y this font's text belongs at (-1 for every
+ 	// role that keeps the client's own placement), whether to log it, and the
+ 	// role name the log prints
+--- /dev/null
++++ b/engine/cof_text_style.h
+@@ -0,0 +1,28 @@
++// SPDX-License-Identifier: BSD-3-Clause
++// Copyright (C) 2026 Cry of Fear: Enhanced contributors
++// Shared, allocation-free text style math for the engine and FreeVGUI.
++#ifndef COF_TEXT_STYLE_H
++#define COF_TEXT_STYLE_H
++static void CoF_TextStyleColor( int r, int g, int b, int opacity, int rgbFade, int out[4] )
++{
++	int level = r > g ? r : g;
++	if( b > level ) level = b;
++	if( level < 0 ) level = 0;
++	if( level > 255 ) level = 255;
++	if( opacity < 0 ) opacity = 0;
++	if( opacity > 255 ) opacity = 255;
++	out[0] = 191; out[1] = 193; out[2] = 194;
++	out[3] = rgbFade ? opacity * level / 255 : opacity;
++}
++static void CoF_TextShadowTap( int tall, int tap, float *x, float *y, int *weight )
++{
++	float offset = tall * 0.055f, radius = tall * 0.035f;
++	if( offset < 1.0f ) offset = 1.0f;
++	if( radius < 1.0f ) radius = 1.0f;
++	*x = offset; *y = offset; *weight = tap == 0 ? 56 : 18;
++	if( tap == 1 ) *x -= radius;
++	if( tap == 2 ) *x += radius;
++	if( tap == 3 ) *y -= radius;
++	if( tap == 4 ) *y += radius;
++}
++#endif

@@ -1,0 +1,136 @@
+diff --git a/3rdparty/mainui/Theme.cpp b/3rdparty/mainui/Theme.cpp
+--- a/3rdparty/mainui/Theme.cpp
++++ b/3rdparty/mainui/Theme.cpp
+@@ -21,6 +21,8 @@
+ bool g_bThemeActive = false;
+ 
+ cvar_t *ui_theme = NULL;
++static cvar_t *ui_cof_menu_scale = NULL;
++static float s_cofMenuScaleApplied = 1.0f;
+ 
+ // marker for UI_ThemeApplyDeferredDefaults. It has to be *registered* here, in
+ // UI_Init, and only read later: UI_Init runs inside CL_Init, before Host_Init
+@@ -37,6 +39,34 @@
+ // 5 = F5 quick save / F9 quick load (patches/cof-mainui-quicksave.patch)
+ #define COF_SCENE_DEFAULTS_GEN	5
+ 
++// Called once per UI_VidInit after the aspect-ratio base scale is reset.
++// Reduce all themed CoF controls/text together, keeping the virtual canvas
++// centered. Sample until the next VidInit so cvar changes cannot split
++// drawing from cached hit rectangles. A value of 1 restores prior sizing.
++void UI_ThemeApplyMenuScale( void )
++{
++	s_cofMenuScaleApplied = 1.0f;
++	if( !UI_ThemeActive() || !UI_IsCryOfFear() || !ui_cof_menu_scale )
++		return; // preserve the stock scale/offset values exactly
++	{
++		const float requested = ui_cof_menu_scale->value;
++		// Ordered comparisons also reject NaN before it reaches coordinates.
++		if( requested >= 0.75f && requested <= 1.0f )
++			s_cofMenuScaleApplied = requested;
++		else if( requested < 0.75f ) s_cofMenuScaleApplied = 0.75f;
++		else if( requested > 1.0f ) s_cofMenuScaleApplied = 1.0f;
++		else s_cofMenuScaleApplied = 0.88f;
++	}
++	uiStatic.scaleX *= s_cofMenuScaleApplied;
++	uiStatic.scaleY *= s_cofMenuScaleApplied;
++	uiStatic.yOffset = ScreenHeight / ( 2.0f * uiStatic.scaleY ) - 384.0f;
++}
++
++float UI_ThemeMenuScaleApplied( void )
++{
++	return s_cofMenuScaleApplied;
++}
++
+ /*
+ =================
+ UI_ThemeInit
+@@ -49,6 +79,7 @@
+ void UI_ThemeInit( void )
+ {
+ 	ui_theme = EngFuncs::CvarRegister( "ui_theme", "1", FCVAR_ARCHIVE );
++	ui_cof_menu_scale = EngFuncs::CvarRegister( "ui_cof_menu_scale", "0.88", FCVAR_ARCHIVE );
+ 
+ 	g_bThemeActive = ui_theme && ui_theme->value != 0.0f;
+ 
+diff --git a/3rdparty/mainui/Theme.h b/3rdparty/mainui/Theme.h
+--- a/3rdparty/mainui/Theme.h
++++ b/3rdparty/mainui/Theme.h
+@@ -125,6 +125,10 @@
+ // is still the last word on the seven keys it can reach (it cannot set alpha).
+ void UI_ThemeInit( void );
+ 
++// CoF menu geometry multiplier (sampled at VidInit; 1 restores prior size).
++void UI_ThemeApplyMenuScale( void );
++float UI_ThemeMenuScaleApplied( void );
++
+ // Defaults that have to be applied *after* config.cfg has run, because
+ // UI_Init happens inside CL_Init, before Host_Init execs it. Called once from
+ // the same UI_UpdateMenu block that loads the backgrounds and the strings.
+diff --git a/3rdparty/mainui/BaseMenu.cpp b/3rdparty/mainui/BaseMenu.cpp
+--- a/3rdparty/mainui/BaseMenu.cpp
++++ b/3rdparty/mainui/BaseMenu.cpp
+@@ -1134,6 +1134,8 @@
+ 		uiStatic.yOffset = 0;
+ 	}
+ 
++	UI_ThemeApplyMenuScale();
++
+ 	uiStatic.width = ScreenWidth / uiStatic.scaleX;
+ 	// move cursor to screen center
+ 	uiStatic.cursorX = ScreenWidth / 2;
+diff --git a/3rdparty/mainui/menus/CoFOsk.cpp b/3rdparty/mainui/menus/CoFOsk.cpp
+--- a/3rdparty/mainui/menus/CoFOsk.cpp
++++ b/3rdparty/mainui/menus/CoFOsk.cpp
+@@ -82,6 +82,27 @@
+ // rows 0-3; a letter row is shifted to upper case, punctuation stays
+ static const char *const s_rowsLetters[4] = { "1234567890", "qwertyuiop", "asdfghjkl-", "zxcvbnm,.@" };
+ static const char *const s_rowsSymbols[4] = { "1234567890", "!@#$%^&*()", "-_=+[]{};:", "'\",./?\\|<>" };
++
++// The gamepad5 keyboard already has its own compact geometry. Keep that
++// physical size when the rest of MainUI is reduced, including theme-drawn
++// title chrome, text metrics and mouse hit areas. Never accumulate scaling.
++class CCoFOskNativeScale
++{
++public:
++	CCoFOskNativeScale() : m_x( uiStatic.scaleX ), m_y( uiStatic.scaleY )
++	{
++		if( Depth()++ == 0 )
++		{
++			const float applied = UI_ThemeMenuScaleApplied();
++			uiStatic.scaleX /= applied;
++			uiStatic.scaleY /= applied;
++		}
++	}
++	~CCoFOskNativeScale() { --Depth(); uiStatic.scaleX = m_x; uiStatic.scaleY = m_y; }
++private:
++	static int &Depth() { static int depth = 0; return depth; }
++	float m_x, m_y;
++};
+ 
+ static bool g_oskNavKey = false;	// the last input was a pad direction key in pad mode
+ 
+@@ -417,6 +438,7 @@
+ 
+ bool CMenuCoFOsk::KeyDown( int key )
+ {
++	CCoFOskNativeScale nativeScale;
+ 	if( !m_bOpen )
+ 		return BaseClass::KeyDown( key );
+ 
+@@ -507,6 +529,7 @@
+ 
+ void CMenuCoFOsk::VidInit( void )
+ {
++	CCoFOskNativeScale nativeScale;
+ 	BaseClass::VidInit();
+ 
+ 	const float s = uiStatic.scaleY;
+@@ -599,6 +622,7 @@
+ 
+ void CMenuCoFOsk::Draw( void )
+ {
++	CCoFOskNativeScale nativeScale;
+ 	if( !m_bOpen )
+ 		return;
+ 

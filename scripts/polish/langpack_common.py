@@ -35,10 +35,12 @@ from pathlib import Path
 from typing import Optional
 
 # ---------------------------------------------------------------------------
-# Fixed project roots (read-only sources; single writable pack root)
+# Workspace-relative roots (read-only sources; single writable pack root)
 # ---------------------------------------------------------------------------
 
-PROJECT_ROOT = Path(r"K:\LLM\COF_Fix")
+# scripts/polish/ lives two levels below the repository root.
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = REPOSITORY_ROOT.parent
 CANONICAL_ROOT = PROJECT_ROOT / "Cry of Fear"           # read-only, canonical game
 ANALYSIS_ROOT = PROJECT_ROOT / "stage1" / "polish-mod-analysis-20260922"  # read-only reports
 # Output: <PACK_DIR>/languages/<lang>/. Default is the historical stage1 build

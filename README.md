@@ -37,9 +37,10 @@ modified in place, or redistributed by this project.
 > [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) and
 > [DISCLAIMER.md](DISCLAIMER.md). Steam is a trademark of Valve Corporation.
 
-**Status:** version 0.4, pre-release. The whole game is playable from a build
-of this repository, and the first public release (with an installer) is being
-prepared. There is no download yet.
+**Status:** 0.4.0-test3, public test release. Download the installer ZIP from
+[GitHub Releases](https://github.com/hajdawery/cof-enhanced/releases).
+Existing Enhanced installations can run the new installer over the same game
+folder; keep your existing saves and settings.
 
 > ⚠️ **There WILL be bugs.** The game has NOT been completed in its entirety
 > on this engine. You may get stuck, cutscenes may not work, and the textures
@@ -71,7 +72,7 @@ every other in-game panel get a cursor you steer with the sticks. Button
 prompts come in four styles, Xbox, PlayStation, Nintendo and Steam Deck,
 picked automatically from the pad you are using (or chosen by hand), and a
 Nintendo-layout pad confirms with the bottom button like every other. A quick
-180-degree turn sits on RB, the left stick walks as fast diagonally as
+180-degree turn sits on R3, RB dodges, the left stick walks as fast diagonally as
 straight ahead, sprint and crouch can be toggles, and gyro aiming is there for
 pads that have a gyro, off unless you turn it on.
 Gamepad support is in testing: expect rough edges, and please report them.

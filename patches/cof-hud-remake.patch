@@ -1,0 +1,476 @@
+--- a/engine/client/cl_main.c
++++ b/engine/client/cl_main.c
+@@ -3929,6 +3929,7 @@
+ */
+ void CL_ClearState( void )
+ {
++	CL_CoF_HudRemakeReset();
+ 	CL_ClearResourceLists();
+ 
+ 	for( int i = 0; i < MAX_CLIENTS; i++ )
+@@ -6165,6 +6166,7 @@
+ 	Cvar_RegisterVariable( &cof_ui_remote_end_menu );
+ 	Cvar_RegisterVariable( &cof_ui_death_menu );
+ 	Cvar_RegisterVariable( &cof_ui_death_keep_running );
++	CL_CoF_HudRemakeInit();
+ 	{ void CL_CoF_PanelPauseInit( void ); CL_CoF_PanelPauseInit(); } // cof_panel_pause, cof_panel_trace, cof_panel_status; engine\client\cof_panel_pause.c
+ 	{ void CL_CoF_PanelTransparencyInit( void ); CL_CoF_PanelTransparencyInit(); } // cof_panel_transparent, cof_panel_plate_alpha, cof_panel_hide_hud; engine\client\cof_panel_transparency.c
+ 	Cvar_RegisterVariable( &cof_mp3_stop_on_map );
+--- a/engine/client/client.h
++++ b/engine/client/client.h
+@@ -1360,6 +1360,18 @@
+ // GetAsyncKeyState(VK_RETURN) answered for a gamepad
+ void CL_CoF_EnterInit( void );
+ void CL_CoF_EnterOskDismiss( void ); // discard confirmation through release
++
++// Optional Remake HUD: observes unchanged game data and draw calls.
++void CL_CoF_HudRemakeInit( void );
++void CL_CoF_HudRemakeReset( void );
++void CL_CoF_HudRemakeMessage( const char *name, int size, const byte *data );
++void CL_CoF_HudRemakeBegin( void );
++void CL_CoF_HudRemakeAmmo( void );
++void CL_CoF_HudRemakeBars( void );
++int CL_CoF_HudRemakeTexture( const byte *hash );
++qboolean CL_CoF_HudRemakeQuad( int kind, int alpha );
++qboolean CL_CoF_HudRemakeSprite( const char *name, const wrect_t *rc, int mode, int texture,
++    float x,float y,float w,float h,float s1,float t1,float s2,float t2,const byte *color );
+ void CL_CoF_EnterHookModule( void *hInstance, const char *name );
+ qboolean CL_CoF_EnterKeyEvent( int key, int down );
+ extern net_api_t gNetApi;
+--- /dev/null
++++ b/engine/client/cof_hud_remake.c
+@@ -0,0 +1,302 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 haej (Cry of Fear: Enhanced contributors)
++// Optional presentation only: never changes client messages or weapon state.
++#include "common.h"
++#include "client.h"
++
++static CVAR_DEFINE_AUTO( cof_hud_style, "0", FCVAR_ARCHIVE, "Cry of Fear HUD: 0 Classic, 1 Remake (health, stamina and supported ammunition)" );
++
++enum { HUD_HEALTH = 1, HUD_STAMINA = 2, HUD_MAX_DRAWS = 64 };
++typedef struct
++{
++	int texture, mode, digit, kind;
++	float x, y, w, h, s1, t1, s2, t2;
++	byte color[4];
++} cof_hud_draw_t;
++typedef struct { int texture; float u1,v1,u2,v2,aspect; const char *path; } cof_hud_icon_t;
++static cof_hud_icon_t hud_icons[] = {
++	{ 0,0,0,0,0,1,"gfx/shell/hud_remake/heart.png" },
++	{ 0,0,0,0,0,1,"gfx/shell/hud_remake/bullet.png" },
++	{ 0,0,0,0,0,1,"gfx/shell/hud_remake/magazine.png" },
++	{ 0,0,0,0,0,1,"gfx/shell/hud_remake/shell.png" },
++};
++static struct
++{
++	int weapon, clip, stamina, health_cap, previous_health;
++	qboolean dual, collecting, overflow;
++	int count, health_frame, stamina_frame;
++	byte health_alpha, stamina_alpha;
++	double damage_until, retry_icons;
++	cof_hud_draw_t draws[HUD_MAX_DRAWS];
++} hud;
++
++void CL_CoF_HudRemakeReset( void )
++{
++	memset( &hud, 0, sizeof( hud ));
++	hud.clip = hud.stamina = hud.previous_health = -1;
++	hud.health_frame = hud.stamina_frame = -1;
++	hud.health_cap = 100;
++}
++
++void CL_CoF_HudRemakeInit( void )
++{
++	Cvar_RegisterVariable( &cof_hud_style );
++	CL_CoF_HudRemakeReset();
++}
++
++// Packet formats measured in retail client.dll. Observe, never consume.
++void CL_CoF_HudRemakeMessage( const char *name, int size, const byte *data )
++{
++	if( !Q_stricmp( name, "ResetHUD" ) || !Q_stricmp( name, "InitHUD" ))
++		CL_CoF_HudRemakeReset();
++	else if( !Q_stricmp( name, "Stamina" ) && size == 3 )
++		hud.stamina = bound( 0, data[0], 100 ); // second field is a recovery delay, not stamina
++	else if( !Q_stricmp( name, "HealthCap" ) && size == 1 && data[0] > 0 )
++		hud.health_cap = data[0];
++	else if( !Q_stricmp( name, "CurWeapon" ) && size == 3 )
++	{
++		const int weapon = (signed char)data[1];
++		int clip = (signed char)data[2];
++		if( weapon < 1 ) { hud.weapon = 0; hud.clip = -1; }
++		else if( data[0] )
++		{
++			if( clip < -1 ) clip = -clip; // matches the client's clip convention
++			hud.weapon = weapon; hud.clip = clip;
++		}
++	}
++	else if( !Q_stricmp( name, "DualAmmo" ) && size == 8 )
++	{
++		int left, right;
++		memcpy( &left, data, 4 ); memcpy( &right, data + 4, 4 );
++		hud.dual = left >= 0 && right >= 0;
++	}
++}
++
++static qboolean HudEnabled( void )
++{
++	return cof_hud_style.value == 1 && GI && !Q_stricmp( GI->gamefolder, "cryoffear" ) &&
++		cls.state == ca_active && !cl.background && !cl.intermission && cl.local.health > 0 && !CL_CoF_UIGateActive();
++}
++
++static qboolean HudIcons( void )
++{
++	if( host.realtime < hud.retry_icons ) return false;
++	for( int i = 0; i < ARRAYSIZE( hud_icons ); i++ )
++	{
++		cof_hud_icon_t *icon = &hud_icons[i];
++		if( icon->texture && ref.dllFuncs.GL_FindTexture( icon->path ) == icon->texture ) continue;
++		icon->texture = 0;
++		rgbdata_t *pic = FS_LoadImage( icon->path, NULL, 0 );
++		if( !pic || pic->type != PF_RGBA_32 || pic->width <= 0 || pic->height <= 0 )
++		{
++			if( pic ) FS_FreeImage( pic );
++			hud.retry_icons = host.realtime + 5;
++			return false; // missing art never hides the Classic HUD
++		}
++		int l = pic->width, t = pic->height, r = -1, b = -1;
++		for( int y = 0; y < pic->height; y++ ) for( int x = 0; x < pic->width; x++ )
++			if( pic->buffer[( y * pic->width + x ) * 4 + 3] >= 128 )
++			{ l = Q_min(l,x); r = Q_max(r,x); t = Q_min(t,y); b = Q_max(b,y); }
++		if( r < l || b < t ) { FS_FreeImage(pic); hud.retry_icons = host.realtime + 5; return false; }
++		icon->u1 = (float)l / pic->width; icon->v1 = (float)t / pic->height;
++		icon->u2 = (float)(r+1) / pic->width; icon->v2 = (float)(b+1) / pic->height;
++		icon->aspect = (float)(r-l+1) / (b-t+1);
++		// No pixels are reused after upload; TF_IMAGE disables mipmap generation.
++		icon->texture = GL_LoadTextureInternal( icon->path, pic, TF_IMAGE );
++		FS_FreeImage( pic );
++		if( !icon->texture ) { hud.retry_icons = host.realtime + 5; return false; }
++	}
++	return true;
++}
++
++static float HudScale( void )
++{
++	// Compact reference dimensions at 1080p; retain the player's HUD multiplier.
++	return bound( 0.5f, refState.height / 1080.0f * CL_CoF_UIScaleUser(), 4.0f );
++}
++
++static void HudIcon( int index, float x, float y, float size, const byte *color )
++{
++	cof_hud_icon_t *icon = &hud_icons[index];
++	float w = size, h = size;
++	if( icon->aspect > 1 ) h /= icon->aspect; else w *= icon->aspect;
++	ref.dllFuncs.GL_SetRenderMode( kRenderTransTexture );
++	ref.dllFuncs.Color4ub(color[0],color[1],color[2],color[3]);
++	ref.dllFuncs.R_DrawStretchPic(x+(size-w)*0.5f,y+(size-h)*0.5f,w,h,icon->u1,icon->v1,icon->u2,icon->v2,icon->texture);
++}
++
++static void HudReplay( void )
++{
++	for( int i = 0; i < hud.count; i++ )
++	{
++		cof_hud_draw_t *d = &hud.draws[i];
++		ref.dllFuncs.GL_SetRenderMode(d->mode);
++		ref.dllFuncs.Color4ub(d->color[0],d->color[1],d->color[2],d->color[3]);
++		ref.dllFuncs.R_DrawStretchPic(d->x,d->y,d->w,d->h,d->s1,d->t1,d->s2,d->t2,d->texture);
++	}
++	hud.count = 0;
++}
++
++void CL_CoF_HudRemakeBegin( void )
++{
++	hud.count = 0; hud.overflow = false;
++	hud.collecting = HudEnabled() && HudIcons() && cls.creditsFont.valid;
++	if( hud.previous_health >= 0 && cl.local.health < hud.previous_health ) hud.damage_until = host.realtime + 0.4;
++	hud.previous_health = cl.local.health;
++}
++
++// Same-frame calls only; exact final geometry/mode/color retained for fallback.
++qboolean CL_CoF_HudRemakeSprite( const char *name, const wrect_t *rc, int mode, int texture,
++	float x,float y,float w,float h,float s1,float t1,float s2,float t2,const byte *color )
++{
++	if( !hud.collecting || hud.overflow ) return false;
++	if( !name || hud.clip < 0 || hud.dual || x < refState.width * 0.5f || y < refState.height * 0.5f )
++	{ if(hud.count) { HudReplay(); hud.overflow=true; ref.dllFuncs.GL_SetRenderMode(mode); } return false; }
++	int kind = 0, digit = -1;
++	static const char *guns[] = { "glock", "p345", "m16", "tmp", "rifle", "browning", "famas", "vp70", "g43", "mp5" };
++	for( int i = 0; i < ARRAYSIZE(guns); i++ )
++	{
++		char sprite[96];
++		Q_snprintf(sprite,sizeof(sprite),"sprites/cof_%s_mag.spr",guns[i]);
++		if( !Q_stricmp(name,sprite) ) kind = 1;
++		Q_snprintf(sprite,sizeof(sprite),"sprites/cof_%s_mag_icon.spr",guns[i]);
++		if( !Q_stricmp(name,sprite) ) kind = 2;
++	}
++	if( !Q_stricmp(name,"sprites/cof_mag_cross.spr") ) kind = 3;
++	if( !Q_stricmp(name,"sprites/cof_ammohud.spr") && rc && rc->top == 0 &&
++		rc->bottom == 24 && rc->right - rc->left == 20 && rc->left >= 0 && rc->left <= 216 && rc->left % 24 == 0 )
++	{ kind = 4; digit = rc->left / 24; }
++	if( hud.weapon == 23 && !Q_stricmp(name,"sprites/cof_famas_mag.spr") ) kind = 8;
++	if( hud.weapon == 19 && !Q_stricmp(name,"sprites/cof_vp70_mag.spr") ) kind = 7;
++	if( hud.weapon == 4 && !Q_stricmp(name,"sprites/cof_shotgun_box.spr") ) kind = 5;
++	if( hud.weapon == 4 && !Q_stricmp(name,"sprites/cof_shotgun_box_icon.spr") ) kind = 6;
++	if( !kind ) { if(hud.count) { HudReplay(); hud.overflow=true; ref.dllFuncs.GL_SetRenderMode(mode); } return false; }
++	if( hud.count == HUD_MAX_DRAWS ) { HudReplay(); hud.overflow = true; ref.dllFuncs.GL_SetRenderMode(mode); return false; }
++	cof_hud_draw_t *d = &hud.draws[hud.count++];
++	*d = (cof_hud_draw_t){texture,mode,digit,kind,x,y,w,h,s1,t1,s2,t2,{0}};
++	memcpy(d->color,color,4);
++	return true;
++}
++
++static int HudMagazineCount( void )
++{
++	int order[4], n = 0; qboolean magazine = false, cross = false, shells = false, shell_icon = false;
++	for( int i=0; i<hud.count; i++ )
++	{
++		cof_hud_draw_t *d=&hud.draws[i];
++		if(d->kind==1 || d->kind==7 || d->kind==8) magazine=true;
++		if(d->kind==3) cross=true;
++		if(d->kind==5) shells=true;
++		if(d->kind==6) shell_icon=true;
++		if(d->kind!=4) continue;
++		if(n==4) return -1;
++		order[n++]=i;
++	}
++	if((hud.weapon==4 ? (!shells || !shell_icon) : (!magazine || !cross)) || n<1 || n>3) return -1;
++	for(int i=1;i<n;i++) for(int j=i;j>0 && hud.draws[order[j]].x<hud.draws[order[j-1]].x;j--)
++	{ int temp=order[j];order[j]=order[j-1];order[j-1]=temp; }
++	int count=0;
++	for(int i=0;i<n;i++)
++	{
++		cof_hud_draw_t *d=&hud.draws[order[i]];
++		if(i && (fabs(d->y-hud.draws[order[0]].y)>1.0f ||
++			d->x-hud.draws[order[i-1]].x < d->w*0.5f || d->x-hud.draws[order[i-1]].x > d->w*1.6f)) return -1;
++		count=count*10+d->digit;
++	}
++	return count;
++}
++
++void CL_CoF_HudRemakeAmmo( void )
++{
++	hud.collecting = false;
++	const int mags=HudMagazineCount();
++	if(mags<0 || !HudEnabled() || !cls.creditsFont.valid) { HudReplay(); return; }
++	float scale=HudScale(), size=24*scale, gap=6*scale, margin=28*scale;
++	cl_font_t font=cls.creditsFont;
++	float ratio=24*scale/Q_max(1,font.charHeight);
++	font.scale*=ratio; font.charHeight=Q_max(1,(int)(font.charHeight*ratio));
++	for(int i=0;i<ARRAYSIZE(font.charWidths);i++) font.charWidths[i]=Q_max(1,(int)(font.charWidths[i]*ratio));
++	char rounds[16], spare[16]; int rw,mw;
++	Q_snprintf(rounds,sizeof(rounds),"%d",hud.clip); Q_snprintf(spare,sizeof(spare),"%d",mags);
++	CL_DrawStringLen(&font,rounds,&rw,NULL,0); CL_DrawStringLen(&font,spare,&mw,NULL,0);
++	byte color[4]={245,245,245,255};
++	// Reuse the Classic draw's visibility/fade rather than introducing an always-on counter.
++	for(int i=0;i<hud.count;i++) if(hud.draws[i].kind==4) { color[3]=hud.draws[i].color[3]; break; }
++	float total=size*2+gap*3+rw+mw+12*scale;
++	float x=refState.width-margin-total, y=refState.height-margin-size;
++	HudIcon(hud.weapon==4?3:1,x,y,size,color); x+=size+gap;
++	CL_DrawString(x,y,rounds,color,&font,0); x+=rw+12*scale+gap;
++	HudIcon(hud.weapon==4?3:2,x,y,size,color); x+=size+gap;
++	CL_DrawString(x,y,spare,color,&font,0);
++	// Proven retail fixed modes; no speculative switchable-mode state.
++	for(int i=0;i<hud.count;i++) if(hud.draws[i].kind==7 || hud.draws[i].kind==8)
++	{ const char *mode=hud.draws[i].kind==7?"BURST":"AUTO"; int width; CL_DrawStringLen(&font,mode,&width,NULL,0); CL_DrawString(refState.width-margin-width,y-size-gap,mode,color,&font,0); break; }
++	hud.count=0;
++	ref.dllFuncs.GL_SetRenderMode(kRenderNormal); ref.dllFuncs.Color4ub(255,255,255,255);
++}
++
++// Fingerprints are of the client's decoded HUD TGAs, not shipped game artwork.
++// Both alpha conventions used by BitmapTGA are recognized, and no dimensions-only match.
++int CL_CoF_HudRemakeTexture( const byte *hash )
++{
++	static const struct { byte hash[16]; int kind; } known[] = {
++		{ {0x0e, 0x8e, 0x9d, 0x1e, 0x14, 0xaa, 0x8b, 0xac, 0xef, 0xe6, 0x52, 0x0c, 0xfa, 0xeb, 0x16, 0x63}, HUD_HEALTH }, // 640_healthbar.tga
++		{ {0xb3, 0x99, 0x0d, 0x5b, 0x33, 0x3a, 0x1f, 0x57, 0x69, 0x7e, 0xfa, 0x23, 0x08, 0x17, 0x6d, 0x8d}, HUD_HEALTH }, // 640_healthbar.tga inverted alpha
++		{ {0x4c, 0x08, 0x9c, 0xe9, 0x28, 0x60, 0x35, 0x3f, 0x13, 0xbb, 0x9f, 0x12, 0xe4, 0x96, 0x6d, 0xb6}, HUD_HEALTH }, // 640_healthbar2.tga
++		{ {0x09, 0xad, 0xdb, 0xd9, 0xc1, 0xfe, 0xaa, 0x6f, 0x2c, 0xc7, 0xdd, 0x59, 0x20, 0x3e, 0xce, 0x84}, HUD_HEALTH }, // 640_healthbar2.tga inverted alpha
++		{ {0x6d, 0xf2, 0xb6, 0xf2, 0x73, 0x42, 0xa8, 0xf5, 0x9e, 0x33, 0xc0, 0x7d, 0x42, 0x64, 0x70, 0xd9}, HUD_HEALTH }, // 640_healthbar3.tga
++		{ {0x13, 0x6d, 0xb6, 0x35, 0x68, 0xd1, 0x9e, 0x3b, 0x7f, 0x27, 0xa7, 0x1f, 0x1b, 0x2a, 0x65, 0x79}, HUD_HEALTH }, // 640_healthbar3.tga inverted alpha
++		{ {0xf5, 0xda, 0xf6, 0x9a, 0xae, 0x69, 0x13, 0xbf, 0xd1, 0x65, 0xdc, 0xa7, 0x0a, 0x60, 0xe0, 0xbc}, HUD_HEALTH }, // 640_healthbar_bar.tga
++		{ {0xcc, 0xc8, 0x90, 0x59, 0xd8, 0x45, 0x78, 0x02, 0xc6, 0x3f, 0xb1, 0x2a, 0x86, 0xae, 0xa8, 0x86}, HUD_HEALTH }, // 640_healthbar_bar.tga inverted alpha
++		{ {0x70, 0x22, 0x52, 0x93, 0x0b, 0xef, 0x9d, 0x65, 0x68, 0xbf, 0x24, 0xf5, 0xe6, 0x0e, 0x5b, 0x27}, HUD_HEALTH }, // 640_healthbar_bar2.tga
++		{ {0x28, 0x64, 0xe1, 0x1a, 0x2a, 0xd8, 0x6a, 0xe4, 0xd2, 0x5e, 0x40, 0x87, 0xe6, 0x45, 0x50, 0xd0}, HUD_HEALTH }, // 640_healthbar_bar2.tga inverted alpha
++		{ {0x05, 0xd7, 0xba, 0x88, 0x15, 0x39, 0xe9, 0xc7, 0x65, 0x6f, 0x2e, 0x24, 0x9f, 0xc2, 0x60, 0xe3}, HUD_HEALTH }, // 640_healthbar_bar3.tga
++		{ {0xc3, 0xe3, 0x0c, 0xe7, 0x9d, 0x14, 0xec, 0xcc, 0xcc, 0x49, 0xa8, 0xe9, 0x0e, 0xe5, 0xcf, 0x3b}, HUD_HEALTH }, // 640_healthbar_bar3.tga inverted alpha
++		{ {0x7c, 0x8c, 0x9a, 0x5c, 0x42, 0xe9, 0x8d, 0xd9, 0xa0, 0x50, 0x5a, 0xc2, 0xe5, 0x6e, 0x3f, 0x11}, HUD_HEALTH }, // 640_healthbar_barempty.tga
++		{ {0x18, 0xd2, 0x77, 0xe8, 0x9b, 0x24, 0x1e, 0xa7, 0x47, 0x10, 0x88, 0x0a, 0x91, 0x2a, 0x64, 0xff}, HUD_HEALTH }, // 640_healthbar_barempty.tga inverted alpha
++		{ {0x41, 0x12, 0x8c, 0x59, 0x97, 0xe6, 0xfe, 0x5b, 0x49, 0x7e, 0x57, 0xde, 0x86, 0x63, 0xcd, 0x57}, HUD_HEALTH }, // 640_healthbar_barempty2.tga
++		{ {0x4c, 0x8f, 0x1d, 0x90, 0x85, 0xfc, 0x54, 0x7d, 0xf8, 0xb2, 0xfd, 0xe7, 0x01, 0x81, 0xf7, 0x07}, HUD_HEALTH }, // 640_healthbar_barempty2.tga inverted alpha
++		{ {0xd5, 0x3b, 0xcd, 0x18, 0x3b, 0x6c, 0x28, 0x62, 0x16, 0xa4, 0x0d, 0xe8, 0x8b, 0xa8, 0x73, 0xf5}, HUD_HEALTH }, // 640_healthbar_barempty3.tga
++		{ {0xb4, 0x44, 0x96, 0xaf, 0xf1, 0xd6, 0xbe, 0x67, 0x3d, 0x63, 0xe2, 0x8b, 0xc3, 0xaa, 0x00, 0x6d}, HUD_HEALTH }, // 640_healthbar_barempty3.tga inverted alpha
++		{ {0x7e, 0xf8, 0x29, 0xf6, 0x56, 0x92, 0x42, 0x1d, 0x60, 0xcc, 0x45, 0xfd, 0x5f, 0xd0, 0xcf, 0x49}, HUD_STAMINA }, // 640_staminabar.tga
++		{ {0x71, 0x7b, 0xb1, 0x06, 0xfd, 0x4a, 0x15, 0xa5, 0x9b, 0x15, 0x5f, 0xd2, 0xe0, 0x36, 0x12, 0xd8}, HUD_STAMINA }, // 640_staminabar.tga inverted alpha
++		{ {0x32, 0xc9, 0x84, 0x44, 0xd7, 0xc2, 0x96, 0x92, 0x25, 0x7c, 0x84, 0xb8, 0xf2, 0x86, 0x05, 0x12}, HUD_STAMINA }, // 640_staminabar_bar.tga
++		{ {0x8c, 0x37, 0x16, 0x56, 0x53, 0x8c, 0x09, 0x4b, 0xbc, 0x11, 0x41, 0x01, 0xe5, 0x3a, 0x5c, 0x7c}, HUD_STAMINA }, // 640_staminabar_bar.tga inverted alpha
++		{ {0x6e, 0x5f, 0x26, 0x37, 0xa4, 0xd0, 0x01, 0x37, 0xa7, 0xa9, 0x9b, 0xd6, 0xd7, 0x05, 0x07, 0x8b}, HUD_STAMINA }, // 640_staminabar_barempty.tga
++		{ {0x76, 0x85, 0xa7, 0x23, 0xee, 0xee, 0x0a, 0xa4, 0x71, 0x75, 0x71, 0xd4, 0x8d, 0x98, 0x88, 0x7a}, HUD_STAMINA }, // 640_staminabar_barempty.tga inverted alpha
++	};
++	for(int i=0;i<ARRAYSIZE(known);i++) if(!memcmp(hash,known[i].hash,16)) return known[i].kind;
++	return 0;
++}
++
++qboolean CL_CoF_HudRemakeQuad( int kind, int alpha )
++{
++	if(!kind || !HudEnabled() || !HudIcons()) return false;
++	if(kind==HUD_HEALTH) { hud.health_frame=host.framecount; hud.health_alpha=alpha; return true; }
++	if(kind==HUD_STAMINA && hud.stamina>=0) { hud.stamina_frame=host.framecount; hud.stamina_alpha=alpha; return true; }
++	return false;
++}
++
++void CL_CoF_HudRemakeBars( void )
++{
++	if(!HudEnabled() || !HudIcons()) return;
++	float scale=HudScale(), margin=28*scale, bottom=refState.height-margin;
++	if(hud.health_frame==host.framecount)
++	{
++		byte color[4]={245,245,245,hud.health_alpha};
++		float fraction=bound(0.0f,(float)cl.local.health/Q_max(1,hud.health_cap),1.0f);
++		if(fraction<=0.25f) { color[0]=255;color[1]=48;color[2]=48; }
++		else if(host.realtime<hud.damage_until) { color[0]=255;color[1]=160;color[2]=160; }
++		HudIcon(0,margin,bottom-28*scale,28*scale,color);
++		float x=margin+38*scale,y=bottom-15*scale,w=128*scale,h=3*scale;
++		ref.dllFuncs.FillRGBA(kRenderTransTexture,x,y,w,h,32,32,32,color[3]/2);
++		ref.dllFuncs.FillRGBA(kRenderTransTexture,x,y,w*fraction,h,color[0],color[1],color[2],color[3]);
++	}
++	if(hud.stamina_frame==host.framecount && hud.stamina<100)
++	{
++		float w=150*scale,x=(refState.width-w)*0.5f,y=bottom-3*scale,h=2*scale;
++		ref.dllFuncs.FillRGBA(kRenderTransTexture,x,y,w,h,32,32,32,hud.stamina_alpha/2);
++		ref.dllFuncs.FillRGBA(kRenderTransTexture,x,y,w*hud.stamina/100.0f,h,245,245,245,hud.stamina_alpha);
++	}
++	ref.dllFuncs.GL_SetRenderMode(kRenderNormal); ref.dllFuncs.Color4ub(255,255,255,255);
++}
+--- a/engine/client/dll_int/cl_game.c
++++ b/engine/client/dll_int/cl_game.c
+@@ -398,7 +398,7 @@
+ draw hudsprite routine
+ ====================
+ */
+-static void SPR_DrawGeneric( int frame, float x, float y, float width, float height, const wrect_t *prc )
++static void SPR_DrawGeneric( int frame, float x, float y, float width, float height, const wrect_t *prc, int mode )
+ {
+ 	float	s1, s2, t1, t2;
+ 
+@@ -481,6 +481,8 @@
+ 
+ 	// scale for screen sizes
+ 	SPR_AdjustSize( &x, &y, &width, &height );
++	if( CL_CoF_HudRemakeSprite( cof_hud_widget && clgame.ds.pSprite ? clgame.ds.pSprite->name : NULL,
++		prc, mode, texnum, x,y,width,height,s1,t1,s2,t2,clgame.ds.spriteColor )) return;
+ 	ref.dllFuncs.Color4ub( clgame.ds.spriteColor[0], clgame.ds.spriteColor[1], clgame.ds.spriteColor[2], clgame.ds.spriteColor[3] );
+ 	ref.dllFuncs.R_DrawStretchPic( x, y, width, height, s1, t1, s2, t2, texnum );
+ }
+@@ -971,6 +973,7 @@
+ 	// rather than only in the flush, so a frame in which the client was gated
+ 	// off cannot leave anything behind for the next one.
+ 	CL_CoF_HudTextReset();
++	CL_CoF_HudRemakeBegin();
+ 
+ 	if( state == CL_ACTIVE && !cl.video_prepped )
+ 		state = CL_LOADING;
+@@ -987,6 +990,7 @@
+ 		CL_DrawCenterPrint ();
+ 		if( !cof_skip_client_hud_redraw.value && !cof_gate )
+ 			clgame.dllFuncs.pfnRedraw( cl.time, cl.intermission );
++		CL_CoF_HudRemakeAmmo();
+ 		if( cl.intermission ) CL_DrawScreenFade ();
+ 		break;
+ 	case CL_PAUSED:
+@@ -995,6 +999,7 @@
+ 		CL_DrawCenterPrint ();
+ 		if( !cof_skip_client_hud_redraw.value && !cof_gate )
+ 			clgame.dllFuncs.pfnRedraw( cl.time, cl.intermission );
++		CL_CoF_HudRemakeAmmo();
+ 		if( showpause.value )
+ 		{
+ 			if( !cls.pauseIcon )
+@@ -1017,6 +1022,7 @@
+ 	// Cry of Fear engine HUD text: everything the client asked to draw through
+ 	// pfnDrawCharacter this frame, one backing strip per line and then its
+ 	// glyphs. Last, so the strip cannot land on top of the text it is under.
++	CL_CoF_HudRemakeAmmo(); // close collection for loading/changelevel passes too
+ 	CL_CoF_HudTextFlush();
+ }
+ 
+@@ -1562,7 +1568,7 @@
+ static void GAME_EXPORT pfnSPR_Draw( int frame, int x, int y, const wrect_t *prc )
+ {
+ 	ref.dllFuncs.GL_SetRenderMode( kRenderTransAlpha );
+-	SPR_DrawGeneric( frame, x, y, -1, -1, prc );
++	SPR_DrawGeneric( frame, x, y, -1, -1, prc, kRenderTransAlpha );
+ }
+ 
+ /*
+@@ -1580,7 +1586,7 @@
+ 	pglBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+ 	pglEnable( GL_BLEND );
+ #endif
+-	SPR_DrawGeneric( frame, x, y, -1, -1, prc );
++	SPR_DrawGeneric( frame, x, y, -1, -1, prc, kRenderTransColor );
+ 
+ #if 1
+ 	ref.dllFuncs.GL_SetRenderMode( kRenderNormal );
+@@ -1605,7 +1611,7 @@
+ 	pglBlendFunc( GL_ONE, GL_ONE );
+ #endif
+ 
+-	SPR_DrawGeneric( frame, x, y, -1, -1, prc );
++	SPR_DrawGeneric( frame, x, y, -1, -1, prc, kRenderTransAdd );
+ 
+ #if 1 // REFTODO
+ 	ref.dllFuncs.GL_SetRenderMode( kRenderNormal );
+@@ -3600,7 +3606,7 @@
+ 	pglEnable( GL_BLEND );
+ 	pglBlendFunc( blendsrc, blenddst ); // g-cont. are params is valid?
+ #endif
+-	SPR_DrawGeneric( frame, x, y, width, height, prc );
++	SPR_DrawGeneric( frame, x, y, width, height, prc, kRenderNormal );
+ }
+ 
+ /*
+--- a/engine/client/parse/cl_parse.c
++++ b/engine/client/parse/cl_parse.c
+@@ -2292,6 +2292,7 @@
+ 	// message is still delivered below; the panel is kept off the screen by
+ 	// cof_ui_input_gate, not by hiding the message from the client.
+ 	CL_CoF_DeathUserMessage( clgame.msg[i].name, iSize, pbuf );
++	CL_CoF_HudRemakeMessage( clgame.msg[i].name, iSize, pbuf );
+ 
+ 	if( clgame.msg[i].func )
+ 	{
+--- a/engine/client/vgui/vgui_draw.c
++++ b/engine/client/vgui/vgui_draw.c
+@@ -30,6 +30,7 @@
+ {
+ 	int gl_texturenum;
+ 	byte hash[16];
++	int cof_hud_kind; // exact decoded Classic health/stamina image
+ } vgui_reusable_texture_t;
+ 
+ typedef struct vgui_static_s
+@@ -184,6 +185,7 @@
+ 	MD5Init( &ctx );
+ 	MD5Update( &ctx, buffer, width * height * 4 );
+ 	MD5Final( hash, &ctx );
++	vgui.textures[id].cof_hud_kind = CL_CoF_HudRemakeTexture( hash );
+ 
+ 	// it's a new texture, try to find a copy
+ 	if( vgui.textures[id].gl_texturenum == 0 )
+@@ -280,6 +282,7 @@
+ 
+ 	if( vgui.enable_texture )
+ 	{
++		if( CL_CoF_HudRemakeQuad( vgui.textures[vgui.bound_texture].cof_hud_kind, vgui.color[3] )) return;
+ 		float s1 = ul->coord[0];
+ 		float t1 = ul->coord[1];
+ 		float s2 = lr->coord[0];
+@@ -818,6 +821,7 @@
+ 	VGUI_SetPaintOffset( 0, 0 );
+ 
+ 	// Cry of Fear gamepad: the ring cursor over the panels (cof_gamepad.c)
++	CL_CoF_HudRemakeBars();
+ 	CL_CoF_VCursorDraw( );
+ }
+ 

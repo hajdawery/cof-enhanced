@@ -75,7 +75,12 @@ off live with its cvar, which then reproduces the stock path in the same binary.
 | 55 | `cof-panel-pause` | E + V | `cof_panel_pause` (saved, default 0): single player, the world stops while a safe CoF panel is open; panels identified by client class name (`CofPanelReport`), `CL_CoF_PanelsOnScreen` for other engine code; `cof_panel_status`, `cof_panel_trace` | [panel pause](cof-panel-pause.md) |
 | 56 | `cof-panel-transparency` | E + V | `cof_panel_transparent` (saved, default 1), `cof_panel_plate_alpha` 200, `cof_panel_hide_hud` 2: the live world instead of the black backdrop behind the in-play panels | [world behind the panels](cof-panel-transparency.md) |
 | 57 | `cof-gamepad-input` | E + V + M | gamepad on CoF panels (sticks frozen, START to the pause menu, B backs out through each panel's own button, A/X click at the engine-drawn cursor, A completes a tape slot; the "panel open" check reads the class identity of step 55), the last input device (`cof_last_input`) and the hidden Windows arrow, once-per-profile layout (generation 4), quick 180-degree turn (`cof_quickturn`), trigger hysteresis (`cof_pad_trigger_hyst`), the left stick shaped like the movement keys (`cof_pad_move_*`), pad styles (`cof_pad_style`, read-only `cof_pad_style_auto`; Xbox / PlayStation / Nintendo / Steam Deck, Nintendo face buttons by position), sprint Hold/Toggle, `cof_duck_toggle`, gyro off by default, dodge guard, client WinMM joystick kept off; A on a Load/Save row; `cof_pad_status`, `cof_pad_measure` | [gamepad input](cof-gamepad-input.md) |
-| 58 | `cof-cheats` | E | `fly`, `give`, sticky `noclip` / `notarget`, `cof_infammo`, `cof_infstamina`, `cof_nodamage`, `cof_nodrown`, `cof_nightvision`, `cof_ending`, `cof_tapes`, `cof_unlockdoors`, `cof_cheats` | [cheats internals](../design/cheats.md), player list in [CHEATS.md](../../CHEATS.md) |
+| 58 | `cof-osk-field-navigation` | E + V | Done advances to the next visible enabled sibling field, then submits from the last; `cof_osk_next_field` | [on-screen keyboard](../design/osk.md) |
+| 59 | `cof-gamepad-controls` | E + M | generation 5 layout (RB dodge, R3 quick turn), custom-bind preservation and pad-only double-tap suppression; `cof_pad_no_doubletap` | [gamepad controls](cof-gamepad-controls.md) |
+| 60 | `cof-osk-compact-context` | E + V + M | compact keyboard with field number; Done advances then closes without submitting | [on-screen keyboard](../design/osk.md) |
+| 61 | `cof-osk-dismiss-guard` | E | prevents a held closing Enter/Start from reaching the game before release; `cof_osk_dismiss_guard` | [on-screen keyboard](../design/osk.md) |
+| 62 | `cof-vcursor-shadow-source` | E | cursor shadow uses original decoded alpha instead of a mipmapped upload buffer | [cursor shadow](cof-vcursor-shadow-source.md) |
+| 67 | `cof-cheats` | E | `fly`, `give`, sticky `noclip` / `notarget`, `cof_infammo`, `cof_infstamina`, `cof_nodamage`, `cof_nodrown`, `cof_nightvision`, `cof_ending`, `cof_tapes`, `cof_unlockdoors`, `cof_cheats` | [cheats internals](../design/cheats.md), player list in [CHEATS.md](../../CHEATS.md) |
 
 (diag) = default-off developer diagnostic; it changes nothing unless switched on.
 
@@ -462,7 +467,20 @@ names nothing. Gamepad round 3 (m9) added the generation 4 layout, the quick
 turn, trigger hysteresis, the stick movement shaping and the four prompt styles
 (Nintendo pads by button position). See [gamepad input](cof-gamepad-input.md).
 
-## Restored cheats (step 58, last)
+## Gamepad round 4 (steps 58-59)
+
+[OSK field navigation](../design/osk.md) makes Done advance between the computer's
+fields. The compact/context follow-up (60) closes after the last field instead
+of submitting; the player presses the game's OK button. [Updated controls](cof-gamepad-controls.md)
+move dodge to RB and quick turn to R3, preserve custom bindings and suppress
+stick-triggered double-tap dodge. The first round was deployed for user testing; follow-up changes are recorded
+in the linked pages.
+
+The [art delivery repair](cof-gamepad-art-delivery.md) fixes the release
+allowlist and supplies a data-only deployment path for the square cursor and
+Switch/Deck pictures. It requires no engine patch or rebuild.
+
+## Restored cheats (step 76, last)
 
 Cry of Fear 1.6 removed its cheats in its own `hw.dll` and resets or ignores
 the stock ones in `hl.dll` (`PostThink` turns noclip off every frame,
@@ -476,3 +494,29 @@ switches and player fields. Everything needs `sv_cheats 1` **and** a SHA-256
 match of the loaded `hl.dll` against retail 1.6; any other game DLL gets the
 stock behaviour and a one-line refusal. Player list: [CHEATS.md](../../CHEATS.md);
 internals: [cheats](../design/cheats.md).
+
+### Typography, compact menu, optional HUD follow-up
+
+| Step | Patch | Purpose |
+| --- | --- | --- |
+| 63 | [cof-hud-text-style](cof-hud-text-style.md) | True Inter Bold, muted grey, soft shadow; optional text backing remains available and defaults off. |
+| 64 | [cof-mainui-compact-scale](cof-mainui-compact-scale.md) | Main menus12% smaller while preserving OSK size. |
+| 65 | [cof-mainui-hud-style](cof-mainui-hud-style.md) | HUD: Classic/Remake player option. |
+| 66 | [cof-hud-remake](cof-hud-remake.md) | Optional health/stamina/ammo layout; Classic remains default. |
+
+### HUD and input corrections
+
+| Step | Patch | Purpose |
+| --- | --- | --- |
+| 67 | [cof-hud-ammo-state](cof-hud-ammo-state.md) | Direct protocol state for all stock equipment, magazines, loose rounds and dual wield. |
+| 68 | [cof-hud-stamina-layout](cof-hud-stamina-layout.md) | Larger stamina bar; move the actual dodge flash to it. |
+| 69 | [cof-selection-list](cof-selection-list.md) | Selection dropdowns and complete row-order traversal. |
+| 70 | [cof-pad-move-diagnostics](cof-pad-move-diagnostics.md) | Optional movement trace without changing input. |
+| 71 | [cof-panel-escape](cof-panel-escape.md) | Escape closes the active game pane before opening Pause. |
+| 72 | [cof-pad-digital-speed](cof-pad-digital-speed.md) | Correct retail mixed-axis slowdown for Digital controller movement. |
+| 73 | [cof-hud-ammo-compact](cof-hud-ammo-compact.md) | Smaller ammo numbers and mode labels inside compact outlines. |
+
+| 74 | [cof-pad-upgrade-settings](cof-pad-upgrade-settings.md) | Preserve existing gyro settings when upgrading. |
+| 75 | [cof-hud-boss-style](cof-hud-boss-style.md) | Boss health bars match the Remake player health style. |
+
+Cheats remain last (step 76).

@@ -1,0 +1,54 @@
+--- a/engine/client/input/input.c
++++ b/engine/client/input/input.c
+@@ -25,6 +25,8 @@
+ #include "vgui_draw.h"
+ #include "cursor_type.h"
+ #include "platform/platform.h"
++
++static CVAR_DEFINE_AUTO( cof_pad_move_debug, "0", 0, "Cry of Fear movement diagnostics: 1 logs input and command snapshots four times per second; 0 disables" );
+ 
+ static qboolean	in_mouseactive;				// false when not focus app
+ static qboolean	in_mouseinitialized;
+@@ -465,6 +467,7 @@
+ */
+ void IN_Init( void )
+ {
++	Cvar_RegisterVariable( &cof_pad_move_debug );
+ 	Cvar_RegisterVariable( &cl_forwardspeed );
+ 	Cvar_RegisterVariable( &cl_backspeed );
+ 	Cvar_RegisterVariable( &cl_sidespeed );
+@@ -506,9 +509,25 @@
+ #define R (1U << 3)	// Right
+ #define T (1U << 4)	// Forward stop
+ #define S (1U << 5)	// Side stop
++// Observational only: never alter input, commands, key state, or movement speed.
++static void IN_CoFMoveDiagnostic( const usercmd_t *cmd, float preForward, float preSide,
++    float forward, float side, uint flags )
++{
++    static double next;
++    if( !cof_pad_move_debug.value || !GI || Q_stricmp( GI->gamefolder, "cryoffear" )) return;
++    if( host.realtime < next ) return;
++    next = host.realtime + 0.25;
++    Con_Printf( "[cof move] mode=%.0f raw=%d,%d shaped=%.3f,%.3f speeds=%.1f,%.1f preEngine=%.1f,%.1f postEngine=%.1f,%.1f buttons=0x%04x pulseFlags=0x%02x gate=%d velocity=%.1f,%.1f,%.1f origin=%.1f,%.1f,%.1f\n",
++        Cvar_VariableValue( "cof_pad_move_mode" ), (int)Joy_CoF_AxisRaw( JOY_AXIS_FWD ), (int)Joy_CoF_AxisRaw( JOY_AXIS_SIDE ),
++        forward, side, cl_forwardspeed.value, cl_sidespeed.value, preForward, preSide,
++        cmd->forwardmove, cmd->sidemove, (unsigned)cmd->buttons, flags, (int)CL_CoF_UIGateActive(),
++        cl.simvel[0], cl.simvel[1], cl.simvel[2], cl.simorg[0], cl.simorg[1], cl.simorg[2] );
++}
++
+ static void IN_JoyAppendMove( usercmd_t *cmd, float forwardmove, float sidemove )
+ {
+ 	static uint moveflags = T | S;
++	const float preForward = cmd->forwardmove, preSide = cmd->sidemove;
+ 	// Cry of Fear: the client turns a second +forward (+back, +moveleft,
+ 	// +moveright) within 0.18 s into a dodge. A stick resting near the 0.7 /
+ 	// 0.9 thresholds used to press and release the key every few frames and
+@@ -593,6 +612,8 @@
+ 		CL_CoF_PadMoveCommand( "-moveleft" );
+ 	}
+ 
++	IN_CoFMoveDiagnostic( cmd, preForward, preSide, forwardmove, sidemove, moveflags );
++
+ 	if( moveflags != oldflags )
+ 		CL_CoF_PadTracePulses( oldflags, moveflags, forwardmove, sidemove );
+ }

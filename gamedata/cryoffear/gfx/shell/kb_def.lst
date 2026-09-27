@@ -3,7 +3,7 @@
 // in cryoffear/config.cfg, with one change (milestone 5b): MOUSE2 aims down
 // sights (+attack3) and MOUSE3 is the secondary attack (+attack2); the game
 // shipped them the other way round. The game ships no kb_def.lst of its own.
-// Gamepad (cof-gamepad-input, layout generation 4): the Cry of Fear
+// Gamepad (cof-gamepad-input, layout generation 5): the Cry of Fear
 // controller layout, the same list the engine binds once per profile
 // (cof_pad_defaults); key names are the engine's (LTRIGGER/RTRIGGER are the
 // analogue triggers, STICK1/STICK2 the stick clicks, L1/R1 the shoulder
@@ -64,9 +64,9 @@
 "X_BUTTON"	"+reload"
 "Y_BUTTON"	"+use"
 "L1_BUTTON"	"+attack2"
-"R1_BUTTON"	"cof_quickturn"
+"R1_BUTTON"	"+dodge"
 "STICK1"	"cof_sprint_toggle_press"
-"STICK2"	"+duck"
+"STICK2"	"cof_quickturn"
 "DPAD_UP"	"quicksel 1"
 "DPAD_LEFT"	"quicksel 2"
 "DPAD_RIGHT"	"quicksel 3"

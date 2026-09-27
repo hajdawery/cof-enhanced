@@ -1,0 +1,144 @@
+diff --git a/3rdparty/mainui/menus/AdvancedControls.cpp b/3rdparty/mainui/menus/AdvancedControls.cpp
+--- a/3rdparty/mainui/menus/AdvancedControls.cpp
++++ b/3rdparty/mainui/menus/AdvancedControls.cpp
+@@ -88,6 +88,19 @@
+ 	void Update() override { }
+ 	int GetRows() const override { return (int)( sizeof( g_cofHudScales ) / sizeof( g_cofHudScales[0] )); }
+ 	const char *GetText( int line ) override { return g_cofHudScales[line].label; }
++};
++
++// Renderer contract: archived cof_hud_style, 0 Classic (default), 1 Remake.
++// Labels are translated at display time, not stored in the cvar.
++class CMenuCoFHudStyleModel : public CMenuBaseArrayModel
++{
++public:
++	void Update() override { }
++	int GetRows() const override { return 2; }
++	const char *GetText( int line ) override
++	{
++		return line == 1 ? L( "Remake" ) : L( "Classic" );
++	}
+ };
+ 
+ // "Aim down sights: Hold / Toggle" (milestone 5b). Both modes are the game's
+@@ -304,7 +317,7 @@
+ {
+ public:
+ 	typedef CMenuFramework BaseClass;
+-	CAdvancedControls() : CMenuFramework("CAdvancedControls") { m_bCoF = false; }
++	CAdvancedControls() : CMenuFramework("CAdvancedControls") { m_bCoF = false; m_bHudStyleLoading = false; }
+ 
+ 	void ToggleLookCheckboxes( bool write );
+ 	void CoFLanguageProbe( const char *arg );
+@@ -321,6 +334,8 @@
+ 	void ConsoleEnableChanged( void );
+ 	void LanguageChanged( void );
+ 	void HudScaleChanged( void );
++	void HudStyleChanged( void );
++	void ReloadHudStyle( void );
+ 	void AdsModeChanged( void );
+ 	void LangPackChanged( void );
+ 	void NotifyChanged( void );
+@@ -365,6 +380,9 @@
+ 	CMenuCheckBox	quickSaves;
+ 	CMenuSpinControl	language;
+ 	CMenuSpinControl	hudScale;
++	CMenuSpinControl	hudStyle;
++	CMenuCoFHudStyleModel hudStyleModel;
++	bool m_bHudStyleLoading;
+ 	CMenuSpinControl	adsMode;
+ 	// "Subtitle background": the engine's saved cof_hud_text_backing, the
+ 	// alpha of the dark strip under subtitles and messages (0 = none); on =
+@@ -447,6 +465,7 @@
+ 		else
+ 			panelTransparent.bChecked = true;
+ 		subBacking.bChecked = EngFuncs::GetCvarFloat( "cof_hud_text_backing" ) > 0.0f;
++		if( UI_CoFOptionsLayout() ) ReloadHudStyle();
+ 		// the client's own "Subtitle language" control is not on the page any
+ 		// more (the Language row sets that slot); moving a spinner that has
+ 		// no parent would raise its change event on no page at all
+@@ -574,6 +593,26 @@
+ there is nothing to restart and nothing to warn about.
+ =================
+ */
++// Programmatic selection also emits QM_CHANGED, so guard reload/reset from
++// rewriting saved values. Missing renderer support stays disabled/Classic.
++void CAdvancedControls::ReloadHudStyle( void )
++{
++	const bool available = EngFuncs::GetCvarString( "cof_hud_style" )[0] != 0;
++	m_bHudStyleLoading = true;
++	hudStyle.SetGrayed( !available );
++	hudStyle.SetCurrentValue( available && EngFuncs::GetCvarFloat( "cof_hud_style" ) == 1.0f ? 1.0f : 0.0f );
++	m_bHudStyleLoading = false;
++}
++
++void CAdvancedControls::HudStyleChanged( void )
++{
++	if( m_bHudStyleLoading || !m_bCoF || !UI_CoFOptionsLayout() ||
++		!EngFuncs::GetCvarString( "cof_hud_style" )[0] ) return;
++	const float value = hudStyle.GetCurrentValue();
++	if( value != 0.0f && value != 1.0f ) return;
++	EngFuncs::CvarSetValue( "cof_hud_style", value );
++}
++
+ void CAdvancedControls::HudScaleChanged()
+ {
+ 	int row = (int)hudScale.GetCurrentValue();
+@@ -821,6 +860,12 @@
+ 	language.szStatusText = L( "Language of the subtitles and the in-game documents" );
+ 	language.onChanged = VoidCb( &CAdvancedControls::LanguageChanged );
+ 
++	hudStyle.szName = L( "HUD" );
++	hudStyle.Setup( &hudStyleModel );
++	hudStyle.SetCharSize( QM_SMALLFONT );
++	hudStyle.iFlags |= QMF_NOTIFY;
++	hudStyle.onChanged = VoidCb( &CAdvancedControls::HudStyleChanged );
++
+ 	hudScale.szName = L( "HUD scale" );
+ 	hudScale.Setup( &hudScaleModel );
+ 	hudScale.SetCharSize( QM_SMALLFONT );
+@@ -877,6 +922,7 @@
+ 		// the Language row sets that slot too, one option for both
+ 		AddItem( menuSaves );
+ 		AddItem( notifyLines );
++		if( UI_CoFOptionsLayout() ) AddItem( hudStyle );
+ 		AddItem( hudScale );
+ 		// Aim down sights moved to the Controls page with the options layout
+ 		if( UI_CoFOptionsLayout( ))
+@@ -937,7 +983,11 @@
+ 		// the spin controls draw their caption above the box
+ 		y += THEME_ROW_H + THEME_LABEL_TALL + 24;
+ 		langPack.SetRect( left.pt.x, y, left.sz.w, THEME_CTRL_H );
+-		hudScale.SetRect( right.pt.x, y, right.sz.w, THEME_CTRL_H );
++		// Style and scale share the old HUD-scale row; no new vertical crowding.
++		const int hudGap = 16;
++		const int hudHalf = ( right.sz.w - hudGap ) / 2;
++		hudStyle.SetRect( right.pt.x, y, hudHalf, THEME_CTRL_H );
++		hudScale.SetRect( right.pt.x + hudHalf + hudGap, y, right.sz.w - hudHalf - hudGap, THEME_CTRL_H );
+ 
+ 		y += THEME_CTRL_H + 14;
+ 		Rect c = ContentRect();
+@@ -1105,6 +1155,23 @@
+ 		return;
+ 	}
+ 
++	if( !stricmp( item, "hudstyle" ))
++	{
++		if( !EngFuncs::GetCvarString( "cof_hud_style" )[0] )
++			ReloadHudStyle();
++		else if( !strcmp( value, "0" ) || !strcmp( value, "1" ))
++		{
++			const float requested = (float)atoi( value );
++			if( hudStyle.GetCurrentValue() == requested ) HudStyleChanged();
++			else hudStyle.SetCurrentValue( requested );
++		}
++		else if( value[0] )
++			Con_Printf( "menu_cof_options_select game: hudstyle expects 0 or 1\n" );
++		Con_Printf( "menu_cof_options_select game: HUD %s, cof_hud_style %s\n",
++			hudStyle.GetCurrentValue() == 1.0f ? "Remake" : "Classic", EngFuncs::GetCvarString( "cof_hud_style" ));
++		return;
++	}
++
+ 	if( !stricmp( item, "hudscale" ) && value[0] )
+ 	{
+ 		hudScale.SetCurrentValue( (float)atoi( value ));

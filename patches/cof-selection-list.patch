@@ -1,0 +1,448 @@
+--- a/3rdparty/mainui/BaseMenu.cpp
++++ b/3rdparty/mainui/BaseMenu.cpp
+@@ -1235,6 +1235,7 @@
+ void UI_Init( void )
+ {
+ 	// register our cvars and commands
++	EngFuncs::CvarRegister( "ui_cof_dropdowns", "1", FCVAR_ARCHIVE );
+ 	ui_showmodels = EngFuncs::CvarRegister( "ui_showmodels", "0", FCVAR_ARCHIVE );
+ 	ui_show_window_stack = EngFuncs::CvarRegister( "ui_show_window_stack", "0", FCVAR_ARCHIVE );
+ 	ui_borderclip = EngFuncs::CvarRegister( "ui_borderclip", "0", FCVAR_ARCHIVE );
+--- a/3rdparty/mainui/controls/DropDown.cpp
++++ b/3rdparty/mainui/controls/DropDown.cpp
+@@ -20,6 +20,7 @@
+ 
+ #include "BaseMenu.h"
+ #include "DropDown.h"
++#include "SelectionPopup.h"
+ 
+ CMenuDropDown::CMenuDropDown() : BaseClass()
+ {
+@@ -31,6 +32,7 @@
+ 
+ 	bDropUp = false;
+ 
++	m_isOpen = false;
+ 	m_iState = 0;
+ 	m_szNames.Purge();
+ }
+@@ -98,11 +100,19 @@
+ 
+ bool CMenuDropDown::KeyDown( int key )
+ {
++    if(UI_CoFSelectionLists())return !(iFlags&(QMF_GRAYED|QMF_INACTIVE)) && (UI::Key::IsEnter(key)||UI::Key::IsLeftMouse(key));
+ 	return false;
+ }
+ 
+ bool CMenuDropDown::KeyUp( int key )
+ {
++    if(UI_CoFSelectionLists())
++    {
++        if(!(iFlags&(QMF_GRAYED|QMF_INACTIVE)) && (UI::Key::IsEnter(key) ||
++            (UI::Key::IsLeftMouse(key)&&UI_CursorInRect(m_scPos,m_scSize))))
++        { UI_CoFOpenSelection(this,GetCount(),m_iState,SelectionText,SelectionCommit);return true; }
++        return false;
++    }
+ 	bool ret = false;
+ 	int state = m_iState;
+ 
+@@ -171,6 +181,8 @@
+ 
+ void CMenuDropDown::Draw()
+ {
++    if(UI_CoFSelectionLists())
++    { UI_CoFDrawSelection(this,m_szNames.IsValidIndex(m_iState)?m_szNames[m_iState]:"");return; }
+ 	uint textflags = ETF_NO_WRAP;
+ 	uint borderColor = uiInputFgColor;
+ 
+@@ -300,3 +312,15 @@
+ 	if( m_iState != state )
+ 		m_iState = state;
+ }
++
++void CMenuDropDown::SelectionText(CMenuBaseItem *base,int row,char *text,int size)
++{
++    CMenuDropDown *s=static_cast<CMenuDropDown*>(base);
++    Q_strncpy(text,s->m_szNames.IsValidIndex(row)?s->m_szNames[row]:"",size);
++}
++void CMenuDropDown::SelectionCommit(CMenuBaseItem *base,int row)
++{
++    CMenuDropDown *s=static_cast<CMenuDropDown*>(base);
++    if(!s->m_szNames.IsValidIndex(row)||row==s->m_iState)return;
++    s->m_iState=row;s->SetCvar();s->_Event(QM_CHANGED);
++}
+--- a/3rdparty/mainui/controls/DropDown.h
++++ b/3rdparty/mainui/controls/DropDown.h
+@@ -108,6 +108,8 @@
+ 	bool m_isOpen;
+ 
+ private:
++	static void SelectionText( CMenuBaseItem *, int, char *, int );
++	static void SelectionCommit( CMenuBaseItem *, int );
+ 	int IsNewStateByMouseClick();
+ 
+ 	CUtlVector<const char *> m_szNames;
+--- a/3rdparty/mainui/controls/ItemsHolder.cpp
++++ b/3rdparty/mainui/controls/ItemsHolder.cpp
+@@ -19,6 +19,7 @@
+ #include "ItemsHolder.h"
+ #include "Scissor.h"
+ #include "CoFOptions.h"
++#include "SelectionPopup.h"
+ #include <string.h>
+ 
+ CMenuItemsHolder::CMenuItemsHolder() :
+@@ -444,7 +445,7 @@
+ bool UI_CoFNavUsable( CMenuBaseItem *item )
+ {
+ 	return item && item->IsVisible() &&
+-		!FBitSet( item->iFlags, QMF_INACTIVE | QMF_MOUSEONLY | QMF_GRAYED ) &&
++		!FBitSet( item->iFlags, QMF_INACTIVE | QMF_MOUSEONLY | QMF_GRAYED | QMF_HIDDENBYPARENT ) &&
+ 		item->GetRenderSize().w > 0 && item->GetRenderSize().h > 0;
+ }
+ 
+@@ -503,6 +504,26 @@
+ 		return best;
+ 	}
+ 
++
++    if(dy && UI_CoFSelectionLists())
++    {
++        int order[COF_NAV_MAX], n=0;
++        for(int i=0;i<count;i++)if(use[i])order[n++]=i;
++        // Sort by top, then left; insertion index is the stable tie breaker.
++        for(int i=1;i<n;i++)for(int j=i;j>0;j--)
++        {
++            int a=order[j-1],b=order[j];
++            if(box[a].t<box[b].t || (box[a].t==box[b].t &&
++                (box[a].l<box[b].l || (box[a].l==box[b].l && a<b))))break;
++            order[j-1]=b;order[j]=a;
++        }
++        if(!n)return -1;
++        int at=-1;for(int i=0;i<n;i++)if(order[i]==cur)at=i;
++        if(at<0)return dy>0?order[0]:order[n-1];
++        at+=dy;
++        if(at<0||at>=n){if(!wrap)return -1;at=at<0?n-1:0;}
++        return order[at];
++    }
+ 	// edge rows (header / footer)
+ 	const int edgeGap = Q_max( 1, (int)( 16 * uiStatic.scaleY ));
+ 	for( int i = 0; i < count; i++ )
+--- /dev/null
++++ b/3rdparty/mainui/controls/SelectionPopup.cpp
+@@ -0,0 +1,138 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++#include "BaseMenu.h"
++#include "BaseWindow.h"
++#include "CoFOptions.h"
++#include "SelectionPopup.h"
++#include "Scissor.h"
++#include "Utils.h"
++
++bool UI_CoFSelectionLists()
++{
++    return UI_CoFOptionsLayout() && EngFuncs::GetCvarFloat( "ui_cof_dropdowns" ) != 0;
++}
++
++void UI_CoFDrawSelection(CMenuBaseItem *item,const char *value)
++{
++    const Point p=item->GetRenderPosition();const Size sz=item->GetRenderSize();
++    const bool disabled=(item->iFlags&(QMF_GRAYED|QMF_INACTIVE))!=0;
++    const bool hot=!disabled && UI_THEME_HOT(item);
++    const int tall=Q_max(1,(int)(THEME_BODY_TALL*uiStatic.scaleY));
++    UI_DrawString(uiStatic.hThemeLabel,p.x,p.y-(int)(THEME_LABEL_TALL*1.5f*uiStatic.scaleY),sz.w,
++        (int)(THEME_LABEL_TALL*uiStatic.scaleY),item->szName?item->szName:"",THEME_TEXT_DIM,
++        (int)(THEME_LABEL_TALL*uiStatic.scaleY),QM_LEFT,ETF_FORCECOL|ETF_NOSIZELIMIT);
++    UI_FillRect(p,sz,THEME_INPUT_BG);
++    UI_DrawHairline(p,sz,disabled?THEME_DISABLED:(hot?THEME_ACCENT:THEME_INPUT_BORDER));
++    const int gutter=sz.h,inset=gutter/3;
++    UI_ThemeDrawTriangle(Point(p.x+sz.w-gutter+inset,p.y+inset),Size(gutter-inset*2,gutter-inset*2),3,disabled?THEME_DISABLED:THEME_TEXT);
++    UI::Scissor::PushScissor(Point(p.x+4,p.y),Size(Q_max(1,sz.w-gutter-8),sz.h));
++    UI_DrawString(uiStatic.hThemeBody,p.x+8,p.y,Q_max(1,sz.w-gutter-16),sz.h,value?value:"",
++        disabled?THEME_DISABLED:THEME_TEXT,tall,QM_LEFT,ETF_FORCECOL|ETF_NO_WRAP);
++    UI::Scissor::PopScissor();
++}
++
++// A top window owns input while open: no arrow, tab, mouse or cancel event
++// reaches the underlying form. Only Finish(true) invokes its existing setter.
++class CCoFSelectionPopup : public CMenuBaseWindow
++{
++public:
++    CCoFSelectionPopup() : CMenuBaseWindow("Selection"), owner(NULL), count(0), selected(0), first(0), rows(0), armed(0) {}
++    void Open(CMenuBaseItem *item,int n,int current,cofSelectionText_t text,cofSelectionCommit_t commit)
++    {
++        owner=item;count=n;selected=bound(0,current,n-1);first=0;armed=0;textFn=text;commitFn=commit;
++        Link(item->Parent());Show();DisableTransition();
++    }
++    void VidInit() override { Layout(); }
++    bool MouseMove(int x,int y) override { return true; }
++    bool KeyDown(int key) override
++    {
++        if(UI::Key::IsEnter(key)||UI::Key::IsEscape(key)||UI::Key::IsLeftMouse(key)) { armed=key;return true; }
++        if(UI::Key::IsUpArrow(key)||key==K_MWHEELUP) selected=Q_max(0,selected-1);
++        else if(UI::Key::IsDownArrow(key)||key==K_MWHEELDOWN) selected=Q_min(count-1,selected+1);
++        else if(UI::Key::IsHome(key)) selected=0;
++        else if(UI::Key::IsEnd(key)) selected=count-1;
++        Layout();return true;
++    }
++    bool KeyUp(int key) override
++    {
++        if(armed!=key)return true;
++        armed=0;
++        if(UI::Key::IsEscape(key)) Finish(false);
++        else if(UI::Key::IsEnter(key)) Finish(true);
++        else if(UI::Key::IsLeftMouse(key))
++        {
++            const int hit=Hit();
++            if(hit>=0){selected=hit;Finish(true);}else Finish(false);
++        }
++        return true;
++    }
++    void Draw() override
++    {
++        if(!owner) return;
++        if(!UI_CoFSelectionLists() || !owner->IsVisible() || (owner->iFlags&(QMF_GRAYED|QMF_INACTIVE))) { Finish(false);return; }
++        for(CMenuItemsHolder *p=owner->Parent();p;p=p->Parent())
++            if(!p->IsVisible() || (p->iFlags&QMF_CLOSING)) { Finish(false);return; }
++        Layout();
++        UI_FillRect(m_scPos,m_scSize,THEME_PANEL);
++        UI_DrawHairline(m_scPos,m_scSize,THEME_ACCENT);
++        UI::Scissor::PushScissor(m_scPos,m_scSize);
++        for(int row=0;row<rows;row++)
++        {
++            const int index=first+row;
++            Point p(m_scPos.x+2,m_scPos.y+row*rowHeight+2);
++            Size sz(m_scSize.w-4,rowHeight-4);
++            if(index==selected)UI_FillRect(p,sz,THEME_HOVER_FILL);
++            char text[512];textFn(owner,index,text,sizeof(text));
++            const int tall=Q_max(1,(int)(THEME_BODY_TALL*uiStatic.scaleY));
++            UI_DrawString(uiStatic.hThemeBody,p.x+8,p.y,sz.w-24,sz.h,text,
++                index==selected?THEME_TEXT_HI:THEME_TEXT,tall,QM_LEFT,ETF_FORCECOL|ETF_NO_WRAP);
++        }
++        UI::Scissor::PopScissor();
++        const int mark=Q_max(2,rowHeight/6);
++        if(first>0)UI_ThemeDrawTriangle(Point(m_scPos.x+m_scSize.w-mark*2,m_scPos.y+2),Size(mark,mark),2,THEME_TEXT_DIM);
++        if(first+rows<count)UI_ThemeDrawTriangle(Point(m_scPos.x+m_scSize.w-mark*2,m_scPos.y+m_scSize.h-mark-2),Size(mark,mark),3,THEME_TEXT_DIM);
++    }
++private:
++    void Layout()
++    {
++        if(!owner)return;
++        Point p=owner->GetRenderPosition();Size sz=owner->GetRenderSize();
++        const int screenW=ScreenWidth,screenH=ScreenHeight,pad=4;
++        rowHeight=Q_max(18,sz.h);
++        const int below=Q_max(0,screenH-pad-p.y-sz.h),above=Q_max(0,p.y-pad);
++        const bool dropUp=below<Q_min(count,8)*rowHeight && above>below;
++        rows=Q_max(1,Q_min(Q_min(count,8),(dropUp?above:below)/rowHeight));
++        if(selected<first)first=selected;
++        if(selected>=first+rows)first=selected-rows+1;
++        first=bound(0,first,Q_max(0,count-rows));
++        m_scSize=Size(Q_min(Q_max(sz.w,180),screenW-pad*2),rows*rowHeight);
++        m_scPos=Point(bound(pad,p.x,screenW-pad-m_scSize.w),
++            bound(pad,dropUp?p.y-m_scSize.h:p.y+sz.h,screenH-pad-m_scSize.h));
++    }
++    int Hit()
++    {
++        if(!UI_CursorInRect(m_scPos,m_scSize))return -1;
++        return first+bound(0,(uiStatic.cursorY-m_scPos.y)/rowHeight,rows-1);
++    }
++    void Finish(bool commit)
++    {
++        CMenuBaseItem *item=owner;cofSelectionCommit_t apply=commitFn;const int choice=selected;
++        owner=NULL;Hide();DisableTransition();
++        if(item && item->Parent())
++        {
++            item->Parent()->SetCursorToItem(*item);
++            item->iFlags |= QMF_HASKEYBOARDFOCUS;
++        }
++        if(commit && item && item->IsVisible() && !(item->iFlags&(QMF_GRAYED|QMF_INACTIVE))) apply(item,choice);
++    }
++    CMenuBaseItem *owner;
++    int count,selected,first,rows,rowHeight,armed;
++    cofSelectionText_t textFn;
++    cofSelectionCommit_t commitFn;
++};
++
++void UI_CoFOpenSelection(CMenuBaseItem *owner,int count,int selected,cofSelectionText_t text,cofSelectionCommit_t commit)
++{
++    if(!owner || count<=0 || !text || !commit || (owner->iFlags&(QMF_GRAYED|QMF_INACTIVE)))return;
++    static CCoFSelectionPopup popup;
++    popup.Open(owner,count,selected,text,commit);
++}
+--- /dev/null
++++ b/3rdparty/mainui/controls/SelectionPopup.h
+@@ -0,0 +1,10 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++#ifndef COF_SELECTION_POPUP_H
++#define COF_SELECTION_POPUP_H
++class CMenuBaseItem;
++bool UI_CoFSelectionLists();
++void UI_CoFDrawSelection( CMenuBaseItem *, const char * );
++typedef void (*cofSelectionText_t)( CMenuBaseItem *, int, char *, int );
++typedef void (*cofSelectionCommit_t)( CMenuBaseItem *, int );
++void UI_CoFOpenSelection( CMenuBaseItem *, int, int, cofSelectionText_t, cofSelectionCommit_t );
++#endif
+--- a/3rdparty/mainui/controls/SpinControl.cpp
++++ b/3rdparty/mainui/controls/SpinControl.cpp
+@@ -19,6 +19,7 @@
+ #include "SpinControl.h"
+ #include "Utils.h"
+ #include "Scissor.h"
++#include "SelectionPopup.h"
+ 
+ CMenuSpinControl::CMenuSpinControl()  : BaseClass(), m_szBackground(),
+ 		m_szLeftArrow(), m_szRightArrow(), m_szLeftArrowFocus(), m_szRightArrowFocus(),
+@@ -68,6 +69,7 @@
+ */
+ void CMenuSpinControl::DrawTheme( void )
+ {
++	if(UI_CoFSelectionLists()) { UI_CoFDrawSelection(this,m_szDisplay);return; }
+ 	const bool grayed = FBitSet( iFlags, QMF_GRAYED ) != 0;
+ 	const bool focus = !grayed && UI_THEME_HOT( this );
+ 	Size arrow( m_scSize.h, m_scSize.h );
+@@ -105,6 +107,9 @@
+ 
+ bool CMenuSpinControl::KeyDown( int key )
+ {
++    if(UI_CoFSelectionLists())
++        return !(iFlags&(QMF_GRAYED|QMF_INACTIVE)) &&
++            (UI::Key::IsEnter(key)||UI::Key::IsLeftMouse(key));
+ 	const char *sound = 0;
+ 
+ 	if( UI::Key::IsLeftArrow( key ) && !FBitSet( iFlags, QMF_MOUSEONLY ))
+@@ -132,6 +137,13 @@
+ */
+ bool CMenuSpinControl::KeyUp( int key )
+ {
++    if(UI_CoFSelectionLists())
++    {
++        if(!(iFlags&(QMF_GRAYED|QMF_INACTIVE)) && (UI::Key::IsEnter(key) ||
++            (UI::Key::IsLeftMouse(key)&&UI_CursorInRect(m_scPos,m_scSize))))
++        { OpenSelection();return true; }
++        return false;
++    }
+ 	const char *sound = 0;
+ 	Size arrow;
+ 	Point left, right;
+@@ -408,3 +420,28 @@
+ {
+ 	Q_strncpy( m_szDisplay, display, sizeof( m_szDisplay ));
+ }
++
++int CMenuSpinControl::SelectionCount() const
++{
++    if(m_pModel)return m_pModel->GetRows();
++    if(m_flRange<=0 || m_flMaxValue<m_flMinValue)return 0;
++    return (int)ceil((m_flMaxValue-m_flMinValue)/m_flRange-0.0001f)+1;
++}
++void CMenuSpinControl::SelectionText(CMenuBaseItem *base,int row,char *text,int size)
++{
++    CMenuSpinControl *s=static_cast<CMenuSpinControl*>(base);
++    if(row<0||row>=s->SelectionCount()){text[0]=0;return;}
++    if(s->m_pModel)Q_strncpy(text,s->m_pModel->GetText(row),size);
++    else snprintf(text,size,"%.*f",s->m_iFloatPrecision,Q_min(s->m_flMaxValue,s->m_flMinValue+row*s->m_flRange));
++}
++void CMenuSpinControl::SelectionCommit(CMenuBaseItem *base,int row)
++{
++    CMenuSpinControl *s=static_cast<CMenuSpinControl*>(base);
++    if(row<0||row>=s->SelectionCount())return;
++    s->SetCurrentValue(Q_min(s->m_flMaxValue,s->m_flMinValue+row*s->m_flRange));
++}
++void CMenuSpinControl::OpenSelection()
++{
++    const int current=m_flRange>0?(int)floor((m_flCurValue-m_flMinValue)/m_flRange+0.5f):0;
++    UI_CoFOpenSelection(this,SelectionCount(),current,SelectionText,SelectionCommit);
++}
+--- a/3rdparty/mainui/controls/SpinControl.h
++++ b/3rdparty/mainui/controls/SpinControl.h
+@@ -47,6 +47,10 @@
+ 	void ForceDisplayString( const char *display );
+ 
+ private:
++	void OpenSelection();
++	int SelectionCount() const;
++	static void SelectionText( CMenuBaseItem *, int, char *, int );
++	static void SelectionCommit( CMenuBaseItem *, int );
+ 	void DrawTheme( void );
+ 	const char *MoveLeft();
+ 	const char *MoveRight();
+--- a/3rdparty/mainui/menus/VideoModes.cpp
++++ b/3rdparty/mainui/menus/VideoModes.cpp
+@@ -25,6 +25,7 @@
+ #include "Slider.h"
+ #include "YesNoMessageBox.h"
+ #include "SpinControl.h"
++#include "SelectionPopup.h"
+ #include "utlvector.h"
+ #include "StringArrayModel.h"
+ #include "CryOfFear.h"
+@@ -143,6 +144,50 @@
+ 
+ 	const char *szFollowText;	// drawn instead of the number at flFollowValue
+ 	float       flFollowValue;
++};
++
++// Keep the resolution table's selected-index/apply plumbing and opt-out path.
++class CMenuResolutionSelection : public CMenuTable
++{
++public:
++    CMenuResolutionSelection() : model(NULL) {}
++    void SetModel(CMenuBaseArrayModel *m) { model=m;CMenuTable::SetModel(m); }
++    void VidInit() override
++    {
++        if(UI_CoFSelectionLists())CMenuBaseItem::VidInit();
++        else CMenuTable::VidInit();
++    }
++    bool MouseMove(int x,int y) override { return UI_CoFSelectionLists()?true:CMenuTable::MouseMove(x,y); }
++    bool KeyDown(int key) override
++    {
++        if(!UI_CoFSelectionLists())return CMenuTable::KeyDown(key);
++        return UI::Key::IsEnter(key)||UI::Key::IsLeftMouse(key);
++    }
++    bool KeyUp(int key) override
++    {
++        if(!UI_CoFSelectionLists())return CMenuTable::KeyUp(key);
++        if(model && (UI::Key::IsEnter(key)||(UI::Key::IsLeftMouse(key)&&UI_CursorInRect(m_scPos,m_scSize))))
++        { UI_CoFOpenSelection(this,model->GetRows(),GetCurrentIndex(),Text,Commit);return true; }
++        return false;
++    }
++    void Draw() override
++    {
++        if(!UI_CoFSelectionLists()){CMenuTable::Draw();return;}
++        char text[512];Text(this,GetCurrentIndex(),text,sizeof(text));
++        szName=L("GameUI_Resolution");UI_CoFDrawSelection(this,text);
++    }
++private:
++    static void Text(CMenuBaseItem *base,int row,char *text,int size)
++    {
++        CMenuResolutionSelection *s=static_cast<CMenuResolutionSelection*>(base);
++        Q_strncpy(text,s->model&&row>=0&&row<s->model->GetRows()?s->model->GetText(row):"",size);
++    }
++    static void Commit(CMenuBaseItem *base,int row)
++    {
++        CMenuResolutionSelection *s=static_cast<CMenuResolutionSelection*>(base);
++        if(s->model&&row>=0&&row<s->model->GetRows())s->SetCurrentIndex(row);
++    }
++    CMenuBaseArrayModel *model;
+ };
+ 
+ class CMenuVidModes : public CMenuFramework
+@@ -172,7 +217,7 @@
+ 
+ 	CMenuCheckBox	vsync;
+ 
+-	CMenuTable	vidList;
++	CMenuResolutionSelection	vidList;
+ 	CMenuVidModesModel vidListModel;
+ 
+ 	CMenuYesNoMessageBox testModeMsgBox;
+@@ -1025,7 +1070,8 @@
+ 	y += THEME_ROW_PITCH + 8;
+ 
+ 	// the mode list takes the rest of the left column
+-	vidList.SetRect( left.pt.x, y, left.sz.w, left.pt.y + left.sz.h - y );
++	vidList.SetRect( left.pt.x, y + ( UI_CoFSelectionLists() ? THEME_LABEL_TALL : 0 ), left.sz.w,
++		UI_CoFSelectionLists() ? THEME_CTRL_H : left.pt.y + left.sz.h - y );
+ 
+ 	LayoutVideoOptions( right );
+ }

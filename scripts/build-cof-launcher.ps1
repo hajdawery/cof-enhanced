@@ -1,12 +1,14 @@
 [CmdletBinding()]
 param(
-    [string]$SourceRoot = (Join-Path $PSScriptRoot '..'),
-    [string]$OutputDirectory = (Join-Path (Join-Path $PSScriptRoot '..') 'build-launcher'),
+    [string]$SourceRoot = '',
+    [string]$OutputDirectory = '',
     [string]$VcVarsPath = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+if ([string]::IsNullOrWhiteSpace($SourceRoot)) { $SourceRoot = $projectRoot }
+if ([string]::IsNullOrWhiteSpace($OutputDirectory)) { $OutputDirectory = Join-Path $projectRoot 'build-launcher' }
 $SourceRoot = [IO.Path]::GetFullPath($SourceRoot)
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 $source = Join-Path $SourceRoot 'launcher\cof_launch.cpp'
@@ -25,8 +27,11 @@ if (-not $OutputDirectory.StartsWith($projectPrefix, [StringComparison]::Ordinal
 
 if ([string]::IsNullOrWhiteSpace($VcVarsPath)) {
     $vswhere = Get-Command vswhere.exe -ErrorAction SilentlyContinue
-    if ($vswhere) {
-        $installationPath = (& $vswhere.Source -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1)
+    $vswherePath = if ($vswhere) { $vswhere.Source } else {
+        Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+    }
+    if (Test-Path -LiteralPath $vswherePath -PathType Leaf) {
+        $installationPath = (& $vswherePath -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1)
         if ($installationPath) {
             $VcVarsPath = Join-Path $installationPath 'VC\Auxiliary\Build\vcvarsall.bat'
         }

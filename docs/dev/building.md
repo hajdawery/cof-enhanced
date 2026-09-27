@@ -20,6 +20,13 @@ two headers, configure, build. Windows only; the result is a 32-bit (x86) set.
 
 Run the build from an x86 MSVC environment (`vcvarsall.bat amd64_x86`).
 
+On Windows, use `py -3.14` in place of `python` below if `python` resolves to
+the WindowsApps alias. Check `py -3.14 -c "import PIL; print(PIL.__version__)"`
+for the font generator dependency. The checkout and its sibling game folders
+may live on any drive; active version and translation scripts derive their
+paths from their own location. Old `K:` paths in historical notes describe
+the original workspace, not a required drive mapping.
+
 ## Source tree
 
 1. Unpack FWGS `4857b389e6ba32ddaa68582aedcbc950c138f46a` (`fwgs-4857b38.zip`,
@@ -96,15 +103,17 @@ package; neither changes with our patches.
 .\scripts\build-cof-launcher.ps1        # -> build-launcher\CoFLaunchApp.exe
 ```
 
-It finds MSVC through `vswhere` or `VSINSTALLDIR` (or `-VcVarsPath`), embeds
+It finds MSVC through `vswhere` (on PATH or in the standard Visual Studio
+Installer directory) or `VSINSTALLDIR` (or `-VcVarsPath`), embeds
 `assets/branding/coffix.ico` and a version resource (below) and sets
 `/LARGEADDRESSAWARE`. It loads the colocated `xash.dll` and always passes
 `-game cryoffear -cof-pmove-legacy +set cof_save_root_compat 1`; see
 [the launcher contract](steam-launch-prototype.md#launcher-contract).
 
-When the script is started from another PowerShell with `-File`, pass
-`-SourceRoot <repo>` (and `-VcVarsPath` when `vswhere` is not on `PATH`):
-`$PSScriptRoot` is empty in the parameter defaults there.
+The launcher script resolves its default source and output paths after parameter
+binding, so it also works with PowerShell `-File`. Use `-SourceRoot <repo>`,
+`-OutputDirectory <repo/build-directory>` or `-VcVarsPath <vcvarsall.bat>` to
+override discovery.
 
 ## The game's name in Windows
 

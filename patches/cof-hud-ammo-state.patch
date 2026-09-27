@@ -1,0 +1,501 @@
+--- a/engine/client/cof_hud_remake.c
++++ b/engine/client/cof_hud_remake.c
+@@ -6,70 +6,137 @@
+ 
+ static CVAR_DEFINE_AUTO( cof_hud_style, "0", FCVAR_ARCHIVE, "Cry of Fear HUD: 0 Classic, 1 Remake (health, stamina and supported ammunition)" );
+ 
+-enum { HUD_HEALTH = 1, HUD_STAMINA = 2, HUD_MAX_DRAWS = 64 };
+-typedef struct
+-{
+-	int texture, mode, digit, kind;
+-	float x, y, w, h, s1, t1, s2, t2;
+-	byte color[4];
+-} cof_hud_draw_t;
+-typedef struct { int texture; float u1,v1,u2,v2,aspect; const char *path; } cof_hud_icon_t;
++enum { HUD_HEALTH = 1, HUD_STAMINA = 2, HUD_WEAPONS = 28 };
++typedef struct { int texture; float u1,v1,u2,v2,aspect; const char *path; double retry; } cof_hud_icon_t;
+ static cof_hud_icon_t hud_icons[] = {
+-	{ 0,0,0,0,0,1,"gfx/shell/hud_remake/heart.png" },
+-	{ 0,0,0,0,0,1,"gfx/shell/hud_remake/bullet.png" },
+-	{ 0,0,0,0,0,1,"gfx/shell/hud_remake/magazine.png" },
+-	{ 0,0,0,0,0,1,"gfx/shell/hud_remake/shell.png" },
++ { 0,0,0,0,0,1,"gfx/shell/hud_remake/heart.png" },
++ { 0,0,0,0,0,1,"gfx/shell/hud_remake/bullet.png" },
++ { 0,0,0,0,0,1,"gfx/shell/hud_remake/magazine.png" },
++ { 0,0,0,0,0,1,"gfx/shell/hud_remake/shell.png" },
++ { 0,0,0,0,0,1,"gfx/shell/hud_remake/items.png" },
++ { 0,0,0,0,0,1,"gfx/shell/hud_remake/items.png" },
++ { 0,0,0,0,0,1,"gfx/shell/hud_remake/items.png" },
++ { 0,0,0,0,0,1,"gfx/shell/hud_remake/items.png" },
++ { 0,0,0,0,0,1,"gfx/shell/hud_remake/items.png" },
++ { 0,0,0,0,0,1,"gfx/shell/hud_remake/items.png" },
++ { 0,0,0,0,0,1,"gfx/shell/hud_remake/items.png" },
++ { 0,0,0,0,0,1,"gfx/shell/hud_remake/items.png" },
++ { 0,0,0,0,0,1,"gfx/shell/hud_remake/items.png" },
++ { 0,0,0,0,0,1,"gfx/shell/hud_remake/items.png" },
++ { 0,0,0,0,0,1,"gfx/shell/hud_remake/items.png" },
++ { 0,0,0,0,0,1,"gfx/shell/hud_remake/items.png" },
++ { 0,0,0,0,0,1,"gfx/shell/hud_remake/items.png" },
++ { 0,0,0,0,0,1,"gfx/shell/hud_remake/items.png" },
+ };
++// WpnInfo's divisor is sent by the server: these are the retail HUD switch cases,
++// not guessed magazine capacities or division of an AmmoX reserve pool.
++enum { HUD_NONE, HUD_MAGAZINES, HUD_ROUNDS, HUD_SHELLS, HUD_ITEMS, HUD_UNLIMITED };
++static const struct { const char *label, *mode; int kind, icon; } hud_catalog[HUD_WEAPONS] = {
++ {"","",HUD_NONE,0}, {"FLASHLIGHT","",HUD_NONE,6}, {"PHONE","",HUD_NONE,7},
++ {"GLOCK","SEMI",HUD_MAGAZINES,1}, {"SHOTGUN","",HUD_SHELLS,3},
++ {"CAMERA","",HUD_NONE,8}, {"KNIFE","",HUD_NONE,9},
++ {"P345","SEMI",HUD_MAGAZINES,1}, {"SYRINGE","",HUD_ITEMS,4},
++ {"M16","",HUD_MAGAZINES,1}, {"LANTERN","",HUD_NONE,10},
++ {"RIFLE","SINGLE",HUD_ROUNDS,1}, {"NIGHTSTICK","",HUD_NONE,11},
++ {"FLARE","",HUD_ITEMS,5}, {"TMP","AUTO",HUD_MAGAZINES,1},
++ {"DUAL","",HUD_NONE,0}, {"BRANCH","",HUD_NONE,12},
++ {"ACTION","",HUD_NONE,13}, {"HAMMER","",HUD_NONE,14},
++ {"VP70","BURST",HUD_MAGAZINES,1}, {"BROWNING","SEMI",HUD_MAGAZINES,1},
++ {"REVOLVER","SINGLE",HUD_ROUNDS,1}, {"RADIO","",HUD_NONE,15},
++ {"FAMAS","AUTO",HUD_UNLIMITED,1}, {"AXE","",HUD_NONE,16},
++ {"BOOK","",HUD_NONE,17}, {"G43","SEMI",HUD_MAGAZINES,1},
++ {"MP5","AUTO",HUD_MAGAZINES,1},
++};
++static struct { int clip, reserve, ammo_type; } hud_weapons[HUD_WEAPONS];
++static int hud_ammo[256];
+ static struct
+ {
+-	int weapon, clip, stamina, health_cap, previous_health;
+-	qboolean dual, collecting, overflow;
+-	int count, health_frame, stamina_frame;
+-	byte health_alpha, stamina_alpha;
+-	double damage_until, retry_icons;
+-	cof_hud_draw_t draws[HUD_MAX_DRAWS];
++ int weapon, clip, stamina, health_cap, previous_health, hide;
++ int dual_id[2], dual_clip[2];
++ qboolean collecting;
++ int health_frame, stamina_frame;
++ byte health_alpha, stamina_alpha;
++ double damage_until, retry_icons;
+ } hud;
+ 
+ void CL_CoF_HudRemakeReset( void )
+ {
+-	memset( &hud, 0, sizeof( hud ));
+-	hud.clip = hud.stamina = hud.previous_health = -1;
+-	hud.health_frame = hud.stamina_frame = -1;
+-	hud.health_cap = 100;
++ memset( &hud, 0, sizeof( hud ));
++ memset( hud_ammo, 0, sizeof( hud_ammo ));
++ for( int i=0; i<HUD_WEAPONS; i++ ) { hud_weapons[i].clip=-1; hud_weapons[i].reserve=0; }
++ hud.clip = hud.stamina = hud.previous_health = -1;
++ hud.dual_clip[0] = hud.dual_clip[1] = -1;
++ hud.health_frame = hud.stamina_frame = -1;
++ hud.health_cap = 100;
+ }
+ 
+ void CL_CoF_HudRemakeInit( void )
+ {
+-	Cvar_RegisterVariable( &cof_hud_style );
+-	CL_CoF_HudRemakeReset();
+-}
+-
+-// Packet formats measured in retail client.dll. Observe, never consume.
++ Cvar_RegisterVariable( &cof_hud_style );
++ for( int i=0; i<HUD_WEAPONS; i++ ) hud_weapons[i].ammo_type=-1;
++ CL_CoF_HudRemakeReset();
++}
++
++// Observe the exact retail protocol without consuming or changing client data.
+ void CL_CoF_HudRemakeMessage( const char *name, int size, const byte *data )
+ {
+-	if( !Q_stricmp( name, "ResetHUD" ) || !Q_stricmp( name, "InitHUD" ))
+-		CL_CoF_HudRemakeReset();
+-	else if( !Q_stricmp( name, "Stamina" ) && size == 3 )
+-		hud.stamina = bound( 0, data[0], 100 ); // second field is a recovery delay, not stamina
+-	else if( !Q_stricmp( name, "HealthCap" ) && size == 1 && data[0] > 0 )
+-		hud.health_cap = data[0];
+-	else if( !Q_stricmp( name, "CurWeapon" ) && size == 3 )
+-	{
+-		const int weapon = (signed char)data[1];
+-		int clip = (signed char)data[2];
+-		if( weapon < 1 ) { hud.weapon = 0; hud.clip = -1; }
+-		else if( data[0] )
+-		{
+-			if( clip < -1 ) clip = -clip; // matches the client's clip convention
+-			hud.weapon = weapon; hud.clip = clip;
+-		}
+-	}
+-	else if( !Q_stricmp( name, "DualAmmo" ) && size == 8 )
+-	{
+-		int left, right;
+-		memcpy( &left, data, 4 ); memcpy( &right, data + 4, 4 );
+-		hud.dual = left >= 0 && right >= 0;
+-	}
++ if( !Q_stricmp(name,"ResetHUD") || !Q_stricmp(name,"InitHUD") )
++  CL_CoF_HudRemakeReset();
++ else if( !data || size<1 ) return;
++ else if( !Q_stricmp(name,"Stamina") && size==3 ) hud.stamina=bound(0,data[0],100);
++ else if( !Q_stricmp(name,"HealthCap") && size==1 && data[0]>0 ) hud.health_cap=data[0];
++ else if( !Q_stricmp(name,"HideWeapon") && size==1 ) hud.hide=data[0];
++ else if( !Q_stricmp(name,"WeaponList") )
++ {
++  const byte *end=memchr(data,0,size);
++  if( end && data+size-end==9 )
++  {
++   const byte *fields=end+1;
++   int id=(signed char)fields[6];
++   if(id>0 && id<HUD_WEAPONS) hud_weapons[id].ammo_type=(signed char)fields[0];
++  }
++ }
++ else if( !Q_stricmp(name,"AmmoX") && size==3 )
++ {
++  int amount=(short)(data[1] | data[2]<<8);
++  hud_ammo[data[0]]=amount<0?-amount:amount;
++ }
++ else if( !Q_stricmp(name,"WpnInfo") && size==4 )
++ {
++  int id=data[0], divisor=data[1], amount=(short)(data[2] | data[3]<<8);
++  if(id>0 && id<HUD_WEAPONS && amount>=0)
++  {
++   int kind=hud_catalog[id].kind;
++   if(kind==HUD_MAGAZINES && divisor>0) hud_weapons[id].reserve=amount/divisor;
++   else if(kind==HUD_ITEMS) hud_weapons[id].reserve=amount;
++  }
++ }
++ else if( !Q_stricmp(name,"CurWeapon") && size==3 )
++ {
++  int id=(signed char)data[1], clip=(signed char)data[2];
++  if(id<1) { hud.weapon=0; hud.clip=-1; }
++  else if(id<HUD_WEAPONS)
++  {
++   if(clip < -1) clip=-clip;
++   hud_weapons[id].clip=clip;
++   if(data[0]) { hud.weapon=id; hud.clip=clip; }
++  }
++  else if(data[0]) { hud.weapon=0; hud.clip=-1; } // unknown custom weapon
++ }
++ else if( !Q_stricmp(name,"DualWield") )
++ {
++  const byte *end=memchr(data,0,size);
++  if(end && data+size-end==6)
++  {
++   int first=end[2], second=end[3];
++   hud.dual_id[0]=first>0 && first<HUD_WEAPONS && first!=15?first:0;
++   hud.dual_id[1]=second>0 && second<HUD_WEAPONS && second!=15?second:0;
++  }
++ }
++ else if( !Q_stricmp(name,"DualAmmo") && size==8 )
++ {
++  memcpy(&hud.dual_clip[0],data,4); memcpy(&hud.dual_clip[1],data+4,4);
++ }
+ }
+ 
+ static qboolean HudEnabled( void )
+@@ -78,35 +145,70 @@
+ 		cls.state == ca_active && !cl.background && !cl.intermission && cl.local.health > 0 && !CL_CoF_UIGateActive();
+ }
+ 
+-static qboolean HudIcons( void )
+-{
+-	if( host.realtime < hud.retry_icons ) return false;
+-	for( int i = 0; i < ARRAYSIZE( hud_icons ); i++ )
+-	{
+-		cof_hud_icon_t *icon = &hud_icons[i];
+-		if( icon->texture && ref.dllFuncs.GL_FindTexture( icon->path ) == icon->texture ) continue;
++// One shared 4x4 texture, each icon cropped only within its own uniform cell.
++static qboolean HudLoadItems( void )
++{
++ static const int cells[]={12,8,0,1,2,4,3,5,6,13,7,9,10,11};
++ cof_hud_icon_t *first=&hud_icons[4];
++ if(first->texture && ref.dllFuncs.GL_FindTexture(first->path)==first->texture) return true;
++ if(host.realtime<first->retry) return false;
++ rgbdata_t *pic=FS_LoadImage(first->path,NULL,0);
++ if(!pic || pic->type!=PF_RGBA_32 || pic->width<4 || pic->height<4)
++ { if(pic) FS_FreeImage(pic); first->retry=host.realtime+5; return false; }
++ for(int i=0;i<ARRAYSIZE(cells);i++)
++ {
++  int column=cells[i]%4,row=cells[i]/4;
++  int x1=column*pic->width/4,x2=(column+1)*pic->width/4;
++  int y1=row*pic->height/4,y2=(row+1)*pic->height/4;
++  int l=x2,t=y2,r=-1,b=-1;
++  for(int y=y1;y<y2;y++) for(int x=x1;x<x2;x++)
++   if(pic->buffer[(y*pic->width+x)*4+3]>=128)
++   { l=Q_min(l,x);r=Q_max(r,x);t=Q_min(t,y);b=Q_max(b,y); }
++  cof_hud_icon_t *icon=&hud_icons[i+4];
++  icon->aspect=r>=l && b>=t?(float)(r-l+1)/(b-t+1):0;
++  icon->u1=(float)l/pic->width; icon->v1=(float)t/pic->height;
++  icon->u2=(float)(r+1)/pic->width; icon->v2=(float)(b+1)/pic->height;
++ }
++ int texture=GL_LoadTextureInternal(first->path,pic,TF_IMAGE);
++ FS_FreeImage(pic);
++ for(int i=4;i<ARRAYSIZE(hud_icons);i++) hud_icons[i].texture=texture;
++ if(!texture) first->retry=host.realtime+5;
++ return texture!=0;
++}
++
++static qboolean HudLoadIcon( int index )
++{
++ if(index>=4) return HudLoadItems() && hud_icons[index].aspect>0;
++ cof_hud_icon_t *icon=&hud_icons[index];
++ if(icon->texture && ref.dllFuncs.GL_FindTexture(icon->path)==icon->texture) return true;
++ if(host.realtime<icon->retry) return false;
+ 		icon->texture = 0;
+ 		rgbdata_t *pic = FS_LoadImage( icon->path, NULL, 0 );
+ 		if( !pic || pic->type != PF_RGBA_32 || pic->width <= 0 || pic->height <= 0 )
+ 		{
+ 			if( pic ) FS_FreeImage( pic );
+-			hud.retry_icons = host.realtime + 5;
++			icon->retry = host.realtime + 5;
+ 			return false; // missing art never hides the Classic HUD
+ 		}
+ 		int l = pic->width, t = pic->height, r = -1, b = -1;
+ 		for( int y = 0; y < pic->height; y++ ) for( int x = 0; x < pic->width; x++ )
+ 			if( pic->buffer[( y * pic->width + x ) * 4 + 3] >= 128 )
+ 			{ l = Q_min(l,x); r = Q_max(r,x); t = Q_min(t,y); b = Q_max(b,y); }
+-		if( r < l || b < t ) { FS_FreeImage(pic); hud.retry_icons = host.realtime + 5; return false; }
++		if( r < l || b < t ) { FS_FreeImage(pic); icon->retry = host.realtime + 5; return false; }
+ 		icon->u1 = (float)l / pic->width; icon->v1 = (float)t / pic->height;
+ 		icon->u2 = (float)(r+1) / pic->width; icon->v2 = (float)(b+1) / pic->height;
+ 		icon->aspect = (float)(r-l+1) / (b-t+1);
+ 		// No pixels are reused after upload; TF_IMAGE disables mipmap generation.
+ 		icon->texture = GL_LoadTextureInternal( icon->path, pic, TF_IMAGE );
+ 		FS_FreeImage( pic );
+-		if( !icon->texture ) { hud.retry_icons = host.realtime + 5; return false; }
+-	}
+-	return true;
++		if( !icon->texture ) { icon->retry = host.realtime + 5; return false; }
++ return true;
++}
++
++static qboolean HudIcons( void )
++{
++ for(int i=0;i<4;i++) if(!HudLoadIcon(i)) return false;
++ return true;
+ }
+ 
+ static float HudScale( void )
+@@ -125,114 +227,107 @@
+ 	ref.dllFuncs.R_DrawStretchPic(x+(size-w)*0.5f,y+(size-h)*0.5f,w,h,icon->u1,icon->v1,icon->u2,icon->v2,icon->texture);
+ }
+ 
+-static void HudReplay( void )
+-{
+-	for( int i = 0; i < hud.count; i++ )
+-	{
+-		cof_hud_draw_t *d = &hud.draws[i];
+-		ref.dllFuncs.GL_SetRenderMode(d->mode);
+-		ref.dllFuncs.Color4ub(d->color[0],d->color[1],d->color[2],d->color[3]);
+-		ref.dllFuncs.R_DrawStretchPic(d->x,d->y,d->w,d->h,d->s1,d->t1,d->s2,d->t2,d->texture);
+-	}
+-	hud.count = 0;
+-}
+-
+ void CL_CoF_HudRemakeBegin( void )
+ {
+-	hud.count = 0; hud.overflow = false;
+-	hud.collecting = HudEnabled() && HudIcons() && cls.creditsFont.valid;
+-	if( hud.previous_health >= 0 && cl.local.health < hud.previous_health ) hud.damage_until = host.realtime + 0.4;
+-	hud.previous_health = cl.local.health;
+-}
+-
+-// Same-frame calls only; exact final geometry/mode/color retained for fallback.
++ hud.collecting=HudEnabled() && !(hud.hide&13) && HudIcons() && cls.creditsFont.valid &&
++  (hud.weapon!=15 || (hud.dual_id[0]>0 && hud.dual_id[1]>0));
++ if(hud.previous_health>=0 && cl.local.health<hud.previous_health) hud.damage_until=host.realtime+0.4;
++ hud.previous_health=cl.local.health;
++}
++
++// These sprites are exclusively the stock ammunition display. No digit decoding,
++// batching, frame ordering, blend changes or geometry heuristics are necessary.
+ qboolean CL_CoF_HudRemakeSprite( const char *name, const wrect_t *rc, int mode, int texture,
+-	float x,float y,float w,float h,float s1,float t1,float s2,float t2,const byte *color )
+-{
+-	if( !hud.collecting || hud.overflow ) return false;
+-	if( !name || hud.clip < 0 || hud.dual || x < refState.width * 0.5f || y < refState.height * 0.5f )
+-	{ if(hud.count) { HudReplay(); hud.overflow=true; ref.dllFuncs.GL_SetRenderMode(mode); } return false; }
+-	int kind = 0, digit = -1;
+-	static const char *guns[] = { "glock", "p345", "m16", "tmp", "rifle", "browning", "famas", "vp70", "g43", "mp5" };
+-	for( int i = 0; i < ARRAYSIZE(guns); i++ )
+-	{
+-		char sprite[96];
+-		Q_snprintf(sprite,sizeof(sprite),"sprites/cof_%s_mag.spr",guns[i]);
+-		if( !Q_stricmp(name,sprite) ) kind = 1;
+-		Q_snprintf(sprite,sizeof(sprite),"sprites/cof_%s_mag_icon.spr",guns[i]);
+-		if( !Q_stricmp(name,sprite) ) kind = 2;
+-	}
+-	if( !Q_stricmp(name,"sprites/cof_mag_cross.spr") ) kind = 3;
+-	if( !Q_stricmp(name,"sprites/cof_ammohud.spr") && rc && rc->top == 0 &&
+-		rc->bottom == 24 && rc->right - rc->left == 20 && rc->left >= 0 && rc->left <= 216 && rc->left % 24 == 0 )
+-	{ kind = 4; digit = rc->left / 24; }
+-	if( hud.weapon == 23 && !Q_stricmp(name,"sprites/cof_famas_mag.spr") ) kind = 8;
+-	if( hud.weapon == 19 && !Q_stricmp(name,"sprites/cof_vp70_mag.spr") ) kind = 7;
+-	if( hud.weapon == 4 && !Q_stricmp(name,"sprites/cof_shotgun_box.spr") ) kind = 5;
+-	if( hud.weapon == 4 && !Q_stricmp(name,"sprites/cof_shotgun_box_icon.spr") ) kind = 6;
+-	if( !kind ) { if(hud.count) { HudReplay(); hud.overflow=true; ref.dllFuncs.GL_SetRenderMode(mode); } return false; }
+-	if( hud.count == HUD_MAX_DRAWS ) { HudReplay(); hud.overflow = true; ref.dllFuncs.GL_SetRenderMode(mode); return false; }
+-	cof_hud_draw_t *d = &hud.draws[hud.count++];
+-	*d = (cof_hud_draw_t){texture,mode,digit,kind,x,y,w,h,s1,t1,s2,t2,{0}};
+-	memcpy(d->color,color,4);
+-	return true;
+-}
+-
+-static int HudMagazineCount( void )
+-{
+-	int order[4], n = 0; qboolean magazine = false, cross = false, shells = false, shell_icon = false;
+-	for( int i=0; i<hud.count; i++ )
+-	{
+-		cof_hud_draw_t *d=&hud.draws[i];
+-		if(d->kind==1 || d->kind==7 || d->kind==8) magazine=true;
+-		if(d->kind==3) cross=true;
+-		if(d->kind==5) shells=true;
+-		if(d->kind==6) shell_icon=true;
+-		if(d->kind!=4) continue;
+-		if(n==4) return -1;
+-		order[n++]=i;
+-	}
+-	if((hud.weapon==4 ? (!shells || !shell_icon) : (!magazine || !cross)) || n<1 || n>3) return -1;
+-	for(int i=1;i<n;i++) for(int j=i;j>0 && hud.draws[order[j]].x<hud.draws[order[j-1]].x;j--)
+-	{ int temp=order[j];order[j]=order[j-1];order[j-1]=temp; }
+-	int count=0;
+-	for(int i=0;i<n;i++)
+-	{
+-		cof_hud_draw_t *d=&hud.draws[order[i]];
+-		if(i && (fabs(d->y-hud.draws[order[0]].y)>1.0f ||
+-			d->x-hud.draws[order[i-1]].x < d->w*0.5f || d->x-hud.draws[order[i-1]].x > d->w*1.6f)) return -1;
+-		count=count*10+d->digit;
+-	}
+-	return count;
++ float x,float y,float w,float h,float s1,float t1,float s2,float t2,const byte *color )
++{
++ if(!hud.collecting || !name || hud.weapon<=0 || hud.weapon>=HUD_WEAPONS) return false;
++ static const char *names[]={
++  "cof_glock_mag","cof_glock_mag_icon","cof_shotgun_box","cof_shotgun_box_icon",
++  "cof_p345_mag","cof_p345_mag_icon","cof_m16_mag","cof_m16_mag_icon",
++  "cof_tmp_mag","cof_tmp_mag_icon","cof_rifle_mag","cof_rifle_mag_icon",
++  "cof_browning_mag","cof_vp70_mag","cof_vp70_mag_icon","cof_famas_mag","cof_famas_mag_icon",
++  "cof_g43_mag","cof_g43_mag_icon","cof_mp5_mag","cof_mp5_mag_icon",
++  "cof_syringe_icon","cof_flare_icon","cof_mag_cross","cof_ammohud",
++  "cof_revolver_cylinder","gm_inf"
++ };
++ for(int i=0;i<ARRAYSIZE(names);i++)
++ {
++  char path[96]; Q_snprintf(path,sizeof(path),"sprites/%s.spr",names[i]);
++  if(!Q_stricmp(name,path)) return true;
++ }
++ return false;
++}
++
++static int HudReserve( int id )
++{
++ if(hud_catalog[id].kind==HUD_ROUNDS || hud_catalog[id].kind==HUD_SHELLS)
++ {
++  int type=hud_weapons[id].ammo_type;
++  return type>=0 && type<ARRAYSIZE(hud_ammo)?hud_ammo[type]:0;
++ }
++ return hud_weapons[id].reserve;
++}
++
++static void HudWeaponRow( int id, int clip, float y, float scale, cl_font_t *font, qboolean label )
++{
++ if(id<=0 || id>=HUD_WEAPONS || id==15) return;
++ int kind=hud_catalog[id].kind, icon=hud_catalog[id].icon;
++ float size=24*scale, gap=6*scale, margin=28*scale;
++ byte color[4]={245,245,245,255};
++ char loaded[24]="", spare[24]="";
++ int lw=0, sw=0;
++ if(kind==HUD_ITEMS) Q_snprintf(loaded,sizeof(loaded),"%d",HudReserve(id));
++ else if(kind!=HUD_NONE)
++ {
++  if(clip>=0) Q_snprintf(loaded,sizeof(loaded),"%d",clip);
++  else Q_snprintf(loaded,sizeof(loaded),"-"); // unavailable, never a fabricated round count
++  if(kind==HUD_UNLIMITED) Q_snprintf(spare,sizeof(spare),"INF");
++  else Q_snprintf(spare,sizeof(spare),"%d",HudReserve(id));
++ }
++ CL_DrawStringLen(font,loaded,&lw,NULL,0); CL_DrawStringLen(font,spare,&sw,NULL,0);
++ qboolean hasIcon=HudLoadIcon(icon);
++ if(!hasIcon && kind==HUD_NONE) Q_snprintf(loaded,sizeof(loaded),"%s",hud_catalog[id].label);
++ if(!hasIcon && kind==HUD_ITEMS) Q_snprintf(loaded,sizeof(loaded),"%s %d",hud_catalog[id].label,HudReserve(id));
++ CL_DrawStringLen(font,loaded,&lw,NULL,0);
++ float total=(hasIcon?size+gap:0)+lw;
++ if(spare[0]) total+=size+gap*3+sw;
++ float x=refState.width-margin-total;
++ if(hasIcon) { HudIcon(icon,x,y,size,color); x+=size+gap; }
++ if(loaded[0]) CL_DrawString(x,y,loaded,color,font,0);
++ x+=lw+gap*2;
++ if(spare[0])
++ {
++  int reserveIcon=kind==HUD_MAGAZINES || kind==HUD_UNLIMITED?2:icon;
++  HudIcon(reserveIcon,x,y,size,color); x+=size+gap;
++  CL_DrawString(x,y,spare,color,font,0);
++ }
++ char caption[64];
++ if(label) Q_snprintf(caption,sizeof(caption),"%s%s%s",hud_catalog[id].label,hud_catalog[id].mode[0]?"  ":"",hud_catalog[id].mode);
++ else Q_snprintf(caption,sizeof(caption),"%s",hud_catalog[id].mode);
++ if(caption[0])
++ {
++  int width; CL_DrawStringLen(font,caption,&width,NULL,0);
++  CL_DrawString(refState.width-margin-width,y-size-gap,caption,color,font,0);
++ }
+ }
+ 
+ void CL_CoF_HudRemakeAmmo( void )
+ {
+-	hud.collecting = false;
+-	const int mags=HudMagazineCount();
+-	if(mags<0 || !HudEnabled() || !cls.creditsFont.valid) { HudReplay(); return; }
+-	float scale=HudScale(), size=24*scale, gap=6*scale, margin=28*scale;
+-	cl_font_t font=cls.creditsFont;
+-	float ratio=24*scale/Q_max(1,font.charHeight);
+-	font.scale*=ratio; font.charHeight=Q_max(1,(int)(font.charHeight*ratio));
+-	for(int i=0;i<ARRAYSIZE(font.charWidths);i++) font.charWidths[i]=Q_max(1,(int)(font.charWidths[i]*ratio));
+-	char rounds[16], spare[16]; int rw,mw;
+-	Q_snprintf(rounds,sizeof(rounds),"%d",hud.clip); Q_snprintf(spare,sizeof(spare),"%d",mags);
+-	CL_DrawStringLen(&font,rounds,&rw,NULL,0); CL_DrawStringLen(&font,spare,&mw,NULL,0);
+-	byte color[4]={245,245,245,255};
+-	// Reuse the Classic draw's visibility/fade rather than introducing an always-on counter.
+-	for(int i=0;i<hud.count;i++) if(hud.draws[i].kind==4) { color[3]=hud.draws[i].color[3]; break; }
+-	float total=size*2+gap*3+rw+mw+12*scale;
+-	float x=refState.width-margin-total, y=refState.height-margin-size;
+-	HudIcon(hud.weapon==4?3:1,x,y,size,color); x+=size+gap;
+-	CL_DrawString(x,y,rounds,color,&font,0); x+=rw+12*scale+gap;
+-	HudIcon(hud.weapon==4?3:2,x,y,size,color); x+=size+gap;
+-	CL_DrawString(x,y,spare,color,&font,0);
+-	// Proven retail fixed modes; no speculative switchable-mode state.
+-	for(int i=0;i<hud.count;i++) if(hud.draws[i].kind==7 || hud.draws[i].kind==8)
+-	{ const char *mode=hud.draws[i].kind==7?"BURST":"AUTO"; int width; CL_DrawStringLen(&font,mode,&width,NULL,0); CL_DrawString(refState.width-margin-width,y-size-gap,mode,color,&font,0); break; }
+-	hud.count=0;
+-	ref.dllFuncs.GL_SetRenderMode(kRenderNormal); ref.dllFuncs.Color4ub(255,255,255,255);
++ qboolean draw=hud.collecting;
++ hud.collecting=false;
++ if(!draw || !HudEnabled() || (hud.hide&13) || !cls.creditsFont.valid || hud.weapon<=0) return;
++ float scale=HudScale(), size=24*scale, y=refState.height-28*scale-size;
++ cl_font_t font=cls.creditsFont;
++ float ratio=24*scale/Q_max(1,font.charHeight);
++ font.scale*=ratio; font.charHeight=Q_max(1,(int)(font.charHeight*ratio));
++ for(int i=0;i<ARRAYSIZE(font.charWidths);i++) font.charWidths[i]=bound(1,(int)(font.charWidths[i]*ratio),255);
++ if(hud.weapon==15)
++ {
++  HudWeaponRow(hud.dual_id[0],hud.dual_clip[0],y-64*scale,scale,&font,true);
++  HudWeaponRow(hud.dual_id[1],hud.dual_clip[1],y,scale,&font,true);
++ }
++ else HudWeaponRow(hud.weapon,hud_weapons[hud.weapon].clip,y,scale,&font,false);
++ ref.dllFuncs.GL_SetRenderMode(kRenderNormal); ref.dllFuncs.Color4ub(255,255,255,255);
+ }
+ 
+ // Fingerprints are of the client's decoded HUD TGAs, not shipped game artwork.
+--- a/engine/client/dll_int/cl_game.c
++++ b/engine/client/dll_int/cl_game.c
+@@ -973,13 +973,15 @@
+ 	// rather than only in the flush, so a frame in which the client was gated
+ 	// off cannot leave anything behind for the next one.
+ 	CL_CoF_HudTextReset();
+-	CL_CoF_HudRemakeBegin();
+ 
+ 	if( state == CL_ACTIVE && !cl.video_prepped )
+ 		state = CL_LOADING;
+ 
+ 	if( state == CL_ACTIVE && cl.paused )
+ 		state = CL_PAUSED;
++
++	if( state == CL_ACTIVE || state == CL_PAUSED )
++		CL_CoF_HudRemakeBegin();
+ 
+ 	switch( state )
+ 	{

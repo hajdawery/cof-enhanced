@@ -45,14 +45,16 @@
 #>
 param(
     [Parameter(Mandatory = $true)] [string] $MainUI,
-    [string] $GameDir = 'K:\LLM\COF_Fix\Cry of Fear\cryoffear',
+    [string] $GameDir = '',
     [string] $GameData = '',
     [string] $Out = 'menu-strings.en.tsv',
     [string] $Pack = ''
 )
 $ErrorActionPreference = 'Stop'
 $here = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
-if (!$GameData) { $GameData = Join-Path $here '..\..\gamedata\cryoffear' }
+$repository = [IO.Path]::GetFullPath((Join-Path $here '..\..'))
+if (!$GameDir) { $GameDir = Join-Path (Split-Path -Parent $repository) 'Cry of Fear\cryoffear' }
+if (!$GameData) { $GameData = Join-Path $repository 'gamedata\cryoffear' }
 
 # The pages and controls Cry of Fear can reach with the theme (Main menu,
 # its CoF pages, Options and every page under it, Save/Load, the stock

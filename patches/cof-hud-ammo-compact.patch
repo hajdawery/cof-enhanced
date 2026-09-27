@@ -1,0 +1,121 @@
+--- a/engine/client/cof_hud_remake.c
++++ b/engine/client/cof_hud_remake.c
+@@ -5,6 +5,8 @@
+ #include "client.h"
+ 
+ static CVAR_DEFINE_AUTO( cof_hud_style, "0", FCVAR_ARCHIVE, "Cry of Fear HUD: 0 Classic, 1 Remake (health, stamina and supported ammunition)" );
++
++static CVAR_DEFINE_AUTO( cof_hud_ammo_compact, "1", FCVAR_ARCHIVE, "Remake ammo: compact outlined boxes (0 restores previous unboxed layout)" );
+ 
+ enum { HUD_HEALTH = 1, HUD_STAMINA = 2, HUD_WEAPONS = 28 };
+ typedef struct { int texture; float u1,v1,u2,v2,aspect; const char *path; double retry; } cof_hud_icon_t;
+@@ -73,6 +75,7 @@
+ void CL_CoF_HudRemakeInit( void )
+ {
+  Cvar_RegisterVariable( &cof_hud_style );
++ Cvar_RegisterVariable( &cof_hud_ammo_compact );
+  for( int i=0; i<HUD_WEAPONS; i++ ) hud_weapons[i].ammo_type=-1;
+  CL_CoF_HudRemakeReset();
+ }
+@@ -311,11 +314,101 @@
+  }
+ }
+ 
++// Scale independent font copies from the original metrics; captions never
++// inherit the larger numeric font. cl_font_t widths are byte-sized in engine.
++static cl_font_t HudCompactFont( float pixels )
++{
++ cl_font_t font=cls.creditsFont;
++ float ratio=pixels/Q_max(1,font.charHeight);
++ font.scale*=ratio;
++ font.charHeight=Q_max(1,(int)(font.charHeight*ratio));
++ for(int i=0;i<ARRAYSIZE(font.charWidths);i++) font.charWidths[i]=bound(1,(int)(font.charWidths[i]*ratio),255);
++ return font;
++}
++
++// bottom is the outside edge of this box; return the top for stacking dual rows.
++static float HudCompactWeaponRow( int id, int clip, float bottom, float scale, qboolean label )
++{
++ if(id<=0 || id>=HUD_WEAPONS || id==15) return bottom;
++ const int kind=hud_catalog[id].kind, icon=hud_catalog[id].icon;
++ const qboolean hasIcon=HudLoadIcon(icon);
++ const int reserveIcon=kind==HUD_MAGAZINES || kind==HUD_UNLIMITED?2:icon;
++ char loaded[48]="",spare[24]="",caption[64]="";
++ if(kind==HUD_ITEMS) Q_snprintf(loaded,sizeof(loaded),"%d",HudReserve(id));
++ else if(kind!=HUD_NONE)
++ {
++  if(clip>=0) Q_snprintf(loaded,sizeof(loaded),"%d",clip);
++  else Q_snprintf(loaded,sizeof(loaded),"-");
++  if(kind==HUD_UNLIMITED) Q_snprintf(spare,sizeof(spare),"INF");
++  else Q_snprintf(spare,sizeof(spare),"%d",HudReserve(id));
++ }
++ if(!hasIcon && kind==HUD_NONE) Q_snprintf(loaded,sizeof(loaded),"%s",hud_catalog[id].label);
++ if(!hasIcon && kind==HUD_ITEMS) Q_snprintf(loaded,sizeof(loaded),"%s %d",hud_catalog[id].label,HudReserve(id));
++ if(label) Q_snprintf(caption,sizeof(caption),"%s%s%s",hud_catalog[id].label,hud_catalog[id].mode[0]?"  ":"",hud_catalog[id].mode);
++ else Q_snprintf(caption,sizeof(caption),"%s",hud_catalog[id].mode);
++
++ const float margin=Q_min(28*scale,refState.width*0.1f);
++ const float available=Q_max(1,refState.width-2*margin);
++ cl_font_t numbers,small;
++ int lw,sw,cw;
++ float size,gap,pad,header,body,width,height;
++ // Large reserves/dual labels and extreme HUD scale still fit the viewport.
++ for(int pass=0;pass<3;pass++)
++ {
++  numbers=HudCompactFont(18*scale);small=HudCompactFont(11*scale);
++  CL_DrawStringLen(&numbers,loaded,&lw,NULL,0);CL_DrawStringLen(&numbers,spare,&sw,NULL,0);
++  CL_DrawStringLen(&small,caption,&cw,NULL,0);
++  size=18*scale;gap=4*scale;pad=6*scale;
++  header=caption[0]?small.charHeight+4*scale:0;
++  body=(hasIcon?size+(loaded[0]?gap:0):0)+lw;
++  if(spare[0])body+=gap*4+size+sw;
++  width=Q_max(body,(float)cw)+pad*2;
++  height=pad*2+header+Q_max(size,(float)numbers.charHeight);
++  if(width<=available || pass==2)break;
++  scale*=available/width;
++ }
++ const float left=refState.width-margin-width,top=bottom-height;
++ const float line=Q_max(1,scale);
++ ref.dllFuncs.FillRGBA(kRenderTransTexture,left,top,width,height,0,0,0,64);
++ ref.dllFuncs.FillRGBA(kRenderTransTexture,left,top,width,line,150,150,150,160);
++ ref.dllFuncs.FillRGBA(kRenderTransTexture,left,bottom-line,width,line,150,150,150,160);
++ ref.dllFuncs.FillRGBA(kRenderTransTexture,left,top,line,height,150,150,150,160);
++ ref.dllFuncs.FillRGBA(kRenderTransTexture,left+width-line,top,line,height,150,150,150,160);
++ byte color[4]={245,245,245,255},dim[4]={185,185,185,255};
++ if(caption[0])CL_DrawString(left+pad,top+pad,caption,dim,&small,0);
++ float x=left+pad+(width-pad*2-body)*0.5f,y=top+pad+header;
++ if(hasIcon){HudIcon(icon,x,y,size,color);x+=size+gap;}
++ if(loaded[0])CL_DrawString(x,y,loaded,color,&numbers,0);
++ x+=lw;
++ if(spare[0])
++ {
++  x+=gap;
++  ref.dllFuncs.FillRGBA(kRenderTransTexture,x,y,line,size,120,120,120,150);
++  x+=gap*2;
++  HudIcon(reserveIcon,x,y,size,color);x+=size+gap;
++  CL_DrawString(x,y,spare,color,&numbers,0);
++ }
++ return top;
++}
++
+ void CL_CoF_HudRemakeAmmo( void )
+ {
+  qboolean draw=hud.collecting;
+  hud.collecting=false;
+  if(!draw || !HudEnabled() || (hud.hide&13) || !cls.creditsFont.valid || hud.weapon<=0) return;
++ if(cof_hud_ammo_compact.value)
++ {
++  const float scale=Q_min(HudScale(),refState.height/(hud.weapon==15?128.0f:80.0f));
++  const float bottom=refState.height-28*scale;
++  if(hud.weapon==15)
++  {
++   float top=HudCompactWeaponRow(hud.dual_id[1],hud.dual_clip[1],bottom,scale,true);
++   HudCompactWeaponRow(hud.dual_id[0],hud.dual_clip[0],top-6*scale,scale,true);
++  }
++  else HudCompactWeaponRow(hud.weapon,hud_weapons[hud.weapon].clip,bottom,scale,false);
++  ref.dllFuncs.GL_SetRenderMode(kRenderNormal);ref.dllFuncs.Color4ub(255,255,255,255);
++  return;
++ }
+  float scale=HudScale(), size=24*scale, y=refState.height-28*scale-size;
+  cl_font_t font=cls.creditsFont;
+  float ratio=24*scale/Q_max(1,font.charHeight);

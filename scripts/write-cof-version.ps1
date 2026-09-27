@@ -29,16 +29,26 @@
 #>
 [CmdletBinding()]
 param(
-	[string]$Project    = 'K:\LLM\COF_Fix\cof-fix',
-	[string]$SourceRoot = 'K:\LLM\COF_Fix\cof-fix\xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a',
+	[string]$Project    = '',
+	[string]$SourceRoot = '',
 	[switch]$Remove
 )
 $ErrorActionPreference = 'Stop'
 
-$workspace = 'K:\LLM\COF_Fix'
+# Resolve defaults in the body so invocation with powershell -File also works.
+$scriptDirectory = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+$repository = [System.IO.Path]::GetFullPath((Join-Path $scriptDirectory '..'))
+$workspace = Split-Path -Parent $repository
+$workspacePrefix = $workspace.TrimEnd('\') + '\'
+if ([string]::IsNullOrWhiteSpace($Project)) { $Project = $repository }
+if ([string]::IsNullOrWhiteSpace($SourceRoot)) {
+	$SourceRoot = Join-Path $Project 'xash3d-fwgs-4857b389e6ba32ddaa68582aedcbc950c138f46a'
+}
+$Project = [System.IO.Path]::GetFullPath($Project)
+$SourceRoot = [System.IO.Path]::GetFullPath($SourceRoot)
 foreach ($p in @($Project, $SourceRoot)) {
 	$full = [System.IO.Path]::GetFullPath($p)
-	if (-not $full.StartsWith($workspace, [StringComparison]::OrdinalIgnoreCase)) {
+	if ($full -ne $workspace -and -not $full.StartsWith($workspacePrefix, [StringComparison]::OrdinalIgnoreCase)) {
 		throw "Refusing to touch '$full': outside $workspace"
 	}
 	if (-not (Test-Path -LiteralPath $full -PathType Container)) { throw "Not a directory: $full" }
