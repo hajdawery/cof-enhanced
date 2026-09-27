@@ -28,7 +28,12 @@ Staged so far: `m4`, `m4-fonts`, `m4b`, `m4c`, `m5`, `m5a`, `fov`,
 [patch stack](patch-stack.md) in one run (it folds in `coop`, `lang2`,
 `fix-ads-tape` and `lang3`), then `gamepad`, `panels`, `options` (all
 `-20260923`, each on its own) and `m8-20260923`, the second full-stack build
-(m7 + those three rounds, cheats last). The deploy script points at `m8`.
+(m7 + those three rounds, cheats last); then `osk-20260923`, `gamepad2-20260923`,
+`gamepad3`, `quicksave`, `menufix` (all `-20260924` except the first two, each
+on its own) and `m9-20260924`, the third full-stack build (58 steps: the
+committed 56 + the two quick save steps, cheats last), the first with the
+launcher (`CoFLaunchApp.exe`, version resource from `VERSION`). The deploy
+script points at `m9`.
 
 ## The deploy script
 
@@ -36,14 +41,16 @@ Staged so far: `m4`, `m4-fonts`, `m4b`, `m4c`, `m5`, `m5a`, `fov`,
 hash-pinned payload into the runtime and keeps a backup:
 
 * files: `xash.dll`, `vgui.dll`, `ref_gl.dll`, `cryoffear\cl_dlls\menu.dll`
-  (each with its PDB), the Inter TTFs and `OFL.txt` under
+  (each with its PDB), since m9 `CoFLaunchApp.exe` (the runtime's launcher is
+  backed up and put back by `-Rollback`), the Inter TTFs and `OFL.txt` under
   `cryoffear\gfx\fonts\`, the five atlases under `cryoffear\fonts\`,
   `cryoffear\resource\cryoffear_english.txt`, `cryoffear\gfx\shell\kb_def.lst`,
   and (since m7) `OFL.txt` beside the atlases under `cryoffear\fonts\`;
 * folders: all seven language packs, `languages\<code>` -> `cryoffear\languages\<code>`,
   each pinned by its `MANIFEST.tsv` hash and file count, checked file by file
   before and after the copy, refusing junctions; and (since m8) the gamepad
-  art, the staged release's `gfx\shell\gamepad` (36 files) ->
+  art, the staged release's `gfx\shell\gamepad` (36 files; 64 since m9:
+  `switch\`, `steamdeck\`, the pad cursor, `LICENSE-NOTE.md`) ->
   `cryoffear\gfx\shell\gamepad`, pinned by the release's
   `gamepad-SHA256SUMS.txt` (whose own hash is in the script) and handled like
   a pack;

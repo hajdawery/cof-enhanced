@@ -231,13 +231,36 @@ Binaries and what is in them:
   for both packs, followed by the full CC BY 3.0 legal code (verbatim from
   creativecommons.org), are in `licenses/zacksly-CC-BY-3.0.txt`; the notes are
   also next to the files as `gamedata/cryoffear/gfx/shell/gamepad/LICENSE-Zacksly.txt`.
-- What ships (`gamedata/cryoffear/gfx/shell/gamepad/`, 36 files, 237,483
-  bytes): 32 button icons ("Buttons Full Solid", white, 128 px) copied
+- What ships of theirs (`gamedata/cryoffear/gfx/shell/gamepad/xbox/` and
+  `ps5/`): 32 button icons ("Buttons Full Solid", white, 128 px) copied
   **unmodified**, only renamed (e.g. `Left Bumper.png` -> `xbox/lb.png`), and
   two controller pictures ("Controller Images/Outline/Outline White 4k.png")
-  that are **modified**: cropped to the drawing and resized to 1024 px wide
-  (`scripts/make-gamepad-assets.py`). `icons.txt` (our key-to-icon table) is
-  our own.
+  that are **modified**: cropped, resized, and platform logos removed by haej
+  (cropped to the drawing and resized to 1024 px wide by
+  `scripts/make-gamepad-assets.py`, from outlines haej had removed the Xbox /
+  PlayStation logos from). `icons.txt` (our key-to-icon table) is our own.
+  The whole folder: 64 files, 849,859 bytes, with the two sections below
+  (`cursor.png` is haej's own pad cursor art, not Zacksly's).
+
+## Nintendo Switch and Steam Deck button art (menu data)
+
+- `gamedata/cryoffear/gfx/shell/gamepad/switch/` and `steamdeck/` (13 files
+  each) - by **haej** for Cry of Fear: Enhanced, resized by
+  `scripts/make-gamepad-style-art.py`. Some files are derived from "Xbox
+  Series Button Icons and Controls" by **Zacksly** (<https://zacksly.itch.io>),
+  licensed under **CC BY 3.0** (licence as in the section above):
+  `switch/ls.png` and `switch/rs.png` are Zacksly's "Left/Right Stick Click"
+  (Buttons Solid, white) resized to 128 px; the shoulder, trigger and grip
+  buttons (`switch/l.png`, `r.png`, `zl.png`, `zr.png`; `steamdeck/l1.png` -
+  `l5.png`, `r1.png` - `r5.png`, `steam.png`, `quick_access.png`) follow
+  Zacksly's button shapes with new labels and are **derived from** Zacksly's
+  icons (**modified**). The d-pad and +/- buttons and the Joy-Con and Steam
+  Deck pictures are haej's own drawings. The A/B/X/Y, and the Deck's d-pad,
+  View and Menu buttons use Zacksly's Xbox icons (unchanged). Details:
+  `gamedata/cryoffear/gfx/shell/gamepad/LICENSE-NOTE.md`.
+- Nintendo Switch, Joy-Con, Steam and Steam Deck are trademarks of their
+  owners; the pictures only show which button to press and imply no
+  endorsement.
 
 ## Project emblem (not third-party; listed because it is not GPL)
 

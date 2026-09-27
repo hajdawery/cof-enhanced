@@ -52,7 +52,7 @@ off live with its cvar, which then reproduces the stock path in the same binary.
 | 32 | `cof-mainui-menu-save` | M | (uses `cof_pause_menu_saves`, `cof_menu_save`) | [MainUI menu save](cof-mainui-menu-save.md) |
 | 33 | `cof-mainui-background-scrim` | M | `ui_scrim_alpha` | [milestone 1](cof-ui-m1-plumbing.md) |
 | 34 | `cof-mainui-cof-menu` | M | Cry of Fear main menu pages | [milestone 2](cof-ui-m2-cof-menu.md) |
-| 35 | `cof-mainui-source-theme` | M | `ui_theme`, `ui_cof_scene_defaults`, `cof_skip_prologue`, `menu_cofdeath`, `menu_cof_sound_probe`, ... | [UI theme](../design/ui-theme.md) |
+| 35 | `cof-mainui-source-theme` | M | `ui_theme`, `ui_cof_scene_defaults`, `cof_skip_prologue`, `menu_cofdeath`, `menu_cof_sound_probe`, ...; deep-red accent palette (menufix round) | [UI theme](../design/ui-theme.md) |
 | 36 | `cof-fov` | E | `cof_fov`, `cof_fov_zoom_knee` | [field of view](cof-fov.md) |
 | 37 | `cof-pmove-callback-view` | E | `cof_pmove_legacy_hullsync(_cl)`, `cof_pmove_legacy_touchfix(_cl)` | [pmove callback view](cof-pmove-callback-view.md) |
 | 38 | `cof-viewmodel-fov` | R | `cof_viewmodel_fov` | [field of view](cof-fov.md) |
@@ -65,15 +65,17 @@ off live with its cvar, which then reproduces the stock path in the same binary.
 | 45 | `cof-coop-bridge` | E + V | `cof_ui_remote_end_menu`, `cof_vgui_text_overflow` | [co-op bridge](../design/coop-bridge.md) |
 | 46 | `cof-mainui-coop` | M | Host / Join co-op pages, `cof_coop_*` settings, `menu_cof_host_start` | [co-op bridge](../design/coop-bridge.md) |
 | 47 | `cof-notify-option` | E + M | `cof_notify` (saved, default 1; 0 hides the top-left notify lines), *Show console notifications* on the Game page | [UI theme](../design/ui-theme.md) (Game page) |
-| 48 | `cof-mainui-options-layout` | M | tabbed Options / Extras / Save-Load windows; Controls and Gamepad tabs; `cof_pad_style` (saved), writes `cof_panel_pause`, `cof_panel_transparent`, `joy_*`; pad navigation and hints; `menu_cof_options_select`, `menu_cof_key` | [UI theme](../design/ui-theme.md), "Options relayout, tabbed windows and the pad" |
+| 48 | `cof-mainui-options-layout` | M | tabbed Options / Extras / Save-Load windows; Controls and Gamepad tabs; `cof_pad_style` (saved), writes `cof_panel_pause`, `cof_panel_transparent`, `joy_*`; pad navigation (focus by position since the menufix round) and hints; Controls Sprint Hold/Toggle and Stick movement, Game Subtitle background (`cof_hud_text_backing`), button styles Auto / Xbox / PlayStation / Nintendo / Steam Deck (`cof_pad_style` -1..3, icons.txt STYLE rows); the game's "Tertiary Attack" (`+attack3`) listed as "Aim" on the Keybinds and Gamepad tabs (m9); `menu_cof_options_select`, `menu_cof_key`, `menu_cof_nav` | [UI theme](../design/ui-theme.md), "Options relayout, tabbed windows and the pad" |
 | 49 | `cof-mainui-osk` | M | the on-screen keyboard: themed key grid for pad players (A type, B delete, Y clear, X shift, LB symbols, RB space, START Done, View Close), opens on A or a pad focus move onto a menu text field, its own prompts line; `menu_cof_osk game` for the engine | [on-screen keyboard](../design/osk.md) |
 | 50 | `cof-osk-engine` | E + V | the keyboard for the game's text fields (the computer login): FreeVGUI reports TextEntry focus and clicks (`vguiapi_t::CofOskEntry`), the engine opens the menu's keyboard when a pad was the last input and puts the text in (`CofOskCall`, `TextEntry::setText`); the game's panels stay painted under it; `cof_osk` (saved, 1), `cof_osk_status`, `cof_osk_set`, `cof_osk_probe` | [on-screen keyboard](../design/osk.md) |
 | 51 | `cof-client-enter-hook` | E | client.dll's `USER32!GetAsyncKeyState(VK_RETURN)` (computer login 1003F54C, Press Enter cards 1003D21E) answered for a pad: `cof_enter_pulse` (the keyboard's Done), START while the game polls for Enter (`cof_enter_pad`, saved, 1), `+cof_enter`; real Enter hidden from the game while the menu or console has the keyboard; `cof_enter_status`, `cof_enter_trace` | [on-screen keyboard](../design/osk.md), "The Enter hook" |
 | 52 | `cof-window-name` | E | the game window is "Cry of Fear Enhanced" (title, whatever gameinfo.txt says) with the class `CryOfFearEnhanced`, for recorders and overlays | [building](../dev/building.md), "The game's name in Windows" |
-| 53 | `cof-panel-pause` | E + V | `cof_panel_pause` (saved, default 0): single player, the world stops while a safe CoF panel is open; panels identified by client class name (`CofPanelReport`), `CL_CoF_PanelsOnScreen` for other engine code; `cof_panel_status`, `cof_panel_trace` | [panel pause](cof-panel-pause.md) |
-| 54 | `cof-panel-transparency` | E + V | `cof_panel_transparent` (saved, default 1), `cof_panel_plate_alpha` 200, `cof_panel_hide_hud` 2: the live world instead of the black backdrop behind the in-play panels | [world behind the panels](cof-panel-transparency.md) |
-| 55 | `cof-gamepad-input` | E | gamepad on CoF panels (sticks frozen, START to the pause menu, B closes the inventory, A/X click at an engine-drawn ring cursor; the "panel open" check reads the class identity of step 53, the arrow cursor only as a fallback), once-per-profile pad layout (generation 2), `cof_duck_toggle`, gyro aiming off by default, dodge guard, client WinMM joystick kept off; `cof_pad_status` | [gamepad input](cof-gamepad-input.md) |
-| 56 | `cof-cheats` | E | `fly`, `give`, sticky `noclip` / `notarget`, `cof_infammo`, `cof_infstamina`, `cof_nodamage`, `cof_nodrown`, `cof_nightvision`, `cof_ending`, `cof_tapes`, `cof_unlockdoors`, `cof_cheats` | [cheats internals](../design/cheats.md), player list in [CHEATS.md](../../CHEATS.md) |
+| 53 | `cof-quicksave` | E | quick save / quick load: `cof_quick_saves` (saved, default 0), `cof_quicksave` / `cof_quickload` (F5 / F9), `SAVE/cofquick.sav` through the pause saves' transaction, the messages on the game's message strip (translated through `dll-strings.tsv`) | [quick save](cof-quicksave.md) |
+| 54 | `cof-mainui-quicksave` | M | *Quick saves* on the Game tab, *Quick save* first in the pause menu, the quick save first in the Load list, Keybinds rows, menu defaults generation 5 (F5 / F9, screenshot to F12) | [quick save](cof-quicksave.md) |
+| 55 | `cof-panel-pause` | E + V | `cof_panel_pause` (saved, default 0): single player, the world stops while a safe CoF panel is open; panels identified by client class name (`CofPanelReport`), `CL_CoF_PanelsOnScreen` for other engine code; `cof_panel_status`, `cof_panel_trace` | [panel pause](cof-panel-pause.md) |
+| 56 | `cof-panel-transparency` | E + V | `cof_panel_transparent` (saved, default 1), `cof_panel_plate_alpha` 200, `cof_panel_hide_hud` 2: the live world instead of the black backdrop behind the in-play panels | [world behind the panels](cof-panel-transparency.md) |
+| 57 | `cof-gamepad-input` | E + V + M | gamepad on CoF panels (sticks frozen, START to the pause menu, B backs out through each panel's own button, A/X click at the engine-drawn cursor, A completes a tape slot; the "panel open" check reads the class identity of step 55), the last input device (`cof_last_input`) and the hidden Windows arrow, once-per-profile layout (generation 4), quick 180-degree turn (`cof_quickturn`), trigger hysteresis (`cof_pad_trigger_hyst`), the left stick shaped like the movement keys (`cof_pad_move_*`), pad styles (`cof_pad_style`, read-only `cof_pad_style_auto`; Xbox / PlayStation / Nintendo / Steam Deck, Nintendo face buttons by position), sprint Hold/Toggle, `cof_duck_toggle`, gyro off by default, dodge guard, client WinMM joystick kept off; A on a Load/Save row; `cof_pad_status`, `cof_pad_measure` | [gamepad input](cof-gamepad-input.md) |
+| 58 | `cof-cheats` | E | `fly`, `give`, sticky `noclip` / `notarget`, `cof_infammo`, `cof_infstamina`, `cof_nodamage`, `cof_nodrown`, `cof_nightvision`, `cof_ending`, `cof_tapes`, `cof_unlockdoors`, `cof_cheats` | [cheats internals](../design/cheats.md), player list in [CHEATS.md](../../CHEATS.md) |
 
 (diag) = default-off developer diagnostic; it changes nothing unless switched on.
 
@@ -424,7 +426,18 @@ with a hints line of button prompts while a pad is the last input device. See
 the [UI theme](../design/ui-theme.md). Keyboard Tab / Shift+Tab switch the
 tabs too, and the death page (which swallows B / Escape) shows no Back prompt.
 
-## Panel pause and the world behind the panels (steps 49-50)
+## Quick saves (steps 53-54)
+
+`cof-quicksave` adds `cof_quicksave` / `cof_quickload` behind the saved option
+`cof_quick_saves` (off by default): single player only, one file
+`SAVE/cofquick.sav` written through the pause saves' transaction, and the
+feedback on the game's own message strip, so it follows the HUD text rules and
+the language pack's `dll-strings.tsv`. `cof-mainui-quicksave` puts the option
+on the Game tab, *Quick save* first in the pause menu, the quick save first in
+the Load list, the Keybinds rows, and binds F5 / F9 once (defaults generation
+5). See [quick save](cof-quicksave.md).
+
+## Panel pause and the world behind the panels (steps 55-56)
 
 `cof-panel-pause` names every visible client panel by its class (MSVC
 run-time type information in client.dll, read by the VGUI support library)
@@ -436,18 +449,20 @@ game's own black fill behind the clickable panels, draws the rusty plate
 semi-transparent and hides the HUD pieces that overlap the panel. See
 [panel pause](cof-panel-pause.md) and [world behind the panels](cof-panel-transparency.md).
 
-## Gamepad input (step 51)
+## Gamepad input (step 57)
 
 `cof-gamepad-input` makes the CoF panels usable with a pad (sticks move an
 engine-drawn ring cursor instead of the player, A/X click, B closes the
 inventory, START opens the pause menu), writes a default pad layout into the
 profile once (so the game's `unbindall` cannot wipe it), adds the crouch
 toggle and turns gyro aiming off by default. Since m8 its "panel open" check
-takes the class identity of step 49 as the source of truth
+takes the class identity of step 55 as the source of truth
 (`CL_CoF_PanelsOnScreen`); the arrow cursor counts only when the class list
-names nothing. See [gamepad input](cof-gamepad-input.md).
+names nothing. Gamepad round 3 (m9) added the generation 4 layout, the quick
+turn, trigger hysteresis, the stick movement shaping and the four prompt styles
+(Nintendo pads by button position). See [gamepad input](cof-gamepad-input.md).
 
-## Restored cheats (step 52, last)
+## Restored cheats (step 58, last)
 
 Cry of Fear 1.6 removed its cheats in its own `hw.dll` and resets or ignores
 the stock ones in `hl.dll` (`PostThink` turns noclip off every frame,

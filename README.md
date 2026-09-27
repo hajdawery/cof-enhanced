@@ -67,9 +67,13 @@ Fuck it, I added gamepad support for the entire game.
 
 The whole menu is navigable with a pad (A selects, B goes back, LB/RB switch
 tabs, with button prompts on screen), and in play the inventory, notes and
-every other in-game panel get a ring cursor you steer with the sticks. Xbox and
-PlayStation layouts are both covered, with their own button names and icons;
-gyro aiming is there for pads that have a gyro, off unless you turn it on.
+every other in-game panel get a cursor you steer with the sticks. Button
+prompts come in four styles, Xbox, PlayStation, Nintendo and Steam Deck,
+picked automatically from the pad you are using (or chosen by hand), and a
+Nintendo-layout pad confirms with the bottom button like every other. A quick
+180-degree turn sits on RB, the left stick walks as fast diagonally as
+straight ahead, sprint and crouch can be toggles, and gyro aiming is there for
+pads that have a gyro, off unless you turn it on.
 Gamepad support is in testing: expect rough edges, and please report them.
 
 **Runs the Steam game on Xash3D FWGS**
@@ -109,6 +113,9 @@ Gamepad support is in testing: expect rough edges, and please report them.
 - Every "back to main menu" in the game lands on the new menu.
 - Optional saving from the pause menu (off by default) into the same five
   slots, with overwrite confirmation.
+- Optional quick saves (off by default, Options > Game > *Quick saves*): F5
+  quick save, F9 quick load, *Quick save* first in the pause menu and the quick
+  save first in the Load list.
 - Extras links open in your web browser.
 
 **Scaling and readable text**
@@ -199,7 +206,7 @@ Want it before then? You can [build it yourself](docs/dev/building.md).
   so they keep the original font.
 - `god` does nothing in Cry of Fear (the game never checks it); use
   `cof_nodamage 1`. See [CHEATS.md](CHEATS.md).
-- Not available yet: chapter select, controller support.
+- Not available yet: chapter select.
 
 ## FAQ
 
@@ -275,7 +282,11 @@ Start with the [documentation index](docs/README.md): building, the
   typeface.
 - **Xbox Series and PS5 Button Icons and Controls** by **Zacksly** (CC BY 3.0,
   <https://zacksly.itch.io>): the gamepad button icons and controller pictures
-  in the menu; the controller pictures are cropped and resized.
+  in the menu; the controller pictures are cropped, resized, and had the
+  platform logos removed by haej.
+- **Nintendo Switch and Steam Deck button art** and the pad cursor by **haej**;
+  some of the Switch and Steam Deck buttons are derived from Zacksly's icons
+  (CC BY 3.0, modified).
 - **[SDL 2](https://www.libsdl.org/)** by Sam Lantinga and contributors.
 - **[stb_truetype](https://github.com/nothings/stb)** by Sean Barrett.
 - Built into the engine as well: [Opus](https://github.com/xiph/opus),
@@ -297,7 +308,8 @@ The full copyright notices for all of these are in
 - Our code (patches, scripts, launcher, tests, docs): **GPL-3.0-or-later**,
   see [LICENSE](LICENSE). Our changes to FreeVGUI stay **BSD-3-Clause**.
 - Fonts (Inter and the atlases generated from it): **SIL Open Font License 1.1**.
-- Gamepad button icons and controller pictures (Zacksly): **CC BY 3.0**.
+- Gamepad button icons and controller pictures (Zacksly), and the Switch and
+  Steam Deck buttons derived from them: **CC BY 3.0**.
 - Language packs: not GPL; translation data shared with the translators'
   permission, for use with a legally owned copy of Cry of Fear (each pack's
   README and `LICENSE-NOTE.md`). The six menu-only packs (Deutsch, Español,

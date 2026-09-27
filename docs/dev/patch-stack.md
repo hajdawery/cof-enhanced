@@ -9,8 +9,8 @@ The order below is the order the stack verifiers in `stage1/` apply
 (`stage1/m7-integration-20260923/stackverify-m7.py` reads it from this page;
 before it `stage1/lang3-20260922/stackverify-lang3.ps1` and the per-round
 ones), and it matches the
-order the old README gave, group by group. It covers all 57 patches in
-`patches/` and all 57 `scripts/apply-*.ps1` scripts.
+order the old README gave, group by group. It covers all 59 patches in
+`patches/` and all 59 `scripts/apply-*.ps1` scripts.
 
 > **Verification status (m7, 2026-09-23).** The complete list below, steps
 > 1-48 in this order, was applied in one run to a fresh `pristine-clean` copy
@@ -64,6 +64,44 @@ order the old README gave, group by group. It covers all 57 patches in
 > `cof-save-root-compat` reverse whitespace; 35 CR-only reverse notes. The
 > gamepad2 round's newer `cof-gamepad-input.patch` (`A8FB3C3F…`) also passes
 > `git apply --check` on top of steps 1-54.
+
+> **Menu fixes round (menufix, 2026-09-24).** Steps 35
+> `cof-mainui-source-theme` (Theme.h only: the deep-red palette) and 48
+> `cof-mainui-options-layout` (focus by position, Controls / Game / Gamepad
+> rows, pad styles; now also `BaseMenu.cpp`'s one-time pad-style migration)
+> were regenerated in place; no step moved. The 56 steps applied in one run
+> to a fresh tree (`stage1/menufix-20260924/stack-final.log`), and
+> `stage1/menufix-20260924/stackverify-menufix.py` (the gamepad2 verifier,
+> reading a private copy of this page, the scripts and the patches through
+> `COF_ROOT`) round-tripped every step; steps 35 and 48: git and script
+> `-Reverse` round trips OK; the finished tree is identical to the build
+> tree (640 files, DIFFERENT: none). Besides the known `cof-save-root-compat`
+> reverse whitespace it reports "re-apply did not reproduce" for the
+> unchanged steps 2, 4 and 26 (CR bytes after a whitespace-tolerant reverse);
+> the same happens with those unchanged patches in a scratch folder inside
+> the repository, and the forward apply is byte-identical. The quicksave
+> round's `cof-mainui-quicksave.patch` and the gamepad3 round's
+> `cof-gamepad-input.patch` of 2026-09-24 12:30 pass `git apply --check` on
+> the regenerated stack.
+
+> **Verification status (m9, 2026-09-24).** Steps 53 `cof-quicksave` and 54
+> `cof-mainui-quicksave` were inserted after the window name; the panels, the
+> gamepad and the cheats moved to 55-58. The complete list, steps 1-58, applied
+> in one run to a fresh `pristine-clean` with no patch edited
+> (`stage1/m9-integration-20260924/stack-run1-unchanged.log`). Then two patches
+> were regenerated in place: `cof-mainui-options-layout` (step 48: the game's
+> "Tertiary Attack" shown as "Aim" on the Keybinds and Gamepad tabs; the
+> generator first reproduced the menufix patch byte for byte) and
+> `cof-gamepad-input` (step 57: hunk offsets only - its `LoadGame.cpp` and
+> `CoFOptions.cpp` hunks were made before steps 48 and 54 grew those files and
+> applied with offsets 9/55 and 291; content byte-identical). The final list
+> applied in one run again (`stack-build.log`, the m9 build tree), and
+> `stackverify-m9.py` (the menufix verifier, reading this page) round-tripped
+> all 58 steps: every re-apply byte-identical, the finished tree
+> byte-identical to the build tree (641 files, DIFFERENT: none). Only the
+> known `cof-save-root-compat` reverse whitespace and 35 CR-only reverse
+> notes; the menufix round's extra notes for steps 2, 4 and 26 did not recur
+> (this run verified inside the repository).
 
 ## The base tree
 
@@ -212,7 +250,7 @@ order that is known to apply.
 | 43 | `apply-cof-mainui-language-selector` | `cof-mainui-language-selector` | M | [language packs](../design/language-packs.md) section 7 |
 | 44 | `apply-cof-mainui-menu-strings` | `cof-mainui-menu-strings` | M | [language packs](../design/language-packs.md) section 8 |
 
-### Co-op bridge, the notifications option, the options relayout, the on-screen keyboard and window name, the panels, the gamepad, then the cheats last
+### Co-op bridge, the notifications option, the options relayout, the on-screen keyboard and window name, quick saves, the panels, the gamepad, then the cheats last
 
 | # | Script | Patch | Target | Doc |
 | ---: | --- | --- | --- | --- |
@@ -221,13 +259,15 @@ order that is known to apply.
 | 47 | `apply-cof-notify-option` | `cof-notify-option` | E + M | [UI theme](../design/ui-theme.md), Game page (`cof_notify`); needs 14-17 and 43 |
 | 48 | `apply-cof-mainui-options-layout` | `cof-mainui-options-layout` | M | [UI theme](../design/ui-theme.md), "Options relayout"; needs 35, 43, 44, 46, 47 |
 | 49 | `apply-cof-mainui-osk` | `cof-mainui-osk` | M | [on-screen keyboard](../design/osk.md) (the key grid, menu text fields, `menu_cof_osk`); needs 48 |
-| 50 | `apply-cof-osk-engine` | `cof-osk-engine` | E + V | [on-screen keyboard](../design/osk.md) (the game's text fields: `cof_osk`, vguiapi_t `CofOskEntry`/`CofOskCall`); needs 9, 40, 42; before 53-55 |
+| 50 | `apply-cof-osk-engine` | `cof-osk-engine` | E + V | [on-screen keyboard](../design/osk.md) (the game's text fields: `cof_osk`, vguiapi_t `CofOskEntry`/`CofOskCall`); needs 9, 40, 42; before 55-57 |
 | 51 | `apply-cof-client-enter-hook` | `cof-client-enter-hook` | E | [on-screen keyboard](../design/osk.md), "The Enter hook" (client.dll `GetAsyncKeyState`, `cof_enter_pulse`, START = Enter); needs 42, 50 |
 | 52 | `apply-cof-window-name` | `cof-window-name` | E | [building](building.md), "The game's name in Windows" (window title and class); upstream lines only |
-| 53 | `apply-cof-panel-pause` | `cof-panel-pause` | E + V | [panel pause](../patches/cof-panel-pause.md) (`cof_panel_pause`; the client's panels identified by class); needs 22, 24, 42 |
-| 54 | `apply-cof-panel-transparency` | `cof-panel-transparency` | E + V | [world behind the panels](../patches/cof-panel-transparency.md) (`cof_panel_transparent`); needs 22, 23, 25, 53 |
-| 55 | `apply-cof-gamepad-input` | `cof-gamepad-input` | E | [gamepad input](../patches/cof-gamepad-input.md); needs 9, 14, 21, 39 and 53 (the panel check reads the panel identity of 53) |
-| 56 | `apply-cof-cheats` | `cof-cheats` | E | [cheats internals](../design/cheats.md); **always last**, needs steps 2 and 4 |
+| 53 | `apply-cof-quicksave` | `cof-quicksave` | E | [quick save](../patches/cof-quicksave.md) (`cof_quick_saves`, `cof_quicksave` / `cof_quickload`, the message strip lines); needs 5, 7, 15, 36 |
+| 54 | `apply-cof-mainui-quicksave` | `cof-mainui-quicksave` | M | [quick save](../patches/cof-quicksave.md) (Load list row, first pause item, Game tab checkbox, Keybinds rows, defaults generation 5); needs 32, 35, 48 |
+| 55 | `apply-cof-panel-pause` | `cof-panel-pause` | E + V | [panel pause](../patches/cof-panel-pause.md) (`cof_panel_pause`; the client's panels identified by class); needs 22, 24, 42 |
+| 56 | `apply-cof-panel-transparency` | `cof-panel-transparency` | E + V | [world behind the panels](../patches/cof-panel-transparency.md) (`cof_panel_transparent`); needs 22, 23, 25, 55 |
+| 57 | `apply-cof-gamepad-input` | `cof-gamepad-input` | E + V + M | [gamepad input](../patches/cof-gamepad-input.md) (layout generation 4, quick turn, trigger hysteresis, stick movement, pad styles; `menus/LoadGame.cpp` / `CoFOptions.cpp`: A on a save row, the last input device); needs 9, 14, 21, 39, 48, 54 (its `LoadGame.cpp` lines are context) and 55 (the panel check reads the panel identity of 55), 56 |
+| 58 | `apply-cof-cheats` | `cof-cheats` | E | [cheats internals](../design/cheats.md); **always last**, needs steps 2 and 4 |
 
 ## After applying
 
@@ -237,7 +277,7 @@ order that is known to apply.
 2. Build as described in [building](building.md). Which binaries change with
    which patches: E -> `xash.dll`, R -> `ref_gl.dll`, V -> `vgui.dll`,
    M -> `cryoffear/cl_dlls/menu.dll`. `xash.dll` and `vgui.dll` must always be
-   deployed together (steps 21, 23, 25, 42, 45, 50, 53 and 54 all edit the shared
+   deployed together (steps 21, 23, 25, 42, 45, 50, 55, 56 and 57 all edit the shared
    `engine/vgui_api.h` interface).
 
 ## Verifying a stack

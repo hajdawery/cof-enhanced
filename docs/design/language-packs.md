@@ -187,6 +187,32 @@ same 1250/1251/1252 tables the Inter font layer decodes with) and unescaped
 (`\n \t \r \\`; any other backslash is literal). Rows whose translation equals
 the English are dropped; the first of duplicate rows wins.
 
+**Engine text in the same table (m9).** Text the engine itself hands to the
+client's string drawing goes through the same table: the five quick save
+messages (`Quick saved`, `Quick loaded`, `Quick saves are disabled in Options >
+Game`, `There is no quick save yet`, `Quick saves work in single player only`,
+[quick save](../patches/cof-quicksave.md) section 3) are sent as the game's own
+`ProFont` message and are translated at `TextImage::setText` like the DLL's
+pickup lines. Their rows carry `source_dll` = `engine` and `file_offset` = `-`
+and sit at the end of the file.
+
+* **Polish** - the pack's `dll-strings.tsv` is generated
+  (`scripts/polish/build_dll_strings_tsv.py`) and would drop a hand-added row,
+  so the stable source is `scripts/polish/string_overrides_polish.tsv`: its
+  rows with `source_dll` `engine` are not overrides but **extra rows** the
+  builder appends after the DLL rows (`Appended 5 engine rows` in its report);
+  `build_manifest.py` counts them apart ("216 rows ... plus 5 rows for text
+  the engine draws itself") and never lists them as retranslations. Add a
+  future engine string there, then `python scripts/polish/build_all.py --lang
+  polish --out .`.
+* **The six minimal packs** - a small hand-maintained `strings/dll-strings.tsv`
+  with the header and only those five rows (UTF-8; converted to code page
+  1252 at load like any row). The engine reads it the same way as the Polish
+  one; the "not found, DLL strings stay in English" warning is gone for them.
+
+All six translations and the Polish ones are machine-drafted (like the menu
+strings) and wait for review.
+
 Lookup is an exact hash match first, then the entries with printf conversions
 (`%s %i %d %u %f %c %x`, with width/precision): the literal pieces must appear
 in order with the first at the start and the last at the end, the text between
@@ -332,17 +358,19 @@ sets both:
 *minimal packs*: `manifest.txt` (display name in the language, `codepage=1252`,
 `subtitle_language=` 2 ... 7) and `strings/menu-strings.tsv`, plus (since m7)
 a `LICENSE-NOTE.md` putting them under the project's GPL-3.0-or-later, since
-they hold no game text; nothing else. So
+they hold no game text, and (since m9) a five-row `strings/dll-strings.tsv`
+with only the engine's quick save messages (section 3.5); nothing else. So
 *Deutsch* sets `cof_language german` and slot 4: the menu is German and the
 game reads its own `txtfiles/languages/german/` files (the engine finds no
 pack file for them and lets the open through - measured: `[cof-lang] open
 cryoffear/txtfiles/languages/german/subtitles.txt (not in the pack, English)`,
 the trace showing that very German file opened; the log's "English" means "not
 redirected"). For such a pack the engine mounts nothing (no `overlay/`), its
-DLL string table is empty (`Warning: cof_language:
+DLL string table was empty until m9 (`Warning: cof_language:
 languages/german/strings/dll-strings.tsv not found, DLL strings stay in
-English`), and the code page stays 1252 - measured in the `de`, `fr` and `tbl`
-runs. The special `(subtitles)` rows of round 1 are gone; the model keeps the
+English`; since m9 it holds the five quick save messages and nothing from the
+game DLLs), and the code page stays 1252 - measured in the `de`, `fr` and
+`tbl` runs. The special `(subtitles)` rows of round 1 are gone; the model keeps the
 six names only to show an old configuration (`cof_language ""` with slot 2..7,
 e.g. from the retired spinner) as its own row, like `not installed`, so opening
 the page never rewrites it.

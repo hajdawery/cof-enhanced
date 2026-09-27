@@ -30,13 +30,15 @@ languages/<code>/
   textures/<texname>.tga            repainted WORLD texture (BSP miptex of that name, any map)
   models/<model path>/<tex>.bmp     repainted texture EMBEDDED in a studio model
   overlay/cryoffear/**              interface images etc., same path as the game's file
-  strings/dll-strings.tsv           English -> translation of strings compiled into client.dll / hl.dll
+  strings/dll-strings.tsv           English -> translation of strings compiled into client.dll / hl.dll,
+                                    plus the engine's own quick save messages (rows with source_dll "engine")
   strings/menu-strings.tsv          English -> translation of this project's menu
 ```
 
 Every part is optional; what a pack lacks stays English. The smallest pack the
 menu lists is `manifest.txt` + `strings/menu-strings.tsv` (the six "minimal"
-packs for the game's own subtitle languages).
+packs for the game's own subtitle languages; since m9 they also carry a
+five-row `strings/dll-strings.tsv` with the quick save messages).
 
 ### manifest.txt
 
