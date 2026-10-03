@@ -532,4 +532,15 @@ internals: [cheats](../design/cheats.md).
 | 74 | [cof-pad-upgrade-settings](cof-pad-upgrade-settings.md) | Preserve existing gyro settings when upgrading. |
 | 75 | [cof-hud-boss-style](cof-hud-boss-style.md) | Boss health bars match the Remake player health style. |
 
-Cheats remain last (step 76).
+### Reported issue corrections and diagnostics
+
+| Step | Patch | Purpose |
+| --- | --- | --- |
+| 76 | [cof-hud-dual-protocol](cof-hud-dual-protocol.md) | Accept actual retail dual-wield packet lengths. |
+| 77 | [cof-hud-message-stack](cof-hud-message-stack.md) | Separate simultaneous message blocks. |
+| 78 | [cof-step-diagnostics](cof-step-diagnostics.md) | Trace movement and footstep requests. |
+| 79 | [cof-light-diagnostics](cof-light-diagnostics.md) | Inspect custom-light settings and entity data. |
+| 80 | [cof-entity-visibility-trace](cof-entity-visibility-trace.md) | Trace cutscene actor visibility. |
+| 81 | [cof-lantern-light-color](cof-lantern-light-color.md) | Preserve the color sentinel used for lantern light defaults. |
+
+Cheats remain last (step 82).

@@ -164,3 +164,53 @@ any of these conditions is wrong. The next useful evidence is the already
 prepared visibility trace from an allowed runtime, not an unconditional
 actor-hiding patch. No further launcher attempt or execution-policy workaround
 was made during this follow-up.
+
+## Allowed runtime follow-up and transition evidence
+
+After the user changed Windows application-control settings, the existing isolated
+fixture executed the combined candidate engine and VGUI successfully. All rounds
+were muted, windowed, bounded, and exited normally through `quit`; only fixture
+files were changed. SAVE contents were backed up/restored and hashes checked.
+
+* `stage1/cutscene-20261003/runtime-baseline-allowed.log`: fresh `c_apartment1`
+  initially has actor effects 0, but the game rejects its packet. By server time
+  1.312 it has `EF_NODRAW` (0x80) and remains rejected. Explicit map show/hide
+  controls work. Invoking the actual `multiscene1_1` manager shows the actor, then
+  its scheduled 15-second hide sets 0x80 and rejects it again.
+* `settled-visual/`: loading a save made while the actor was hidden preserves
+  0x80 and packet rejection. Three settled screenshots at a fixed office camera
+  show absent, present after the map's show control, absent after its hide control.
+  The present actor matches the report's model/location. This isolates correct
+  server-to-client hide behavior. Brush surfaces in this saved fixture appeared
+  white, so these captures are not a general scene-rendering validation. Earlier
+  `visual/` used an ineffective player selector, and `restore-visual/` did not
+  wait after asynchronous screenshot requests; neither is counted as a visual pass.
+* `normal-transition/`: started `c_start`, used its existing `1teleport` entity
+  with a fixture-only destination adjustment to put the player inside the actual
+  outgoing brush. Touch processing fired `CHANGE LEVEL: c_apartment1 stla`.
+  The destination had no saved HL1 state and spawned fresh. Imported player origin
+  was `-723 4 -343`, exactly the source position: both maps define `stla` at
+  `-767 6 -343`. Actor effects were initially 0 with packet rejection, then 0x80
+  by server time 1.609, remaining hidden through the bounded observation. The
+  source command buffer survived the transition and issued the planned quit;
+  the destination map-load script was not automatically executed on this smooth
+  transition. Exit code was zero.
+
+The normal route has a deliberate second teleport: `c_start` outgoing brush
+`*158` bounds `[-763,-43,-414]..[-682,51,-304]` exactly match destination
+`c_apartment1` `trigger_multiple *203`, which fires `teleportst`. Its destination
+is `[-812,-160,282]` (standing player Z +37), inside initial hide brush `*124`.
+This geometry and the actual transition result do not support a normal-entry
+landmark-offset or missed-hide-trigger fault. An unused-looking older `land2b`
+changelevel exists in c_start without a matching landmark and produces a warning
+while enumerating transitions; the tested active `stla` transition succeeds.
+
+The reporter holds a shotgun in the early Glock office. This is a clue for a
+later revisit, alternate arrival, modified inventory, or another game state;
+it does not identify one conclusively. Other incoming routes include c_apartment2
+(`land1`, `land2`, `land3`, `land4`, `ap2la`) and c_apartment5 (`land5`). Those
+landmarks do not themselves place the player in the initial hide volume. A hidden
+actor loaded from an ordinary save is verified above, but an actual adjacent-map
+revisit/restoration and the reporter's precise save/version are not yet verified.
+No unconditional model suppression or speculative gameplay patch is justified.
+Issue #1 remains open; the additive trace is a diagnostic, not a claimed fix.

@@ -33,3 +33,23 @@ Manual validation still needed: reproduce simultaneous phone/objective labels,
 including wrapped localized text, at 1080p/1200p/4K with varied HUD scale and
 backing on/off. Extreme target percentages or enough messages to exhaust the
 available screen height can still place text offscreen.
+
+## Runtime check, 2026-10-03
+
+The combined candidate ran normally in an isolated, muted 1920x1200 fixture
+at HUD scale 1.5. On `c_apartment1`, triggering the real `objectivee` entity
+produced `Objectives SIZE 32` and the "Help the person on the fourth floor."
+caption. A ProFont phone-caption probe and `+objectives` were exercised with
+backing off/on after the opening camera completed.
+
+The final screenshot shows both captions without overlap. However, this
+particular objective uses the **top hint label**, not the second bottom label
+seen in the report: VGUI traces place the objective at device y=23 and phone
+caption at y=937. Thus this is a real-render regression check for message
+visibility and preserved hints, **not acceptance of the exact reported
+bottom/bottom collision**. The compiled geometry regression covers that
+branch; reproducing its original gameplay trigger remains outstanding.
+
+Local evidence: `stage1/issues-hud-runtime-20261003/hud-revised/`, especially
+`hud2-06-phone-objective-backing.png`, `hud-revised.log` and `RESULTS.json`.
+No player runtime files were changed.

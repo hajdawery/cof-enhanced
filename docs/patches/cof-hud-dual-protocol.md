@@ -26,6 +26,19 @@ clear-state, malformed/truncated, unsupported-ID, reset and opt-out fixtures.
 This corrects the earlier synthetic fixture's unconditional trailing short.
 The additive patch passed apply/reverse checks. No retail DLL is patched.
 
-Remaining visual validation: equip pistol + phone/light and two guns; reload,
-switch back to one weapon, save/load and switch Classic/Remake at 1200p and 4K.
-The reported gameplay sequence was not reproduced in a live game in this change.
+## Runtime check, 2026-10-03
+
+The combined candidate was run in an isolated, muted 1920x1200 fixture at HUD
+scale 1.5. Giving the phone and Glock and running retail `inventorydualwield 1 2`
+produced actual `DualWield SIZE 36` and `DualAmmo SIZE 8` messages. The Remake
+capture shows separate `GLOCK SEMI` (15 loaded, one spare magazine) and `PHONE`
+rows; switching to Classic restores the original magazine display.
+
+Local evidence is under `stage1/issues-hud-runtime-20261003/hud-revised/`:
+`verified-remake-dual.png`, `verified-classic-dual.png`, `hud-revised.log` and
+`RESULTS.json`. The descriptive image copies preserve original screenshot
+bytes. Original filenames 02/03 had inverted style labels because capture is
+deferred and the cfg changed style immediately afterward. The fixture process
+exited normally; the player's runtime was not changed.
+
+Remaining visual validation: two guns, gun + light, reloads, save/load and 4K.

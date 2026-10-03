@@ -1,0 +1,80 @@
+diff --git a/engine/client/cl_frame.c b/engine/client/cl_frame.c
+--- a/engine/client/cl_frame.c
++++ b/engine/client/cl_frame.c
+@@ -22,6 +22,14 @@
+ #include "studio.h"
+ #include "sound.h"
+ #include "input.h"
++
++// A black rendercolor is data, not tint, for the retail lantern effect.
++// Whitening it selects the custom-radius branch instead of the default light.
++static qboolean CL_CoFPreserveLanternColor( const cl_entity_t *ent )
++{
++	return cof_lantern_light_fix.value && !Q_stricmp( GI->gamefolder, "cryoffear" ) &&
++		ent->curstate.renderfx == 245;
++}
+ 
+ // #define STUDIO_INTERPOLATION_FIX
+ 
+@@ -1227,7 +1235,7 @@
+ 			continue;
+ 		}
+ 
+-		if( ent->model->type != mod_brush )
++		if( ent->model->type != mod_brush && !CL_CoFPreserveLanternColor( ent ))
+ 		{
+ 			// NOTE: never pass sprites with rendercolor '0 0 0' it's a stupid Valve Hammer Editor bug
+ 			if( !ent->curstate.rendercolor.r && !ent->curstate.rendercolor.g && !ent->curstate.rendercolor.b )
+diff --git a/engine/client/cl_main.c b/engine/client/cl_main.c
+--- a/engine/client/cl_main.c
++++ b/engine/client/cl_main.c
+@@ -30,6 +30,7 @@
+ #define CL_TEST_RETRIES       5
+ 
+ CVAR_DEFINE_AUTO( showpause, "1", 0, "show pause logo when paused" );
++CVAR_DEFINE_AUTO( cof_lantern_light_fix, "1", FCVAR_ARCHIVE, "preserve Cry of Fear lantern light color sentinel" );
+ CVAR_DEFINE_AUTO( mp_decals, "300", FCVAR_ARCHIVE, "decals limit in multiplayer" );
+ static CVAR_DEFINE_AUTO( dev_overview, "0", 0, "draw level in overview-mode" );
+ static CVAR_DEFINE_AUTO( cl_resend, "6.0", 0, "time to resend connect" );
+@@ -6081,6 +6082,7 @@
+ 	Cvar_RegisterVariable( &cl_autorecord );
+ 
+ 	Cvar_RegisterVariable( &showpause );
++	Cvar_RegisterVariable( &cof_lantern_light_fix );
+ 	Cvar_RegisterVariable( &mp_decals );
+ 	Cvar_RegisterVariable( &dev_overview );
+ 	Cvar_RegisterVariable( &cl_resend );
+diff --git a/engine/client/client.h b/engine/client/client.h
+--- a/engine/client/client.h
++++ b/engine/client/client.h
+@@ -691,6 +691,7 @@
+ // cvars
+ //
+ extern convar_t	showpause;
++extern convar_t	cof_lantern_light_fix;
+ extern convar_t	mp_decals;
+ extern convar_t	cl_logomaxdim;
+ extern convar_t	cl_allow_download;
+diff --git a/engine/client/cl_tent.c b/engine/client/cl_tent.c
+--- a/engine/client/cl_tent.c
++++ b/engine/client/cl_tent.c
+@@ -201,7 +201,7 @@
+ 	static const char *const names[] = {
+ 		"gl_renderer", "gl_dynlight", "gl_dynlight_ent", "gl_twopassdyn",
+ 		"gl_noshaders", "gl_nocombs", "gl_clipplanes", "r_dynamic",
+-		"r_fullbright", "cof_custom_renderfx_opaque",
++		"r_fullbright", "cof_custom_renderfx_opaque", "cof_lantern_light_fix",
+ 		"cof_skip_client_normal_triangles", "cof_skip_client_transparent_triangles"
+ 	};
+ 	int count = 0;
+@@ -237,6 +237,10 @@
+ 			state->origin[0], state->origin[1], state->origin[2],
+ 			ent ? ent->origin[0] : 0, ent ? ent->origin[1] : 0, ent ? ent->origin[2] : 0,
+ 			ent ? ent->attachment[3][0] : 0, ent ? ent->attachment[3][1] : 0, ent ? ent->attachment[3][2] : 0 );
++		Con_Printf( "[cof-light] color ent=%d packet-rgb=(%d %d %d) packet-amt=%d linked-rgb=(%d %d %d) linked-amt=%d\n",
++			state->number, state->rendercolor.r, state->rendercolor.g, state->rendercolor.b, state->renderamt,
++			ent ? ent->curstate.rendercolor.r : -1, ent ? ent->curstate.rendercolor.g : -1,
++			ent ? ent->curstate.rendercolor.b : -1, ent ? ent->curstate.renderamt : -1 );
+ 		if( ++count == 64 ) { Con_Printf( "[cof-light] source output capped at 64\n" ); break; }
+ 	}
+ 	Con_Printf( "[cof-light] packet light sources shown=%d; private client lights and GL pass still require tracing\n", count );

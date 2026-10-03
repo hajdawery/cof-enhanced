@@ -63,8 +63,19 @@ sample decoding, mixer output or OBS capture success.
 `tests/cof-step-diagnostics/run.py` compiles the actual two sound callbacks and
 checks diagnostic levels 0/1/2, client prediction rejection, invalid server
 entities and unchanged forwarding of every sound argument. This passed on
-2026-10-03. The integrated x86 engine build also passed. Runtime game launch is currently blocked by Windows Application
-Control; no audible or focus-transition verification is claimed.
+2026-10-03. The integrated x86 engine build also passed. After the user changed
+Windows application policy, the candidate launched and exited normally.
+
+The `c_forest3` / `cofsave1` movement run produced client/server footstep
+requests in all four commanded phases: forward 8/8, backward 12/13, walking
+8/8, and crouching 13/15. Client requests had `runfuncs=1`, and concrete and
+grass samples appeared in the loaded sound list. The backend was SDL
+DirectSound. Evidence is in
+`stage1/issue3-footsteps-20261003/runtime-steps.log`, with extracted requests
+in `step-requests.json` and the exact sequence in `run.ps1`.
+This rules out missing client movement callbacks in that run; it does not
+reproduce the reported silence. The required muted launch cannot establish
+audibility, and no OBS focus transition was exercised. The issue remains open.
 
 Use an isolated fixture and compare ordinary walking, running and crouching on
 the same surface, keyboard and controller, with OBS closed/open. Record game

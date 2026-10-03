@@ -290,7 +290,8 @@ order that is known to apply.
 | 78 | `apply-cof-step-diagnostics` | `cof-step-diagnostics` | E | [walking sound investigation](../patches/cof-step-diagnostics.md); opt-in diagnostics, needs playermove adapters and callback-view |
 | 79 | `apply-cof-light-diagnostics` | `cof-light-diagnostics` | E | [custom-light investigation](../patches/cof-light-diagnostics.md); read-only diagnostic command |
 | 80 | `apply-cof-entity-visibility-trace` | `cof-entity-visibility-trace` | E | [cutscene actor investigation](../patches/cof-entity-visibility-trace.md); opt-in diagnostics |
-| 81 | `apply-cof-cheats` | `cof-cheats` | E | [cheats internals](../design/cheats.md); **always last**, needs steps 2 and 4 |
+| 81 | `apply-cof-lantern-light-color` | `cof-lantern-light-color` | E | [lantern light color sentinel](../patches/cof-lantern-light-color.md); preserve the retail light defaults, needs 79 |
+| 82 | `apply-cof-cheats` | `cof-cheats` | E | [cheats internals](../design/cheats.md); **always last**, needs steps 2 and 4 |
 
 ## After applying
 

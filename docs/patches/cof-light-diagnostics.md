@@ -12,7 +12,7 @@ command with temporary-entity initialization and removes it on teardown.
 checked against the public test3 integration source on 2026-10-03. Compilation
 and live command execution are separate checks; source roundtrip alone does
 not establish either. The full integrated x86 engine build subsequently passed;
-live command execution remains unverified because of the launch restriction.
+live command execution passed in the later runtime follow-up below.
 
 ## What the report establishes
 
@@ -143,3 +143,30 @@ count is nonzero, or the single-pass path is active, this particular gate does
 not explain the report. If the gate does fire, fixing world depth or light
 lifetimes would still be the wrong intervention. No further launch attempts
 or behavior changes were made during this follow-up.
+
+## Runtime follow-up, 2026-10-03
+
+After the launch restriction was removed, two isolated candidate runs exited
+normally. The combined candidate loaded `cofsave1` on `c_forest3`. The selected
+NVIDIA framebuffer reports color 24, alpha 8, depth 24, stencil 8; the retail
+client independently reports alpha 8 and four texture units, with its 3D
+attenuation texture allocated. The missing-alpha gate does not explain this
+local scene.
+
+Read-only snapshots of the owned fixture process, guarded by the retail
+client SHA-256, found a refreshed held-light record keyed 1, radius 225 then
+218, RGB `(0.4, 0.4, 0.4)`. The visible packet source keyed 153 was instead
+`models/weapons/lantern/w_lantern.mdl`, renderfx 245, at `(-613,392,8)`;
+its private light had radius 3 and origin Z 14. Engine dlights remained empty.
+This confirms private allocation and separates the held light from the world
+pickup; it does not establish that either matches the reporter's lantern.
+
+Baseline, engine-light-disabled, client-light-disabled, and forced two-pass
+captures were saved under `stage1/issue4-lighting-20261003/fixture/root/cryoffear`.
+The camera changed between frames, so these captures are not a controlled
+pixel comparison or proof that the world illumination is correct. Evidence
+includes module hashes, launch arguments, both logs, and private-pool JSON.
+These initial observations alone did not justify a behavior patch. The later
+placed/dropped comparison identified the color-sentinel mutation and verified
+the fix described in [lantern light color](cof-lantern-light-color.md). The
+additive fix extends this command with raw packet and linked RGB/amount fields.
