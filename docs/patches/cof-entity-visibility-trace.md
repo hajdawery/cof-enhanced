@@ -214,3 +214,25 @@ actor loaded from an ordinary save is verified above, but an actual adjacent-map
 revisit/restoration and the reporter's precise save/version are not yet verified.
 No unconditional model suppression or speculative gameplay patch is justified.
 Issue #1 remains open; the additive trace is a diagnostic, not a claimed fix.
+
+### Adjacent-map return check
+
+`stage1/cutscene-20261003/adjacent-return/` now covers the distinct restoration
+hypothesis. Starting in fresh c_apartment1, the map hid the actor normally.
+Fixture-only teleport destination edits placed the player in the actual outgoing
+`ap2la` brush, then in c_apartment2's actual return brush. Both game-DLL changelevel
+triggers fired. The return explicitly loaded `save/c_apartment1.HL1`; it did not
+fresh-spawn the actor or revisit the initial hide trigger. The player arrived at
+`35 -147 318`, outside the initial hide volume. The restored actor changed edict
+645 to 634 and retained `effects=0x80`, `accepted=0` throughout observation,
+including the fixed office camera. The settled office screenshot shows no Simon
+actor (the ceiling arm remains, as intended). White brush surfaces remain the
+previously noted separate limitation. Exit code was zero; fixture SAVE contents
+were restored from backup and hash-checked. This excludes ordinary adjacent-map
+return restoration for a previously hidden actor on the candidate build. It does
+not reproduce the reporter's unspecified save or explain the screenshot. No
+causal engine fault or gameplay fix is established.
+
+The user also could not reproduce the actor bug and reported creating a
+reference save named 'cutscene bug ch2'. Further investigation is paused
+until a failing save or exact reproduction is available.

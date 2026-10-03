@@ -85,3 +85,13 @@ state; client requests reaching playback point toward sound loading/mixing.
 For cursor loss, distinguish the OS pointer over a panel from the gameplay
 crosshair and from the cursor captured by OBS. Capture focus/grab logs for
 each transition before choosing a behavior change.
+
+## User verification
+
+On 2026-10-03 the user reported testing footsteps themselves and confirmed
+they work. Stop treating footsteps as a reproduced defect. The user's game
+version, map and input device were not specified. Cursor behavior is a separate
+claim and still awaits clarification. No footstep behavior patch was needed.
+
+The user subsequently confirmed everything works for them and asked to leave
+the remaining report open while waiting for more data. Investigation is paused.
