@@ -1,0 +1,68 @@
+diff --git a/engine/client/cl_tent.c b/engine/client/cl_tent.c
+--- a/engine/client/cl_tent.c
++++ b/engine/client/cl_tent.c
+@@ -195,8 +195,56 @@
+ 
+ ================
+ */
++// Explicit, read-only snapshot; never changes a light, cvar, entity or GL state.
++static void CL_CoFLightStatus_f( void )
++{
++	static const char *const names[] = {
++		"gl_renderer", "gl_dynlight", "gl_dynlight_ent", "gl_twopassdyn",
++		"gl_noshaders", "gl_nocombs", "gl_clipplanes", "r_dynamic",
++		"r_fullbright", "cof_custom_renderfx_opaque",
++		"cof_skip_client_normal_triangles", "cof_skip_client_transparent_triangles"
++	};
++	int count = 0;
++	Con_Printf( "[cof-light] time=%.3f state=%d (engine light pool is not the retail client's private light pool)\n", cl.time, cls.state );
++	for( int i = 0; i < ARRAYSIZE( names ); i++ )
++	{
++		convar_t *var = Cvar_FindVar( names[i] );
++		Con_Printf( "[cof-light] %s=%s\n", names[i], var ? var->string : "<unregistered>" );
++	}
++	for( int i = 0; i < MAX_DLIGHTS; i++ )
++	{
++		const dlight_t *dl = CL_GetDynamicLight( i );
++		if( dl->radius <= 0 || dl->die < cl.time ) continue;
++		Con_Printf( "[cof-light] engine slot=%d key=%d origin=(%.1f %.1f %.1f) radius=%.1f rgb=(%d %d %d) remaining=%.3f\n",
++			i, dl->key, dl->origin[0], dl->origin[1], dl->origin[2], dl->radius,
++			dl->color.r, dl->color.g, dl->color.b, dl->die - cl.time );
++		count++;
++	}
++	Con_Printf( "[cof-light] active engine lights=%d\n", count );
++	if( cls.state != ca_active || !cls.packet_entities || cls.num_client_entities <= 0 || !cl.frames[cl.parsecountmod].valid ) return;
++	frame_t *frame = &cl.frames[cl.parsecountmod];
++	count = 0;
++	for( int i = 0; i < frame->num_entities; i++ )
++	{
++		const entity_state_t *state = &cls.packet_entities[(frame->first_entity + i) % cls.num_client_entities];
++		cl_entity_t *ent;
++		if( state->renderfx != 68 && state->renderfx != 71 && state->renderfx != 72 &&
++			state->renderfx != 73 && state->renderfx != 165 && state->renderfx != 184 && state->renderfx != 245 ) continue;
++		ent = CL_GetEntityByIndex( state->number );
++		Con_Printf( "[cof-light] source ent=%d fx=%d mode=%d effects=%x modelindex=%d model=%s packet=(%.1f %.1f %.1f) linked=(%.1f %.1f %.1f) attach3=(%.1f %.1f %.1f)\n",
++			state->number, state->renderfx, state->rendermode, state->effects, state->modelindex,
++			ent && ent->model ? ent->model->name : "<none>",
++			state->origin[0], state->origin[1], state->origin[2],
++			ent ? ent->origin[0] : 0, ent ? ent->origin[1] : 0, ent ? ent->origin[2] : 0,
++			ent ? ent->attachment[3][0] : 0, ent ? ent->attachment[3][1] : 0, ent ? ent->attachment[3][2] : 0 );
++		if( ++count == 64 ) { Con_Printf( "[cof-light] source output capped at 64\n" ); break; }
++	}
++	Con_Printf( "[cof-light] packet light sources shown=%d; private client lights and GL pass still require tracing\n", count );
++}
++
+ void CL_InitTempEnts( void )
+ {
++	Cmd_AddCommand( "cof_light_status", CL_CoFLightStatus_f, "read-only Cry of Fear light source and renderer diagnostics" );
+ 	cl_tempents = Mem_Calloc( cls.mempool, sizeof( TEMPENTITY ) * GI->max_tents );
+ 	CL_ClearTempEnts();
+ 
+@@ -212,6 +260,7 @@
+ */
+ void CL_FreeTempEnts( void )
+ {
++	Cmd_RemoveCommand( "cof_light_status" );
+ 	if( cl_tempents )
+ 		Mem_Free( cl_tempents );
+ 	cl_tempents = NULL;

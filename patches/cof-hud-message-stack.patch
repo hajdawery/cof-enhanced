@@ -1,0 +1,80 @@
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/surface.cpp
+@@ -22,7 +22,7 @@
+ 	currentFont( nullptr ), currentFontCache( nullptr ),
+ 	sawCaret( false ), colorIndex( DEFAULT_COLOR ), paintStackPos( 0 ),
+ 	backingGlyphCount( 0 ), backingLineCount( 0 ), backingAlpha( 0 ), textMessageStyle( false ),
+-	textYTarget( -1 ), textTrace( 0 ), textRole( "" )
++	textYTarget( -1 ), textTrace( 0 ), textRole( "" ), messageStackTop( 0 ), messageStackUsed( false )
+ {
+ 	// don't forget alpha is inverted in VGUI... 255 means fully transparent
+ 	for( int i = 0; i < 4; i++ )
+@@ -735,12 +735,39 @@
+ 	return deviceY < screenTall * MSG_BAND_LOW_PCT / 100;
+ }
+ 
++void XashSurface::beginMessageFrame( void )
++{
++	messageStackTop = 0;
++	messageStackUsed = false;
++}
++
+ int XashSurface::applyTextYTarget( void )
+ {
+ 	if( !runIsMessage( ))
+ 		return 0;
+ 
++	// Each label flushes separately. Moving every run to the same target made
++	// simultaneous phone/objective captions overwrite one another (issue #2).
++	// Reserve the entire visible run, including backing padding, for this paint.
++	// Later labels stack above it; a wrapped label keeps its internal spacing.
++	bool visible = false;
++	for( int i = 0; i < backingGlyphCount; i++ )
++		visible = visible || backingGlyphs[i].color[3] < 255;
++	if( !visible ) return 0;
++
++	int top = backingLines[0].y, bottom = top;
++	for( int i = 0; i < backingLineCount; i++ )
++	{
++		const BackingLine &line = backingLines[i];
++		int pad = Q_max( 1, line.tall / 6 );
++		top = Q_min( top, line.y - pad );
++		bottom = Q_max( bottom, line.y + line.tall + pad );
++	}
+ 	int delta = CofUI_ToLayoutY( textYTarget ) - backingLines[0].y;
++	if( messageStackUsed && bottom + delta >= messageStackTop )
++		delta = messageStackTop - Q_max( 1, backingLines[0].tall / 6 ) - bottom;
++	messageStackTop = top + delta;
++	messageStackUsed = true;
+ 
+ 	if( delta == 0 )
+ 		return 0;
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/support.h
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/support.h
+@@ -116,6 +116,7 @@
+ 	// because the paint pass also has to close out anything drawn outside a
+ 	// push/pop pair, such as the cof_font_probe developer string.
+ 	void flushBackingText( void );
++	void beginMessageFrame( void ); // reset independent-caption reservations per paint
+ 
+ protected:
+ 	virtual void drawSetColor( int r, int g, int b, int a ) override;
+@@ -264,6 +265,8 @@
+ 	int          textYTarget;
+ 	int          textTrace;
+ 	const char  *textRole;
++	int          messageStackTop;
++	bool         messageStackUsed;
+ 
+ 	bool deferBackingGlyph( int ch, int x, int y, int w, int tall, const int *color );
+ 	// returns how far the run was moved, so flushBackingText() can move the
+--- a/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp
++++ b/3rdparty/freevgui/platform/xash3d-fwgs/app.cpp
+@@ -96,6 +96,7 @@
+ 	CofBackdrop_Frame( panel );
+ 
+ 	panel->setBounds( 0, 0, width, height );
++	g_surface->beginMessageFrame();
+ 	panel->repaint();
+ 	panel->paintTraverse();
+ 

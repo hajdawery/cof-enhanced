@@ -1,0 +1,100 @@
+diff --git a/engine/client/dll_int/cl_pmove.c b/engine/client/dll_int/cl_pmove.c
+--- a/engine/client/dll_int/cl_pmove.c
++++ b/engine/client/dll_int/cl_pmove.c
+@@ -20,6 +20,8 @@
+ #include "pm_local.h"
+ #include "studio.h"
+ #include <stddef.h>
++
++static CVAR_DEFINE_AUTO( cof_step_trace_cl, "0", 0, "CoF movement sound diagnostic: log callback requests; 2 also logs movement state twice per second" );
+ 
+ #define MAX_FORWARD			6	// forward probes for set idealpitch
+ #define MIN_CORRECTION_DISTANCE	0.25f	// use smoothing if error is > this
+@@ -761,6 +763,10 @@
+ 
+ static void GAME_EXPORT pfnPlaySound( int channel, const char *sample, float volume, float attenuation, int fFlags, int pitch )
+ {
++	if( cof_step_trace_cl.value )
++		Con_Printf( "COF_STEP_CL sample=%s channel=%d volume=%.3f attenuation=%.3f flags=%d pitch=%d runfuncs=%d player=%d\n",
++			sample ? sample : "<null>", channel, volume, attenuation, fFlags, pitch,
++			clgame.pmove->runfuncs, clgame.pmove->player_index );
+ 	if( !clgame.pmove->runfuncs )
+ 		return;
+ 
+@@ -798,6 +804,7 @@
+ */
+ void CL_InitClientMove( void )
+ {
++	Cvar_RegisterVariable( &cof_step_trace_cl );
+ 	Pmove_Init ();
+ 	cof_client_pmove_legacy_enabled = (Sys_CheckParm( "-cof-pmove-legacy" ) != 0);
+ 	if( cof_client_pmove_legacy_enabled )
+@@ -1036,6 +1043,18 @@
+ 			clgame.dllFuncs.pfnPlayerMove( CL_CoF_LegacyPMove(), false );
+ 			cof_client_pmove_legacy_active = NULL;
+ 			CL_CoF_CopyFromLegacyPMove();
++			if( cof_step_trace_cl.value >= 2 )
++			{
++				static double last;
++				if( host.realtime < last || host.realtime - last >= 0.5 )
++				{
++					playermove_t *pm = clgame.pmove;
++					last = host.realtime;
++					Con_Printf( "COF_MOVE_CL runfuncs=%d ground=%d flags=%x timer=%d fuser3=%.3f speed=%.3f water=%d buttons=%x texture=%s physinfo=%s\n",
++						pm->runfuncs, pm->onground, pm->flags, pm->flTimeStepSound, pm->fuser3,
++						VectorLength( pm->velocity ), pm->waterlevel, pm->cmd.buttons, pm->sztexturename, pm->physinfo );
++				}
++			}
+ 		}
+ 		else
+ 		{
+diff --git a/engine/server/sv_pmove.c b/engine/server/sv_pmove.c
+--- a/engine/server/sv_pmove.c
++++ b/engine/server/sv_pmove.c
+@@ -21,6 +21,8 @@
+ #include "event_flags.h"
+ #include "studio.h"
+ #include <stddef.h>
++
++static CVAR_DEFINE_AUTO( cof_step_trace_sv, "0", 0, "CoF movement sound diagnostic: log callback requests; 2 also logs movement state twice per second" );
+ 
+ static qboolean has_update = false;
+ static void SV_GetTrueOrigin( sv_client_t *cl, int edictnum, vec3_t origin );
+@@ -484,6 +486,10 @@
+ static void GAME_EXPORT pfnPlaySound( int channel, const char *sample, float volume, float attenuation, int fFlags, int pitch )
+ {
+ 	edict_t	*ent;
++	if( cof_step_trace_sv.value )
++		Con_Printf( "COF_STEP_SV sample=%s channel=%d volume=%.3f attenuation=%.3f flags=%d pitch=%d runfuncs=%d player=%d\n",
++			sample ? sample : "<null>", channel, volume, attenuation, fFlags, pitch,
++			svgame.pmove->runfuncs, svgame.pmove->player_index );
+ 
+ 	ent = SV_EdictNum( svgame.pmove->player_index + 1 );
+ 	if( !SV_IsValidEdict( ent )) return;
+@@ -539,6 +545,7 @@
+ */
+ void SV_InitClientMove( void )
+ {
++	Cvar_RegisterVariable( &cof_step_trace_sv );
+ 	Pmove_Init ();
+ 	cof_pmove_legacy_enabled = (Sys_CheckParm( "-cof-pmove-legacy" ) != 0);
+ 	if( cof_pmove_legacy_enabled )
+@@ -1087,6 +1094,18 @@
+ 		svgame.dllFuncs.pfnPM_Move( SV_CoF_LegacyPMove(), true );
+ 		cof_pmove_legacy_active = NULL;
+ 		SV_CoF_CopyFromLegacyPMove();
++		if( cof_step_trace_sv.value >= 2 )
++		{
++			static double last;
++			if( host.realtime < last || host.realtime - last >= 0.5 )
++			{
++				playermove_t *pm = svgame.pmove;
++				last = host.realtime;
++				Con_Printf( "COF_MOVE_SV runfuncs=%d ground=%d flags=%x timer=%d fuser3=%.3f speed=%.3f water=%d buttons=%x texture=%s physinfo=%s\n",
++					pm->runfuncs, pm->onground, pm->flags, pm->flTimeStepSound, pm->fuser3,
++					VectorLength( pm->velocity ), pm->waterlevel, pm->cmd.buttons, pm->sztexturename, pm->physinfo );
++			}
++		}
+ 	}
+ 	else
+ 	{

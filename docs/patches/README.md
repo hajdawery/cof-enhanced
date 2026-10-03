@@ -15,6 +15,19 @@ off live with its cvar, which then reproduces the stock path in the same binary.
 
 ## Summary table
 
+The October issue round adds two HUD fixes and three diagnostic tools:
+
+| Step | Patch | Purpose |
+| ---: | --- | --- |
+| 76 | [cof-hud-dual-protocol](cof-hud-dual-protocol.md) | Accept measured retail dual-wield packets; default on, opt-out available. |
+| 77 | [cof-hud-message-stack](cof-hud-message-stack.md) | Keep independently painted messages from sharing one baseline. |
+| 78 | [cof-step-diagnostics](cof-step-diagnostics.md) | Default-off movement sound logging; issue 3 remains unresolved. |
+| 79 | [cof-light-diagnostics](cof-light-diagnostics.md) | Explicit light-source snapshot; issue 4 remains unresolved. |
+| 80 | [cof-entity-visibility-trace](cof-entity-visibility-trace.md) | Default-off actor visibility logging; issue 1 remains unresolved. |
+
+Cheats now follows these at step 81. The historical table below predates this
+round; use the authoritative stack for application order.
+
 | # | Patch | Target | Adds (cvars / commands) | Page |
 | ---: | --- | --- | --- | --- |
 | 0 | `cof-pmove-legacy` | E | `-cof-pmove-legacy` command-line switch | [pmove adapter](pmove-adapter.md) |

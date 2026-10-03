@@ -1,0 +1,62 @@
+--- a/engine/server/sv_main.c
++++ b/engine/server/sv_main.c
+@@ -1022,6 +1022,7 @@
+ 	Cvar_RegisterVariable( &sv_voice_singleplayer );
+ 	Cvar_RegisterVariable( &sv_trace_messages );
+ 	Cvar_RegisterVariable( &sv_enttools_enable );
++	Cvar_Get( "cof_entity_visibility_trace", "", 0, "trace server and packet visibility for an exact targetname (empty disables)" );
+ 	Cvar_RegisterVariable( &sv_enttools_maxfire );
+ 
+ 	Cvar_RegisterVariable( &sv_speedhack_kick );
+--- a/engine/server/sv_frame.c
++++ b/engine/server/sv_frame.c
+@@ -59,6 +59,14 @@
+ 	byte		*clientphs = NULL;
+ 	qboolean		fullvis = false;
+ 	sv_client_t	*cl = NULL;
++	/* Opt-in issue diagnostics. Never change the game DLL's visibility decision. */
++	static double cof_visibility_next_log;
++	const char *cof_visibility_target = Cvar_VariableString( "cof_entity_visibility_trace" );
++	qboolean cof_visibility_log = from_client && cof_visibility_target && cof_visibility_target[0] &&
++		( host.realtime >= cof_visibility_next_log || host.realtime + 1.0 < cof_visibility_next_log );
++
++	if( cof_visibility_log ) cof_visibility_next_log = host.realtime + 1.0;
++
+ 
+ 	// during an error shutdown message we may need to transmit
+ 	// the shutdown message after the server has shutdown, so
+@@ -118,8 +126,21 @@
+ 
+ 		state = &ents->entities[ents->num_entities];
+ 
+-		// add entity to the net packet
+-		if( svgame.dllFuncs.pfnAddToFullPack( state, e, ent, pClient, sv.hostflags, player, pset ))
++		// add entity to the net packet; call the DLL exactly once
++		int accepted = svgame.dllFuncs.pfnAddToFullPack( state, e, ent, pClient, sv.hostflags, player, pset );
++		if( cof_visibility_log && !ent->free && ent->v.targetname &&
++			!Q_strcmp( SV_GetString( ent->v.targetname ), cof_visibility_target ))
++		{
++			Con_Printf( "[cof-entity-visibility] time=%.3f client=%d ent=%d class=%s target=%s model=%s effects=0x%x flags=0x%x modelindex=%d sequence=%d frame=%.3f accepted=%d\n",
++				sv.time, NUM_FOR_EDICT( pClient ), e, SV_GetString( ent->v.classname ),
++				cof_visibility_target, SV_GetString( ent->v.model ), ent->v.effects, ent->v.flags,
++				ent->v.modelindex, ent->v.sequence, ent->v.frame, accepted );
++			// A rejected callback does not have to initialize the packet state.
++			if( accepted )
++				Con_Printf( "[cof-entity-packet] ent=%d effects=0x%x modelindex=%d sequence=%d frame=%.3f\n",
++					e, state->effects, state->modelindex, state->sequence, state->frame );
++		}
++		if( accepted )
+ 		{
+ 			// to prevent adds it twice through portals
+ 			SETVISBIT( ents->sended, e );
+--- a/engine/server/sv_client.c
++++ b/engine/server/sv_client.c
+@@ -2547,6 +2547,8 @@
+ 
+ 	SV_ClientPrintf( cl, "flags: 0x%x\n", ent->v.flags );
+ 	SV_ClientPrintf( cl, "spawnflags: 0x%x\n", ent->v.spawnflags );
++	SV_ClientPrintf( cl, "effects: 0x%x (EF_NODRAW=%d), modelindex: %d, sequence: %d, frame: %.3f\n",
++		ent->v.effects, !!FBitSet( ent->v.effects, EF_NODRAW ), ent->v.modelindex, ent->v.sequence, ent->v.frame );
+ 	return true;
+ }
+ 

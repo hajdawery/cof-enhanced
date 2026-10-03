@@ -9,8 +9,8 @@ The order below is the order the stack verifiers in `stage1/` apply
 (`stage1/m7-integration-20260923/stackverify-m7.py` reads it from this page;
 before it `stage1/lang3-20260922/stackverify-lang3.ps1` and the per-round
 ones), and it matches the
-order the old README gave, group by group. It covers all 77 patches in
-`patches/` and all 77 `scripts/apply-*.ps1` scripts.
+order the old README gave, group by group. The issue investigation round adds
+two HUD corrections and three opt-in diagnostic patches before cheats.
 
 > **Verification status (m7, 2026-09-23).** The complete list below, steps
 > 1-48 in this order, was applied in one run to a fresh `pristine-clean` copy
@@ -285,7 +285,12 @@ order that is known to apply.
 | 73 | `apply-cof-hud-ammo-compact` | `cof-hud-ammo-compact` | E | [compact boxed ammunition](../patches/cof-hud-ammo-compact.md); needs 67 |
 | 74 | `apply-cof-pad-upgrade-settings` | `cof-pad-upgrade-settings` | E | [upgrade settings](../patches/cof-pad-upgrade-settings.md); preserve existing gyro preferences; needs 59 |
 | 75 | `apply-cof-hud-boss-style` | `cof-hud-boss-style` | E | [Remake boss health](../patches/cof-hud-boss-style.md); match player health colors and bar style; needs 66 |
-| 76 | `apply-cof-cheats` | `cof-cheats` | E | [cheats internals](../design/cheats.md); **always last**, needs steps 2 and 4 |
+| 76 | `apply-cof-hud-dual-protocol` | `cof-hud-dual-protocol` | E | [retail dual-wield packets](../patches/cof-hud-dual-protocol.md); needs 67, 73 |
+| 77 | `apply-cof-hud-message-stack` | `cof-hud-message-stack` | V | [simultaneous message placement](../patches/cof-hud-message-stack.md); needs 63 |
+| 78 | `apply-cof-step-diagnostics` | `cof-step-diagnostics` | E | [walking sound investigation](../patches/cof-step-diagnostics.md); opt-in diagnostics, needs playermove adapters and callback-view |
+| 79 | `apply-cof-light-diagnostics` | `cof-light-diagnostics` | E | [custom-light investigation](../patches/cof-light-diagnostics.md); read-only diagnostic command |
+| 80 | `apply-cof-entity-visibility-trace` | `cof-entity-visibility-trace` | E | [cutscene actor investigation](../patches/cof-entity-visibility-trace.md); opt-in diagnostics |
+| 81 | `apply-cof-cheats` | `cof-cheats` | E | [cheats internals](../design/cheats.md); **always last**, needs steps 2 and 4 |
 
 ## After applying
 

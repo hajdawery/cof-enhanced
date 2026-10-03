@@ -1,0 +1,31 @@
+--- a/engine/client/cof_hud_remake.c
++++ b/engine/client/cof_hud_remake.c
+@@ -7,6 +7,8 @@
+ static CVAR_DEFINE_AUTO( cof_hud_style, "0", FCVAR_ARCHIVE, "Cry of Fear HUD: 0 Classic, 1 Remake (health, stamina and supported ammunition)" );
+ 
+ static CVAR_DEFINE_AUTO( cof_hud_ammo_compact, "1", FCVAR_ARCHIVE, "Remake ammo: compact outlined boxes (0 restores previous unboxed layout)" );
++
++static CVAR_DEFINE_AUTO( cof_hud_dual_protocol, "1", FCVAR_ARCHIVE, "Remake HUD: accept retail active DualWield packets without the clear-state short (0 restores strict legacy decoder)" );
+ 
+ enum { HUD_HEALTH = 1, HUD_STAMINA = 2, HUD_WEAPONS = 28 };
+ typedef struct { int texture; float u1,v1,u2,v2,aspect; const char *path; double retry; } cof_hud_icon_t;
+@@ -120,6 +122,7 @@
+ {
+  Cvar_RegisterVariable( &cof_hud_style );
+  Cvar_RegisterVariable( &cof_hud_ammo_compact );
++ Cvar_RegisterVariable( &cof_hud_dual_protocol );
+  for( int i=0; i<HUD_WEAPONS; i++ ) hud_weapons[i].ammo_type=-1;
+  CL_CoF_HudRemakeReset();
+ }
+@@ -174,7 +177,10 @@
+  else if( !Q_stricmp(name,"DualWield") )
+  {
+   const byte *end=memchr(data,0,size);
+-  if(end && data+size-end==6)
++  // Retail sends model + three bytes while active; only the clear-model
++  // packet appends a short. The client reads that optional short regardless.
++  // Do not copy its overread or reject every valid active packet.
++  if(end && (data+size-end==6 || (cof_hud_dual_protocol.value && data+size-end==4)))
+   {
+    int first=end[2], second=end[3];
+    hud.dual_id[0]=first>0 && first<HUD_WEAPONS && first!=15?first:0;
